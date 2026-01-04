@@ -44,7 +44,7 @@ const auth = getAuth(app);
 const storage = getStorage(app);
 
 export const db = {
-  // --- LẤY TIN VIP (DÀNH CHO SLIDER TRANG CHỦ) ---
+  // --- LẤY TIN VIP ---
   getVIPListings: async (max = 10) => {
     try {
       const q = query(
@@ -60,12 +60,11 @@ export const db = {
         error: null
       };
     } catch (e: any) {
-      // Trả về toàn bộ message lỗi để UI trích xuất link Index
       return { listings: [], error: e.toString() };
     }
   },
 
-  // --- PAGINATED LISTINGS (HÀM TRỌNG TÂM) ---
+  // --- PAGINATED LISTINGS ---
   getListingsPaged: async (options: {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
@@ -114,12 +113,7 @@ export const db = {
         error: null
       };
     } catch (e: any) {
-      return {
-        listings: [],
-        lastDoc: null,
-        hasMore: false,
-        error: e.toString()
-      };
+      return { listings: [], lastDoc: null, hasMore: false, error: e.toString() };
     }
   },
 
@@ -130,20 +124,14 @@ export const db = {
       where("targetId", "==", targetId),
       where("targetType", "==", targetType)
     );
-    
     return onSnapshot(q, (snapshot) => {
       const reviews = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Review));
-      const sorted = reviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      callback(sorted);
+      callback(reviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     });
   },
 
   addReview: async (reviewData: Omit<Review, 'id' | 'createdAt'>) => {
-    const newReview = {
-      ...reviewData,
-      createdAt: new Date().toISOString()
-    };
-    const res = await addDoc(collection(firestore, "reviews"), newReview);
+    const res = await addDoc(collection(firestore, "reviews"), { ...reviewData, createdAt: new Date().toISOString() });
     return res.id;
   },
 
@@ -152,37 +140,29 @@ export const db = {
     const q = query(collection(firestore, "notifications"), where("userId", "==", userId));
     return onSnapshot(q, (snapshot) => {
       const notifs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Notification));
-      const sorted = notifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      callback(sorted);
+      callback(notifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     });
   },
 
   markNotificationAsRead: async (notifId: string) => {
-    try {
-      await updateDoc(doc(firestore, "notifications", notifId), { read: true });
-    } catch (e) { console.error(e); }
+    await updateDoc(doc(firestore, "notifications", notifId), { read: true });
   },
 
   sendNotification: async (notif: Omit<Notification, 'id' | 'read' | 'createdAt'>) => {
-    try {
-      await addDoc(collection(firestore, "notifications"), {
-        ...notif,
-        read: false,
-        createdAt: new Date().toISOString()
-      });
-    } catch (e) { console.error("❌ Send Notification Error:", e); }
+    await addDoc(collection(firestore, "notifications"), { ...notif, read: false, createdAt: new Date().toISOString() });
   },
 
   // --- AUTH & USER ---
   getCurrentUser: (): Promise<User | null> => {
     return new Promise((resolve) => {
       const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-        unsubscribe();
         if (fbUser) {
           const userDoc = await getDoc(doc(firestore, "users", fbUser.uid));
-          if (userDoc.exists()) resolve(userDoc.data() as User);
-          else resolve(null);
-        } else resolve(null);
+          resolve(userDoc.exists() ? (userDoc.data() as User) : null);
+        } else {
+          resolve(null);
+        }
+        unsubscribe();
       });
     });
   },
@@ -231,21 +211,18 @@ export const db = {
 
   logout: async () => await signOut(auth),
 
-  // --- LISTINGS (ADMIN / LEGACY) ---
+  // --- LISTINGS ---
   getListings: async (includeHidden = false): Promise<Listing[]> => {
     const colRef = collection(firestore, "listings");
-    let q;
-    if (includeHidden) q = query(colRef, orderBy("createdAt", "desc"));
-    else q = query(colRef, where("status", "==", "approved"), orderBy("createdAt", "desc"));
+    let q = includeHidden 
+      ? query(colRef, orderBy("createdAt", "desc"))
+      : query(colRef, where("status", "==", "approved"), orderBy("createdAt", "desc"));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
   },
 
   saveListing: async (listing: Omit<Listing, 'id' | 'createdAt'>) => {
-    const docRef = await addDoc(collection(firestore, "listings"), {
-      ...listing,
-      createdAt: new Date().toISOString()
-    });
+    const docRef = await addDoc(collection(firestore, "listings"), { ...listing, createdAt: new Date().toISOString() });
     return docRef.id;
   },
 
@@ -263,8 +240,7 @@ export const db = {
 
   getSettings: async (): Promise<SystemSettings | null> => {
     const d = await getDoc(doc(firestore, "system", "settings"));
-    if (d.exists()) return d.data() as SystemSettings;
-    return null;
+    return d.exists() ? (d.data() as SystemSettings) : null;
   },
 
   updateSettings: async (settings: any) => {
@@ -282,8 +258,7 @@ export const db = {
     if (!user || (user.walletBalance || 0) < price) return { success: false, message: "Số dư không đủ." };
     const expires = new Date();
     expires.setDate(expires.getDate() + 30);
-    const userRef = doc(firestore, "users", userId);
-    await updateDoc(userRef, {
+    await updateDoc(doc(firestore, "users", userId), {
       walletBalance: (user.walletBalance || 0) - price,
       subscriptionTier: tier,
       subscriptionExpires: expires.toISOString()
@@ -322,10 +297,7 @@ export const db = {
         } else if (txData.type === 'payment' && txData.metadata?.targetTier) {
           const expires = new Date();
           expires.setDate(expires.getDate() + 30);
-          transaction.update(userRef, { 
-            subscriptionTier: txData.metadata.targetTier,
-            subscriptionExpires: expires.toISOString()
-          });
+          transaction.update(userRef, { subscriptionTier: txData.metadata.targetTier, subscriptionExpires: expires.toISOString() });
         }
         transaction.update(txRef, { status: 'success' });
         return { success: true };
@@ -345,13 +317,9 @@ export const db = {
   },
 
   getTransactions: async (userId?: string): Promise<Transaction[]> => {
-    const colRef = collection(firestore, "transactions");
-    let q;
-    if (userId) q = query(colRef, where("userId", "==", userId));
-    else q = query(colRef);
+    const q = userId ? query(collection(firestore, "transactions"), where("userId", "==", userId)) : collection(firestore, "transactions");
     const snap = await getDocs(q);
-    const results = snap.docs.map(d => ({ ...d.data(), id: d.id } as Transaction));
-    return results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return snap.docs.map(d => ({ ...d.data(), id: d.id } as Transaction)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 
   getAllReports: async () => {
@@ -367,7 +335,6 @@ export const db = {
     const tRef = doc(firestore, "users", tId);
     const uSnap = await getDoc(uRef);
     const following = uSnap.data()?.following || [];
-    
     if (following.includes(tId)) {
       await updateDoc(uRef, { following: arrayRemove(tId) });
       await updateDoc(tRef, { followers: arrayRemove(uId) });
@@ -378,10 +345,8 @@ export const db = {
   },
   
   getFavorites: async (id: string) => {
-    try {
-      const d = await getDoc(doc(firestore, "favorites", id));
-      return d.exists() ? d.data().listingIds : [];
-    } catch (e) { return []; }
+    const d = await getDoc(doc(firestore, "favorites", id));
+    return d.exists() ? d.data().listingIds : [];
   },
   
   toggleFavorite: async (uId: string, lId: string) => {
@@ -411,12 +376,7 @@ export const db = {
   addMessage: async (id: string, m: any) => {
     const ref = doc(firestore, "chats", id);
     const msg = { id: Date.now().toString(), ...m, timestamp: new Date().toISOString() };
-    await updateDoc(ref, { 
-      messages: arrayUnion(msg), 
-      lastMessage: m.text, 
-      lastUpdate: msg.timestamp,
-      seenBy: [m.senderId]
-    });
+    await updateDoc(ref, { messages: arrayUnion(msg), lastMessage: m.text, lastUpdate: msg.timestamp, seenBy: [m.senderId] });
   },
 
   markRoomAsSeen: async (id: string, userId: string) => {

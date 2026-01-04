@@ -20,14 +20,20 @@ import { User } from './types';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
-    db.init();
-    const loadUser = async () => {
-      const u = await db.getCurrentUser();
-      setUser(u);
+    const initialize = async () => {
+      try {
+        const u = await db.getCurrentUser();
+        setUser(u);
+      } catch (err) {
+        console.error("Auth init error:", err);
+      } finally {
+        setIsInitializing(false);
+      }
     };
-    loadUser();
+    initialize();
   }, []);
 
   const handleLogin = (u: User) => setUser(u);
@@ -37,6 +43,15 @@ const App: React.FC = () => {
   };
 
   const handleUpdateUser = (u: User) => setUser(u);
+
+  if (isInitializing) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-bgMain">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-primary font-black uppercase text-[10px] tracking-widest">Đang tải hồ sơ...</p>
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>

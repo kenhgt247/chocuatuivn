@@ -61,6 +61,7 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
 // Sử dụng model gemini-3-pro-preview cho nhiệm vụ phân tích hình ảnh phức tạp
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   try {
+    // Luôn tạo instance GoogleGenAI ngay trước khi gọi để đảm bảo sử dụng API Key mới nhất
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const imageParts = imagesBase64.map(base64 => ({
       inlineData: {
@@ -87,6 +88,8 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
       },
       config: {
         responseMimeType: "application/json",
+        // Bật thinkingBudget để model Pro có không gian suy luận sâu hơn cho dữ liệu multimodal
+        thinkingConfig: { thinkingBudget: 32768 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {

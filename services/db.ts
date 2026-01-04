@@ -1,4 +1,5 @@
 
+// Đảm bảo import đúng từ các sub-module của Firebase SDK v9+
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { 
   getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, 
@@ -6,10 +7,8 @@ import {
   deleteDoc, onSnapshot, arrayUnion, arrayRemove, runTransaction,
   startAfter, QueryDocumentSnapshot, DocumentData, FirestoreError
 } from "firebase/firestore";
-import { 
-  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
-  createUserWithEmailAndPassword
-} from "firebase/auth";
+// Fix: Consolidate auth imports and ensure standard modular SDK exports are used
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "firebase/auth";
 import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
 import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review } from '../types';
 
@@ -38,6 +37,7 @@ const firebaseConfig = {
   measurementId: "G-CRKRLNGF8V"
 };
 
+// Khởi tạo Firebase App đảm bảo không bị lỗi "already exists" trong môi trường hot-reload
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const firestore = getFirestore(app);
 const auth = getAuth(app);

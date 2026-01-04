@@ -1,18 +1,22 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CATEGORIES } from '../constants.tsx';
 import { db } from '../services/db.ts';
-import { Listing, User } from '../types.ts';
+import { Listing, User, Category } from '../types.ts';
 import ListingCard from '../components/ListingCard.tsx';
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
 const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const categoryRef = useRef<HTMLDivElement>(null);
   
   const search = searchParams.get('search') || '';
-  const categoryId = searchParams.get('category') || '';
+  const categoryParam = searchParams.get('category') || ''; // Dạng: "bat-dong-san-1"
+  
+  // Trích xuất ID từ chuỗi slug-id (ví dụ: "bat-dong-san-1" -> "1")
+  const activeCategoryId = categoryParam.split('-').pop() || '';
   
   const [latestListings, setLatestListings] = useState<Listing[]>([]);
   const [vipListings, setVipListings] = useState<Listing[]>([]);
@@ -23,16 +27,16 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMore, setHasMore] = useState(true);
   
-  const PAGE_SIZE = 12;
+  // State quản lý mở rộng danh mục trên Desktop
+  const [isExpanded, setIsExpanded] = useState(false);
+  const DISPLAY_COUNT = 7;
 
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch VIP Listings
       const vipResult = await db.getVIPListings(6);
       setVipListings(vipResult.listings);
 
-      // 2. Fetch Nearby Listings (if location available)
       if (user?.location) {
         const nearbyResult = await db.getListingsPaged({
           pageSize: 6,
@@ -41,10 +45,9 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         setNearbyListings(nearbyResult.listings.filter(l => l.sellerId !== user.id));
       }
 
-      // 3. Fetch Main Feed
       const result = await db.getListingsPaged({
-        pageSize: PAGE_SIZE,
-        categoryId: categoryId || undefined,
+        pageSize: 12,
+        categoryId: activeCategoryId || undefined,
         search: search || undefined
       });
       
@@ -61,20 +64,31 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [categoryId, search, user]);
+  }, [activeCategoryId, search, user]);
 
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);
+
+  // Xử lý Click Outside để thu gọn menu trên Desktop
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
+        setIsExpanded(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleLoadMore = async () => {
     if (isFetchingMore || !hasMore || !lastDoc) return;
     setIsFetchingMore(true);
     try {
       const result = await db.getListingsPaged({
-        pageSize: PAGE_SIZE,
+        pageSize: 12,
         lastDoc,
-        categoryId: categoryId || undefined,
+        categoryId: activeCategoryId || undefined,
         search: search || undefined
       });
 
@@ -88,11 +102,17 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     }
   };
 
-  const selectCategory = (id: string | null) => {
+  const selectCategory = (cat: Category | null) => {
     const params = new URLSearchParams(searchParams);
-    if (id) params.set('category', id);
-    else params.delete('category');
+    if (cat) {
+      // URL chuẩn SEO: slug-id (ví dụ: bat-dong-san-1)
+      params.set('category', `${cat.slug}-${cat.id}`);
+    } else {
+      params.delete('category');
+    }
     setSearchParams(params);
+    setIsExpanded(false); // Thu gọn menu sau khi chọn
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const toggleFav = async (id: string) => {
@@ -105,28 +125,115 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   return (
     <div className="space-y-8 pb-24 px-2 md:px-4 max-w-[1400px] mx-auto">
       
-      {/* Category Strip */}
-      <section className="bg-white border-b md:border md:rounded-2xl p-2 md:p-4 overflow-x-auto no-scrollbar flex gap-2 md:gap-4 sticky top-20 z-30">
-        <button 
-          onClick={() => selectCategory(null)}
-          className={`px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all flex-shrink-0 ${!categoryId ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-gray-100 text-gray-500'}`}
-        >
-          Tất cả
-        </button>
-        {CATEGORIES.map(cat => (
+      {/* Category Section Container */}
+      <div ref={categoryRef} className="sticky top-20 z-40 bg-bgMain/80 backdrop-blur-md py-2 -mx-2 px-2 md:mx-0 md:px-0">
+        
+        {/* --- MOBILE VIEW: Thanh trượt ngang --- */}
+        <section className="flex md:hidden bg-white border-b p-2 overflow-x-auto no-scrollbar gap-2 shadow-sm rounded-xl">
           <button 
-            key={cat.id} 
-            onClick={() => selectCategory(cat.id)} 
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all flex-shrink-0 ${categoryId === cat.id ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-white border border-gray-100 text-gray-500 hover:bg-gray-50'}`}
+            onClick={() => selectCategory(null)}
+            className={`px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all flex-shrink-0 ${!activeCategoryId ? 'bg-primary text-white shadow-lg' : 'bg-gray-100 text-gray-500'}`}
           >
-            <span>{cat.icon}</span>
-            <span>{cat.name}</span>
+            Tất cả
           </button>
-        ))}
-      </section>
+          {CATEGORIES.map(cat => (
+            <button 
+              key={cat.id} 
+              onClick={() => selectCategory(cat)} 
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all flex-shrink-0 ${activeCategoryId === cat.id ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-white border border-gray-100 text-gray-500'}`}
+            >
+              <span>{cat.icon}</span>
+              <span>{cat.name}</span>
+            </button>
+          ))}
+        </section>
 
-      {/* Tin VIP - Ưu tiên hiển thị */}
-      {!search && !categoryId && vipListings.length > 0 && (
+        {/* --- DESKTOP VIEW: Thông minh (7 + Tất cả) --- */}
+        <section className="hidden md:block">
+          <div className={`bg-white border border-borderMain rounded-[2.5rem] p-3 shadow-soft transition-all duration-500 ease-in-out ${isExpanded ? 'ring-4 ring-primary/5' : ''}`}>
+            
+            {!isExpanded ? (
+              // TRẠNG THÁI THU GỌN: 7 danh mục đầu tiên
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <button 
+                    onClick={() => selectCategory(null)}
+                    className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all flex-shrink-0 ${!activeCategoryId ? 'bg-primary text-white shadow-lg' : 'bg-gray-50 text-gray-400 hover:text-gray-600'}`}
+                  >
+                    Mặc định
+                  </button>
+                  {CATEGORIES.slice(0, DISPLAY_COUNT).map(cat => (
+                    <button 
+                      key={cat.id} 
+                      onClick={() => selectCategory(cat)} 
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all border border-transparent flex-shrink-0 ${activeCategoryId === cat.id ? 'bg-primary/10 text-primary border-primary/20' : 'text-gray-500 hover:bg-gray-50 hover:text-primary'}`}
+                    >
+                      <span className="text-base">{cat.icon}</span>
+                      <span>{cat.name}</span>
+                    </button>
+                  ))}
+                </div>
+                
+                <button 
+                  onClick={() => setIsExpanded(true)}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase bg-gray-100 text-gray-600 hover:bg-primary hover:text-white transition-all shadow-sm flex-shrink-0 group"
+                >
+                  <svg className="w-4 h-4 group-hover:rotate-180 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7"/></svg>
+                  <span>Tất cả</span>
+                </button>
+              </div>
+            ) : (
+              // TRẠNG THÁI MỞ RỘNG: Lưới toàn bộ danh mục chuẩn SEO
+              <div className="animate-fade-in-up">
+                <div className="flex items-center justify-between mb-8 px-4">
+                  <div className="flex flex-col">
+                    <h3 className="text-sm font-black text-primary uppercase tracking-[0.2em]">Khám phá danh mục</h3>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Chọn một chủ đề bạn quan tâm</p>
+                  </div>
+                  <button 
+                    onClick={() => setIsExpanded(false)}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7"/></svg>
+                    Thu gọn
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-4 lg:grid-cols-7 gap-4">
+                  <button 
+                    onClick={() => selectCategory(null)}
+                    className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] transition-all border-2 ${!activeCategoryId ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-bgMain border-transparent hover:border-primary/30 text-gray-500 hover:text-primary'}`}
+                  >
+                    <span className="text-3xl">🏠</span>
+                    <span className="text-[10px] font-black uppercase text-center leading-tight">Mặc định</span>
+                  </button>
+                  
+                  {CATEGORIES.map(cat => (
+                    <button 
+                      key={cat.id} 
+                      onClick={() => selectCategory(cat)} 
+                      className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] transition-all border-2 ${activeCategoryId === cat.id ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-bgMain border-transparent hover:border-primary/30 text-gray-500 hover:text-primary'}`}
+                    >
+                      <span className="text-3xl">{cat.icon}</span>
+                      <span className="text-[10px] font-black uppercase text-center leading-tight">{cat.name}</span>
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="mt-8 pt-6 border-t border-gray-100 flex items-center justify-center gap-2">
+                   <div className="w-1 h-1 bg-primary rounded-full animate-ping"></div>
+                   <p className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.3em]">Hệ thống AI đang lọc tin theo sở thích của bạn</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      {/* --- PHẦN HIỂN THỊ TIN ĐĂNG (Giữ nguyên logic cũ) --- */}
+      
+      {/* Tin VIP */}
+      {!search && !activeCategoryId && vipListings.length > 0 && (
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
@@ -142,7 +249,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       )}
 
       {/* Tin Gần Bạn */}
-      {!search && !categoryId && nearbyListings.length > 0 && (
+      {!search && !activeCategoryId && nearbyListings.length > 0 && (
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
@@ -162,7 +269,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       {/* Feed Chính */}
       <section className="space-y-4">
         <h2 className="text-lg md:text-xl font-black text-gray-900 px-2 tracking-tight">
-          {search ? `Kết quả cho "${search}"` : categoryId ? `${CATEGORIES.find(c => c.id === categoryId)?.name}` : 'Lựa chọn hôm nay'}
+          {search ? `Kết quả cho "${search}"` : activeCategoryId ? `${CATEGORIES.find(c => c.id === activeCategoryId)?.name}` : 'Lựa chọn hôm nay'}
         </h2>
 
         {isLoading ? (

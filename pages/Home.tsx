@@ -24,7 +24,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
 
   const search = searchParams.get('search') || '';
 
-  // --- LOGIC 1: XÁC ĐỊNH DANH MỤC TỪ SEO URL (Logic Mới) ---
+  // --- LOGIC: XÁC ĐỊNH DANH MỤC TỪ SEO URL ---
   const currentCategory = slug 
     ? CATEGORIES.find(c => c.slug === slug || c.slug === slug.split('-')[0]) 
     : null;
@@ -45,14 +45,15 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const DISPLAY_COUNT = 7;
 
-  // State Vị trí (Logic Mới: Auto Detect)
+  // State Vị trí
   const [detectedLocation, setDetectedLocation] = useState<string | null>(user?.location || null);
   const [isLocating, setIsLocating] = useState(false);
-  
-  // State Index Errors
   const [indexErrors, setIndexErrors] = useState<{msg: string, link: string | null}[]>([]);
 
-  const PAGE_SIZE = 12;
+  // GIỚI HẠN HIỂN THỊ (QUAN TRỌNG ĐỂ KHÔNG BỊ LAG KHI CÓ 1000 TIN)
+  const LIMIT_VIP = 10;      // Chỉ tải 10 tin VIP để lướt ngang
+  const LIMIT_NEARBY = 12;   // Chỉ tải 12 tin quanh đây (vừa đẹp lưới)
+  const PAGE_SIZE = 12;      // Load more từng 12 tin một
 
   // --- HELPER FUNCTIONS ---
   const extractIndexLink = (error: string) => {
@@ -61,56 +62,43 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   };
 
   // --- HANDLERS ---
-
-  // Logic định vị: Tự động chạy
   const handleDetectLocation = useCallback(() => {
     if (!navigator.geolocation) return;
-
     setIsLocating(true);
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        const city = latitude > 15 ? "TP Hà Nội" : "TPHCM"; // Logic giả lập
+        const city = latitude > 15 ? "TP Hà Nội" : "TPHCM"; 
         setDetectedLocation(city);
         setIsLocating(false);
-        
         if (user) {
-          db.updateUserProfile(user.id, { 
-            location: city, 
-            lat: latitude, 
-            lng: longitude 
-          }).catch(console.error);
+          db.updateUserProfile(user.id, { location: city, lat: latitude, lng: longitude }).catch(console.error);
         }
       },
       (error) => {
         setIsLocating(false);
-        // Không hiện lỗi UI để trải nghiệm mượt mà
-        console.log("Location access denied:", error.message);
+        console.log("Location error:", error.message);
       },
       { enableHighAccuracy: true, timeout: 5000 }
     );
   }, [user]);
 
-  // EFFECT: Tự động hỏi vị trí khi vào trang
   useEffect(() => {
-    if (!detectedLocation) {
-        handleDetectLocation();
-    }
+    if (!detectedLocation) handleDetectLocation();
   }, [handleDetectLocation, detectedLocation]);
 
   const loadSpecialSections = useCallback(async (locationToUse: string | null) => {
-    // 1. VIP
-    const vipRes = await db.getVIPListings(8);
+    // 1. VIP: Chỉ lấy giới hạn (LIMIT_VIP) để hiển thị slider
+    const vipRes = await db.getVIPListings(LIMIT_VIP);
     if (!vipRes.error) {
       setVipListings(vipRes.listings);
     }
 
-    // 2. Nearby (Chỉ load nếu có location)
+    // 2. Nearby: Chỉ lấy giới hạn (LIMIT_NEARBY)
     const targetLoc = locationToUse || user?.location;
     if (targetLoc) {
       const nearbyRes = await db.getListingsPaged({
-        pageSize: 6,
+        pageSize: LIMIT_NEARBY,
         location: targetLoc
       });
       if (!nearbyRes.error) {
@@ -131,6 +119,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         await loadSpecialSections(detectedLocation);
       }
 
+      // Main Feed: Load phân trang bình thường
       const result = await db.getListingsPaged({
         pageSize: PAGE_SIZE,
         categoryId: activeCategoryId || undefined,
@@ -154,18 +143,16 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         setFavorites(favs);
       }
     } catch (e) {
-      console.error("Home initial fetch error:", e);
+      console.error("Home fetch error:", e);
     } finally {
       setIsLoading(false);
     }
   }, [activeCategoryId, search, user, loadSpecialSections, detectedLocation]);
 
-  // Reload khi có vị trí mới
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);
 
-  // Click Outside (Desktop Menu)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
@@ -186,7 +173,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         categoryId: activeCategoryId || undefined,
         search: search || undefined
       });
-
       if (!result.error) {
         setLatestListings(prev => [...prev, ...result.listings]);
         setLastDoc(result.lastDoc);
@@ -198,11 +184,8 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   };
 
   const selectCategory = (cat: Category | null) => {
-    if (cat) {
-        navigate(getCategoryUrl(cat));
-    } else {
-        navigate('/');
-    }
+    if (cat) navigate(getCategoryUrl(cat));
+    else navigate('/');
     setIsExpanded(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -215,12 +198,11 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   };
 
   return (
-    // UI FIX: Padding mobile px-2 (giống file đầu), Desktop px-4
     <div className="space-y-6 pb-24 px-2 md:px-4 max-w-[1400px] mx-auto">
       
       {/* 1. CATEGORY STRIP */}
       <div ref={categoryRef} className="sticky top-20 z-40 bg-bgMain/95 backdrop-blur-lg py-2 -mx-2 px-2 md:mx-0 md:px-0">
-         {/* --- MOBILE VIEW: Scroll ngang gọn gàng --- */}
+         {/* MOBILE */}
          <section className="flex md:hidden bg-white border border-borderMain p-2 overflow-x-auto no-scrollbar gap-2 shadow-sm rounded-2xl items-center">
             <button 
                 onClick={() => selectCategory(null)}
@@ -240,7 +222,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             ))}
         </section>
 
-        {/* --- DESKTOP VIEW: 7+1 Grid --- */}
+        {/* DESKTOP */}
         <section className="hidden md:block">
             <div className={`bg-white border border-borderMain rounded-[2.5rem] p-3 shadow-soft transition-all duration-500 ease-in-out ${isExpanded ? 'ring-4 ring-primary/5' : ''}`}>
                 {!isExpanded ? (
@@ -263,21 +245,12 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                                 </button>
                             ))}
                         </div>
-                        
                         <div className="flex items-center gap-3 border-l border-gray-100 pl-3">
-                             {/* Nút định vị thủ công trên Desktop */}
-                             <button 
-                                onClick={handleDetectLocation}
-                                disabled={isLocating}
-                                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all text-[10px] font-black uppercase ${detectedLocation ? 'border-green-200 bg-green-50 text-green-600' : 'border-gray-100 text-gray-400 hover:border-primary/30 hover:text-primary'}`}
-                            >
+                             <button onClick={handleDetectLocation} disabled={isLocating} className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all text-[10px] font-black uppercase ${detectedLocation ? 'border-green-200 bg-green-50 text-green-600' : 'border-gray-100 text-gray-400 hover:border-primary/30 hover:text-primary'}`}>
                                 {isLocating ? <div className="w-3 h-3 border-2 border-current border-t-transparent animate-spin rounded-full"></div> : '📍'}
                                 <span>{detectedLocation || 'Định vị'}</span>
                             </button>
-                            <button 
-                                onClick={() => setIsExpanded(true)}
-                                className="flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase bg-gray-100 text-gray-600 hover:bg-primary hover:text-white transition-all shadow-sm flex-shrink-0 group"
-                            >
+                            <button onClick={() => setIsExpanded(true)} className="flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase bg-gray-100 text-gray-600 hover:bg-primary hover:text-white transition-all shadow-sm flex-shrink-0 group">
                                 <span>Xem tất cả</span>
                                 <svg className="w-4 h-4 group-hover:rotate-180 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7"/></svg>
                             </button>
@@ -286,33 +259,18 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                 ) : (
                     <div className="animate-fade-in-up">
                         <div className="flex items-center justify-between mb-8 px-6 pt-2">
-                            <div className="flex flex-col">
-                                <h3 className="text-sm font-black text-primary uppercase tracking-[0.2em]">Khám phá danh mục</h3>
-                            </div>
-                            <button 
-                                onClick={() => setIsExpanded(false)}
-                                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7"/></svg>
-                                Thu gọn
+                            <h3 className="text-sm font-black text-primary uppercase tracking-[0.2em]">Khám phá danh mục</h3>
+                            <button onClick={() => setIsExpanded(false)} className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7"/></svg> Thu gọn
                             </button>
                         </div>
                         <div className="grid grid-cols-4 lg:grid-cols-7 gap-4 px-3 pb-4">
-                            <button 
-                                onClick={() => selectCategory(null)}
-                                className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] transition-all border-2 ${!activeCategoryId ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-bgMain border-transparent hover:border-primary/30 text-gray-500 hover:text-primary'}`}
-                            >
-                                <span className="text-3xl">🏠</span>
-                                <span className="text-[10px] font-black uppercase text-center leading-tight">Mặc định</span>
+                            <button onClick={() => selectCategory(null)} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] transition-all border-2 ${!activeCategoryId ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-bgMain border-transparent hover:border-primary/30 text-gray-500 hover:text-primary'}`}>
+                                <span className="text-3xl">🏠</span><span className="text-[10px] font-black uppercase text-center leading-tight">Mặc định</span>
                             </button>
                             {CATEGORIES.map(cat => (
-                                <button 
-                                key={cat.id} 
-                                onClick={() => selectCategory(cat)} 
-                                className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] transition-all border-2 ${activeCategoryId === cat.id ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-bgMain border-transparent hover:border-primary/30 text-gray-500 hover:text-primary'}`}
-                                >
-                                <span className="text-3xl">{cat.icon}</span>
-                                <span className="text-[10px] font-black uppercase text-center leading-tight">{cat.name}</span>
+                                <button key={cat.id} onClick={() => selectCategory(cat)} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] transition-all border-2 ${activeCategoryId === cat.id ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-bgMain border-transparent hover:border-primary/30 text-gray-500 hover:text-primary'}`}>
+                                <span className="text-3xl">{cat.icon}</span><span className="text-[10px] font-black uppercase text-center leading-tight">{cat.name}</span>
                                 </button>
                             ))}
                         </div>
@@ -322,7 +280,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       </div>
 
-      {/* 2. INDEX ERRORS (ADMIN - Chỉ hiện nếu có lỗi) */}
+      {/* 2. ADMIN ALERTS */}
       {indexErrors.length > 0 && (
         <section className="bg-red-50 border-2 border-dashed border-red-200 rounded-[2.5rem] p-10 text-center space-y-6">
            <div className="text-5xl animate-bounce">⚙️</div>
@@ -331,26 +289,23 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
              {indexErrors.map((err, idx) => (
                <div key={idx} className="flex flex-col gap-2">
                  <p className="text-[9px] font-black text-red-400 uppercase text-left pl-2">{err.msg}</p>
-                 {err.link && (
-                   <a href={err.link} target="_blank" className="bg-red-600 text-white font-black px-6 py-4 rounded-2xl text-[10px] uppercase tracking-widest shadow-xl">
-                     Tạo chỉ số #{idx + 1}
-                   </a>
-                 )}
+                 {err.link && <a href={err.link} target="_blank" className="bg-red-600 text-white font-black px-6 py-4 rounded-2xl text-[10px] uppercase tracking-widest shadow-xl">Tạo chỉ số #{idx + 1}</a>}
                </div>
              ))}
            </div>
         </section>
       )}
 
-      {/* 3. TIN PRO VIP */}
+      {/* 3. TIN PRO VIP (Có 1000 tin cũng chỉ hiện 10 tin rồi bấm Xem tất cả) */}
       {!search && !activeCategoryId && indexErrors.every(e => !e.msg.includes('VIP')) && vipListings.length > 0 && (
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
               <span className="text-yellow-400 text-xl">★</span> Tin đăng tài trợ
             </h2>
+            {/* NÚT XEM TẤT CẢ */}
+            <Link to="/search?type=vip" className="text-[10px] font-black text-primary uppercase hover:underline">Xem tất cả ({vipListings.length}+)</Link>
           </div>
-          {/* UI FIX: grid-cols-2 trên mobile */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
             {vipListings.map(l => (
               <ListingCard key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} />
@@ -359,20 +314,20 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 4. TIN QUANH ĐÂY - CHỈ HIỆN KHI CÓ VỊ TRÍ */}
+      {/* 4. TIN QUANH ĐÂY (Có 1000 tin cũng chỉ hiện 12 tin) */}
       {!search && !activeCategoryId && detectedLocation && nearbyListings.length > 0 && (
         <section className="space-y-4 animate-fade-in-up">
           <div className="flex items-center justify-between px-2">
              <div className="flex items-center gap-2">
                <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight">Tin Quanh Đây</h2>
-               <span className="text-[10px] font-black text-green-600 uppercase bg-green-50 px-2 py-1 rounded-md">
-                 {detectedLocation}
-               </span>
+               <span className="text-[10px] font-black text-green-600 uppercase bg-green-50 px-2 py-1 rounded-md">{detectedLocation}</span>
              </div>
-             <button onClick={handleDetectLocation} className="text-[10px] font-black text-gray-400 uppercase underline hover:text-primary">Làm mới</button>
+             <div className="flex gap-4 items-center">
+                <button onClick={handleDetectLocation} className="text-[10px] font-black text-gray-400 uppercase underline hover:text-primary">Làm mới</button>
+                {/* NÚT XEM TẤT CẢ */}
+                <Link to={`/search?location=${detectedLocation}`} className="text-[10px] font-black text-primary uppercase hover:underline">Xem thêm ></Link>
+             </div>
           </div>
-
-          {/* UI FIX: grid-cols-2 trên mobile */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
             {nearbyListings.map(l => (
               <ListingCard key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} />
@@ -381,7 +336,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 5. TIN MỚI NHẤT (Main Feed) */}
+      {/* 5. TIN MỚI NHẤT (Main Feed - Cái này thì Load more vô tư) */}
       <section className="space-y-4">
         <div className="flex items-center justify-between px-2">
            <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight">
@@ -405,20 +360,14 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           </div>
         ) : (
           <>
-            {/* UI FIX: grid-cols-2 trên mobile, gap-2 (Giống FB) */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4 px-1 md:px-0">
               {latestListings.map(l => (
                 <ListingCard key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} />
               ))}
             </div>
-
             {hasMore && (
               <div className="pt-8 flex justify-center">
-                <button 
-                  onClick={handleLoadMore}
-                  disabled={isFetchingMore}
-                  className="px-10 py-3 bg-white border-2 border-primary text-primary font-black rounded-full text-[11px] uppercase tracking-widest hover:bg-primary hover:text-white transition-all shadow-md active:scale-95"
-                >
+                <button onClick={handleLoadMore} disabled={isFetchingMore} className="px-10 py-3 bg-white border-2 border-primary text-primary font-black rounded-full text-[11px] uppercase tracking-widest hover:bg-primary hover:text-white transition-all shadow-md active:scale-95">
                   {isFetchingMore ? 'Đang tải...' : 'Xem thêm tin đăng'}
                 </button>
               </div>
@@ -427,32 +376,18 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         )}
       </section>
 
-      {/* 6. FOOTER - CHỈ HIỆN TRÊN DESKTOP (md:block), ẨN TRÊN MOBILE (hidden) */}
+      {/* 6. FOOTER */}
       <footer className="hidden md:block pt-16 border-t border-dashed border-gray-200 mt-20">
          <div className="bg-white border border-borderMain rounded-[3rem] p-10 shadow-soft">
             <div className="flex items-center justify-between mb-8">
-               <h4 className="text-xl font-black text-textMain flex items-center gap-2">
-                 <span className="text-2xl">⚡</span>
-                 Chợ Của Tui
-               </h4>
+               <h4 className="text-xl font-black text-textMain flex items-center gap-2"><span className="text-2xl">⚡</span> Chợ Của Tui</h4>
                <div className="flex gap-4">
-                  {STATIC_LINKS.map(link => (
-                    <Link 
-                      key={link.slug} 
-                      to={`/page/${link.slug}`}
-                      className="text-xs font-bold text-gray-400 hover:text-primary transition-colors uppercase"
-                    >
-                      {link.title}
-                    </Link>
-                  ))}
+                  {STATIC_LINKS.map(link => <Link key={link.slug} to={`/page/${link.slug}`} className="text-xs font-bold text-gray-400 hover:text-primary transition-colors uppercase">{link.title}</Link>))}
                </div>
             </div>
-            <div className="text-[10px] text-gray-400 font-medium text-center border-t border-gray-100 pt-8">
-               © 2024 ChoCuaTui.vn - Nền tảng rao vặt ứng dụng AI. All rights reserved.
-            </div>
+            <div className="text-[10px] text-gray-400 font-medium text-center border-t border-gray-100 pt-8">© 2024 ChoCuaTui.vn - Nền tảng rao vặt ứng dụng AI. All rights reserved.</div>
          </div>
       </footer>
-
     </div>
   );
 };

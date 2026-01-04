@@ -1,56 +1,56 @@
-
 <!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Chợ của tui - Rao vặt thông minh</title>
-    <base href="/">
     
-    <!-- PWA Meta Tags -->
+    <title>Chợ Của Tui - Mua Bán Rao Vặt AI Thông Minh</title>
+    <meta name="description" content="Chợ Của Tui - Nền tảng rao vặt ứng dụng AI giúp đăng tin nhanh chóng, định vị tin đăng gần bạn, mua bán an toàn và minh bạch.">
+    <meta name="keywords" content="rao vặt, mua bán, chợ tốt, chợ của tui, thanh lý, bất động sản, xe cộ, đồ điện tử, ai market">
+    <meta name="author" content="Chợ Của Tui Team">
+    <meta name="robots" content="index, follow">
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://chocuatui.vn/">
+    <meta property="og:title" content="Chợ Của Tui - Mua Bán Rao Vặt AI">
+    <meta property="og:description" content="Khám phá hàng ngàn tin đăng quanh bạn. Công nghệ AI hỗ trợ mua bán nhanh chóng.">
+    <meta property="og:image" content="https://api.dicebear.com/7.x/shapes/svg?seed=chocuatui&backgroundColor=1677ff">
+
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#1677ff">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="ChợTui">
     <link rel="apple-touch-icon" href="https://api.dicebear.com/7.x/shapes/svg?seed=chocuatui&backgroundColor=1677ff">
-    <meta name="mobile-web-app-capable" content="yes">
 
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#1677ff',
-                        primaryHover: '#0f5ed7',
-                        bgMain: '#f5faff',
-                        textMain: '#0b1220',
-                        borderMain: '#d7e6ff'
-                    },
-                    boxShadow: {
-                        'soft': '0 2px 12px rgba(0, 0, 0, 0.05)',
-                    }
-                }
-            }
-        }
-    </script>
+
     <style>
+        /* CSS nội bộ chỉ dành cho màn hình Loading ban đầu */
         body {
             font-family: 'Inter', 'Be Vietnam Pro', sans-serif;
-            background-color: #f5faff;
+            background-color: #f8f9fa; /* Khớp với màu bgMain trong config */
             color: #0b1220;
             overscroll-behavior-y: none;
             padding-bottom: env(safe-area-inset-bottom);
+            margin: 0;
         }
+        
+        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #d7e6ff; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #1677ff; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        
+        /* Animation Keyframes */
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
         
         @keyframes fadeInUp {
             from { opacity: 0; transform: translateY(20px); }
@@ -66,35 +66,39 @@
             }
         }
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "firebase/app": "https://esm.sh/firebase@10.13.2/app",
-    "firebase/auth": "https://esm.sh/firebase@10.13.2/auth",
-    "firebase/firestore": "https://esm.sh/firebase@10.13.2/firestore",
-    "firebase/storage": "https://esm.sh/firebase@10.13.2/storage",
-    "react-dom": "https://esm.sh/react-dom@^19.2.3",
-    "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
-    "react": "https://esm.sh/react@^19.2.3",
-    "react/jsx-runtime": "https://esm.sh/react@^19.2.3/jsx-runtime",
-    "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "firebase/": "https://esm.sh/firebase@^12.7.0/"
-  }
-}
-</script>
+
+    <script type="importmap">
+    {
+      "imports": {
+        "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+        "firebase/app": "https://esm.sh/firebase@10.13.2/app",
+        "firebase/auth": "https://esm.sh/firebase@10.13.2/auth",
+        "firebase/firestore": "https://esm.sh/firebase@10.13.2/firestore",
+        "firebase/storage": "https://esm.sh/firebase@10.13.2/storage",
+        "react-dom": "https://esm.sh/react-dom@^19.2.3",
+        "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
+        "react": "https://esm.sh/react@^19.2.3",
+        "react/jsx-runtime": "https://esm.sh/react@^19.2.3/jsx-runtime",
+        "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+        "react/": "https://esm.sh/react@^19.2.3/",
+        "firebase/": "https://esm.sh/firebase@^12.7.0/"
+      }
+    }
+    </script>
 </head>
 <body>
     <div id="root">
         <div style="height: 100vh; display: flex; align-items: center; justify-content: center; font-family: sans-serif;">
             <div style="text-align: center;">
                 <div style="font-size: 40px; margin-bottom: 20px; animation: bounce 1s infinite;">⚡</div>
-                <div style="color: #1677ff; font-weight: bold; font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase;">Đang kết nối dữ liệu Firebase...</div>
+                <div style="color: #1677ff; font-weight: bold; font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase;">
+                    Đang kết nối dữ liệu...
+                </div>
             </div>
         </div>
     </div>
+    
     <script type="module" src="/index.tsx"></script>
 </body>
 </html>

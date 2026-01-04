@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import ListingDetail from './pages/ListingDetail';
@@ -54,7 +54,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <BrowserRouter>
+    <Router>
       <Layout user={user}>
         <Routes>
           <Route path="/" element={<Home user={user} />} />
@@ -74,7 +74,7 @@ const App: React.FC = () => {
           <Route path="/page/:slug" element={<StaticPage />} />
         </Routes>
       </Layout>
-    </BrowserRouter>
+    </Router>
   );
 };
 

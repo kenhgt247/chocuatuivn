@@ -93,7 +93,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-8 pb-24">
       <div className="grid lg:grid-cols-12 gap-0 md:gap-8 bg-white md:bg-transparent overflow-hidden">
         
-        {/* Left Section: Gallery & Details */}
+        {/* Cột trái: Gallery, Mô tả & Đánh giá */}
         <div className="lg:col-span-8 space-y-6">
           <div className="relative bg-black aspect-square md:aspect-video md:rounded-3xl overflow-hidden group">
             <img 
@@ -124,7 +124,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
           </div>
 
-          {/* Desktop Thumbnails */}
+          {/* Thumbnails trên Desktop */}
           {listing.images.length > 1 && (
             <div className="hidden md:flex gap-3 overflow-x-auto no-scrollbar py-2">
               {listing.images.map((img, idx) => (
@@ -139,11 +139,11 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
           )}
 
-          {/* Description Block */}
+          {/* Khối mô tả chi tiết */}
           <div className="bg-white md:rounded-[2.5rem] p-6 md:p-8 border border-gray-100 shadow-sm space-y-6">
             <div className="space-y-4">
               <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Mô tả chi tiết</h2>
-              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-base">{listing.description}</p>
+              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-base font-medium">{listing.description}</p>
             </div>
             
             <div className="pt-6 border-t border-gray-100">
@@ -154,14 +154,14 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
           </div>
 
-          {/* Review & Comment Section - RESTORED */}
+          {/* Mục Đánh giá & Bình luận */}
           <div className="bg-white md:rounded-[2.5rem] p-6 md:p-8 border border-gray-100 shadow-sm space-y-6">
             <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Đánh giá & Bình luận</h2>
             <ReviewSection targetId={listing.id} targetType="listing" currentUser={user} />
           </div>
         </div>
 
-        {/* Right Section: Sticky Info Panel */}
+        {/* Cột phải: Thông tin người bán & Thao tác (Sticky) */}
         <div className="lg:col-span-4 p-4 md:p-0">
           <div className="bg-white md:rounded-[2.5rem] p-6 md:p-8 md:border border-gray-100 md:shadow-soft space-y-6 sticky top-24">
             <div className="space-y-2">
@@ -249,7 +249,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       </div>
 
-      {/* Recommended Section */}
+      {/* Sản phẩm tương tự */}
       <div className="px-4 md:px-0">
         <div className="flex items-center justify-between mb-6 px-2">
           <h2 className="text-xl font-black text-textMain tracking-tight uppercase">Sản phẩm tương tự</h2>

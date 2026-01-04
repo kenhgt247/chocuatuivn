@@ -8,7 +8,7 @@
     <base href="/">
     
     <!-- PWA Meta Tags -->
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#1677ff">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -43,9 +43,7 @@
             font-family: 'Inter', 'Be Vietnam Pro', sans-serif;
             background-color: #f5faff;
             color: #0b1220;
-            /* Ngăn chặn scroll nảy trên iOS */
             overscroll-behavior-y: none;
-            /* Tránh padding dư thừa do thanh bar iOS */
             padding-bottom: env(safe-area-inset-bottom);
         }
         ::-webkit-scrollbar { width: 6px; }
@@ -60,7 +58,6 @@
         }
         .animate-fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
 
-        /* Tối ưu cho PWA mode */
         @media all and (display-mode: standalone) {
             header {
                 padding-top: env(safe-area-inset-top);
@@ -98,6 +95,6 @@
             </div>
         </div>
     </div>
-    <script type="module" src="index.tsx"></script>
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>

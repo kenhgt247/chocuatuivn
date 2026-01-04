@@ -50,9 +50,9 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [isLocating, setIsLocating] = useState(false);
   const [indexErrors, setIndexErrors] = useState<{msg: string, link: string | null}[]>([]);
 
-  // GIỚI HẠN HIỂN THỊ (QUAN TRỌNG ĐỂ KHÔNG BỊ LAG KHI CÓ 1000 TIN)
-  const LIMIT_VIP = 10;      // Chỉ tải 10 tin VIP để lướt ngang
-  const LIMIT_NEARBY = 12;   // Chỉ tải 12 tin quanh đây (vừa đẹp lưới)
+  // GIỚI HẠN HIỂN THỊ
+  const LIMIT_VIP = 10;      // Chỉ tải 10 tin VIP
+  const LIMIT_NEARBY = 12;   // Chỉ tải 12 tin quanh đây
   const PAGE_SIZE = 12;      // Load more từng 12 tin một
 
   // --- HELPER FUNCTIONS ---
@@ -88,13 +88,13 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   }, [handleDetectLocation, detectedLocation]);
 
   const loadSpecialSections = useCallback(async (locationToUse: string | null) => {
-    // 1. VIP: Chỉ lấy giới hạn (LIMIT_VIP) để hiển thị slider
+    // 1. VIP
     const vipRes = await db.getVIPListings(LIMIT_VIP);
     if (!vipRes.error) {
       setVipListings(vipRes.listings);
     }
 
-    // 2. Nearby: Chỉ lấy giới hạn (LIMIT_NEARBY)
+    // 2. Nearby
     const targetLoc = locationToUse || user?.location;
     if (targetLoc) {
       const nearbyRes = await db.getListingsPaged({
@@ -119,7 +119,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         await loadSpecialSections(detectedLocation);
       }
 
-      // Main Feed: Load phân trang bình thường
+      // Main Feed
       const result = await db.getListingsPaged({
         pageSize: PAGE_SIZE,
         categoryId: activeCategoryId || undefined,
@@ -296,14 +296,13 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 3. TIN PRO VIP (Có 1000 tin cũng chỉ hiện 10 tin rồi bấm Xem tất cả) */}
+      {/* 3. TIN PRO VIP */}
       {!search && !activeCategoryId && indexErrors.every(e => !e.msg.includes('VIP')) && vipListings.length > 0 && (
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
               <span className="text-yellow-400 text-xl">★</span> Tin đăng tài trợ
             </h2>
-            {/* NÚT XEM TẤT CẢ */}
             <Link to="/search?type=vip" className="text-[10px] font-black text-primary uppercase hover:underline">Xem tất cả ({vipListings.length}+)</Link>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
@@ -314,7 +313,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 4. TIN QUANH ĐÂY (Có 1000 tin cũng chỉ hiện 12 tin) */}
+      {/* 4. TIN QUANH ĐÂY */}
       {!search && !activeCategoryId && detectedLocation && nearbyListings.length > 0 && (
         <section className="space-y-4 animate-fade-in-up">
           <div className="flex items-center justify-between px-2">
@@ -324,8 +323,8 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
              </div>
              <div className="flex gap-4 items-center">
                 <button onClick={handleDetectLocation} className="text-[10px] font-black text-gray-400 uppercase underline hover:text-primary">Làm mới</button>
-                {/* NÚT XEM TẤT CẢ */}
-                <Link to={`/search?location=${detectedLocation}`} className="text-[10px] font-black text-primary uppercase hover:underline">Xem thêm ></Link>
+                {/* ĐÃ SỬA LỖI TẠI ĐÂY: Dùng &gt; thay cho > */}
+                <Link to={`/search?location=${detectedLocation}`} className="text-[10px] font-black text-primary uppercase hover:underline">Xem thêm &gt;</Link>
              </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
@@ -336,7 +335,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 5. TIN MỚI NHẤT (Main Feed - Cái này thì Load more vô tư) */}
+      {/* 5. TIN MỚI NHẤT */}
       <section className="space-y-4">
         <div className="flex items-center justify-between px-2">
            <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight">
@@ -382,7 +381,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             <div className="flex items-center justify-between mb-8">
                <h4 className="text-xl font-black text-textMain flex items-center gap-2"><span className="text-2xl">⚡</span> Chợ Của Tui</h4>
                <div className="flex gap-4">
-                  {/* ĐÃ SỬA LỖI CÚ PHÁP TẠI DÒNG NÀY */}
                   {STATIC_LINKS.map(link => <Link key={link.slug} to={`/page/${link.slug}`} className="text-xs font-bold text-gray-400 hover:text-primary transition-colors uppercase">{link.title}</Link>)}
                </div>
             </div>

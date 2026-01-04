@@ -1,22 +1,29 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { CATEGORIES } from '../constants.tsx';
-import { db } from '../services/db.ts';
-import { Listing, User, Category } from '../types.ts';
-import ListingCard from '../components/ListingCard.tsx';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
+import { CATEGORIES } from '../constants';
+import { db } from '../services/db';
+import { Listing, User, Category } from '../types';
+import ListingCard from '../components/ListingCard';
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { getCategoryUrl } from '../utils/format'; // Import hàm helper vừa tạo
 
 const Home: React.FC<{ user: User | null }> = ({ user }) => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  
+  // 1. Lấy slug từ URL (ví dụ: 'xe-co' từ đường dẫn /danh-muc/xe-co)
+  const { slug } = useParams<{ slug: string }>(); 
   const categoryRef = useRef<HTMLDivElement>(null);
   
   const search = searchParams.get('search') || '';
-  const categoryParam = searchParams.get('category') || ''; // Ví dụ: "do-dien-tu-3"
-  
-  // Trích xuất ID từ chuỗi slug-id (ví dụ: "do-dien-tu-3" -> "3")
-  const activeCategoryId = categoryParam.split('-').pop() || '';
+
+  // 2. Logic xác định ID danh mục hiện tại từ Slug trên URL
+  // Tìm trong mảng CATEGORIES xem mục nào có slug trùng với slug trên URL
+  const currentCategory = slug 
+    ? CATEGORIES.find(c => c.slug === slug || c.slug === slug.split('-')[0]) // Fallback phòng hờ
+    : null;
+
+  const activeCategoryId = currentCategory ? currentCategory.id : '';
   
   const [latestListings, setLatestListings] = useState<Listing[]>([]);
   const [vipListings, setVipListings] = useState<Listing[]>([]);
@@ -33,11 +40,17 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
 
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true);
+    setLatestListings([]); // Reset list khi đổi danh mục
     try {
-      const vipResult = await db.getVIPListings(6);
-      setVipListings(vipResult.listings);
+      // Chỉ lấy VIP khi ở trang chủ (không search, không lọc danh mục)
+      if (!activeCategoryId && !search) {
+        const vipResult = await db.getVIPListings(6);
+        setVipListings(vipResult.listings);
+      } else {
+        setVipListings([]);
+      }
 
-      if (user?.location) {
+      if (user?.location && !activeCategoryId && !search) {
         const nearbyResult = await db.getListingsPaged({
           pageSize: 6,
           location: user.location
@@ -47,7 +60,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
 
       const result = await db.getListingsPaged({
         pageSize: 12,
-        categoryId: activeCategoryId || undefined,
+        categoryId: activeCategoryId || undefined, // Truyền ID thực tế vào DB
         search: search || undefined
       });
       
@@ -102,15 +115,15 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     }
   };
 
+  // 3. Hàm chọn danh mục đã được cập nhật cho SEO
   const selectCategory = (cat: Category | null) => {
-    const params = new URLSearchParams(searchParams);
     if (cat) {
-      // Cấu trúc chuẩn SEO: slug-id
-      params.set('category', `${cat.slug}-${cat.id}`);
+      // Điều hướng sang URL chuẩn: /danh-muc/slug-cua-danh-muc
+      navigate(getCategoryUrl(cat));
     } else {
-      params.delete('category');
+      // Về trang chủ
+      navigate('/');
     }
-    setSearchParams(params);
     setIsExpanded(false); // Thu gọn menu sau khi chọn
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -221,8 +234,8 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
                 
                 <div className="mt-4 pt-6 border-t border-gray-100 flex items-center justify-center gap-2 pb-2">
-                   <div className="w-1 h-1 bg-primary rounded-full animate-ping"></div>
-                   <p className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.3em]">Hệ thống SEO đã sẵn sàng phục vụ</p>
+                    <div className="w-1 h-1 bg-primary rounded-full animate-ping"></div>
+                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.3em]">Hệ thống SEO đã sẵn sàng phục vụ</p>
                 </div>
               </div>
             )}
@@ -232,7 +245,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
 
       {/* --- CÁC PHẦN HIỂN THỊ TIN ĐĂNG (GIỮ NGUYÊN) --- */}
       
-      {/* Tin VIP */}
+      {/* Tin VIP - Chỉ hiện ở trang chủ (không search, không danh mục) */}
       {!search && !activeCategoryId && vipListings.length > 0 && (
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
@@ -252,7 +265,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       <section className="space-y-4">
         <div className="flex items-center justify-between px-2">
           <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight">
-            {search ? `Kết quả cho "${search}"` : activeCategoryId ? `${CATEGORIES.find(c => c.id === activeCategoryId)?.name}` : 'Lựa chọn hôm nay'}
+            {search ? `Kết quả cho "${search}"` : currentCategory ? `Danh mục: ${currentCategory.name}` : 'Lựa chọn hôm nay'}
           </h2>
           {activeCategoryId && (
              <button onClick={() => selectCategory(null)} className="text-[10px] font-black text-primary uppercase border-b-2 border-primary/20 hover:border-primary transition-all">Xóa lọc</button>

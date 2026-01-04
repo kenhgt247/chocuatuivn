@@ -382,7 +382,8 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             <div className="flex items-center justify-between mb-8">
                <h4 className="text-xl font-black text-textMain flex items-center gap-2"><span className="text-2xl">⚡</span> Chợ Của Tui</h4>
                <div className="flex gap-4">
-                  {STATIC_LINKS.map(link => <Link key={link.slug} to={`/page/${link.slug}`} className="text-xs font-bold text-gray-400 hover:text-primary transition-colors uppercase">{link.title}</Link>))}
+                  {/* ĐÃ SỬA LỖI CÚ PHÁP TẠI DÒNG NÀY */}
+                  {STATIC_LINKS.map(link => <Link key={link.slug} to={`/page/${link.slug}`} className="text-xs font-bold text-gray-400 hover:text-primary transition-colors uppercase">{link.title}</Link>)}
                </div>
             </div>
             <div className="text-[10px] text-gray-400 font-medium text-center border-t border-gray-100 pt-8">© 2024 ChoCuaTui.vn - Nền tảng rao vặt ứng dụng AI. All rights reserved.</div>

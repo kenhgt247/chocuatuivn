@@ -29,6 +29,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportDetails, setReportDetails] = useState("");
+  const [isPhoneVisible, setIsPhoneVisible] = useState(false);
 
   const id = useMemo(() => {
     if (!slugWithId) return null;
@@ -81,6 +82,11 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     
     alert("Cảm ơn bạn! Báo cáo của bạn đã được gửi tới Ban quản trị.");
     setShowReportModal(false);
+  };
+
+  const formatHiddenPhone = (phone: string) => {
+    if (!phone) return "";
+    return phone.substring(0, 4) + " *** ***";
   };
 
   return (
@@ -192,13 +198,23 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                   Nhắn tin cho người bán
                 </button>
                 {seller?.phone && (
-                  <a 
-                    href={`tel:${seller.phone}`} 
-                    className="w-full bg-white border-2 border-primary text-primary py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-center hover:bg-primary/5 active:scale-95 transition-all flex items-center justify-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" strokeWidth={2}/></svg>
-                    Gọi: {seller.phone}
-                  </a>
+                  isPhoneVisible ? (
+                    <a 
+                      href={`tel:${seller.phone}`} 
+                      className="w-full bg-white border-2 border-primary text-primary py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-center hover:bg-primary/5 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" strokeWidth={2}/></svg>
+                      Gọi: {seller.phone}
+                    </a>
+                  ) : (
+                    <button 
+                      onClick={() => setIsPhoneVisible(true)}
+                      className="w-full bg-white border-2 border-primary text-primary py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-center hover:bg-primary/5 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" strokeWidth={2}/></svg>
+                      Bấm để hiện số: {formatHiddenPhone(seller.phone)}
+                    </button>
+                  )
                 )}
               </div>
               

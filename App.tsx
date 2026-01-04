@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-// QUAN TRỌNG: Đã đổi HashRouter thành BrowserRouter
+// QUAN TRỌNG: Sử dụng BrowserRouter để link đẹp (không có dấu #)
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
@@ -57,8 +57,15 @@ const App: React.FC = () => {
     <Router>
       <Layout user={user}>
         <Routes>
+          {/* Trang chủ */}
           <Route path="/" element={<Home user={user} />} />
+          
+          {/* Chi tiết sản phẩm (SEO friendly) */}
           <Route path="/san-pham/:slugWithId" element={<ListingDetail user={user} />} />
+          
+          {/* Danh mục sản phẩm (SEO friendly) - Đã sửa từ /categories sang /danh-muc/:slug */}
+          <Route path="/danh-muc/:slug" element={<Home user={user} />} />
+          
           <Route path="/seller/:id" element={<SellerProfile currentUser={user} />} />
           <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
           <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
@@ -70,7 +77,6 @@ const App: React.FC = () => {
           <Route path="/admin" element={<Admin user={user} />} />
           <Route path="/login" element={<Auth onLogin={handleLogin} />} />
           <Route path="/register" element={<Register onLogin={handleLogin} />} />
-          <Route path="/categories" element={<Home user={user} />} />
           <Route path="/page/:slug" element={<StaticPage />} />
         </Routes>
       </Layout>

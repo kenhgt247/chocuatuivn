@@ -8,15 +8,6 @@ import ListingCard from '../components/ListingCard';
 import ShareModal from '../components/ShareModal';
 import ReviewSection from '../components/ReviewSection';
 
-const REPORT_REASONS = [
-  "Lừa đảo, giả mạo",
-  "Hàng giả, hàng nhái",
-  "Thông tin không chính xác",
-  "Hàng cấm buôn bán",
-  "Sản phẩm đã bán",
-  "Lý do khác"
-];
-
 const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const { slugWithId } = useParams();
   const navigate = useNavigate();
@@ -26,8 +17,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const [activeImage, setActiveImage] = useState(0);
   const [userFavorites, setUserFavorites] = useState<string[]>([]);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [reportReason, setReportReason] = useState("");
 
   const id = useMemo(() => {
     if (!slugWithId) return null;
@@ -68,19 +57,18 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-6">
-      <div className="grid lg:grid-cols-12 gap-0 md:gap-8 bg-white md:bg-transparent">
+    <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-6 pb-20 md:pb-8">
+      <div className="grid lg:grid-cols-12 gap-0 md:gap-8 bg-white md:bg-transparent overflow-hidden">
         
-        {/* Gallery Section - Cải thiện phong cách Marketplace */}
+        {/* Gallery Section */}
         <div className="lg:col-span-8 space-y-4">
-          <div className="relative bg-gray-100 aspect-square md:aspect-video md:rounded-2xl overflow-hidden group">
+          <div className="relative bg-black aspect-square md:aspect-video md:rounded-2xl overflow-hidden group">
             <img 
               src={listing.images[activeImage]} 
               className="w-full h-full object-contain" 
               alt={listing.title} 
             />
             
-            {/* Nav buttons for gallery */}
             {listing.images.length > 1 && (
               <>
                 <button 
@@ -97,9 +85,14 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                 </button>
               </>
             )}
+            
+            {/* Ảnh nhỏ trên mobile */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/40 text-white px-3 py-1 rounded-full text-xs md:hidden">
+              {activeImage + 1} / {listing.images.length}
+            </div>
           </div>
 
-          {/* Thumbnails */}
+          {/* Thumbnails desktop */}
           {listing.images.length > 1 && (
             <div className="hidden md:flex gap-2 overflow-x-auto no-scrollbar py-2">
               {listing.images.map((img, idx) => (
@@ -115,8 +108,8 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           )}
         </div>
 
-        {/* Info Sidebar - Phong cách FB Marketplace */}
-        <div className="lg:col-span-4 p-4 md:p-6 bg-white md:rounded-2xl md:shadow-sm border-l md:border border-gray-100 h-fit sticky top-24">
+        {/* Info Sidebar */}
+        <div className="lg:col-span-4 p-4 md:p-6 bg-white md:rounded-2xl md:shadow-sm h-fit sticky top-24">
           <div className="space-y-4">
             <div className="space-y-1">
               <h1 className="text-xl md:text-2xl font-black text-gray-900 leading-tight">{listing.title}</h1>
@@ -128,34 +121,34 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               </div>
             </div>
 
-            <div className="py-4 space-y-4">
-              <div className="flex items-center gap-3">
-                <Link to={`/seller/${listing.sellerId}`} className="w-12 h-12 rounded-full overflow-hidden border border-gray-200">
+            <div className="py-2 space-y-4">
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                <Link to={`/seller/${listing.sellerId}`} className="w-12 h-12 rounded-full overflow-hidden border border-gray-200 bg-white">
                   <img src={listing.sellerAvatar} className="w-full h-full object-cover" />
                 </Link>
                 <div className="flex-1 min-w-0">
                   <Link to={`/seller/${listing.sellerId}`} className="font-black text-sm hover:underline block truncate">{listing.sellerName}</Link>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase">Đối tác tin cậy</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Người bán uy tín</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <button onClick={handleStartChat} className="bg-primary text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:bg-primaryHover transition-all">
+                <button onClick={handleStartChat} className="bg-primary text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:bg-primaryHover active:scale-95 transition-all">
                   Nhắn tin
                 </button>
                 {seller?.phone && (
-                  <a href={`tel:${seller.phone}`} className="bg-gray-100 text-gray-900 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest text-center hover:bg-gray-200 transition-all">
+                  <a href={`tel:${seller.phone}`} className="bg-gray-100 text-gray-900 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest text-center hover:bg-gray-200 active:scale-95 transition-all">
                     Gọi điện
                   </a>
                 )}
               </div>
               
               <div className="flex gap-2">
-                <button onClick={handleToggleFav} className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-gray-100 rounded-xl text-xs font-bold hover:bg-gray-50">
+                <button onClick={handleToggleFav} className="flex-1 flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl text-xs font-bold hover:bg-gray-50 active:scale-95 transition-all">
                   <svg className={`w-5 h-5 ${userFavorites.includes(listing.id) ? 'text-red-500 fill-current' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" strokeWidth={2}/></svg>
                   Lưu tin
                 </button>
-                <button onClick={() => setIsShareModalOpen(true)} className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-gray-100 rounded-xl text-xs font-bold hover:bg-gray-50">
+                <button onClick={() => setIsShareModalOpen(true)} className="flex-1 flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl text-xs font-bold hover:bg-gray-50 active:scale-95 transition-all">
                   <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" strokeWidth={2}/></svg>
                   Chia sẻ
                 </button>
@@ -163,7 +156,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
 
             <div className="pt-4 border-t border-gray-100">
-              <h3 className="font-black text-sm uppercase mb-3">Mô tả của người bán</h3>
+              <h3 className="font-black text-[11px] text-gray-400 uppercase mb-3 tracking-widest">Chi tiết tin đăng</h3>
               <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{listing.description}</p>
             </div>
           </div>
@@ -171,10 +164,10 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
       </div>
 
       {/* Recommended Section */}
-      <div className="px-4 md:px-0">
-        <h2 className="text-lg font-black uppercase mb-4 tracking-tight">Gợi ý dành cho bạn</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4">
-          {allListings.slice(0, 12).map(l => (
+      <div className="px-2 md:px-0 mt-10">
+        <h2 className="text-lg font-black uppercase mb-4 tracking-tight px-2">Sản phẩm liên quan</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
+          {allListings.filter(l => l.id !== listing.id && l.category === listing.category).slice(0, 12).map(l => (
             <ListingCard key={l.id} listing={l} isFavorite={userFavorites.includes(l.id)} onToggleFavorite={handleToggleFav} />
           ))}
         </div>

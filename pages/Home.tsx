@@ -24,7 +24,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
 
   const search = searchParams.get('search') || '';
 
-  // --- LOGIC XÁC ĐỊNH DANH MỤC TỪ SLUG ---
+  // --- LOGIC 1: XÁC ĐỊNH DANH MỤC TỪ SEO URL (Logic Mới) ---
   const currentCategory = slug 
     ? CATEGORIES.find(c => c.slug === slug || c.slug === slug.split('-')[0]) 
     : null;
@@ -41,14 +41,15 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMore, setHasMore] = useState(true);
 
+  // UI State
   const [isExpanded, setIsExpanded] = useState(false);
   const DISPLAY_COUNT = 7;
 
-  // State Vị trí
+  // State Vị trí (Logic Mới: Auto Detect)
   const [detectedLocation, setDetectedLocation] = useState<string | null>(user?.location || null);
   const [isLocating, setIsLocating] = useState(false);
   
-  // State Index Errors (Giữ lại để debug nếu cần)
+  // State Index Errors
   const [indexErrors, setIndexErrors] = useState<{msg: string, link: string | null}[]>([]);
 
   const PAGE_SIZE = 12;
@@ -60,8 +61,9 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   };
 
   // --- HANDLERS ---
+
+  // Logic định vị: Tự động chạy
   const handleDetectLocation = useCallback(() => {
-    // Nếu trình duyệt không hỗ trợ, thoát luôn
     if (!navigator.geolocation) return;
 
     setIsLocating(true);
@@ -69,12 +71,10 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        // Logic giả lập: > 15 vĩ độ là Miền Bắc
-        const city = latitude > 15 ? "TP Hà Nội" : "TPHCM";
+        const city = latitude > 15 ? "TP Hà Nội" : "TPHCM"; // Logic giả lập
         setDetectedLocation(city);
         setIsLocating(false);
         
-        // Cập nhật profile user nếu đã đăng nhập
         if (user) {
           db.updateUserProfile(user.id, { 
             location: city, 
@@ -84,32 +84,29 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         }
       },
       (error) => {
-        // Nếu lỗi hoặc người dùng từ chối, chỉ đơn giản là tắt loading
-        // Không set error message để tránh hiện UI lỗi
         setIsLocating(false);
-        console.log("Location access denied or error:", error.message);
+        // Không hiện lỗi UI để trải nghiệm mượt mà
+        console.log("Location access denied:", error.message);
       },
       { enableHighAccuracy: true, timeout: 5000 }
     );
   }, [user]);
 
-  // --- AUTO DETECT LOCATION EFFECT ---
-  // Tự động hỏi vị trí khi component mount
+  // EFFECT: Tự động hỏi vị trí khi vào trang
   useEffect(() => {
-    // Chỉ hỏi nếu chưa có vị trí
     if (!detectedLocation) {
         handleDetectLocation();
     }
   }, [handleDetectLocation, detectedLocation]);
 
   const loadSpecialSections = useCallback(async (locationToUse: string | null) => {
-    // 1. Load Tin PRO VIP
+    // 1. VIP
     const vipRes = await db.getVIPListings(8);
     if (!vipRes.error) {
       setVipListings(vipRes.listings);
     }
 
-    // 2. Load Tin Quanh Đây (Chỉ load nếu đã có location)
+    // 2. Nearby (Chỉ load nếu có location)
     const targetLoc = locationToUse || user?.location;
     if (targetLoc) {
       const nearbyRes = await db.getListingsPaged({
@@ -130,7 +127,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     setIndexErrors([]);
 
     try {
-      // Chỉ load VIP và Nearby khi ở trang chủ
       if (!search && !activeCategoryId) {
         await loadSpecialSections(detectedLocation);
       }
@@ -145,7 +141,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         const link = extractIndexLink(result.error);
         setIndexErrors(prev => {
           if (link && prev.some(e => e.link === link)) return prev;
-          return [...prev, { msg: "Lỗi truy vấn Tin Mới Nhất", link }];
+          return [...prev, { msg: "Lỗi truy vấn dữ liệu", link }];
         });
       } else {
         setLatestListings(result.listings);
@@ -164,12 +160,12 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     }
   }, [activeCategoryId, search, user, loadSpecialSections, detectedLocation]);
 
-  // Gọi lại API khi vị trí thay đổi (người dùng bấm Cho phép)
+  // Reload khi có vị trí mới
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);
 
-  // Click Outside để thu gọn menu
+  // Click Outside (Desktop Menu)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
@@ -196,8 +192,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         setLastDoc(result.lastDoc);
         setHasMore(result.hasMore);
       }
-    } catch (e) {
-      console.error("Load more error:", e);
     } finally {
       setIsFetchingMore(false);
     }
@@ -221,11 +215,12 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   };
 
   return (
-    <div className="space-y-8 pb-10 px-4 md:px-0 max-w-[1400px] mx-auto">
+    // UI FIX: Padding mobile px-2 (giống file đầu), Desktop px-4
+    <div className="space-y-6 pb-24 px-2 md:px-4 max-w-[1400px] mx-auto">
       
       {/* 1. CATEGORY STRIP */}
-      <div ref={categoryRef} className="sticky top-20 z-40 bg-bgMain/95 backdrop-blur-lg py-2 -mx-4 px-4 md:mx-0 md:px-0">
-         {/* --- MOBILE VIEW --- */}
+      <div ref={categoryRef} className="sticky top-20 z-40 bg-bgMain/95 backdrop-blur-lg py-2 -mx-2 px-2 md:mx-0 md:px-0">
+         {/* --- MOBILE VIEW: Scroll ngang gọn gàng --- */}
          <section className="flex md:hidden bg-white border border-borderMain p-2 overflow-x-auto no-scrollbar gap-2 shadow-sm rounded-2xl items-center">
             <button 
                 onClick={() => selectCategory(null)}
@@ -245,7 +240,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             ))}
         </section>
 
-        {/* --- DESKTOP VIEW --- */}
+        {/* --- DESKTOP VIEW: 7+1 Grid --- */}
         <section className="hidden md:block">
             <div className={`bg-white border border-borderMain rounded-[2.5rem] p-3 shadow-soft transition-all duration-500 ease-in-out ${isExpanded ? 'ring-4 ring-primary/5' : ''}`}>
                 {!isExpanded ? (
@@ -270,7 +265,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                         </div>
                         
                         <div className="flex items-center gap-3 border-l border-gray-100 pl-3">
-                            {/* Nút manual detect location */}
+                             {/* Nút định vị thủ công trên Desktop */}
                              <button 
                                 onClick={handleDetectLocation}
                                 disabled={isLocating}
@@ -279,7 +274,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                                 {isLocating ? <div className="w-3 h-3 border-2 border-current border-t-transparent animate-spin rounded-full"></div> : '📍'}
                                 <span>{detectedLocation || 'Định vị'}</span>
                             </button>
-
                             <button 
                                 onClick={() => setIsExpanded(true)}
                                 className="flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase bg-gray-100 text-gray-600 hover:bg-primary hover:text-white transition-all shadow-sm flex-shrink-0 group"
@@ -294,7 +288,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                         <div className="flex items-center justify-between mb-8 px-6 pt-2">
                             <div className="flex flex-col">
                                 <h3 className="text-sm font-black text-primary uppercase tracking-[0.2em]">Khám phá danh mục</h3>
-                                <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Lọc sản phẩm theo nhu cầu của bạn</p>
                             </div>
                             <button 
                                 onClick={() => setIsExpanded(false)}
@@ -329,7 +322,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       </div>
 
-      {/* 2. INDEX ERRORS (ADMIN) */}
+      {/* 2. INDEX ERRORS (ADMIN - Chỉ hiện nếu có lỗi) */}
       {indexErrors.length > 0 && (
         <section className="bg-red-50 border-2 border-dashed border-red-200 rounded-[2.5rem] p-10 text-center space-y-6">
            <div className="text-5xl animate-bounce">⚙️</div>
@@ -351,18 +344,16 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
 
       {/* 3. TIN PRO VIP */}
       {!search && !activeCategoryId && indexErrors.every(e => !e.msg.includes('VIP')) && vipListings.length > 0 && (
-        <section className="space-y-6 animate-fade-in-up">
+        <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
-            <h2 className="text-xl md:text-2xl font-black text-textMain tracking-tight flex items-center gap-3">
-              <span className="w-10 h-10 bg-gradient-to-tr from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg text-white">★</span>
-              ⚡ Tin PRO VIP
+            <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
+              <span className="text-yellow-400 text-xl">★</span> Tin đăng tài trợ
             </h2>
           </div>
-          <div className="flex gap-6 overflow-x-auto no-scrollbar pb-6 px-2">
+          {/* UI FIX: grid-cols-2 trên mobile */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
             {vipListings.map(l => (
-              <div key={l.id} className="w-[200px] md:w-[240px] flex-shrink-0">
-                <ListingCard listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} />
-              </div>
+              <ListingCard key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} />
             ))}
           </div>
         </section>
@@ -370,45 +361,40 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
 
       {/* 4. TIN QUANH ĐÂY - CHỈ HIỆN KHI CÓ VỊ TRÍ */}
       {!search && !activeCategoryId && detectedLocation && nearbyListings.length > 0 && (
-        <section className="space-y-6 animate-fade-in-up">
+        <section className="space-y-4 animate-fade-in-up">
           <div className="flex items-center justify-between px-2">
-            <div className="space-y-1">
-              <h2 className="text-xl md:text-2xl font-black text-textMain tracking-tight flex items-center gap-3">
-                <span className="w-10 h-10 bg-green-500 rounded-2xl flex items-center justify-center shadow-lg text-white">📍</span>
-                Tin Quanh Đây
-              </h2>
-              <p className="text-[10px] font-black text-green-600 uppercase tracking-widest flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                Vị trí: {detectedLocation}
-              </p>
-            </div>
-            <button onClick={handleDetectLocation} className="text-[10px] font-black text-gray-400 uppercase underline bg-gray-50 px-4 py-2 rounded-xl hover:text-primary transition-colors">Làm mới</button>
+             <div className="flex items-center gap-2">
+               <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight">Tin Quanh Đây</h2>
+               <span className="text-[10px] font-black text-green-600 uppercase bg-green-50 px-2 py-1 rounded-md">
+                 {detectedLocation}
+               </span>
+             </div>
+             <button onClick={handleDetectLocation} className="text-[10px] font-black text-gray-400 uppercase underline hover:text-primary">Làm mới</button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+          {/* UI FIX: grid-cols-2 trên mobile */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
             {nearbyListings.map(l => (
               <ListingCard key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} />
             ))}
           </div>
         </section>
       )}
-      {/* KHÔNG CÓ PHẦN ELSE: Nếu không có location, section này sẽ ẩn hoàn toàn */}
 
-      {/* 5. TIN MỚI NHẤT */}
-      <section className="space-y-8">
+      {/* 5. TIN MỚI NHẤT (Main Feed) */}
+      <section className="space-y-4">
         <div className="flex items-center justify-between px-2">
-           <h2 className="text-xl md:text-2xl font-black text-textMain tracking-tight flex items-center gap-3">
-             <span className="w-2 h-8 bg-primary rounded-full shadow-lg"></span>
-             {search ? `Kết quả: "${search}"` : currentCategory ? `Danh mục: ${currentCategory.name}` : '🆕 Tin mới đăng'}
+           <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight">
+             {search ? `Kết quả: "${search}"` : currentCategory ? `Danh mục: ${currentCategory.name}` : 'Tin mới đăng'}
            </h2>
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4 px-1">
             {[...Array(12)].map((_, i) => (
-              <div key={i} className="bg-white border border-borderMain rounded-[1.75rem] p-4 space-y-4 animate-pulse">
-                <div className="aspect-square bg-gray-100 rounded-2xl"></div>
-                <div className="h-3 bg-gray-100 rounded-full w-3/4"></div>
+              <div key={i} className="bg-white rounded-lg p-2 space-y-3 animate-pulse">
+                <div className="aspect-square bg-gray-100 rounded-lg"></div>
+                <div className="h-4 bg-gray-100 rounded-full w-3/4"></div>
               </div>
             ))}
           </div>
@@ -419,18 +405,19 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            {/* UI FIX: grid-cols-2 trên mobile, gap-2 (Giống FB) */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4 px-1 md:px-0">
               {latestListings.map(l => (
                 <ListingCard key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} />
               ))}
             </div>
 
             {hasMore && (
-              <div className="pt-10 flex justify-center">
+              <div className="pt-8 flex justify-center">
                 <button 
                   onClick={handleLoadMore}
                   disabled={isFetchingMore}
-                  className="px-12 py-5 bg-white border-2 border-primary text-primary font-black rounded-2xl text-[11px] uppercase tracking-[0.2em] hover:bg-primary hover:text-white transition-all shadow-xl shadow-primary/5 flex items-center gap-3"
+                  className="px-10 py-3 bg-white border-2 border-primary text-primary font-black rounded-full text-[11px] uppercase tracking-widest hover:bg-primary hover:text-white transition-all shadow-md active:scale-95"
                 >
                   {isFetchingMore ? 'Đang tải...' : 'Xem thêm tin đăng'}
                 </button>

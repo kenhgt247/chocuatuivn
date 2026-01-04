@@ -140,10 +140,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
 
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
           
-          {/* Messages Link - Cải thiện cho Desktop */}
+          {/* Messages Link - Chỉ hiện trên Desktop vì Mobile đã có Bottom Nav */}
           <Link 
             to="/chat" 
-            className={`relative p-2.5 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10 text-primary' : 'text-gray-400 hover:bg-gray-100'}`}
+            className={`hidden md:flex relative p-2.5 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10 text-primary' : 'text-gray-400 hover:bg-gray-100'}`}
           >
             <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />

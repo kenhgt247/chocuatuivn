@@ -5,6 +5,7 @@ import { User, Notification, ChatRoom } from '../types.ts';
 import { identifyProductForSearch } from '../services/geminiService.ts';
 import { formatPrice, formatTimeAgo } from '../utils/format.ts';
 import { db } from '../services/db.ts';
+import UniversalInstallPrompt from './UniversalInstallPrompt.tsx';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -50,7 +51,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   }, []);
 
   const unreadNotifCount = notifications.filter(n => !n.read).length;
-  // Tính số phòng chat có tin nhắn mới chưa xem
   const unreadChatCount = chatRooms.filter(r => r.messages.length > 0 && !r.seenBy?.includes(user?.id || '')).length;
 
   const handleSearch = (e: React.FormEvent) => {
@@ -101,7 +101,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   return (
     <div className="min-h-screen flex flex-col bg-bgMain">
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-borderMain/50 px-3 md:px-6 lg:px-10 h-20 flex items-center justify-between gap-2 md:gap-4 shadow-sm">
-        
         <div className="flex items-center flex-shrink-0">
           <Link to="/" className="flex items-center gap-2 group">
             <div className="w-10 h-10 md:w-11 md:h-11 bg-gradient-to-tr from-primary to-blue-400 rounded-xl md:rounded-2xl flex items-center justify-center text-white text-xl md:text-2xl shadow-lg shadow-primary/25 group-hover:rotate-6 transition-all duration-300">⚡</div>
@@ -115,7 +114,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </div>
-          
           <input 
             type="text" 
             placeholder={window.innerWidth < 768 ? "Tìm kiếm..." : "Tìm gì cũng có..."}
@@ -123,7 +121,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-gray-100/60 border border-transparent rounded-xl md:rounded-[1.25rem] py-2.5 md:py-3 pl-9 md:pl-12 pr-9 md:pr-12 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary/30 focus:bg-white transition-all text-xs md:text-sm font-medium"
           />
-          
           <button 
             type="button"
             onClick={handleImageSearchClick}
@@ -139,12 +136,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         </form>
 
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
-          
-          {/* Messages Link - Chỉ hiện trên Desktop vì Mobile đã có Bottom Nav */}
-          <Link 
-            to="/chat" 
-            className={`hidden md:flex relative p-2.5 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10 text-primary' : 'text-gray-400 hover:bg-gray-100'}`}
-          >
+          <Link to="/chat" className={`hidden md:flex relative p-2.5 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10 text-primary' : 'text-gray-400 hover:bg-gray-100'}`}>
             <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
@@ -155,7 +147,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             )}
           </Link>
 
-          {/* Notifications Button */}
           <div className="relative" ref={notifRef}>
             <button 
               onClick={() => setShowNotifs(!showNotifs)}
@@ -170,7 +161,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
                 </span>
               )}
             </button>
-
             {showNotifs && (
               <div className="absolute right-0 mt-3 w-80 bg-white border border-borderMain rounded-[2rem] shadow-2xl overflow-hidden animate-fade-in-up">
                 <div className="p-5 border-b border-gray-50 flex items-center justify-between bg-bgMain/30">
@@ -179,15 +169,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
                 </div>
                 <div className="max-h-96 overflow-y-auto no-scrollbar">
                   {notifications.length > 0 ? notifications.map(notif => (
-                    <button 
-                      key={notif.id}
-                      onClick={() => handleMarkAsRead(notif)}
-                      className={`w-full text-left p-4 hover:bg-bgMain transition-colors flex gap-4 border-b border-gray-50 last:border-0 ${!notif.read ? 'bg-primary/5' : ''}`}
-                    >
-                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-xl ${
-                        notif.type === 'success' ? 'bg-green-100 text-green-600' : 
-                        notif.type === 'error' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
-                      }`}>
+                    <button key={notif.id} onClick={() => handleMarkAsRead(notif)} className={`w-full text-left p-4 hover:bg-bgMain transition-colors flex gap-4 border-b border-gray-50 last:border-0 ${!notif.read ? 'bg-primary/5' : ''}`}>
+                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-xl ${notif.type === 'success' ? 'bg-green-100 text-green-600' : notif.type === 'error' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
                         {notif.type === 'success' ? '✅' : notif.type === 'error' ? '❌' : '🔔'}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -203,9 +186,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
                     </div>
                   )}
                 </div>
-                <div className="p-4 bg-gray-50 text-center">
-                  <button onClick={() => setShowNotifs(false)} className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline">Thu gọn</button>
-                </div>
               </div>
             )}
           </div>
@@ -215,7 +195,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4"/></svg>
               <span>Đăng tin</span>
             </Link>
-
             {user ? (
               <Link to="/profile" className="flex items-center pl-2">
                 <div className="w-11 h-11 rounded-2xl overflow-hidden border-2 border-white shadow-xl ring-1 ring-borderMain/50 hover:scale-110 transition-transform">
@@ -228,7 +207,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
               </Link>
             )}
           </div>
-
         </div>
       </header>
 
@@ -236,86 +214,17 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {children}
       </main>
 
-      <footer className="hidden md:block bg-white border-t border-borderMain/50 pt-20 pb-12 mt-20">
-        <div className="max-w-screen-2xl mx-auto px-10">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-20">
-            <div className="space-y-6">
-              <Link to="/" className="flex items-center gap-2 group">
-                <div className="w-12 h-12 bg-gradient-to-tr from-primary to-blue-400 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg shadow-primary/25">⚡</div>
-                <span className="font-black text-2xl text-primary tracking-tighter">Chợ của tui</span>
-              </Link>
-              <p className="text-sm text-gray-500 font-medium leading-relaxed">
-                Nền tảng thương mại điện tử ứng dụng AI thế hệ mới. Mua bán thông minh, an toàn và cực kỳ nhanh chóng.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="text-[11px] font-black text-textMain uppercase tracking-widest mb-8">Hỗ trợ</h4>
-              <ul className="space-y-5">
-                <li><Link to="/page/gioi-thieu" className="text-sm text-gray-500 hover:text-primary transition-colors font-medium">Trung tâm trợ giúp</Link></li>
-                <li><Link to="/page/quy-che-hoat-dong" className="text-sm text-gray-500 hover:text-primary transition-colors font-medium">An toàn mua bán</Link></li>
-                <li><Link to="/page/huong-dan-dang-tin" className="text-sm text-gray-500 hover:text-primary transition-colors font-medium">Hướng dẫn đăng tin</Link></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-[11px] font-black text-textMain uppercase tracking-widest mb-8">Pháp lý</h4>
-              <ul className="space-y-5">
-                <li><Link to="/page/chinh-sach-bao-mat" className="text-sm text-gray-500 hover:text-primary transition-colors font-medium">Chính sách bảo mật</Link></li>
-                <li><Link to="/page/quy-che-hoat-dong" className="text-sm text-gray-500 hover:text-primary transition-colors font-medium">Quy chế hoạt động</Link></li>
-                <li><Link to="/page/chinh-sach-bao-mat" className="text-sm text-gray-500 hover:text-primary transition-colors font-medium">Điều khoản sử dụng</Link></li>
-              </ul>
-            </div>
-
-            <div className="space-y-6">
-              <h4 className="text-[11px] font-black text-textMain uppercase tracking-widest mb-8">Ứng dụng</h4>
-              <div className="flex flex-col gap-3">
-                 <button className="bg-black text-white px-6 py-3 rounded-2xl flex items-center gap-3 hover:scale-105 transition-transform">
-                   <span className="text-2xl">🍎</span>
-                   <div className="text-left">
-                     <p className="text-[8px] font-black uppercase opacity-60">Download on the</p>
-                     <p className="text-xs font-black">App Store</p>
-                   </div>
-                 </button>
-                 <button className="bg-black text-white px-6 py-3 rounded-2xl flex items-center gap-3 hover:scale-105 transition-transform">
-                   <span className="text-2xl">🤖</span>
-                   <div className="text-left">
-                     <p className="text-[8px] font-black uppercase opacity-60">Get it on</p>
-                     <p className="text-xs font-black">Google Play</p>
-                   </div>
-                 </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-10 border-t border-gray-100 flex flex-col md:row items-center justify-between gap-6">
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">© 2024 Chợ Của Tui AI Corp.</p>
-            <div className="flex gap-10">
-               <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/Logo_bo_cong_thuong.svg/1200px-Logo_bo_cong_thuong.svg.png" className="h-10 grayscale opacity-40 hover:grayscale-0 hover:opacity-100 transition-all cursor-pointer" alt="BCT" />
-               <div className="text-right hidden md:block">
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">MST: 0123456789</p>
-                  <p className="text-[10px] text-gray-300 font-bold uppercase">Trụ sở: Landmark 81, TP.HCM</p>
-               </div>
-            </div>
-          </div>
-        </div>
-      </footer>
-
       {/* Mobile Nav Bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-borderMain/50 flex items-center justify-around h-22 z-50 px-4 shadow-lg pb-safe">
         <Link to="/" className={`flex flex-col items-center gap-1.5 flex-1 py-3 ${location.pathname === '/' ? 'text-primary' : 'text-gray-400'}`}>
           <div className={`p-2 rounded-2xl transition-all ${location.pathname === '/' ? 'bg-primary/10' : ''}`}>
-            <svg className="w-6 h-6" fill={location.pathname === '/' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
+            <svg className="w-6 h-6" fill={location.pathname === '/' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
           </div>
           <span className="text-[9px] font-black uppercase tracking-widest">Trang chủ</span>
         </Link>
         <Link to="/manage-ads" className={`flex flex-col items-center gap-1.5 flex-1 py-3 ${location.pathname === '/manage-ads' ? 'text-primary' : 'text-gray-400'}`}>
           <div className={`p-2 rounded-2xl transition-all ${location.pathname === '/manage-ads' ? 'bg-primary/10' : ''}`}>
-            <svg className="w-6 h-6" fill={location.pathname === '/manage-ads' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-            </svg>
+            <svg className="w-6 h-6" fill={location.pathname === '/manage-ads' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
           </div>
           <span className="text-[9px] font-black uppercase tracking-widest">Quản lý</span>
         </Link>
@@ -326,24 +235,21 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         </div>
         <Link to="/chat" className={`flex flex-col items-center gap-1.5 flex-1 py-3 relative ${location.pathname.startsWith('/chat') ? 'text-primary' : 'text-gray-400'}`}>
           <div className={`p-2 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10' : ''}`}>
-            <svg className="w-6 h-6" fill={location.pathname.startsWith('/chat') ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
+            <svg className="w-6 h-6" fill={location.pathname.startsWith('/chat') ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
           </div>
           <span className="text-[9px] font-black uppercase tracking-widest">Tin nhắn</span>
-          {unreadChatCount > 0 && (
-            <span className="absolute top-2 right-4 w-4 h-4 bg-red-500 rounded-full border-2 border-white"></span>
-          )}
+          {unreadChatCount > 0 && <span className="absolute top-2 right-4 w-4 h-4 bg-red-500 rounded-full border-2 border-white"></span>}
         </Link>
         <Link to="/profile" className={`flex flex-col items-center gap-1.5 flex-1 py-3 ${location.pathname === '/profile' ? 'text-primary' : 'text-gray-400'}`}>
           <div className={`p-2 rounded-2xl transition-all ${location.pathname === '/profile' ? 'bg-primary/10' : ''}`}>
-            <svg className="w-6 h-6" fill={location.pathname === '/profile' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
+            <svg className="w-6 h-6" fill={location.pathname === '/profile' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
           </div>
           <span className="text-[9px] font-black uppercase tracking-widest">Cá nhân</span>
         </Link>
       </nav>
+
+      {/* Universal PWA Install Prompt */}
+      <UniversalInstallPrompt />
     </div>
   );
 };

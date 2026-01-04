@@ -8,13 +8,22 @@
   "background_color": "#f8f9fa",
   "theme_color": "#1677ff",
   "orientation": "portrait",
-  "icons": [
+ "icons": [
     {
-      "src": "https://api.dicebear.com/9.x/shapes/png?seed=chocuatui&backgroundColor=1677ff",
+      // Thêm &size=192 vào cuối link
+      "src": "https://api.dicebear.com/9.x/shapes/png?seed=chocuatui&backgroundColor=1677ff&size=192",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
+    {
+      // Thêm &size=512 vào cuối link
+      "src": "https://api.dicebear.com/9.x/shapes/png?seed=chocuatui&backgroundColor=1677ff&size=512",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
     {
       "src": "https://api.dicebear.com/9.x/shapes/png?seed=chocuatui&backgroundColor=1677ff",
       "sizes": "512x512",

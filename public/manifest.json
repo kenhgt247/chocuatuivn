@@ -22,13 +22,6 @@
       "purpose": "maskable"
     }
   ],
-    {
-      "src": "https://api.dicebear.com/9.x/shapes/png?seed=chocuatui&backgroundColor=1677ff",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
-  ],
   "categories": ["shopping", "business"],
   "shortcuts": [
     {

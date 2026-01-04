@@ -1,0 +1,119 @@
+
+export type UserRole = 'user' | 'admin';
+export type SubscriptionTier = 'free' | 'basic' | 'pro';
+export type UserStatus = 'active' | 'banned';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string;
+  role: UserRole;
+  status: UserStatus;
+  phone?: string;
+  joinedAt: string;
+  location?: string;
+  lat?: number;
+  lng?: number;
+  subscriptionTier: SubscriptionTier;
+  subscriptionExpires?: string;
+  walletBalance: number;
+  followers?: string[];
+  following?: string[];
+}
+
+export interface Transaction {
+  id: string;
+  userId: string;
+  amount: number;
+  type: 'deposit' | 'payment';
+  method?: string;
+  description: string;
+  status: 'success' | 'pending' | 'failed';
+  createdAt: string;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  icon: string;
+  slug: string;
+}
+
+export interface Listing {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  category: string;
+  images: string[];
+  location: string;
+  lat?: number;
+  lng?: number;
+  sellerId: string;
+  sellerName: string;
+  sellerAvatar: string;
+  createdAt: string;
+  status: 'pending' | 'approved' | 'rejected';
+  condition: 'new' | 'used';
+  tier: SubscriptionTier;
+  isFavorite?: boolean;
+}
+
+export interface Review {
+  id: string;
+  targetId: string; // ID của tin đăng hoặc người dùng được đánh giá
+  targetType: 'listing' | 'user';
+  authorId: string;
+  authorName: string;
+  authorAvatar: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+export interface Report {
+  id: string;
+  listingId: string;
+  userId: string;
+  reason: string;
+  details?: string;
+  createdAt: string;
+  status: 'pending' | 'resolved';
+}
+
+export interface Message {
+  id: string;
+  senderId: string;
+  text: string;
+  timestamp: string;
+}
+
+export interface ChatRoom {
+  id: string;
+  listingId: string;
+  listingTitle: string;
+  listingImage: string;
+  listingPrice: number;
+  participantIds: string[];
+  messages: Message[];
+  lastMessage?: string;
+  lastUpdate: string;
+  seenBy: string[];
+}
+
+export interface Favorite {
+  userId: string;
+  listingId: string;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  read: boolean;
+  createdAt: string;
+  link?: string;
+}

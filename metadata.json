@@ -1,0 +1,9 @@
+{
+  "name": "Chợ của tui - Classifieds App",
+  "description": "A smart classifieds platform with AI-powered listing suggestions, real-time chat, and a clean mobile-first design.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

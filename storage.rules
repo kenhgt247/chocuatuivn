@@ -1,0 +1,19 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Rules for listing images
+    match /listings/{userId}/{allPaths=**} {
+      // Allow public read access so anyone can see product images
+      allow read: if true;
+      
+      // Allow write access only if the user is authenticated and is the owner of the folder
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Rules for user profile avatars (if needed in the future)
+    match /users/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

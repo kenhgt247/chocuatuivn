@@ -1,0 +1,102 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- FUNCTIONS HỖ TRỢ ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && getUserData().role == 'admin';
+    }
+
+    // Kiểm tra xem người dùng có đang cố gắng thay đổi các trường nhạy cảm không
+    function isNotChangingSensitiveUserFields() {
+      let sensitiveFields = ['role', 'walletBalance', 'subscriptionTier', 'subscriptionExpires', 'status'];
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(sensitiveFields);
+    }
+
+    // --- RULES CHO TỪNG COLLECTION ---
+
+    match /users/{userId} {
+      allow read: if true; 
+      
+      // Khi tạo tài khoản mới
+      allow create: if isOwner(userId) 
+        && request.resource.data.role == 'user' 
+        && request.resource.data.walletBalance == 0;
+      
+      // Khi cập nhật hồ sơ
+      allow update: if isAdmin() || (isOwner(userId) && isNotChangingSensitiveUserFields());
+    }
+
+    match /listings/{listingId} {
+      allow read: if true;
+      
+      // Đảm bảo người đăng tin là chính họ
+      allow create: if isSignedIn() 
+        && request.resource.data.sellerId == request.auth.uid;
+      
+      // Chỉ chủ tin hoặc admin mới được sửa/xóa, và không được đổi người bán
+      allow update: if (isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin()))
+        && request.resource.data.sellerId == resource.data.sellerId;
+        
+      allow delete: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.authorId == request.auth.uid);
+    }
+
+    match /chats/{chatId} {
+      // Chỉ những người trong cuộc hội thoại mới được xem và gửi tin
+      allow read, write: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantIds;
+    }
+
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /transactions/{txId} {
+      // Người dùng chỉ được tạo yêu cầu nạp tiền với trạng thái 'pending'
+      allow create: if isSignedIn() 
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending';
+        
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // Chỉ Admin mới được duyệt (thay đổi status) giao dịch
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notifId} {
+      allow read, update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn();
+    }
+
+    match /system/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /favorites/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+  }
+}

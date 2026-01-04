@@ -5,10 +5,16 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, 
   query, where, orderBy, limit, addDoc, serverTimestamp, Timestamp, 
   deleteDoc, onSnapshot, arrayUnion, arrayRemove, runTransaction,
-  startAfter, QueryDocumentSnapshot, DocumentData, FirestoreError
+  startAfter, QueryDocumentSnapshot, DocumentData
 } from "firebase/firestore";
-// Fix: Consolidate auth imports and ensure standard modular SDK exports are used
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "firebase/auth";
+// Fix: Use standard modular SDK imports for Firebase Auth to resolve "no exported member" errors
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged, 
+  createUserWithEmailAndPassword 
+} from "firebase/auth";
 import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
 import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review } from '../types';
 

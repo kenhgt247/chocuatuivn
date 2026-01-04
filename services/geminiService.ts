@@ -32,7 +32,7 @@ Danh mục ID và Tên:
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
   try {
     // Khởi tạo trực tiếp bằng process.env.API_KEY theo hướng dẫn
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
     const imagePart = {
       inlineData: {
         mimeType: 'image/jpeg',
@@ -62,7 +62,7 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   try {
     // Luôn tạo instance GoogleGenAI ngay trước khi gọi để đảm bảo sử dụng API Key mới nhất
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
     const imageParts = imagesBase64.map(base64 => ({
       inlineData: {
         mimeType: 'image/jpeg',

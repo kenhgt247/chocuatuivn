@@ -16,13 +16,11 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Chỉ cache các request GET
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request).then((fetchResponse) => {
-        // Cache các tài nguyên tĩnh mới
         if (fetchResponse.status === 200 && (
           event.request.url.includes('gstatic.com') || 
           event.request.url.includes('esm.sh') ||
@@ -36,7 +34,6 @@ self.addEventListener('fetch', (event) => {
         return fetchResponse;
       });
     }).catch(() => {
-      // Trả về trang chủ nếu mất mạng và không có cache
       return caches.match('/');
     })
   );

@@ -13,9 +13,9 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const categoryRef = useRef<HTMLDivElement>(null);
   
   const search = searchParams.get('search') || '';
-  const categoryParam = searchParams.get('category') || ''; // Dạng: "bat-dong-san-1"
+  const categoryParam = searchParams.get('category') || ''; // Ví dụ: "do-dien-tu-3"
   
-  // Trích xuất ID từ chuỗi slug-id (ví dụ: "bat-dong-san-1" -> "1")
+  // Trích xuất ID từ chuỗi slug-id (ví dụ: "do-dien-tu-3" -> "3")
   const activeCategoryId = categoryParam.split('-').pop() || '';
   
   const [latestListings, setLatestListings] = useState<Listing[]>([]);
@@ -105,7 +105,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const selectCategory = (cat: Category | null) => {
     const params = new URLSearchParams(searchParams);
     if (cat) {
-      // URL chuẩn SEO: slug-id (ví dụ: bat-dong-san-1)
+      // Cấu trúc chuẩn SEO: slug-id
       params.set('category', `${cat.slug}-${cat.id}`);
     } else {
       params.delete('category');
@@ -126,10 +126,10 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     <div className="space-y-8 pb-24 px-2 md:px-4 max-w-[1400px] mx-auto">
       
       {/* Category Section Container */}
-      <div ref={categoryRef} className="sticky top-20 z-40 bg-bgMain/80 backdrop-blur-md py-2 -mx-2 px-2 md:mx-0 md:px-0">
+      <div ref={categoryRef} className="sticky top-20 z-40 bg-bgMain/90 backdrop-blur-lg py-3 -mx-2 px-2 md:mx-0 md:px-0">
         
-        {/* --- MOBILE VIEW: Thanh trượt ngang --- */}
-        <section className="flex md:hidden bg-white border-b p-2 overflow-x-auto no-scrollbar gap-2 shadow-sm rounded-xl">
+        {/* --- MOBILE VIEW: Giữ nguyên thanh trượt ngang --- */}
+        <section className="flex md:hidden bg-white border border-borderMain p-2 overflow-x-auto no-scrollbar gap-2 shadow-sm rounded-2xl">
           <button 
             onClick={() => selectCategory(null)}
             className={`px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all flex-shrink-0 ${!activeCategoryId ? 'bg-primary text-white shadow-lg' : 'bg-gray-100 text-gray-500'}`}
@@ -148,19 +148,19 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           ))}
         </section>
 
-        {/* --- DESKTOP VIEW: Thông minh (7 + Tất cả) --- */}
+        {/* --- DESKTOP VIEW: 7 + 1 Thông minh --- */}
         <section className="hidden md:block">
           <div className={`bg-white border border-borderMain rounded-[2.5rem] p-3 shadow-soft transition-all duration-500 ease-in-out ${isExpanded ? 'ring-4 ring-primary/5' : ''}`}>
             
             {!isExpanded ? (
-              // TRẠNG THÁI THU GỌN: 7 danh mục đầu tiên
+              // Giao diện thu gọn: 7 mục đầu tiên
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 overflow-hidden">
                   <button 
                     onClick={() => selectCategory(null)}
                     className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all flex-shrink-0 ${!activeCategoryId ? 'bg-primary text-white shadow-lg' : 'bg-gray-50 text-gray-400 hover:text-gray-600'}`}
                   >
-                    Mặc định
+                    🏠 Mặc định
                   </button>
                   {CATEGORIES.slice(0, DISPLAY_COUNT).map(cat => (
                     <button 
@@ -183,12 +183,12 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                 </button>
               </div>
             ) : (
-              // TRẠNG THÁI MỞ RỘNG: Lưới toàn bộ danh mục chuẩn SEO
+              // Giao diện mở rộng: Lưới toàn bộ danh mục SEO
               <div className="animate-fade-in-up">
-                <div className="flex items-center justify-between mb-8 px-4">
+                <div className="flex items-center justify-between mb-8 px-6 pt-2">
                   <div className="flex flex-col">
                     <h3 className="text-sm font-black text-primary uppercase tracking-[0.2em]">Khám phá danh mục</h3>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Chọn một chủ đề bạn quan tâm</p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Lọc sản phẩm theo nhu cầu của bạn</p>
                   </div>
                   <button 
                     onClick={() => setIsExpanded(false)}
@@ -199,7 +199,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                   </button>
                 </div>
                 
-                <div className="grid grid-cols-4 lg:grid-cols-7 gap-4">
+                <div className="grid grid-cols-4 lg:grid-cols-7 gap-4 px-3 pb-4">
                   <button 
                     onClick={() => selectCategory(null)}
                     className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] transition-all border-2 ${!activeCategoryId ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-bgMain border-transparent hover:border-primary/30 text-gray-500 hover:text-primary'}`}
@@ -220,9 +220,9 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                   ))}
                 </div>
                 
-                <div className="mt-8 pt-6 border-t border-gray-100 flex items-center justify-center gap-2">
+                <div className="mt-4 pt-6 border-t border-gray-100 flex items-center justify-center gap-2 pb-2">
                    <div className="w-1 h-1 bg-primary rounded-full animate-ping"></div>
-                   <p className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.3em]">Hệ thống AI đang lọc tin theo sở thích của bạn</p>
+                   <p className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.3em]">Hệ thống SEO đã sẵn sàng phục vụ</p>
                 </div>
               </div>
             )}
@@ -230,7 +230,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       </div>
 
-      {/* --- PHẦN HIỂN THỊ TIN ĐĂNG (Giữ nguyên logic cũ) --- */}
+      {/* --- CÁC PHẦN HIỂN THỊ TIN ĐĂNG (GIỮ NGUYÊN) --- */}
       
       {/* Tin VIP */}
       {!search && !activeCategoryId && vipListings.length > 0 && (
@@ -248,29 +248,16 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* Tin Gần Bạn */}
-      {!search && !activeCategoryId && nearbyListings.length > 0 && (
-        <section className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
-              <span className="text-red-500 text-xl">📍</span> Tin đăng gần bạn ({user?.location})
-            </h2>
-          </div>
-          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 px-1">
-            {nearbyListings.map(l => (
-              <div key={l.id} className="w-[160px] md:w-[200px] flex-shrink-0">
-                <ListingCard listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* Feed Chính */}
       <section className="space-y-4">
-        <h2 className="text-lg md:text-xl font-black text-gray-900 px-2 tracking-tight">
-          {search ? `Kết quả cho "${search}"` : activeCategoryId ? `${CATEGORIES.find(c => c.id === activeCategoryId)?.name}` : 'Lựa chọn hôm nay'}
-        </h2>
+        <div className="flex items-center justify-between px-2">
+          <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight">
+            {search ? `Kết quả cho "${search}"` : activeCategoryId ? `${CATEGORIES.find(c => c.id === activeCategoryId)?.name}` : 'Lựa chọn hôm nay'}
+          </h2>
+          {activeCategoryId && (
+             <button onClick={() => selectCategory(null)} className="text-[10px] font-black text-primary uppercase border-b-2 border-primary/20 hover:border-primary transition-all">Xóa lọc</button>
+          )}
+        </div>
 
         {isLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4 px-1">

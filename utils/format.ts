@@ -1,5 +1,4 @@
-
-import { Listing } from '../types';
+import { Listing, Category } from '../types';
 
 export const formatPrice = (price: number): string => {
   return new Intl.NumberFormat('vi-VN', {
@@ -39,4 +38,14 @@ export const slugify = (text: string): string => {
 export const getListingUrl = (listing: Listing): string => {
   const slug = slugify(listing.title);
   return `/san-pham/${slug}-${listing.id}`;
+};
+
+/**
+ * Tạo URL SEO friendly cho danh mục
+ * Cấu trúc: /danh-muc/slug-ten-danh-muc
+ */
+export const getCategoryUrl = (category: Category): string => {
+  // Ưu tiên dùng slug có sẵn trong database, nếu không có thì tự tạo từ tên
+  const slug = category.slug || slugify(category.name);
+  return `/danh-muc/${slug}`;
 };

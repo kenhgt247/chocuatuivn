@@ -2,7 +2,7 @@ export type UserRole = 'user' | 'admin';
 export type SubscriptionTier = 'free' | 'basic' | 'pro';
 export type UserStatus = 'active' | 'banned';
 
-// --- MỚI THÊM: Trạng thái xác thực ---
+// --- MỚI: Trạng thái xác thực ---
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
 export interface User {
@@ -23,9 +23,9 @@ export interface User {
   followers?: string[];
   following?: string[];
   
-  // --- MỚI THÊM: Trường xác thực ---
-  verificationStatus?: VerificationStatus; // Trạng thái: Chưa, Chờ, Đã duyệt, Từ chối
-  verificationDocuments?: string[];      // Mảng chứa link ảnh (Mặt trước, Mặt sau)
+  // --- MỚI: Các trường cho tính năng xác thực ---
+  verificationStatus?: VerificationStatus; 
+  verificationDocuments?: string[]; // Chứa link ảnh mặt trước, mặt sau
 }
 
 export interface Transaction {

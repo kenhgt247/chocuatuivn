@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { db } from '../services/db';
@@ -31,12 +30,14 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const [reportDetails, setReportDetails] = useState("");
   const [isPhoneVisible, setIsPhoneVisible] = useState(false);
 
+  // Lấy ID từ URL
   const id = useMemo(() => {
     if (!slugWithId) return null;
     const parts = slugWithId.split('-');
     return parts[parts.length - 1];
   }, [slugWithId]);
 
+  // Load dữ liệu
   useEffect(() => {
     if (!id) return;
     const loadListing = async () => {
@@ -53,8 +54,38 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     window.scrollTo(0, 0);
   }, [id, user]);
 
+  // --- LOGIC MỚI: SẮP XẾP SẢN PHẨM TƯƠNG TỰ (VIP -> GẦN -> MỚI) ---
+  const similarListings = useMemo(() => {
+    if (!listing || allListings.length === 0) return [];
+
+    return allListings
+      .filter(l => 
+        l.id !== listing.id &&          // Trừ tin đang xem
+        l.category === listing.category // Cùng danh mục
+      )
+      .sort((a, b) => {
+        // 1. Ưu tiên VIP lên đầu
+        // (Giả sử listing có trường isVip, ép kiểu về số để so sánh)
+        const aVip = (a as any).isVip ? 1 : 0;
+        const bVip = (b as any).isVip ? 1 : 0;
+        if (aVip !== bVip) return bVip - aVip;
+
+        // 2. Ưu tiên Cùng Khu Vực (Quanh đây)
+        const aNear = a.location === listing.location ? 1 : 0;
+        const bNear = b.location === listing.location ? 1 : 0;
+        if (aNear !== bNear) return bNear - aNear;
+
+        // 3. Ưu tiên Mới nhất
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      })
+      .slice(0, 12); // Lấy 12 tin
+  }, [allListings, listing]);
+
   if (!listing) return null;
 
+  // --- HANDLERS ---
   const handleStartChat = async () => {
     if (!user) return navigate('/login');
     if (user.id === listing.sellerId) return;
@@ -256,18 +287,21 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           <Link to={`/?category=${listing.category}`} className="text-xs font-black text-primary hover:underline">Xem tất cả →</Link>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4">
-          {allListings
-            .filter(l => l.id !== listing.id && l.category === listing.category)
-            .slice(0, 12)
-            .map(l => (
-              <ListingCard 
-                key={l.id} 
-                listing={l} 
-                isFavorite={userFavorites.includes(l.id)} 
-                onToggleFavorite={handleToggleFav} 
-              />
-            ))
-          }
+          {/* SỬ DỤNG DANH SÁCH ĐÃ ĐƯỢC SẮP XẾP (similarListings) */}
+          {similarListings.map(l => (
+            <ListingCard 
+              key={l.id} 
+              listing={l} 
+              isFavorite={userFavorites.includes(l.id)} 
+              onToggleFavorite={handleToggleFav} 
+            />
+          ))}
+          
+          {similarListings.length === 0 && (
+             <div className="col-span-full py-10 text-center text-gray-400 text-sm italic">
+                Chưa có sản phẩm tương tự.
+             </div>
+          )}
         </div>
       </div>
 

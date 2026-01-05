@@ -19,7 +19,7 @@ const STATIC_LINKS = [
 const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const location = useLocation(); // Dùng để active menu
+  const location = useLocation(); // Dùng để highlight menu đang chọn
   const { slug } = useParams<{ slug: string }>();
   const categoryRef = useRef<HTMLDivElement>(null);
 
@@ -348,7 +348,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                 listing={l} 
                 isFavorite={favorites.includes(l.id)} 
                 onToggleFavorite={toggleFav} 
-                // Chỉ truyền onPushListing nếu user là chủ sở hữu
                 onPushListing={user && user.id === l.sellerId ? handlePushListing : undefined}
               />
             ))}
@@ -442,39 +441,49 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
          </div>
       </footer>
 
-      {/* 7. MOBILE BOTTOM NAVIGATION (DOCK STYLE - DẤU CỘNG Ở GIỮA) */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden pb-safe">
-         <div className="bg-white border-t border-gray-200 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] px-6 py-2 pb-4">
-            <div className="flex items-center justify-between relative">
+      {/* 7. MOBILE BOTTOM MENU (DOCK STYLE) */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
+         {/* Container chính của menu */}
+         <div className="bg-white border-t border-gray-100 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] px-4 pb-2 relative">
+            
+            {/* Flex container chia 3 phần */}
+            <div className="flex justify-between items-end h-16">
                 
-                {/* Left Side */}
-                <Link to="/" className={`flex flex-col items-center gap-1 ${location.pathname === '/' ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}>
-                    <svg className="w-6 h-6" fill={location.pathname === '/' ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-                    <span className="text-[9px] font-bold uppercase">Trang chủ</span>
-                </Link>
-                <Link to="/manage" className={`flex flex-col items-center gap-1 ${location.pathname === '/manage' ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}>
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-                    <span className="text-[9px] font-bold uppercase">Quản lý</span>
-                </Link>
-
-                {/* CENTER: POST BUTTON (DẤU CỘNG NỔI) */}
-                <div className="relative -top-8 group cursor-pointer" onClick={() => navigate('/post')}>
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-primary to-purple-600 p-1 shadow-2xl shadow-primary/40 border-[6px] border-white group-active:scale-95 transition-transform flex items-center justify-center">
-                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/></svg>
-                    </div>
+                {/* NHÓM TRÁI: Trang chủ & Quản lý */}
+                <div className="flex-1 flex justify-around items-center pb-2">
+                    <Link to="/" className={`flex flex-col items-center gap-1 transition-all ${location.pathname === '/' ? 'text-primary scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
+                        <svg className="w-6 h-6" fill={location.pathname === '/' ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                        <span className="text-[9px] font-bold">Trang chủ</span>
+                    </Link>
+                    <Link to="/profile" className={`flex flex-col items-center gap-1 transition-all ${location.pathname === '/profile' ? 'text-primary scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                        <span className="text-[9px] font-bold">Quản lý</span>
+                    </Link>
                 </div>
 
-                {/* Right Side */}
-                <Link to="/chat" className={`flex flex-col items-center gap-1 ${location.pathname === '/chat' ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}>
-                    <svg className="w-6 h-6" fill={location.pathname.startsWith('/chat') ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                    <span className="text-[9px] font-bold uppercase">Tin nhắn</span>
-                </Link>
-                <Link to="/profile" className={`flex flex-col items-center gap-1 ${location.pathname === '/profile' ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}>
-                    <div className={`w-6 h-6 rounded-full border-2 overflow-hidden ${location.pathname === '/profile' ? 'border-primary' : 'border-gray-400'}`}>
-                        {user ? <img src={user.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gray-200"></div>}
-                    </div>
-                    <span className="text-[9px] font-bold uppercase">Cá nhân</span>
-                </Link>
+                {/* NÚT GIỮA: ĐĂNG TIN (Nổi hẳn lên) */}
+                <div className="relative -top-6 mx-2 group">
+                    <button onClick={() => navigate('/post')} className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-purple-600 text-white shadow-2xl shadow-primary/40 border-4 border-white flex items-center justify-center transform group-active:scale-95 transition-all duration-300">
+                        <svg className="w-8 h-8 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/></svg>
+                    </button>
+                </div>
+
+                {/* NHÓM PHẢI: Tin nhắn & Cá nhân */}
+                <div className="flex-1 flex justify-around items-center pb-2">
+                    <Link to="/chat" className={`flex flex-col items-center gap-1 transition-all ${location.pathname.startsWith('/chat') ? 'text-primary scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
+                        <svg className="w-6 h-6" fill={location.pathname.startsWith('/chat') ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                        <span className="text-[9px] font-bold">Tin nhắn</span>
+                    </Link>
+                    <Link to="/profile" className={`flex flex-col items-center gap-1 transition-all ${location.pathname === '/profile' ? 'text-primary scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
+                        {user ? (
+                            <img src={user.avatar} className={`w-6 h-6 rounded-full object-cover border-2 ${location.pathname === '/profile' ? 'border-primary' : 'border-transparent'}`} alt="User" />
+                        ) : (
+                            <svg className="w-6 h-6" fill={location.pathname === '/profile' ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        )}
+                        <span className="text-[9px] font-bold">Cá nhân</span>
+                    </Link>
+                </div>
+
             </div>
          </div>
       </div>

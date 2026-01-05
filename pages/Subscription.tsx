@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, SubscriptionTier } from '../types';
@@ -8,9 +7,15 @@ import { formatPrice } from '../utils/format';
 
 const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => void }> = ({ user, onUpdateUser }) => {
   const navigate = useNavigate();
+  
+  // State quản lý logic
   const [loading, setLoading] = useState<SubscriptionTier | null>(null);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [showPayModal, setShowPayModal] = useState<{ tier: SubscriptionTier, price: number } | null>(null);
+  
+  // State quản lý hiệu ứng loading riêng cho từng nút trong Modal
+  const [processingMethod, setProcessingMethod] = useState<'wallet' | 'transfer' | null>(null);
+
   const [toast, setToast] = useState<{ show: boolean, message: string, type: 'success' | 'error' }>({ show: false, message: '', type: 'success' });
 
   useEffect(() => {
@@ -47,34 +52,53 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
       return;
     }
 
+    // Bắt đầu hiệu ứng loading
+    setProcessingMethod('wallet');
     setLoading(showPayModal.tier);
-    const res = await db.buySubscriptionWithWallet(user.id, showPayModal.tier, showPayModal.price);
-    if (res.success) {
-      const updated = await db.getCurrentUser();
-      if (updated) onUpdateUser(updated);
-      showToast("Nâng cấp gói thành công!");
-      setTimeout(() => navigate('/profile'), 1500);
-    } else {
-      showToast(res.message || "Giao dịch thất bại", "error");
+
+    try {
+      const res = await db.buySubscriptionWithWallet(user.id, showPayModal.tier, showPayModal.price);
+      if (res.success) {
+        const updated = await db.getCurrentUser();
+        if (updated) onUpdateUser(updated);
+        showToast("Nâng cấp gói thành công!");
+        setShowPayModal(null);
+        setTimeout(() => navigate('/profile'), 1500);
+      } else {
+        showToast(res.message || "Giao dịch thất bại", "error");
+      }
+    } catch (error) {
+      showToast("Lỗi hệ thống", "error");
+    } finally {
+      // Kết thúc loading
+      setLoading(null);
+      setProcessingMethod(null);
     }
-    setLoading(null);
-    setShowPayModal(null);
   };
 
   const payWithTransfer = async () => {
     if (!showPayModal) return;
+
+    setProcessingMethod('transfer');
     setLoading(showPayModal.tier);
-    await db.requestSubscriptionTransfer(user.id, showPayModal.tier, showPayModal.price);
-    showToast("Yêu cầu đã được gửi. Chờ Admin duyệt.");
-    setTimeout(() => navigate('/wallet'), 1500);
-    setLoading(null);
-    setShowPayModal(null);
+
+    try {
+      await db.requestSubscriptionTransfer(user.id, showPayModal.tier, showPayModal.price);
+      showToast("Yêu cầu đã được gửi. Chờ Admin duyệt.");
+      setShowPayModal(null);
+      setTimeout(() => navigate('/wallet'), 1500);
+    } catch (error) {
+      showToast("Lỗi khi gửi yêu cầu", "error");
+    } finally {
+      setLoading(null);
+      setProcessingMethod(null);
+    }
   };
 
   const tiers: SubscriptionTier[] = ['free', 'basic', 'pro'];
 
   return (
-    <div className="max-w-5xl mx-auto py-10 px-4 relative">
+    <div className="max-w-5xl mx-auto py-10 px-4 relative pb-24">
       {/* Toast Notification */}
       {toast.show && (
         <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[110] px-6 py-3 rounded-2xl shadow-2xl font-black text-xs uppercase tracking-widest animate-fade-in-up flex items-center gap-3 ${toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
@@ -83,15 +107,17 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
         </div>
       )}
 
+      {/* Header */}
       <div className="text-center mb-12 space-y-4">
-        <h1 className="text-4xl font-black text-textMain tracking-tight">Nâng cấp đặc quyền</h1>
-        <p className="text-gray-500 max-w-lg mx-auto">Tăng khả năng bán hàng gấp nhiều lần với các gói VIP.</p>
+        <h1 className="text-3xl md:text-4xl font-black text-textMain tracking-tight">Nâng cấp đặc quyền</h1>
+        <p className="text-gray-500 max-w-lg mx-auto text-sm md:text-base">Tăng khả năng bán hàng gấp nhiều lần với các gói VIP.</p>
         <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-1.5 rounded-full text-sm font-bold">
           <span>⚡</span> Gói hiện tại: {TIER_CONFIG[user.subscriptionTier]?.name || user.subscriptionTier}
         </div>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-8">
+      {/* Tier Cards Grid */}
+      <div className="grid md:grid-cols-3 gap-6 md:gap-8">
         {tiers.map((tier) => {
           const config = settings.tierConfigs[tier];
           const isCurrent = user.subscriptionTier === tier;
@@ -101,63 +127,118 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
           let displayPrice = tier === 'free' ? '0đ' : formatPrice(config.price * (1 - settings.tierDiscount / 100));
 
           return (
-            <div key={tier} className={`relative bg-white border-2 rounded-3xl p-8 flex flex-col transition-all hover:scale-[1.03] ${isPro ? 'border-yellow-400 shadow-xl shadow-yellow-100' : 'border-borderMain'} ${isCurrent ? 'bg-gray-50 opacity-80' : ''}`}>
-              {isPro && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-[10px] font-black px-6 py-1.5 rounded-full shadow-lg uppercase tracking-widest">Phổ biến nhất</div>}
-              <div className="mb-8">
-                <h3 className={`text-xl font-black mb-2 uppercase ${isPro ? 'text-yellow-600' : 'text-gray-900'}`}>{tierName}</h3>
+            <div key={tier} className={`relative bg-white border-2 rounded-[2rem] p-6 md:p-8 flex flex-col transition-all hover:border-primary/50 hover:shadow-xl ${isPro ? 'border-yellow-400 shadow-lg shadow-yellow-100' : 'border-gray-100'} ${isCurrent ? 'bg-gray-50 opacity-80' : ''}`}>
+              {isPro && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg uppercase tracking-widest whitespace-nowrap">Phổ biến nhất</div>}
+              
+              <div className="mb-6 md:mb-8">
+                <h3 className={`text-lg md:text-xl font-black mb-2 uppercase ${isPro ? 'text-yellow-600' : 'text-gray-900'}`}>{tierName}</h3>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-black">{displayPrice}</span>
-                  {tier !== 'free' && <span className="text-gray-400 text-sm">/tháng</span>}
+                  <span className="text-2xl md:text-3xl font-black">{displayPrice}</span>
+                  {tier !== 'free' && <span className="text-gray-400 text-xs md:text-sm font-bold">/tháng</span>}
                 </div>
               </div>
-              <ul className="space-y-4 mb-10 flex-1">
+
+              <ul className="space-y-4 mb-8 flex-1">
                 {config.features.map((f, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm">
                     <svg className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isPro ? 'text-yellow-500' : 'text-primary'}`} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                    <span className="text-gray-600 font-medium">{f}</span>
+                    <span className="text-gray-600 font-medium leading-tight">{f}</span>
                   </li>
                 ))}
               </ul>
-              <button disabled={isCurrent || loading === tier} onClick={() => handleUpgradeClick(tier)} className={`w-full py-4 rounded-2xl font-black transition-all ${isCurrent ? 'bg-gray-100 text-gray-400' : isPro ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white' : 'bg-primary text-white'}`}>
-                {isCurrent ? 'Gói đang dùng' : loading === tier ? 'Đang xử lý...' : 'Nâng cấp ngay'}
+
+              <button 
+                disabled={isCurrent || loading !== null} 
+                onClick={() => handleUpgradeClick(tier)} 
+                className={`w-full py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-all active:scale-95 ${isCurrent ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : isPro ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg shadow-orange-200' : 'bg-primary text-white shadow-lg shadow-primary/20'}`}
+              >
+                {isCurrent ? 'Đang sử dụng' : 'Nâng cấp ngay'}
               </button>
             </div>
           );
         })}
       </div>
 
+      {/* --- PHẦN MODAL THANH TOÁN (ĐÃ TỐI ƯU CHO MOBILE & DESKTOP) --- */}
       {showPayModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowPayModal(null)}></div>
-          <div className="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl relative space-y-6">
-            <h3 className="text-xl font-black">Chọn hình thức thanh toán</h3>
-            <p className="text-sm text-gray-500">Bạn đang mua gói <span className="font-bold text-primary">{showPayModal.tier.toUpperCase()}</span> với giá <span className="font-bold">{formatPrice(showPayModal.price)}</span></p>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !loading && setShowPayModal(null)}></div>
+          
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-6 md:p-8 shadow-2xl relative space-y-6 animate-fade-in-up border border-gray-100">
             
+            {/* Modal Header */}
+            <div className="text-center">
+                <h3 className="text-xl font-black text-gray-800">Thanh toán</h3>
+                <p className="text-sm text-gray-500 mt-2 font-medium bg-gray-50 py-2 px-4 rounded-xl inline-block">
+                    Gói <span className="font-black text-primary uppercase">{showPayModal.tier}</span> 
+                    <span className="mx-2 text-gray-300">|</span> 
+                    <span className="font-black text-gray-800">{formatPrice(showPayModal.price)}</span>
+                </p>
+            </div>
+            
+            {/* Payment Buttons Options */}
             <div className="space-y-3">
-              <button onClick={payWithWallet} className="w-full flex items-center justify-between p-4 border-2 border-gray-100 rounded-2xl hover:border-primary transition-all group">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">💳</span>
+              {/* 1. NÚT VÍ */}
+              <button 
+                onClick={payWithWallet}
+                disabled={loading !== null}
+                className={`w-full flex items-center justify-between p-4 border-2 rounded-2xl transition-all duration-200 group relative overflow-hidden active:scale-95
+                  ${processingMethod === 'wallet' ? 'border-primary bg-blue-50' : 'border-gray-100 hover:border-primary hover:bg-blue-50/50 hover:shadow-md'}
+                  disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-2xl shadow-sm">💳</div>
                   <div className="text-left">
-                    <p className="text-sm font-black uppercase">Thanh toán qua Ví</p>
-                    <p className="text-[10px] text-gray-400">Số dư: {formatPrice(user.walletBalance)}</p>
+                    <p className="text-sm font-black uppercase text-gray-800 group-hover:text-primary transition-colors">Ví của tôi</p>
+                    <p className="text-[11px] font-bold text-gray-400">Số dư: <span className="text-green-600">{formatPrice(user.walletBalance)}</span></p>
                   </div>
                 </div>
-                <div className="w-6 h-6 rounded-full border-2 group-hover:border-primary"></div>
+                
+                {/* Spinner Logic */}
+                {processingMethod === 'wallet' ? (
+                   <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                   <div className="w-6 h-6 rounded-full border-2 border-gray-200 group-hover:border-primary group-active:bg-primary flex items-center justify-center">
+                      <div className="w-2.5 h-2.5 bg-white rounded-full opacity-0 group-active:opacity-100"></div>
+                   </div>
+                )}
               </button>
 
-              <button onClick={payWithTransfer} className="w-full flex items-center justify-between p-4 border-2 border-gray-100 rounded-2xl hover:border-primary transition-all group">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">🏦</span>
+              {/* 2. NÚT CHUYỂN KHOẢN */}
+              <button 
+                onClick={payWithTransfer}
+                disabled={loading !== null}
+                className={`w-full flex items-center justify-between p-4 border-2 rounded-2xl transition-all duration-200 group relative overflow-hidden active:scale-95
+                  ${processingMethod === 'transfer' ? 'border-primary bg-purple-50' : 'border-gray-100 hover:border-primary hover:bg-purple-50/50 hover:shadow-md'}
+                  disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-2xl shadow-sm">🏦</div>
                   <div className="text-left">
-                    <p className="text-sm font-black uppercase">Chuyển khoản Ngân hàng</p>
-                    <p className="text-[10px] text-gray-400">Chờ Admin phê duyệt (5-30p)</p>
+                    <p className="text-sm font-black uppercase text-gray-800 group-hover:text-primary transition-colors">Chuyển khoản</p>
+                    <p className="text-[11px] font-bold text-gray-400">Duyệt thủ công (15p)</p>
                   </div>
                 </div>
-                <div className="w-6 h-6 rounded-full border-2 group-hover:border-primary"></div>
+                
+                {/* Spinner Logic */}
+                {processingMethod === 'transfer' ? (
+                   <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                   <div className="w-6 h-6 rounded-full border-2 border-gray-200 group-hover:border-primary group-active:bg-primary flex items-center justify-center">
+                      <div className="w-2.5 h-2.5 bg-white rounded-full opacity-0 group-active:opacity-100"></div>
+                   </div>
+                )}
               </button>
             </div>
 
-            <button onClick={() => setShowPayModal(null)} className="w-full text-xs font-bold text-gray-400 uppercase py-2">Hủy bỏ</button>
+            {/* Cancel Button */}
+            <button 
+                onClick={() => !loading && setShowPayModal(null)} 
+                disabled={loading !== null}
+                className="w-full py-3 rounded-xl font-black text-xs text-gray-400 uppercase hover:bg-gray-100 hover:text-gray-600 active:scale-95 transition-all"
+            >
+                Hủy bỏ
+            </button>
           </div>
         </div>
       )}

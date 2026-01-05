@@ -6,6 +6,8 @@ import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
 import ListingCard from '../components/ListingCard';
 import ShareModal from '../components/ShareModal';
 import ReviewSection from '../components/ReviewSection';
+// 1. IMPORT CATEGORIES ĐỂ TRA CỨU TÊN
+import { CATEGORIES } from '../constants';
 
 const REPORT_REASONS = [
   "Lừa đảo, giả mạo",
@@ -65,7 +67,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
       )
       .sort((a, b) => {
         // 1. Ưu tiên VIP lên đầu
-        // (Giả sử listing có trường isVip, ép kiểu về số để so sánh)
         const aVip = (a as any).isVip ? 1 : 0;
         const bVip = (b as any).isVip ? 1 : 0;
         if (aVip !== bVip) return bVip - aVip;
@@ -179,8 +180,15 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             
             <div className="pt-6 border-t border-gray-100">
                <div className="flex flex-wrap gap-4">
-                 <div className="bg-bgMain px-4 py-2 rounded-xl text-xs font-bold text-gray-500">Tình trạng: <span className="text-textMain">{listing.condition === 'new' ? 'Mới 100%' : 'Đã sử dụng'}</span></div>
-                 <div className="bg-bgMain px-4 py-2 rounded-xl text-xs font-bold text-gray-500">Danh mục: <span className="text-textMain">{listing.category}</span></div>
+                 <div className="bg-bgMain px-4 py-2 rounded-xl text-xs font-bold text-gray-500">
+                    Tình trạng: <span className="text-textMain">{listing.condition === 'new' ? 'Mới 100%' : 'Đã sử dụng'}</span>
+                 </div>
+                 <div className="bg-bgMain px-4 py-2 rounded-xl text-xs font-bold text-gray-500">
+                    {/* 2. SỬA ĐOẠN NÀY ĐỂ HIỂN THỊ TÊN DANH MỤC THAY VÌ ID */}
+                    Danh mục: <span className="text-textMain">
+                        {CATEGORIES.find(c => c.id === listing.category)?.name || listing.category}
+                    </span>
+                 </div>
                </div>
             </div>
           </div>
@@ -287,7 +295,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           <Link to={`/?category=${listing.category}`} className="text-xs font-black text-primary hover:underline">Xem tất cả →</Link>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4">
-          {/* SỬ DỤNG DANH SÁCH ĐÃ ĐƯỢC SẮP XẾP (similarListings) */}
           {similarListings.map(l => (
             <ListingCard 
               key={l.id} 

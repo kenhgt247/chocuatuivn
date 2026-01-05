@@ -23,7 +23,7 @@ interface VerificationModalState {
 
 const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null); // Dùng cho upload QR
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>('stats');
 
   // --- DATA STATES ---
@@ -31,13 +31,15 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const [reports, setReports] = useState<Report[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
-  
-  // --- LISTING STATES (PHÂN TRANG) ---
+   
+  // --- LISTING STATES (PHÂN TRANG & FILTER) ---
   const [listings, setListings] = useState<Listing[]>([]); 
   const [lastDocs, setLastDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
   const [listingSearch, setListingSearch] = useState('');
+  // THÊM: State lọc trạng thái tin (all hoặc pending)
+  const [listingStatusFilter, setListingStatusFilter] = useState<'all' | 'pending'>('pending'); 
   const [selectedListings, setSelectedListings] = useState<Set<string>>(new Set());
   const ITEMS_PER_PAGE = 10;
 
@@ -45,11 +47,11 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [confirmModal, setConfirmModal] = useState<ConfirmState>({ show: false, title: '', message: '', type: 'warning', onConfirm: () => {} });
   const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'success' });
-  
+   
   // Modals
   const [editModal, setEditModal] = useState<EditListingState>({ show: false, listing: null });
   const [verifyModal, setVerifyModal] = useState<VerificationModalState>({ show: false, user: null });
-  
+   
   // Forms
   const [editForm, setEditForm] = useState({ title: '', price: 0, status: '' });
 
@@ -58,6 +60,15 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
     if (!user || user.role !== 'admin') { navigate('/'); return; }
     loadInitialData();
   }, [user]);
+
+  // Khi thay đổi bộ lọc (All/Pending), reset lại list và load lại
+  useEffect(() => {
+    if (activeTab === 'listings') {
+        setPage(1);
+        setLastDocs([]);
+        loadListings(null);
+    }
+  }, [listingStatusFilter]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ show: true, message, type });
@@ -90,12 +101,12 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   // --- LOGIC PHÂN TRANG LISTINGS ---
   const loadListings = async (lastDoc: QueryDocumentSnapshot<DocumentData> | null, isNext = true) => {
     setIsLoading(true);
-    // Nếu có search text thì không phân trang theo cursor cũ mà search mới
+    // Truyền filter status vào db query
     const res = await db.getListingsPaged({
         pageSize: ITEMS_PER_PAGE,
         lastDoc: lastDoc,
         search: listingSearch || undefined,
-        status: undefined // Admin lấy tất cả status
+        status: listingStatusFilter === 'all' ? undefined : listingStatusFilter // Lọc theo tab đang chọn
     });
 
     if (!res.error) {
@@ -113,6 +124,40 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
     setPage(1);
     setLastDocs([]);
     loadListings(null);
+  };
+
+  // --- KHÔI PHỤC LOGIC DUYỆT TIN NHANH ---
+  const handleApproveListing = async (lId: string) => {
+    setIsLoading(true);
+    await db.updateListingStatus(lId, 'approved');
+    showToast("✅ Đã duyệt tin đăng");
+    // Cập nhật giao diện ngay lập tức
+    setListings(prev => prev.map(l => l.id === lId ? { ...l, status: 'approved' } as Listing : l));
+    // Nếu đang ở tab Pending, sau khi duyệt xong có thể muốn loại bỏ nó khỏi list:
+    if (listingStatusFilter === 'pending') {
+        setListings(prev => prev.filter(l => l.id !== lId));
+    }
+    setIsLoading(false);
+  };
+
+  const handleRejectListing = async (lId: string) => {
+    setConfirmModal({
+      show: true,
+      title: "Từ chối tin đăng",
+      message: "Tin này sẽ bị từ chối và không hiển thị.",
+      type: 'danger',
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, show: false }));
+        setIsLoading(true);
+        await db.updateListingStatus(lId, 'rejected');
+        showToast("Đã từ chối tin.");
+        setListings(prev => prev.map(l => l.id === lId ? { ...l, status: 'rejected' } as Listing : l));
+        if (listingStatusFilter === 'pending') {
+            setListings(prev => prev.filter(l => l.id !== lId));
+        }
+        setIsLoading(false);
+      }
+    });
   };
 
   // --- LOGIC SỬA TIN & XÓA HÀNG LOẠT ---
@@ -229,6 +274,9 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const activeReports = useMemo(() => reports.filter(r => r.status === 'pending'), [reports]);
   const pendingVerifications = useMemo(() => users.filter(u => u.verificationStatus === 'pending'), [users]);
 
+  // Đếm số lượng tin Pending (Chỉ là ước lượng nếu pagination không trả về count tổng)
+  // Nhưng ở đây ta cứ coi như admin cần check tab "Chờ duyệt"
+  
   if (!user || user.role !== 'admin' || !settings) return null;
 
   return (
@@ -309,7 +357,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                {[
                  { id: 'stats', label: 'Bàn làm việc', icon: '📊' },
                  { id: 'payments', label: 'Duyệt tiền', icon: '💰', count: pendingPayments.length },
-                 { id: 'listings', label: 'Duyệt tin', icon: '📦' },
+                 { id: 'listings', label: 'Duyệt tin', icon: '📦' }, // count: pendingListings.length - nếu muốn hiện count phải fetch riêng
                  { id: 'reports', label: 'Báo cáo', icon: '🚨', count: activeReports.length },
                  { id: 'users', label: 'Thành viên', icon: '👥', count: pendingVerifications.length },
                  { id: 'settings', label: 'Cấu hình', icon: '⚙️' },
@@ -335,7 +383,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                       { label: 'Doanh thu', value: formatPrice(transactions.filter(t => t.status === 'success' && t.type === 'payment').reduce((s, t) => s + t.amount, 0)), color: 'text-primary' },
                       { label: 'Chờ duyệt tiền', value: formatPrice(pendingPayments.reduce((s, t) => s + t.amount, 0)), color: 'text-yellow-600' },
                       { label: 'Tổng User', value: users.length, color: 'text-textMain' },
-                      { label: 'Tổng Tin', value: "∞", color: 'text-green-600' } // Vì load phân trang nên ko đếm hết ở đây
+                      { label: 'Tổng Tin', value: "∞", color: 'text-green-600' }
                     ].map((s, i) => (
                       <div key={i} className="bg-white p-6 rounded-3xl border border-borderMain shadow-soft text-center space-y-1">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{s.label}</p>
@@ -381,11 +429,18 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
              </div>
          )}
 
-         {/* === TAB LISTINGS (NEW: PAGINATION + BATCH) === */}
+         {/* === TAB LISTINGS (NEW: PAGINATION + BATCH + FILTER) === */}
          {activeTab === 'listings' && (
              <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-6">
                  <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                     <div><h3 className="text-xl font-black">Quản lý tin đăng</h3><p className="text-xs text-gray-400 font-bold">Hệ thống phân trang tối ưu cho dữ liệu lớn</p></div>
+                     <div>
+                        <h3 className="text-xl font-black">Quản lý tin đăng</h3>
+                        {/* THÊM: Bộ lọc nhanh */}
+                        <div className="flex gap-2 mt-2">
+                             <button onClick={() => setListingStatusFilter('pending')} className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border ${listingStatusFilter === 'pending' ? 'bg-yellow-500 text-white border-yellow-500 shadow-md' : 'bg-white border-gray-200 text-gray-500'}`}>Chờ duyệt</button>
+                             <button onClick={() => setListingStatusFilter('all')} className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border ${listingStatusFilter === 'all' ? 'bg-primary text-white border-primary shadow-md' : 'bg-white border-gray-200 text-gray-500'}`}>Tất cả</button>
+                        </div>
+                     </div>
                      <div className="flex items-center gap-2 w-full md:w-auto">
                          <form onSubmit={handleSearchListings} className="relative flex-1 md:w-64">
                              <input type="text" placeholder="Tìm ID, Tên..." value={listingSearch} onChange={e => setListingSearch(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-4 py-2 text-xs font-bold focus:outline-none focus:border-primary" />
@@ -394,6 +449,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                          {selectedListings.size > 0 && <button onClick={handleBatchDelete} className="bg-red-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase animate-pulse">Xóa ({selectedListings.size})</button>}
                      </div>
                  </div>
+                 
                  <div className="overflow-x-auto">
                      <table className="w-full text-left">
                          <thead>
@@ -408,14 +464,22 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                      <td className="py-4"><input type="checkbox" checked={selectedListings.has(l.id)} onChange={() => toggleSelectListing(l.id)} className="rounded text-primary focus:ring-primary" /></td>
                                      <td className="py-4">
                                          <div className="flex items-center gap-3">
-                                             <img src={l.images[0]} className="w-10 h-10 rounded-lg object-cover bg-gray-100" />
-                                             <div className="min-w-0 max-w-[200px]"><Link to={getListingUrl(l)} target="_blank" className="text-xs font-black truncate block hover:text-primary">{l.title}</Link><p className="text-[10px] text-primary font-bold">{formatPrice(l.price)}</p></div>
+                                              <img src={l.images[0]} className="w-10 h-10 rounded-lg object-cover bg-gray-100" />
+                                              <div className="min-w-0 max-w-[200px]"><Link to={getListingUrl(l)} target="_blank" className="text-xs font-black truncate block hover:text-primary">{l.title}</Link><p className="text-[10px] text-primary font-bold">{formatPrice(l.price)}</p></div>
                                          </div>
                                      </td>
                                      <td className="py-4"><div className="flex items-center gap-2"><img src={l.sellerAvatar} className="w-6 h-6 rounded-full" /><span className="text-[10px] font-bold">{l.sellerName}</span></div></td>
                                      <td className="py-4"><span className={`text-[9px] px-2 py-1 rounded font-black uppercase ${l.status === 'approved' ? 'bg-green-100 text-green-600' : l.status === 'pending' ? 'bg-yellow-100 text-yellow-600' : 'bg-red-100 text-red-600'}`}>{l.status}</span></td>
                                      <td className="py-4 text-right">
                                          <div className="flex justify-end gap-2">
+                                             {/* THÊM: Nút duyệt nhanh nếu là Pending */}
+                                             {l.status === 'pending' && (
+                                                <>
+                                                    <button onClick={() => handleApproveListing(l.id)} className="bg-green-500 text-white p-2 rounded-lg transition-colors hover:shadow-lg" title="Duyệt ngay">✅</button>
+                                                    <button onClick={() => handleRejectListing(l.id)} className="bg-red-100 text-red-500 p-2 rounded-lg transition-colors hover:bg-red-200" title="Từ chối">⛔</button>
+                                                </>
+                                             )}
+                                             
                                              <button onClick={() => openEditModal(l)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-colors" title="Sửa nhanh">✏️</button>
                                              <button onClick={() => { setSelectedListings(new Set([l.id])); handleBatchDelete(); }} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Xóa">🗑</button>
                                          </div>
@@ -515,18 +579,18 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                     <div className="space-y-6 pt-6 border-t border-gray-100">
                         <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2"><span className="w-2 h-2 bg-primary rounded-full"></span> Gói VIP</h4>
                         <div className="grid md:grid-cols-2 gap-6">
-                            {/* Basic */}
-                            <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 space-y-4">
-                                <h5 className="font-black text-blue-600 text-xs uppercase">Gói Basic</h5>
-                                <input type="number" placeholder="Giá" value={settings.tierConfigs.basic.price} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, basic: {...settings.tierConfigs.basic, price: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
-                                <input type="number" placeholder="Số ảnh" value={settings.tierConfigs.basic.maxImages} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, basic: {...settings.tierConfigs.basic, maxImages: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
-                            </div>
-                            {/* Pro */}
-                            <div className="bg-yellow-50 p-6 rounded-3xl border border-yellow-100 space-y-4">
-                                <h5 className="font-black text-yellow-600 text-xs uppercase">Gói Pro</h5>
-                                <input type="number" placeholder="Giá" value={settings.tierConfigs.pro.price} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, pro: {...settings.tierConfigs.pro, price: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
-                                <input type="number" placeholder="Số ảnh" value={settings.tierConfigs.pro.maxImages} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, pro: {...settings.tierConfigs.pro, maxImages: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
-                            </div>
+                           {/* Basic */}
+                           <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 space-y-4">
+                               <h5 className="font-black text-blue-600 text-xs uppercase">Gói Basic</h5>
+                               <input type="number" placeholder="Giá" value={settings.tierConfigs.basic.price} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, basic: {...settings.tierConfigs.basic, price: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
+                               <input type="number" placeholder="Số ảnh" value={settings.tierConfigs.basic.maxImages} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, basic: {...settings.tierConfigs.basic, maxImages: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
+                           </div>
+                           {/* Pro */}
+                           <div className="bg-yellow-50 p-6 rounded-3xl border border-yellow-100 space-y-4">
+                               <h5 className="font-black text-yellow-600 text-xs uppercase">Gói Pro</h5>
+                               <input type="number" placeholder="Giá" value={settings.tierConfigs.pro.price} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, pro: {...settings.tierConfigs.pro, price: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
+                               <input type="number" placeholder="Số ảnh" value={settings.tierConfigs.pro.maxImages} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, pro: {...settings.tierConfigs.pro, maxImages: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
+                           </div>
                         </div>
                     </div>
                     {/* 3. Bank */}

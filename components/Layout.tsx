@@ -228,11 +228,32 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           </div>
           <span className="text-[9px] font-black uppercase tracking-widest">Quản lý</span>
         </Link>
-        <div className="flex-1 flex justify-center -mt-12">
-          <Link to="/post" className="w-18 h-18 bg-gradient-to-tr from-primary to-blue-400 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-primary/40 border-6 border-bgMain active:scale-90 transition-all">
-            <svg className="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg>
-          </Link>
-        </div>
+      {/* NÚT ĐĂNG TIN ĐÃ CẢI TIẾN */}
+<div className="flex-1 flex justify-center -mt-14 relative z-10"> {/* Kéo lên cao hơn chút (-mt-14) */}
+  <Link 
+    to="/post" 
+    className="
+      w-20 h-20 
+      bg-gradient-to-tr from-blue-600 to-cyan-400 
+      text-white 
+      rounded-full 
+      flex items-center justify-center 
+      shadow-[0_0_25px_rgba(59,130,246,0.6)] 
+      border-[6px] border-white 
+      transform transition-all duration-300 
+      active:scale-90 hover:scale-105 hover:-translate-y-1
+    "
+  >
+    <svg className="w-8 h-8 md:w-9 md:h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* Icon dấu cộng mảnh hơn và bo tròn */}
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+    </svg>
+    
+    {/* Hiệu ứng gợn sóng (Pulse) để gây chú ý */}
+    <span className="absolute w-full h-full rounded-full bg-blue-400 opacity-20 animate-ping -z-10"></span>
+  </Link>
+</div>
+
         <Link to="/chat" className={`flex flex-col items-center gap-1.5 flex-1 py-3 relative ${location.pathname.startsWith('/chat') ? 'text-primary' : 'text-gray-400'}`}>
           <div className={`p-2 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10' : ''}`}>
             <svg className="w-6 h-6" fill={location.pathname.startsWith('/chat') ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>

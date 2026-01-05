@@ -1,14 +1,14 @@
-// Đảm bảo import đúng từ các sub-module của Firebase SDK v9+
+// services/db.ts
+
+// 1. IMPORT CÁC THƯ VIỆN CẦN THIẾT
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { 
   getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, 
   query, where, orderBy, limit, addDoc, serverTimestamp, Timestamp, 
   deleteDoc, onSnapshot, arrayUnion, arrayRemove, runTransaction,
   startAfter, QueryDocumentSnapshot, DocumentData, writeBatch,
-  getCountFromServer // <-- MỚI THÊM: Để đếm số lượng follow nhanh
+  getCountFromServer 
 } from "firebase/firestore";
-
-// Fix: Use standard modular SDK imports for Firebase Auth
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -20,6 +20,9 @@ import {
 } from "firebase/auth";
 import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
 import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review } from '../types';
+
+// 2. CẤU HÌNH ADMIN EMAIL (Email nhận thông báo)
+const ADMIN_EMAIL = "buivanbac@gmail.com"; 
 
 export interface SystemSettings {
   pushPrice: number;
@@ -46,14 +49,18 @@ const firebaseConfig = {
   measurementId: "G-CRKRLNGF8V"
 };
 
-// Khởi tạo Firebase App đảm bảo không bị lỗi "already exists" trong môi trường hot-reload
+// 3. KHỞI TẠO FIREBASE
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const firestore = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 
+// 4. OBJECT DB CHỨA TOÀN BỘ CÁC HÀM
 export const db = {
-  // --- LẤY TIN VIP ---
+  
+  // --- A. QUẢN LÝ TIN ĐĂNG (LISTINGS) ---
+
+  // Lấy tin VIP
   getVIPListings: async (max = 10) => {
     try {
       const q = query(
@@ -73,7 +80,7 @@ export const db = {
     }
   },
 
-  // --- PAGINATED LISTINGS (Hỗ trợ Admin phân trang) ---
+  // Lấy danh sách tin có phân trang & lọc
   getListingsPaged: async (options: {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
@@ -131,7 +138,50 @@ export const db = {
     }
   },
 
-  // --- ADMIN: UPDATE NỘI DUNG TIN ---
+  getListings: async (includeHidden = false): Promise<Listing[]> => {
+    const colRef = collection(firestore, "listings");
+    let q = includeHidden 
+      ? query(colRef, orderBy("createdAt", "desc"))
+      : query(colRef, where("status", "==", "approved"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
+  },
+
+  // [QUAN TRỌNG] ĐĂNG TIN + GỬI MAIL ADMIN
+  saveListing: async (listing: Omit<Listing, 'id' | 'createdAt'>) => {
+    try {
+      // 1. Lưu tin vào Firestore
+      const docRef = await addDoc(collection(firestore, "listings"), { ...listing, createdAt: new Date().toISOString() });
+      
+      // 2. Gửi Email thông báo Admin (buivanbac@gmail.com)
+      await addDoc(collection(firestore, "mail"), {
+        to: [ADMIN_EMAIL],
+        message: {
+          subject: `[Tin Mới] ${listing.title} - Cần duyệt`,
+          html: `
+            <h3>Có người đăng tin bán hàng mới!</h3>
+            <p><strong>Tiêu đề:</strong> ${listing.title}</p>
+            <p><strong>Giá:</strong> ${listing.price.toLocaleString()} VNĐ</p>
+            <p><strong>ID Người bán:</strong> ${listing.sellerId}</p>
+            <p>Vui lòng vào trang Admin để kiểm duyệt.</p>
+          `
+        }
+      });
+
+      return docRef.id;
+    } catch (e) {
+      console.error("Lỗi đăng tin:", e);
+      throw e;
+    }
+  },
+
+  updateListingStatus: async (listingId: string, status: 'approved' | 'rejected') => {
+    await updateDoc(doc(firestore, "listings", listingId), { status });
+  },
+
+  deleteListing: async (id: string) => await deleteDoc(doc(firestore, "listings", id)),
+
+  // Update nội dung tin (Admin/User sửa tin)
   updateListingContent: async (listingId: string, data: Partial<Listing>) => {
     try {
       await updateDoc(doc(firestore, "listings", listingId), data);
@@ -141,7 +191,7 @@ export const db = {
     }
   },
 
-  // --- ADMIN: XÓA HÀNG LOẠT ---
+  // Xóa hàng loạt (Admin)
   deleteListingsBatch: async (ids: string[]) => {
     try {
       const batch = writeBatch(firestore);
@@ -156,42 +206,179 @@ export const db = {
     }
   },
 
-  // --- REVIEWS ---
-  getReviews: (targetId: string, targetType: 'listing' | 'user', callback: (reviews: Review[]) => void) => {
-    const q = query(
-      collection(firestore, "reviews"), 
-      where("targetId", "==", targetId),
-      where("targetType", "==", targetType)
-    );
-    return onSnapshot(q, (snapshot) => {
-      const reviews = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Review));
-      callback(reviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+  // --- B. ĐẨY TIN (PUSH LISTING) ---
+  pushListing: async (listingId: string, userId: string) => {
+    const settings: any = await db.getSettings();
+    const user = await db.getUserById(userId);
+    
+    const rawPrice = settings?.pushPrice || 20000;
+    const discount = settings?.pushDiscount || 0;
+    const price = rawPrice * (1 - discount / 100);
+
+    if (!user || (user.walletBalance || 0) < price) return { success: false, message: "Ví không đủ tiền." };
+    
+    // Trừ tiền user
+    await updateDoc(doc(firestore, "users", userId), { walletBalance: (user.walletBalance || 0) - price });
+    // Cập nhật thời gian tin lên đầu
+    await updateDoc(doc(firestore, "listings", listingId), { createdAt: new Date().toISOString() });
+
+    // Gửi mail báo doanh thu (Tùy chọn, để biết có người đẩy tin)
+    await addDoc(collection(firestore, "mail"), {
+        to: [ADMIN_EMAIL],
+        message: {
+          subject: `[DOANH THU] User đẩy tin`,
+          html: `User ${userId} vừa đẩy tin ${listingId}. Doanh thu: ${price} VNĐ.`
+        }
     });
+
+    return { success: true };
   },
 
-  addReview: async (reviewData: Omit<Review, 'id' | 'createdAt'>) => {
-    const res = await addDoc(collection(firestore, "reviews"), { ...reviewData, createdAt: new Date().toISOString() });
-    return res.id;
+  // --- C. GIAO DỊCH & VÍ (TRANSACTIONS) ---
+
+  // [QUAN TRỌNG] NẠP TIỀN + GỬI MAIL ADMIN
+  requestDeposit: async (userId: string, amount: number, method: string) => {
+    try {
+      const res = await addDoc(collection(firestore, "transactions"), {
+        userId, amount, type: 'deposit', method, 
+        description: `Nạp tiền qua ${method}`, 
+        status: 'pending', 
+        createdAt: new Date().toISOString()
+      });
+
+      // Gửi Email thông báo Admin
+      await addDoc(collection(firestore, "mail"), {
+        to: [ADMIN_EMAIL],
+        message: {
+          subject: `[NẠP TIỀN] ${amount.toLocaleString()} VNĐ qua ${method}`,
+          html: `
+            <h3 style="color:green">Có yêu cầu nạp tiền mới!</h3>
+            <p><strong>User ID:</strong> ${userId}</p>
+            <p><strong>Số tiền:</strong> ${amount.toLocaleString()} VNĐ</p>
+            <p><strong>Hình thức:</strong> ${method}</p>
+            <p>Hãy kiểm tra tài khoản ngân hàng và duyệt giao dịch này trong Admin.</p>
+          `
+        }
+      });
+
+      return res;
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
   },
 
-  // --- NOTIFICATIONS ---
-  getNotifications: (userId: string, callback: (notifs: Notification[]) => void) => {
-    const q = query(collection(firestore, "notifications"), where("userId", "==", userId));
-    return onSnapshot(q, (snapshot) => {
-      const notifs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Notification));
-      callback(notifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+  // [QUAN TRỌNG] MUA VIP BẰNG VÍ + GỬI MAIL THÔNG BÁO
+  buySubscriptionWithWallet: async (userId: string, tier: SubscriptionTier, price: number) => {
+    const user = await db.getUserById(userId);
+    if (!user || (user.walletBalance || 0) < price) return { success: false, message: "Số dư không đủ." };
+    
+    const expires = new Date();
+    expires.setDate(expires.getDate() + 30);
+    
+    await updateDoc(doc(firestore, "users", userId), {
+      walletBalance: (user.walletBalance || 0) - price,
+      subscriptionTier: tier,
+      subscriptionExpires: expires.toISOString()
     });
+
+    // Gửi Email thông báo doanh thu
+    await addDoc(collection(firestore, "mail"), {
+      to: [ADMIN_EMAIL],
+      message: {
+        subject: `[DOANH THU] User mua gói ${tier.toUpperCase()}`,
+        html: `
+          <h3 style="color:blue">Doanh thu mới từ Ví!</h3>
+          <p>User <strong>${userId}</strong> đã mua gói <strong>${tier}</strong> bằng số dư ví.</p>
+          <p>Giá trị: ${price.toLocaleString()} VNĐ.</p>
+        `
+      }
+    });
+
+    return { success: true };
   },
 
-  markNotificationAsRead: async (notifId: string) => {
-    await updateDoc(doc(firestore, "notifications", notifId), { read: true });
+  // [QUAN TRỌNG] CHUYỂN KHOẢN MUA VIP + GỬI MAIL ADMIN
+  requestSubscriptionTransfer: async (userId: string, tier: SubscriptionTier, price: number) => {
+    try {
+      const res = await addDoc(collection(firestore, "transactions"), {
+        userId, amount: price, type: 'payment', 
+        description: `Nâng cấp gói ${tier.toUpperCase()}`, 
+        status: 'pending', 
+        metadata: { targetTier: tier }, 
+        createdAt: new Date().toISOString()
+      });
+
+      // Gửi Email thông báo Admin
+      await addDoc(collection(firestore, "mail"), {
+        to: [ADMIN_EMAIL],
+        message: {
+          subject: `[VIP PENDING] Yêu cầu duyệt gói ${tier.toUpperCase()}`,
+          html: `
+            <h3>Yêu cầu nâng cấp VIP qua Chuyển khoản</h3>
+            <p><strong>User ID:</strong> ${userId}</p>
+            <p><strong>Gói:</strong> ${tier.toUpperCase()}</p>
+            <p><strong>Số tiền:</strong> ${price.toLocaleString()} VNĐ</p>
+            <p>Vui lòng kiểm tra ngân hàng và duyệt giao dịch.</p>
+          `
+        }
+      });
+
+      return res;
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
   },
 
-  sendNotification: async (notif: Omit<Notification, 'id' | 'read' | 'createdAt'>) => {
-    await addDoc(collection(firestore, "notifications"), { ...notif, read: false, createdAt: new Date().toISOString() });
+  approveTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
+    try {
+      return await runTransaction(firestore, async (transaction) => {
+        const txRef = doc(firestore, "transactions", txId);
+        const txSnap = await transaction.get(txRef);
+        if (!txSnap.exists()) throw new Error("Transaction not found");
+        
+        const txData = txSnap.data() as Transaction & { metadata?: any };
+        if (txData.status !== 'pending') throw new Error("Transaction already processed");
+
+        const userRef = doc(firestore, "users", txData.userId);
+        const userSnap = await transaction.get(userRef);
+        if (!userSnap.exists()) throw new Error("User not found");
+        
+        const userData = userSnap.data() as User;
+
+        if (txData.type === 'deposit') {
+          transaction.update(userRef, { walletBalance: (userData.walletBalance || 0) + txData.amount });
+        } else if (txData.type === 'payment' && txData.metadata?.targetTier) {
+          const expires = new Date();
+          expires.setDate(expires.getDate() + 30);
+          transaction.update(userRef, { subscriptionTier: txData.metadata.targetTier, subscriptionExpires: expires.toISOString() });
+        }
+        transaction.update(txRef, { status: 'success' });
+        return { success: true };
+      });
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
   },
 
-  // --- AUTH & USER ---
+  rejectTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
+    try {
+      await updateDoc(doc(firestore, "transactions", txId), { status: 'failed' });
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
+  },
+
+  getTransactions: async (userId?: string): Promise<Transaction[]> => {
+    const q = userId ? query(collection(firestore, "transactions"), where("userId", "==", userId)) : collection(firestore, "transactions");
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ ...d.data(), id: d.id } as Transaction)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  // --- D. NGƯỜI DÙNG (USERS & AUTH) ---
+  
   getCurrentUser: (): Promise<User | null> => {
     return new Promise((resolve) => {
       const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
@@ -229,7 +416,6 @@ export const db = {
     return userDoc.data() as User;
   },
 
-  // --- HÀM ĐĂNG NHẬP GOOGLE ---
   loginWithGoogle: async (): Promise<User> => {
     const provider = new GoogleAuthProvider();
     const res = await signInWithPopup(auth, provider);
@@ -281,146 +467,11 @@ export const db = {
 
   logout: async () => await signOut(auth),
 
-  // --- LISTINGS BASIC OPERATIONS ---
-  getListings: async (includeHidden = false): Promise<Listing[]> => {
-    const colRef = collection(firestore, "listings");
-    let q = includeHidden 
-      ? query(colRef, orderBy("createdAt", "desc"))
-      : query(colRef, where("status", "==", "approved"), orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
-  },
-
-  saveListing: async (listing: Omit<Listing, 'id' | 'createdAt'>) => {
-    const docRef = await addDoc(collection(firestore, "listings"), { ...listing, createdAt: new Date().toISOString() });
-    return docRef.id;
-  },
-
-  updateListingStatus: async (listingId: string, status: 'approved' | 'rejected') => {
-    await updateDoc(doc(firestore, "listings", listingId), { status });
-  },
-
-  deleteListing: async (id: string) => await deleteDoc(doc(firestore, "listings", id)),
-
-  uploadImage: async (base64: string, path: string): Promise<string> => {
-    const storageRef = ref(storage, path);
-    await uploadString(storageRef, base64, 'data_url');
-    return await getDownloadURL(storageRef);
-  },
-
-  // --- SYSTEM SETTINGS ---
-  getSettings: async (): Promise<SystemSettings | null> => {
-    const d = await getDoc(doc(firestore, "system", "settings"));
-    return d.exists() ? (d.data() as SystemSettings) : null;
-  },
-
-  updateSettings: async (settings: any) => {
-    await setDoc(doc(firestore, "system", "settings"), settings);
-  },
-
-  // --- TRANSACTIONS ---
-  requestDeposit: async (userId: string, amount: number, method: string) => {
-    return await addDoc(collection(firestore, "transactions"), {
-      userId, amount, type: 'deposit', method, description: `Nạp tiền qua ${method}`, status: 'pending', createdAt: new Date().toISOString()
-    });
-  },
-
-  buySubscriptionWithWallet: async (userId: string, tier: SubscriptionTier, price: number) => {
-    const user = await db.getUserById(userId);
-    if (!user || (user.walletBalance || 0) < price) return { success: false, message: "Số dư không đủ." };
-    const expires = new Date();
-    expires.setDate(expires.getDate() + 30);
-    await updateDoc(doc(firestore, "users", userId), {
-      walletBalance: (user.walletBalance || 0) - price,
-      subscriptionTier: tier,
-      subscriptionExpires: expires.toISOString()
-    });
-    return { success: true };
-  },
-
-  requestSubscriptionTransfer: async (userId: string, tier: SubscriptionTier, price: number) => {
-    return await addDoc(collection(firestore, "transactions"), {
-      userId, amount: price, type: 'payment', description: `Nâng cấp gói ${tier.toUpperCase()}`, status: 'pending', metadata: { targetTier: tier }, createdAt: new Date().toISOString()
-    });
-  },
-
-  pushListing: async (listingId: string, userId: string) => {
-    const settings: any = await db.getSettings();
-    const user = await db.getUserById(userId);
-    
-    const rawPrice = settings?.pushPrice || 20000;
-    const discount = settings?.pushDiscount || 0;
-    const price = rawPrice * (1 - discount / 100);
-
-    if (!user || (user.walletBalance || 0) < price) return { success: false, message: "Ví không đủ tiền." };
-    
-    await updateDoc(doc(firestore, "users", userId), { walletBalance: (user.walletBalance || 0) - price });
-    await updateDoc(doc(firestore, "listings", listingId), { createdAt: new Date().toISOString() });
-    return { success: true };
-  },
-
-  approveTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
-    try {
-      return await runTransaction(firestore, async (transaction) => {
-        const txRef = doc(firestore, "transactions", txId);
-        const txSnap = await transaction.get(txRef);
-        if (!txSnap.exists()) throw new Error("Transaction not found");
-        
-        const txData = txSnap.data() as Transaction & { metadata?: any };
-        if (txData.status !== 'pending') throw new Error("Transaction already processed");
-
-        const userRef = doc(firestore, "users", txData.userId);
-        const userSnap = await transaction.get(userRef);
-        if (!userSnap.exists()) throw new Error("User not found");
-        
-        const userData = userSnap.data() as User;
-
-        if (txData.type === 'deposit') {
-          transaction.update(userRef, { walletBalance: (userData.walletBalance || 0) + txData.amount });
-        } else if (txData.type === 'payment' && txData.metadata?.targetTier) {
-          const expires = new Date();
-          expires.setDate(expires.getDate() + 30);
-          transaction.update(userRef, { subscriptionTier: txData.metadata.targetTier, subscriptionExpires: expires.toISOString() });
-        }
-        transaction.update(txRef, { status: 'success' });
-        return { success: true };
-      });
-    } catch (e: any) {
-      return { success: false, message: e.message };
-    }
-  },
-
-  rejectTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
-    try {
-      await updateDoc(doc(firestore, "transactions", txId), { status: 'failed' });
-      return { success: true };
-    } catch (e: any) {
-      return { success: false, message: e.message };
-    }
-  },
-
-  getTransactions: async (userId?: string): Promise<Transaction[]> => {
-    const q = userId ? query(collection(firestore, "transactions"), where("userId", "==", userId)) : collection(firestore, "transactions");
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ ...d.data(), id: d.id } as Transaction)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  },
-
-  getAllReports: async () => {
-    const snap = await getDocs(collection(firestore, "reports"));
-    return snap.docs.map(d => ({ ...d.data(), id: d.id } as Report));
-  },
-
-  resolveReport: async (id: string) => await updateDoc(doc(firestore, "reports", id), { status: 'resolved' }),
-  reportListing: async (r: any) => await addDoc(collection(firestore, "reports"), { ...r, status: 'pending', createdAt: new Date().toISOString() }),
+  // --- E. HỆ THỐNG FOLLOW (MỚI - SỬ DỤNG COLLECTION RIÊNG) ---
   
-  // --- SOCIAL & CHAT ---
-
-  // 1. --- MỚI: HỆ THỐNG FOLLOW (Dùng Collection riêng) ---
-  
-  // Kiểm tra xem A có đang follow B không
   checkIsFollowing: async (followerId: string, followedId: string): Promise<boolean> => {
     try {
-        const followDocId = `${followerId}_${followedId}`; // ID duy nhất
+        const followDocId = `${followerId}_${followedId}`;
         const docRef = doc(firestore, "follows", followDocId);
         const snap = await getDoc(docRef);
         return snap.exists();
@@ -430,7 +481,6 @@ export const db = {
     }
   },
 
-  // Thực hiện Follow
   followUser: async (followerId: string, followedId: string) => {
     const followDocId = `${followerId}_${followedId}`;
     await setDoc(doc(firestore, "follows", followDocId), {
@@ -440,20 +490,16 @@ export const db = {
     });
   },
 
-  // Hủy Follow
   unfollowUser: async (followerId: string, followedId: string) => {
     const followDocId = `${followerId}_${followedId}`;
     await deleteDoc(doc(firestore, "follows", followDocId));
   },
 
-  // Lấy thống kê số lượng (Followers/Following)
   getFollowStats: async (userId: string) => {
     try {
-        // Đếm số người đang follow mình (Followers)
         const followersQuery = query(collection(firestore, "follows"), where("followedId", "==", userId));
         const followersSnap = await getCountFromServer(followersQuery);
         
-        // Đếm số người mình đang follow (Following)
         const followingQuery = query(collection(firestore, "follows"), where("followerId", "==", userId));
         const followingSnap = await getCountFromServer(followingQuery);
 
@@ -467,7 +513,6 @@ export const db = {
     }
   },
 
-  // Hàm cũ (Deprecated) - Đã sửa để tương thích code cũ nếu còn sót lại
   toggleFollow: async (uId: string, tId: string) => {
      const isFollowing = await db.checkIsFollowing(uId, tId);
      if (isFollowing) {
@@ -476,8 +521,66 @@ export const db = {
          await db.followUser(uId, tId);
      }
   },
-  // ----------------------------------------------------
+
+  // --- F. CÁC TÍNH NĂNG KHÁC (Review, Chat, Report, System) ---
+
+  getReviews: (targetId: string, targetType: 'listing' | 'user', callback: (reviews: Review[]) => void) => {
+    const q = query(
+      collection(firestore, "reviews"), 
+      where("targetId", "==", targetId),
+      where("targetType", "==", targetType)
+    );
+    return onSnapshot(q, (snapshot) => {
+      const reviews = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Review));
+      callback(reviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    });
+  },
+
+  addReview: async (reviewData: Omit<Review, 'id' | 'createdAt'>) => {
+    const res = await addDoc(collection(firestore, "reviews"), { ...reviewData, createdAt: new Date().toISOString() });
+    return res.id;
+  },
+
+  getNotifications: (userId: string, callback: (notifs: Notification[]) => void) => {
+    const q = query(collection(firestore, "notifications"), where("userId", "==", userId));
+    return onSnapshot(q, (snapshot) => {
+      const notifs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Notification));
+      callback(notifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    });
+  },
+
+  markNotificationAsRead: async (notifId: string) => {
+    await updateDoc(doc(firestore, "notifications", notifId), { read: true });
+  },
+
+  sendNotification: async (notif: Omit<Notification, 'id' | 'read' | 'createdAt'>) => {
+    await addDoc(collection(firestore, "notifications"), { ...notif, read: false, createdAt: new Date().toISOString() });
+  },
+
+  uploadImage: async (base64: string, path: string): Promise<string> => {
+    const storageRef = ref(storage, path);
+    await uploadString(storageRef, base64, 'data_url');
+    return await getDownloadURL(storageRef);
+  },
+
+  getSettings: async (): Promise<SystemSettings | null> => {
+    const d = await getDoc(doc(firestore, "system", "settings"));
+    return d.exists() ? (d.data() as SystemSettings) : null;
+  },
+
+  updateSettings: async (settings: any) => {
+    await setDoc(doc(firestore, "system", "settings"), settings);
+  },
+
+  getAllReports: async () => {
+    const snap = await getDocs(collection(firestore, "reports"));
+    return snap.docs.map(d => ({ ...d.data(), id: d.id } as Report));
+  },
+
+  resolveReport: async (id: string) => await updateDoc(doc(firestore, "reports", id), { status: 'resolved' }),
   
+  reportListing: async (r: any) => await addDoc(collection(firestore, "reports"), { ...r, status: 'pending', createdAt: new Date().toISOString() }),
+
   getFavorites: async (id: string) => {
     const d = await getDoc(doc(firestore, "favorites", id));
     return d.exists() ? d.data().listingIds : [];
@@ -527,5 +630,6 @@ export const db = {
     });
     return res.id;
   },
+
   init: () => {}
 };

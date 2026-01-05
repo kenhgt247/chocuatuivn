@@ -235,15 +235,30 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   return (
     <div className="space-y-6 pb-24 px-2 md:px-4 max-w-[1400px] mx-auto relative">
       
-      {/* --- NÚT ĐĂNG TIN MOBILE MỚI (ĐẸP HƠN) --- */}
+      {/* --- NÚT ĐĂNG TIN MOBILE MỚI (ĐẸP HƠN & CHUẨN UI) --- */}
       <Link 
         to="/post" 
         className="fixed bottom-24 right-4 z-[60] md:hidden group"
       >
-        <div className="absolute inset-0 bg-primary/30 blur-xl rounded-full animate-pulse"></div>
-        <div className="relative flex items-center gap-2 bg-gradient-to-br from-primary to-purple-600 text-white pl-4 pr-5 py-3.5 rounded-full shadow-2xl shadow-primary/40 active:scale-95 transition-all border border-white/20">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4"/></svg>
-            <span className="font-black text-[10px] uppercase tracking-widest">Đăng tin</span>
+        {/* Lớp glow nền mạnh hơn */}
+        <div className="absolute inset-0 bg-primary/40 blur-2xl rounded-full animate-pulse-slow"></div>
+        
+        {/* Container chính */}
+        <div className="relative flex items-center gap-3 bg-gradient-to-br from-primary to-purple-600 text-white pl-2 pr-6 py-2 rounded-full shadow-2xl shadow-primary/50 active:scale-95 transition-all border border-white/20 backdrop-blur-md overflow-hidden">
+            
+            {/* ICON ĐƯỢC LÀM MỚI: Dấu + nằm trong hình tròn trắng tạo tương phản */}
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md group-hover:rotate-90 transition-transform duration-500 ease-in-out relative z-10">
+                <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {/* Tăng strokeWidth lên 4 cho đậm hơn */}
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M12 6v12m6-6H6"/>
+                </svg>
+            </div>
+            
+            {/* Text */}
+            <span className="font-black text-[11px] uppercase tracking-[0.15em] text-white/95 relative z-10">Đăng tin</span>
+            
+            {/* Hiệu ứng ánh sáng quét qua khi hover (chỉ thấy khi active trên mobile) */}
+            <div className="absolute inset-0 h-full w-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[150%] group-active:translate-x-[150%] transition-transform duration-700 ease-in-out z-0"></div>
         </div>
       </Link>
       {/* ----------------------------------------- */}

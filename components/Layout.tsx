@@ -214,60 +214,78 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {children}
       </main>
 
-      {/* Mobile Nav Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-borderMain/50 flex items-center justify-around h-22 z-50 px-4 shadow-lg pb-safe">
-        <Link to="/" className={`flex flex-col items-center gap-1.5 flex-1 py-3 ${location.pathname === '/' ? 'text-primary' : 'text-gray-400'}`}>
-          <div className={`p-2 rounded-2xl transition-all ${location.pathname === '/' ? 'bg-primary/10' : ''}`}>
-            <svg className="w-6 h-6" fill={location.pathname === '/' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+            {/* Mobile Nav Bar - Đã nâng cấp giao diện */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex items-end justify-between h-[5.5rem] z-50 px-2 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
+        
+        {/* 1. TRANG CHỦ */}
+        <Link 
+          to="/" 
+          className={`flex-1 flex flex-col items-center justify-center gap-1 pb-4 group transition-all duration-300 ${location.pathname === '/' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-500'}`}
+        >
+          <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/' ? 'bg-blue-50 shadow-[0_0_15px_rgba(37,99,235,0.2)]' : ''}`}>
+            <svg className="w-6 h-6 transition-transform duration-300 group-active:scale-90" fill={location.pathname === '/' ? "currentColor" : "none"} stroke="currentColor" strokeWidth={location.pathname === '/' ? 0 : 2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
           </div>
-          <span className="text-[9px] font-black uppercase tracking-widest">Trang chủ</span>
+          <span className={`text-[10px] font-bold tracking-tight ${location.pathname === '/' ? 'opacity-100' : 'opacity-70'}`}>Trang chủ</span>
         </Link>
-        <Link to="/manage-ads" className={`flex flex-col items-center gap-1.5 flex-1 py-3 ${location.pathname === '/manage-ads' ? 'text-primary' : 'text-gray-400'}`}>
-          <div className={`p-2 rounded-2xl transition-all ${location.pathname === '/manage-ads' ? 'bg-primary/10' : ''}`}>
-            <svg className="w-6 h-6" fill={location.pathname === '/manage-ads' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-          </div>
-          <span className="text-[9px] font-black uppercase tracking-widest">Quản lý</span>
-        </Link>
-      {/* NÚT ĐĂNG TIN ĐÃ CẢI TIẾN */}
-<div className="flex-1 flex justify-center -mt-14 relative z-10"> {/* Kéo lên cao hơn chút (-mt-14) */}
-  <Link 
-    to="/post" 
-    className="
-      w-20 h-20 
-      bg-gradient-to-tr from-blue-600 to-cyan-400 
-      text-white 
-      rounded-full 
-      flex items-center justify-center 
-      shadow-[0_0_25px_rgba(59,130,246,0.6)] 
-      border-[6px] border-white 
-      transform transition-all duration-300 
-      active:scale-90 hover:scale-105 hover:-translate-y-1
-    "
-  >
-    <svg className="w-8 h-8 md:w-9 md:h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      {/* Icon dấu cộng mảnh hơn và bo tròn */}
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-    </svg>
-    
-    {/* Hiệu ứng gợn sóng (Pulse) để gây chú ý */}
-    <span className="absolute w-full h-full rounded-full bg-blue-400 opacity-20 animate-ping -z-10"></span>
-  </Link>
-</div>
 
-        <Link to="/chat" className={`flex flex-col items-center gap-1.5 flex-1 py-3 relative ${location.pathname.startsWith('/chat') ? 'text-primary' : 'text-gray-400'}`}>
-          <div className={`p-2 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10' : ''}`}>
-            <svg className="w-6 h-6" fill={location.pathname.startsWith('/chat') ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+        {/* 2. QUẢN LÝ */}
+        <Link 
+          to="/manage-ads" 
+          className={`flex-1 flex flex-col items-center justify-center gap-1 pb-4 group transition-all duration-300 ${location.pathname === '/manage-ads' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-500'}`}
+        >
+          <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/manage-ads' ? 'bg-blue-50 shadow-[0_0_15px_rgba(37,99,235,0.2)]' : ''}`}>
+            <svg className="w-6 h-6 transition-transform duration-300 group-active:scale-90" fill={location.pathname === '/manage-ads' ? "currentColor" : "none"} stroke="currentColor" strokeWidth={location.pathname === '/manage-ads' ? 0 : 2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+            </svg>
           </div>
-          <span className="text-[9px] font-black uppercase tracking-widest">Tin nhắn</span>
-          {unreadChatCount > 0 && <span className="absolute top-2 right-4 w-4 h-4 bg-red-500 rounded-full border-2 border-white"></span>}
+          <span className={`text-[10px] font-bold tracking-tight ${location.pathname === '/manage-ads' ? 'opacity-100' : 'opacity-70'}`}>Quản lý</span>
         </Link>
-        <Link to="/profile" className={`flex flex-col items-center gap-1.5 flex-1 py-3 ${location.pathname === '/profile' ? 'text-primary' : 'text-gray-400'}`}>
-          <div className={`p-2 rounded-2xl transition-all ${location.pathname === '/profile' ? 'bg-primary/10' : ''}`}>
-            <svg className="w-6 h-6" fill={location.pathname === '/profile' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+
+        {/* 3. NÚT GIỮA (ĐĂNG TIN) - ĐÃ CÓ RỒI, GIỮ NGUYÊN HOẶC DÙNG CODE NÀY CHO ĐỒNG BỘ */}
+        <div className="flex-1 flex justify-center pb-6 relative z-10">
+           <Link 
+            to="/post" 
+            className="w-16 h-16 mb-2 bg-gradient-to-tr from-blue-600 to-cyan-400 text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(59,130,246,0.5)] border-[4px] border-white transform transition-all duration-300 active:scale-90 hover:scale-105 hover:-translate-y-2"
+          >
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            <span className="absolute w-full h-full rounded-full bg-blue-400 opacity-20 animate-ping -z-10"></span>
+          </Link>
+        </div>
+
+        {/* 4. TIN NHẮN */}
+        <Link 
+          to="/chat" 
+          className={`flex-1 flex flex-col items-center justify-center gap-1 pb-4 group transition-all duration-300 relative ${location.pathname.startsWith('/chat') ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-500'}`}
+        >
+          <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname.startsWith('/chat') ? 'bg-blue-50 shadow-[0_0_15px_rgba(37,99,235,0.2)]' : ''}`}>
+             <svg className="w-6 h-6 transition-transform duration-300 group-active:scale-90" fill={location.pathname.startsWith('/chat') ? "currentColor" : "none"} stroke="currentColor" strokeWidth={location.pathname.startsWith('/chat') ? 0 : 2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
           </div>
-          <span className="text-[9px] font-black uppercase tracking-widest">Cá nhân</span>
+          <span className={`text-[10px] font-bold tracking-tight ${location.pathname.startsWith('/chat') ? 'opacity-100' : 'opacity-70'}`}>Tin nhắn</span>
+          {unreadChatCount > 0 && <span className="absolute top-1 right-2 w-4 h-4 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-bounce">{unreadChatCount}</span>}
+        </Link>
+
+        {/* 5. CÁ NHÂN */}
+        <Link 
+          to="/profile" 
+          className={`flex-1 flex flex-col items-center justify-center gap-1 pb-4 group transition-all duration-300 ${location.pathname === '/profile' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-500'}`}
+        >
+          <div className={`p-0.5 rounded-full transition-all duration-300 border-2 ${location.pathname === '/profile' ? 'border-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.3)]' : 'border-transparent'}`}>
+             {user ? (
+                 <img src={user.avatar} className="w-7 h-7 rounded-full object-cover" alt="User" />
+             ) : (
+                <svg className="w-6 h-6 m-1" fill={location.pathname === '/profile' ? "currentColor" : "none"} stroke="currentColor" strokeWidth={location.pathname === '/profile' ? 0 : 2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+             )}
+          </div>
+          <span className={`text-[10px] font-bold tracking-tight ${location.pathname === '/profile' ? 'opacity-100' : 'opacity-70'}`}>Cá nhân</span>
         </Link>
       </nav>
+
 
       {/* Universal PWA Install Prompt */}
       <UniversalInstallPrompt />

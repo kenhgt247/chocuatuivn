@@ -35,7 +35,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   }, [user, roomId]);
 
   useEffect(() => {
-    // Sửa behavior thành 'auto' để scroll ngay lập tức khi mở, tránh giật trên mobile
     scrollRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [activeRoom?.messages]);
 
@@ -52,7 +51,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     const updatedRoom = await db.getChatRoom(activeRoom.id);
     if (updatedRoom) setActiveRoom(updatedRoom);
     
-    // Scroll xuống dưới sau khi gửi
     setTimeout(() => {
         scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
@@ -61,10 +59,10 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   if (!user) return <div className="p-10 text-center">Vui lòng đăng nhập để chat</div>;
 
   return (
-    // --- SỬA LỖI 1: Thay đổi chiều cao Container ---
-    // 1. Dùng 'h-[calc(100dvh-XXX)]' thay vì 'vh'. 'dvh' là đơn vị chuẩn cho mobile browser.
-    // 2. Giảm khoảng trừ trên mobile (-85px) để tận dụng tối đa màn hình, desktop giữ nguyên (-140px).
-    <div className="bg-white border border-borderMain rounded-2xl h-[calc(100dvh-85px)] md:h-[calc(100vh-140px)] flex overflow-hidden shadow-soft">
+    // --- SỬA LỖI QUAN TRỌNG TẠI ĐÂY ---
+    // Mobile: h-[calc(100dvh-13rem)] -> Trừ khoảng 200px (Header + Padding + Bottom Nav) để khung chat nằm gọn phía trên thanh điều hướng.
+    // Desktop: md:h-[calc(100vh-140px)] -> Giữ nguyên logic cũ cho desktop.
+    <div className="bg-white border border-borderMain rounded-2xl h-[calc(100dvh-13rem)] md:h-[calc(100vh-140px)] flex overflow-hidden shadow-soft">
       
       {/* Sidebar - Rooms List */}
       <aside className={`w-full md:w-80 flex-shrink-0 border-r border-borderMain flex flex-col ${roomId ? 'hidden md:flex' : 'flex'}`}>
@@ -154,12 +152,12 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                   <p className="text-sm font-bold uppercase tracking-widest">Hãy gửi tin nhắn đầu tiên!</p>
                 </div>
               )}
-              <div ref={scrollRef} className="h-1" />
+              {/* Thêm khoảng trống dưới cùng để dễ nhìn tin nhắn cuối */}
+              <div ref={scrollRef} className="h-4" />
             </div>
 
-            {/* --- SỬA LỖI 2: Input Area --- */}
-            {/* Thêm pb-safe (nếu dùng tailwind-safe-area) hoặc padding-bottom thủ công để tránh thanh Home của iPhone */}
-            <form onSubmit={handleSendMessage} className="p-3 md:p-4 border-t border-borderMain bg-white pb-6 md:pb-4 shrink-0">
+            {/* Input Form */}
+            <form onSubmit={handleSendMessage} className="p-3 md:p-4 border-t border-borderMain bg-white pb-4 shrink-0">
               <div className="flex gap-2 md:gap-3">
                 <input 
                   type="text" 
@@ -167,7 +165,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onFocus={() => {
-                      // Hack nhỏ để scroll xuống cuối khi bàn phím ảo bật lên
                       setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 300);
                   }}
                   className="flex-1 bg-gray-100 border-transparent focus:bg-white border focus:border-primary rounded-full px-4 py-2.5 focus:outline-none text-sm font-medium transition-all"

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { db } from '../services/db';
@@ -10,6 +9,7 @@ const Auth: React.FC<{ onLogin: (user: any) => void }> = ({ onLogin }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Xử lý đăng nhập Email/Pass cũ
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
@@ -23,16 +23,31 @@ const Auth: React.FC<{ onLogin: (user: any) => void }> = ({ onLogin }) => {
       navigate('/');
     } catch (err: any) {
       console.error("Login error:", err.code, err.message);
-      // Xử lý các mã lỗi phổ biến của Firebase Auth
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-email') {
         setError("Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.");
       } else if (err.code === 'auth/too-many-requests') {
-        setError("Tài khoản của bạn tạm thời bị khóa do nhập sai nhiều lần. Hãy thử lại sau ít phút.");
+        setError("Tài khoản tạm khóa. Thử lại sau ít phút.");
       } else {
-        setError("Đã xảy ra lỗi hệ thống: " + (err.message || "Vui lòng thử lại sau."));
+        setError("Lỗi hệ thống: " + (err.message || "Vui lòng thử lại."));
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // --- Xử lý đăng nhập Google (MỚI) ---
+  const handleGoogleLogin = async () => {
+    setError('');
+    setIsLoading(true);
+    try {
+        const user = await db.loginWithGoogle();
+        onLogin(user);
+        navigate('/');
+    } catch (err: any) {
+        console.error("Google login error:", err);
+        setError("Lỗi đăng nhập Google: " + err.message);
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -82,6 +97,24 @@ const Auth: React.FC<{ onLogin: (user: any) => void }> = ({ onLogin }) => {
             {isLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Đăng nhập ngay'}
           </button>
         </form>
+
+        {/* --- PHẦN NÚT GOOGLE (MỚI) --- */}
+        <div className="relative flex py-2 items-center">
+            <div className="flex-grow border-t border-gray-200"></div>
+            <span className="flex-shrink-0 mx-4 text-[10px] text-gray-400 font-bold uppercase">Hoặc</span>
+            <div className="flex-grow border-t border-gray-200"></div>
+        </div>
+
+        <button 
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={isLoading}
+            className="w-full bg-white border-2 border-gray-100 text-gray-700 font-bold py-4 rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center gap-3 active:scale-95"
+        >
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
+            <span>Tiếp tục với Google</span>
+        </button>
+        {/* ----------------------------- */}
 
         <p className="text-center text-[10px] text-gray-400 font-black uppercase">
           Chưa có tài khoản? <Link to="/register" className="text-primary hover:underline">Đăng ký tại đây</Link>

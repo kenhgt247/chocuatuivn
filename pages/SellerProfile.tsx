@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { db } from '../services/db';
@@ -11,11 +10,18 @@ import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
   const { id } = useParams();
   const navigate = useNavigate();
+  
+  // State cơ bản
   const [seller, setSeller] = useState<User | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [activeTab, setActiveTab] = useState<'listings' | 'reviews'>('listings');
+  
+  // State Follow (MỚI)
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
+  
+  // State Loading & Error
   const [loading, setLoading] = useState(true);
   const [queryError, setQueryError] = useState<string | null>(null);
   
@@ -34,11 +40,32 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
     setQueryError(null);
 
     try {
+      // 1. Lấy thông tin người bán
       const found = await db.getUserById(id);
+      
       if (found) {
         setSeller(found);
         
-        // Phân trang tin đăng của người bán (Sử dụng Paged Query)
+        // 2. Lấy thống kê Follow (MỚI)
+        try {
+            // Giả sử db.getFollowStats đã được định nghĩa như ở bước trước
+            const stats = await db.getFollowStats(id); 
+            setFollowStats(stats);
+        } catch (e) {
+            console.warn("Chưa lấy được follow stats", e);
+        }
+
+        // 3. Kiểm tra xem mình có đang follow người này không (MỚI)
+        if (currentUser) {
+            try {
+                const isF = await db.checkIsFollowing(currentUser.id, id);
+                setIsFollowing(isF);
+            } catch (e) {
+                setIsFollowing(false);
+            }
+        }
+        
+        // 4. Phân trang tin đăng
         const result = await db.getListingsPaged({
           pageSize: PAGE_SIZE,
           sellerId: id,
@@ -52,11 +79,8 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
           setLastDoc(result.lastDoc);
           setHasMore(result.hasMore);
         }
-
-        if (currentUser) {
-          setIsFollowing(currentUser.following?.includes(found.id) || false);
-        }
         
+        // 5. Lấy đánh giá
         db.getReviews(id, 'user', (loadedReviews) => {
           setReviews(loadedReviews);
         });
@@ -101,17 +125,35 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
     return (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1);
   }, [reviews]);
 
+  // --- LOGIC FOLLOW ĐÃ SỬA ---
   const handleToggleFollow = async () => {
     if (!currentUser) return navigate('/login');
     if (currentUser.id === id) return;
     
+    // Optimistic Update (Cập nhật giao diện trước khi gọi API)
     const prevStatus = isFollowing;
-    setIsFollowing(!isFollowing);
+    const prevCount = followStats.followers;
+    
+    setIsFollowing(!prevStatus);
+    setFollowStats(prev => ({
+        ...prev,
+        followers: !prevStatus ? prev.followers + 1 : prev.followers - 1
+    }));
     
     try {
-      await db.toggleFollow(currentUser.id, id!);
+      if (!prevStatus) {
+        // Chưa follow -> Gọi hàm Follow
+        await db.followUser(currentUser.id, id!); 
+      } else {
+        // Đang follow -> Gọi hàm Unfollow
+        await db.unfollowUser(currentUser.id, id!);
+      }
     } catch (err) {
+      console.error("Lỗi follow:", err);
+      // Revert lại nếu lỗi
       setIsFollowing(prevStatus);
+      setFollowStats(prev => ({ ...prev, followers: prevCount }));
+      alert("Có lỗi xảy ra, vui lòng thử lại.");
     }
   };
 
@@ -151,11 +193,20 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-6 border-y border-gray-100">
                <div><p className="text-2xl font-black text-textMain">{avgRating} <span className="text-yellow-400 text-lg">★</span></p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Đánh giá TB</p></div>
                <div className="border-x border-gray-100 px-4"><p className="text-2xl font-black text-textMain">{listings.length}</p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Tin đang bán</p></div>
-               <div className="border-r border-gray-100 pr-4"><p className="text-2xl font-black text-textMain">{seller.followers?.length || 0}</p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Theo dõi</p></div>
+               
+               {/* SỬA HIỂN THỊ SỐ FOLLOW */}
+               <div className="border-r border-gray-100 pr-4">
+                 <p className="text-2xl font-black text-textMain">{followStats.followers}</p>
+                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Theo dõi</p>
+               </div>
+               
                <div><p className="text-2xl font-black text-green-600">99%</p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Phản hồi</p></div>
             </div>
             <div className="flex flex-wrap gap-4 pt-2">
-              <button onClick={handleToggleFollow} className={`flex-1 md:flex-none min-w-[160px] px-8 py-4 rounded-2xl font-black text-xs transition-all uppercase tracking-widest ${isFollowing ? 'bg-gray-100 text-gray-400' : 'bg-primary text-white shadow-xl shadow-primary/20 hover:scale-105 active:scale-95'}`}>
+              <button 
+                onClick={handleToggleFollow} 
+                className={`flex-1 md:flex-none min-w-[160px] px-8 py-4 rounded-2xl font-black text-xs transition-all uppercase tracking-widest ${isFollowing ? 'bg-gray-100 text-gray-400' : 'bg-primary text-white shadow-xl shadow-primary/20 hover:scale-105 active:scale-95'}`}
+              >
                 {isFollowing ? 'Đang theo dõi ✓' : '+ Theo dõi'}
               </button>
               <button onClick={() => navigate('/chat')} className="flex-1 md:flex-none min-w-[160px] px-8 py-4 bg-white border-2 border-primary text-primary rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary/5 transition-all active:scale-95">Nhắn tin</button>
@@ -176,7 +227,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
             <h3 className="text-sm font-black text-red-700 uppercase mb-2">Lỗi truy vấn hệ thống</h3>
             <p className="text-[11px] text-red-600/70 mb-6">Firestore yêu cầu tạo Chỉ số tổng hợp để hiển thị tin đăng của người bán này.</p>
             {queryError.includes('https://') && (
-              <a href={queryError.split('here: ')[1]} target="_blank" className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-100">Cấu hình ngay</a>
+              <a href={queryError.split('here: ')[1]} target="_blank" className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-100" rel="noreferrer">Cấu hình ngay</a>
             )}
           </div>
         )}
@@ -195,7 +246,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
                     </div>
                   )}
                 </div>
-                {hasMore && (
+                {hasMore && listings.length > 0 && (
                   <div className="pt-10 flex justify-center">
                     <button onClick={handleLoadMore} disabled={isFetchingMore} className="px-10 py-4 border-2 border-primary text-primary font-black rounded-2xl text-xs uppercase tracking-widest hover:bg-primary hover:text-white transition-all shadow-lg active:scale-95 disabled:opacity-50">
                       {isFetchingMore ? 'Đang tải thêm...' : 'Tải thêm tin đăng'}

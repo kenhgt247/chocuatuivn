@@ -441,8 +441,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             <div className="text-[10px] text-gray-400 font-medium text-center border-t border-gray-100 pt-8">© 2024 ChoCuaTui.vn - Nền tảng rao vặt ứng dụng AI. All rights reserved.</div>
          </div>
       </footer>
-         </div>
-      </div>
+        
 
     </div>
   );

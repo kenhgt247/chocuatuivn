@@ -1,13 +1,12 @@
-
 // Đảm bảo import đúng từ các sub-module của Firebase SDK v9+
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { 
   getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, 
   query, where, orderBy, limit, addDoc, serverTimestamp, Timestamp, 
   deleteDoc, onSnapshot, arrayUnion, arrayRemove, runTransaction,
-  startAfter, QueryDocumentSnapshot, DocumentData
+  startAfter, QueryDocumentSnapshot, DocumentData, writeBatch // <-- Đã thêm writeBatch
 } from "firebase/firestore";
-// Fix: Use standard modular SDK imports for Firebase Auth to resolve "no exported member" errors
+// Fix: Use standard modular SDK imports for Firebase Auth
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -70,13 +69,13 @@ export const db = {
     }
   },
 
-  // --- PAGINATED LISTINGS ---
+  // --- PAGINATED LISTINGS (Hỗ trợ Admin phân trang) ---
   getListingsPaged: async (options: {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
     categoryId?: string,
     sellerId?: string,
-    status?: string,
+    status?: string, // Admin có thể lọc theo status (pending, rejected...)
     search?: string,
     location?: string
   }) => {
@@ -84,7 +83,14 @@ export const db = {
       const colRef = collection(firestore, "listings");
       let constraints: any[] = [];
 
-      constraints.push(where("status", "==", options.status || "approved"));
+      // Nếu có status thì lọc theo status, nếu không (và không phải admin search all) thì mặc định là approved
+      if (options.status) {
+          constraints.push(where("status", "==", options.status));
+      } else if (!options.sellerId && !options.search) {
+          // Logic mặc định cho trang chủ: chỉ hiện tin đã duyệt
+          // Nếu đang search hoặc xem profile (sellerId) thì có thể logic khác tùy UI
+          constraints.push(where("status", "==", "approved"));
+      }
 
       if (options.categoryId) constraints.push(where("category", "==", options.categoryId));
       if (options.sellerId) constraints.push(where("sellerId", "==", options.sellerId));
@@ -104,6 +110,7 @@ export const db = {
       const lastVisible = snap.docs[snap.docs.length - 1] || null;
 
       let finalResults = results;
+      // Client-side filtering cho search (vì Firestore không hỗ trợ full-text search native tốt)
       if (options.search) {
         const s = options.search.toLowerCase();
         finalResults = results.filter(l => 
@@ -119,7 +126,33 @@ export const db = {
         error: null
       };
     } catch (e: any) {
+      console.error("Get listings error:", e);
       return { listings: [], lastDoc: null, hasMore: false, error: e.toString() };
+    }
+  },
+
+  // --- ADMIN: UPDATE NỘI DUNG TIN (MỚI) ---
+  updateListingContent: async (listingId: string, data: Partial<Listing>) => {
+    try {
+      await updateDoc(doc(firestore, "listings", listingId), data);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  },
+
+  // --- ADMIN: XÓA HÀNG LOẠT (MỚI - BATCH DELETE) ---
+  deleteListingsBatch: async (ids: string[]) => {
+    try {
+      const batch = writeBatch(firestore);
+      ids.forEach(id => {
+        const ref = doc(firestore, "listings", id);
+        batch.delete(ref);
+      });
+      await batch.commit();
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message };
     }
   },
 
@@ -209,7 +242,8 @@ export const db = {
       subscriptionTier: 'free',
       walletBalance: 0,
       following: [],
-      followers: []
+      followers: [],
+      verificationStatus: 'unverified' // Mặc định khi tạo mới
     };
     await setDoc(doc(firestore, "users", res.user.uid), newUser);
     return newUser;
@@ -217,7 +251,7 @@ export const db = {
 
   logout: async () => await signOut(auth),
 
-  // --- LISTINGS ---
+  // --- LISTINGS BASIC OPERATIONS ---
   getListings: async (includeHidden = false): Promise<Listing[]> => {
     const colRef = collection(firestore, "listings");
     let q = includeHidden 
@@ -244,6 +278,7 @@ export const db = {
     return await getDownloadURL(storageRef);
   },
 
+  // --- SYSTEM SETTINGS ---
   getSettings: async (): Promise<SystemSettings | null> => {
     const d = await getDoc(doc(firestore, "system", "settings"));
     return d.exists() ? (d.data() as SystemSettings) : null;
@@ -253,6 +288,7 @@ export const db = {
     await setDoc(doc(firestore, "system", "settings"), settings);
   },
 
+  // --- TRANSACTIONS ---
   requestDeposit: async (userId: string, amount: number, method: string) => {
     return await addDoc(collection(firestore, "transactions"), {
       userId, amount, type: 'deposit', method, description: `Nạp tiền qua ${method}`, status: 'pending', createdAt: new Date().toISOString()
@@ -281,8 +317,14 @@ export const db = {
   pushListing: async (listingId: string, userId: string) => {
     const settings: any = await db.getSettings();
     const user = await db.getUserById(userId);
-    const price = settings?.pushPrice || 20000;
+    
+    // Tính giá sau chiết khấu (ưu tiên pushDiscount)
+    const rawPrice = settings?.pushPrice || 20000;
+    const discount = settings?.pushDiscount || 0; // Sử dụng pushDiscount cho đúng logic mới
+    const price = rawPrice * (1 - discount / 100);
+
     if (!user || (user.walletBalance || 0) < price) return { success: false, message: "Ví không đủ tiền." };
+    
     await updateDoc(doc(firestore, "users", userId), { walletBalance: (user.walletBalance || 0) - price });
     await updateDoc(doc(firestore, "listings", listingId), { createdAt: new Date().toISOString() });
     return { success: true };
@@ -293,9 +335,15 @@ export const db = {
       return await runTransaction(firestore, async (transaction) => {
         const txRef = doc(firestore, "transactions", txId);
         const txSnap = await transaction.get(txRef);
+        if (!txSnap.exists()) throw new Error("Transaction not found");
+        
         const txData = txSnap.data() as Transaction & { metadata?: any };
+        if (txData.status !== 'pending') throw new Error("Transaction already processed");
+
         const userRef = doc(firestore, "users", txData.userId);
         const userSnap = await transaction.get(userRef);
+        if (!userSnap.exists()) throw new Error("User not found");
+        
         const userData = userSnap.data() as User;
 
         if (txData.type === 'deposit') {
@@ -336,6 +384,7 @@ export const db = {
   resolveReport: async (id: string) => await updateDoc(doc(firestore, "reports", id), { status: 'resolved' }),
   reportListing: async (r: any) => await addDoc(collection(firestore, "reports"), { ...r, status: 'pending', createdAt: new Date().toISOString() }),
   
+  // --- SOCIAL & CHAT ---
   toggleFollow: async (uId: string, tId: string) => {
     const uRef = doc(firestore, "users", uId);
     const tRef = doc(firestore, "users", tId);

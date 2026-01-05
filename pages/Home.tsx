@@ -197,6 +197,46 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     setFavorites(updatedFavs);
   };
 
+  // --- LOGIC ĐẨY TIN (MỚI THÊM) ---
+  const handlePushListing = async (listingId: string) => {
+    if (!user) {
+        if(window.confirm("Bạn cần đăng nhập để thực hiện chức năng này.")) {
+            navigate('/login');
+        }
+        return;
+    }
+
+    // Xác nhận trước khi đẩy tin (để tránh bấm nhầm trừ tiền oan)
+    if (!window.confirm("Bạn có chắc muốn đẩy tin này lên đầu? Phí sẽ được trừ vào ví.")) {
+        return;
+    }
+
+    try {
+        setIsLoading(true);
+        // Gọi hàm pushListing trong db.ts
+        const result = await db.pushListing(listingId, user.id);
+        
+        if (result.success) {
+            alert("Đẩy tin thành công! Tin của bạn đã lên đầu trang chủ.");
+            // Quan trọng: Gọi lại fetchInitialData để làm mới danh sách tin ngay lập tức
+            fetchInitialData();
+            // Scroll lên đầu trang để người dùng thấy tin của mình
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            alert("Lỗi: " + result.message);
+            // Nếu lỗi do thiếu tiền, gợi ý nạp tiền (tuỳ chọn)
+            if (result.message && result.message.includes("không đủ tiền")) {
+                 navigate('/wallet');
+            }
+        }
+    } catch (error) {
+        console.error("Lỗi khi đẩy tin:", error);
+        alert("Có lỗi xảy ra, vui lòng thử lại sau.");
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-24 px-2 md:px-4 max-w-[1400px] mx-auto">
       
@@ -307,7 +347,14 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
             {vipListings.map(l => (
-              <ListingCard key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} />
+              <ListingCard 
+                key={l.id} 
+                listing={l} 
+                isFavorite={favorites.includes(l.id)} 
+                onToggleFavorite={toggleFav} 
+                // Chỉ truyền onPushListing nếu user là chủ sở hữu
+                onPushListing={user && user.id === l.sellerId ? handlePushListing : undefined}
+              />
             ))}
           </div>
         </section>
@@ -323,13 +370,18 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
              </div>
              <div className="flex gap-4 items-center">
                 <button onClick={handleDetectLocation} className="text-[10px] font-black text-gray-400 uppercase underline hover:text-primary">Làm mới</button>
-                {/* ĐÃ SỬA LỖI TẠI ĐÂY: Dùng &gt; thay cho > */}
                 <Link to={`/search?location=${detectedLocation}`} className="text-[10px] font-black text-primary uppercase hover:underline">Xem thêm &gt;</Link>
              </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
             {nearbyListings.map(l => (
-              <ListingCard key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} />
+              <ListingCard 
+                key={l.id} 
+                listing={l} 
+                isFavorite={favorites.includes(l.id)} 
+                onToggleFavorite={toggleFav} 
+                onPushListing={user && user.id === l.sellerId ? handlePushListing : undefined}
+              />
             ))}
           </div>
         </section>
@@ -361,7 +413,14 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4 px-1 md:px-0">
               {latestListings.map(l => (
-                <ListingCard key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} />
+                <ListingCard 
+                    key={l.id} 
+                    listing={l} 
+                    isFavorite={favorites.includes(l.id)} 
+                    onToggleFavorite={toggleFav} 
+                    // Logic quan trọng: Chỉ hiện nút đẩy tin nếu user hiện tại là người bán
+                    onPushListing={user && user.id === l.sellerId ? handlePushListing : undefined}
+                />
               ))}
             </div>
             {hasMore && (

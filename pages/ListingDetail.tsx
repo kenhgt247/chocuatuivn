@@ -17,6 +17,15 @@ const REPORT_REASONS = [
   "Lý do khác"
 ];
 
+// Danh sách link footer
+const STATIC_LINKS = [
+  { slug: 'gioi-thieu', title: 'Giới thiệu' },
+  { slug: 'quy-che-hoat-dong', title: 'Quy chế hoạt động' },
+  { slug: 'chinh-sach-bao-mat', title: 'Chính sách bảo mật' },
+  { slug: 'meo-mua-ban-an-toan', title: 'Mẹo an toàn' },
+  { slug: 'huong-dan-dang-tin', title: 'Hỗ trợ' },
+];
+
 const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const { slugWithId } = useParams();
   const navigate = useNavigate();
@@ -123,7 +132,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   return (
     <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-6 pb-24">
       
-      {/* --- PHẦN MỚI: BREADCRUMB (THANH ĐIỀU HƯỚNG) --- */}
+      {/* --- BREADCRUMB --- */}
       <nav className="flex items-center gap-2 text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-400 px-4 md:px-0 overflow-x-auto no-scrollbar whitespace-nowrap">
         <Link to="/" className="hover:text-primary transition-colors flex-shrink-0">
           Chợ Của Tui
@@ -141,7 +150,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           {listing.title}
         </span>
       </nav>
-      {/* ----------------------------------------------- */}
+      {/* ------------------- */}
 
       <div className="grid lg:grid-cols-12 gap-0 md:gap-8 bg-white md:bg-transparent overflow-hidden">
         
@@ -383,6 +392,21 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
       )}
 
       <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} url={getListingUrl(listing)} title={listing.title} />
+
+      {/* --- PHẦN MỚI: FOOTER (CHỈ HIỆN TRÊN MÁY TÍNH) --- */}
+      <footer className="hidden md:block pt-16 border-t border-dashed border-gray-200 mt-20">
+         <div className="bg-white border border-borderMain rounded-[3rem] p-10 shadow-soft">
+            <div className="flex items-center justify-between mb-8">
+               <h4 className="text-xl font-black text-textMain flex items-center gap-2"><span className="text-2xl">⚡</span> Chợ Của Tui</h4>
+               <div className="flex gap-4">
+                  {STATIC_LINKS.map(link => <Link key={link.slug} to={`/page/${link.slug}`} className="text-xs font-bold text-gray-400 hover:text-primary transition-colors uppercase">{link.title}</Link>)}
+               </div>
+            </div>
+            <div className="text-[10px] text-gray-400 font-medium text-center border-t border-gray-100 pt-8">© 2024 ChoCuaTui.vn - Nền tảng rao vặt ứng dụng AI. All rights reserved.</div>
+         </div>
+      </footer>
+      {/* ------------------- */}
+
     </div>
   );
 };

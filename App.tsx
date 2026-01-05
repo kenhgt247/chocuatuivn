@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-// QUAN TRỌNG: Sử dụng BrowserRouter để link đẹp (không có dấu #)
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+
+// Layout & Pages
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import ListingDetail from './pages/ListingDetail';
@@ -15,6 +16,8 @@ import Subscription from './pages/Subscription';
 import Wallet from './pages/Wallet';
 import Admin from './pages/Admin';
 import StaticPage from './pages/StaticPage';
+
+// Services & Types
 import { db } from './services/db';
 import { User } from './types';
 
@@ -22,6 +25,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
 
+  // Khởi tạo: Kiểm tra user đang đăng nhập
   useEffect(() => {
     const initialize = async () => {
       try {
@@ -36,14 +40,15 @@ const App: React.FC = () => {
     initialize();
   }, []);
 
+  // Các handler quản lý User state
   const handleLogin = (u: User) => setUser(u);
   const handleLogout = () => {
     db.logout();
     setUser(null);
   };
-
   const handleUpdateUser = (u: User) => setUser(u);
 
+  // Màn hình loading khi đang check login
   if (isInitializing) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-bgMain">
@@ -57,27 +62,49 @@ const App: React.FC = () => {
     <Router>
       <Layout user={user}>
         <Routes>
-          {/* Trang chủ */}
-          <Route path="/" element={<Home user={user} />} />
+          {/* ========================================================= */}
+          {/* ROUTE QUAN TRỌNG: TRANG CHỦ & TÌM KIẾM/LỌC (VIP, LOCATION) */}
+          {/* ========================================================= */}
           
-          {/* Chi tiết sản phẩm (SEO friendly) */}
+          {/* 1. Trang chủ mặc định */}
+          <Route path="/" element={<Home user={user} />} />
+
+          {/* 2. QUAN TRỌNG: Route xử lý Xem tất cả VIP & Tin quanh đây */}
+          {/* Khi bấm link /search?type=vip hoặc /search?location=HN, route này sẽ bắt và render Home */}
+          <Route path="/search" element={<Home user={user} />} />
+
+          {/* 3. Xem theo danh mục (Ví dụ: /danh-muc/xe-co) */}
+          <Route path="/danh-muc/:slug" element={<Home user={user} />} />
+
+          {/* ========================================================= */}
+          {/* CHI TIẾT SẢN PHẨM */}
+          {/* ========================================================= */}
           <Route path="/san-pham/:slugWithId" element={<ListingDetail user={user} />} />
           
-          {/* Danh mục sản phẩm (SEO friendly) - Đã sửa từ /categories sang /danh-muc/:slug */}
-          <Route path="/danh-muc/:slug" element={<Home user={user} />} />
-          
+          {/* ========================================================= */}
+          {/* USER & SELLER */}
+          {/* ========================================================= */}
           <Route path="/seller/:id" element={<SellerProfile currentUser={user} />} />
+          <Route path="/profile" element={<Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} />} />
+          
+          {/* ========================================================= */}
+          {/* CÁC ROUTE CẦN ĐĂNG NHẬP (PROTECTED ROUTES) */}
+          {/* ========================================================= */}
           <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
           <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
           <Route path="/chat" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
           <Route path="/chat/:roomId" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
-          <Route path="/profile" element={<Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} />} />
           <Route path="/upgrade" element={<Subscription user={user} onUpdateUser={handleUpdateUser} />} />
           <Route path="/wallet" element={user ? <Wallet user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
           <Route path="/admin" element={<Admin user={user} />} />
+
+          {/* ========================================================= */}
+          {/* AUTH & STATIC PAGES */}
+          {/* ========================================================= */}
           <Route path="/login" element={<Auth onLogin={handleLogin} />} />
           <Route path="/register" element={<Register onLogin={handleLogin} />} />
           <Route path="/page/:slug" element={<StaticPage />} />
+
         </Routes>
       </Layout>
     </Router>

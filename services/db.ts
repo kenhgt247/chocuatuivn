@@ -4,7 +4,7 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, 
   query, where, orderBy, limit, addDoc, serverTimestamp, Timestamp, 
   deleteDoc, onSnapshot, arrayUnion, arrayRemove, runTransaction,
-  startAfter, QueryDocumentSnapshot, DocumentData, writeBatch // <-- Đã thêm writeBatch
+  startAfter, QueryDocumentSnapshot, DocumentData, writeBatch 
 } from "firebase/firestore";
 // Fix: Use standard modular SDK imports for Firebase Auth
 import { 
@@ -12,7 +12,9 @@ import {
   signInWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged, 
-  createUserWithEmailAndPassword 
+  createUserWithEmailAndPassword,
+  GoogleAuthProvider, // <-- Mới thêm
+  signInWithPopup     // <-- Mới thêm
 } from "firebase/auth";
 import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
 import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review } from '../types';
@@ -228,6 +230,39 @@ export const db = {
     const userDoc = await getDoc(doc(firestore, "users", res.user.uid));
     return userDoc.data() as User;
   },
+
+  // --- HÀM ĐĂNG NHẬP GOOGLE (MỚI THÊM) ---
+  loginWithGoogle: async (): Promise<User> => {
+    const provider = new GoogleAuthProvider();
+    const res = await signInWithPopup(auth, provider);
+    
+    const userDocRef = doc(firestore, "users", res.user.uid);
+    const userDocSnap = await getDoc(userDocRef);
+
+    if (!userDocSnap.exists()) {
+      // Nếu là user mới -> Tạo dữ liệu mặc định
+      const newUser: User = {
+        id: res.user.uid,
+        name: res.user.displayName || "Người dùng mới",
+        email: res.user.email || "",
+        avatar: res.user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${res.user.uid}`,
+        role: 'user',
+        status: 'active',
+        joinedAt: new Date().toISOString(),
+        subscriptionTier: 'free',
+        walletBalance: 0,
+        following: [],
+        followers: [],
+        verificationStatus: 'unverified'
+      };
+      await setDoc(userDocRef, newUser);
+      return newUser;
+    } else {
+      // Nếu user cũ -> Trả về data hiện tại
+      return userDocSnap.data() as User;
+    }
+  },
+  // ----------------------------------------
 
   register: async (email: string, pass: string, name: string): Promise<User> => {
     const res = await createUserWithEmailAndPassword(auth, email, pass);

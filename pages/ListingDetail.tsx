@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { db } from '../services/db';
@@ -6,7 +7,6 @@ import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
 import ListingCard from '../components/ListingCard';
 import ShareModal from '../components/ShareModal';
 import ReviewSection from '../components/ReviewSection';
-import { CATEGORIES } from '../constants'; // Import danh sách danh mục
 
 const REPORT_REASONS = [
   "Lừa đảo, giả mạo",
@@ -15,15 +15,6 @@ const REPORT_REASONS = [
   "Hàng cấm buôn bán",
   "Sản phẩm đã bán",
   "Lý do khác"
-];
-
-// Danh sách link footer
-const STATIC_LINKS = [
-  { slug: 'gioi-thieu', title: 'Giới thiệu' },
-  { slug: 'quy-che-hoat-dong', title: 'Quy chế hoạt động' },
-  { slug: 'chinh-sach-bao-mat', title: 'Chính sách bảo mật' },
-  { slug: 'meo-mua-ban-an-toan', title: 'Mẹo an toàn' },
-  { slug: 'huong-dan-dang-tin', title: 'Hỗ trợ' },
 ];
 
 const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
@@ -40,14 +31,12 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const [reportDetails, setReportDetails] = useState("");
   const [isPhoneVisible, setIsPhoneVisible] = useState(false);
 
-  // Lấy ID từ URL
   const id = useMemo(() => {
     if (!slugWithId) return null;
     const parts = slugWithId.split('-');
     return parts[parts.length - 1];
   }, [slugWithId]);
 
-  // Load dữ liệu
   useEffect(() => {
     if (!id) return;
     const loadListing = async () => {
@@ -64,37 +53,8 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     window.scrollTo(0, 0);
   }, [id, user]);
 
-  // Logic sắp xếp sản phẩm tương tự
-  const similarListings = useMemo(() => {
-    if (!listing || allListings.length === 0) return [];
-
-    return allListings
-      .filter(l => 
-        l.id !== listing.id &&          
-        l.category === listing.category 
-      )
-      .sort((a, b) => {
-        const aVip = (a as any).isVip ? 1 : 0;
-        const bVip = (b as any).isVip ? 1 : 0;
-        if (aVip !== bVip) return bVip - aVip; // Ưu tiên VIP
-
-        const aNear = a.location === listing.location ? 1 : 0;
-        const bNear = b.location === listing.location ? 1 : 0;
-        if (aNear !== bNear) return bNear - aNear; // Ưu tiên Gần
-
-        const dateA = new Date(a.createdAt).getTime();
-        const dateB = new Date(b.createdAt).getTime();
-        return dateB - dateA; // Ưu tiên Mới
-      })
-      .slice(0, 12); 
-  }, [allListings, listing]);
-
   if (!listing) return null;
 
-  // --- LOGIC LẤY THÔNG TIN DANH MỤC CHO BREADCRUMB ---
-  const currentCategory = CATEGORIES.find(c => c.id === listing.category);
-
-  // --- HANDLERS ---
   const handleStartChat = async () => {
     if (!user) return navigate('/login');
     if (user.id === listing.sellerId) return;
@@ -130,29 +90,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   };
 
   return (
-    // Thêm pb-24 để nội dung cuối cùng không bị thanh Chat Mobile che mất
-    <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-6 pb-32 md:pb-24">
-      
-      {/* --- BREADCRUMB --- */}
-      <nav className="flex items-center gap-2 text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-400 px-4 md:px-0 overflow-x-auto no-scrollbar whitespace-nowrap pt-4 md:pt-0">
-        <Link to="/" className="hover:text-primary transition-colors flex-shrink-0">
-          Chợ Của Tui
-        </Link>
-        <span>/</span>
-        {currentCategory ? (
-          <Link to={`/danh-muc/${currentCategory.slug}`} className="hover:text-primary transition-colors flex-shrink-0">
-            {currentCategory.name}
-          </Link>
-        ) : (
-          <span className="text-gray-300">...</span>
-        )}
-        <span>/</span>
-        <span className="text-gray-900 truncate max-w-[150px] md:max-w-xs" title={listing.title}>
-          {listing.title}
-        </span>
-      </nav>
-      {/* ------------------- */}
-
+    <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-8 pb-24">
       <div className="grid lg:grid-cols-12 gap-0 md:gap-8 bg-white md:bg-transparent overflow-hidden">
         
         {/* Cột trái: Gallery, Mô tả & Đánh giá */}
@@ -202,33 +140,16 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           )}
 
           {/* Khối mô tả chi tiết */}
-          <div className="bg-white md:rounded-[2.5rem] p-6 md:p-8 border-t md:border border-gray-100 shadow-sm md:shadow-soft space-y-6">
+          <div className="bg-white md:rounded-[2.5rem] p-6 md:p-8 border border-gray-100 shadow-sm space-y-6">
             <div className="space-y-4">
-               {/* Trên Mobile hiển thị giá và tiêu đề ở đây vì cột phải bị ẩn */}
-               <div className="md:hidden space-y-2 mb-4">
-                  <h1 className="text-lg font-bold text-gray-900 leading-tight">{listing.title}</h1>
-                  <p className="text-2xl font-black text-primary">{formatPrice(listing.price)}</p>
-                  <div className="flex items-center gap-2 text-[10px] text-gray-400 font-black uppercase tracking-widest pt-1">
-                    <span className="flex items-center gap-1">📍 {listing.location}</span>
-                    <span>•</span>
-                    <span>🕒 {formatTimeAgo(listing.createdAt)}</span>
-                  </div>
-               </div>
-
               <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Mô tả chi tiết</h2>
               <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-base font-medium">{listing.description}</p>
             </div>
             
             <div className="pt-6 border-t border-gray-100">
                <div className="flex flex-wrap gap-4">
-                 <div className="bg-bgMain px-4 py-2 rounded-xl text-xs font-bold text-gray-500">
-                    Tình trạng: <span className="text-textMain">{listing.condition === 'new' ? 'Mới 100%' : 'Đã sử dụng'}</span>
-                 </div>
-                 <div className="bg-bgMain px-4 py-2 rounded-xl text-xs font-bold text-gray-500">
-                    Danh mục: <span className="text-textMain">
-                        {currentCategory?.name || listing.category}
-                    </span>
-                 </div>
+                 <div className="bg-bgMain px-4 py-2 rounded-xl text-xs font-bold text-gray-500">Tình trạng: <span className="text-textMain">{listing.condition === 'new' ? 'Mới 100%' : 'Đã sử dụng'}</span></div>
+                 <div className="bg-bgMain px-4 py-2 rounded-xl text-xs font-bold text-gray-500">Danh mục: <span className="text-textMain">{listing.category}</span></div>
                </div>
             </div>
           </div>
@@ -240,9 +161,8 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           </div>
         </div>
 
-        {/* Cột phải: Thông tin người bán & Thao tác (Desktop Sticky) */}
-        {/* hidden md:block: Ẩn trên mobile, chỉ hiện trên desktop */}
-        <div className="hidden md:block lg:col-span-4 p-4 md:p-0">
+        {/* Cột phải: Thông tin người bán & Thao tác (Sticky) */}
+        <div className="lg:col-span-4 p-4 md:p-0">
           <div className="bg-white md:rounded-[2.5rem] p-6 md:p-8 md:border border-gray-100 md:shadow-soft space-y-6 sticky top-24">
             <div className="space-y-2">
               <p className="text-3xl font-black text-primary">{formatPrice(listing.price)}</p>
@@ -329,28 +249,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       </div>
 
-      {/* --- MOBILE FIXED ACTION BAR (Chỉ hiện trên mobile) --- */}
-      {/* z-50 để nổi lên trên, bottom-0 để dính đáy, pb-4 để tránh bị menu che */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-[100] md:hidden flex gap-2 pb-6 shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
-        <button 
-           onClick={handleStartChat} 
-           className="flex-1 bg-white border-2 border-primary text-primary py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-primary/5 active:scale-95 transition-all flex items-center justify-center gap-2"
-        >
-           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" strokeWidth={2}/></svg>
-           Chat
-        </button>
-        {seller?.phone && (
-           <a 
-              href={`tel:${seller.phone}`} 
-              className="flex-1 bg-primary text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/30 active:scale-95 transition-all flex items-center justify-center gap-2"
-           >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" strokeWidth={2}/></svg>
-              Gọi ngay
-           </a>
-        )}
-      </div>
-      {/* --------------------------------------------------- */}
-
       {/* Sản phẩm tương tự */}
       <div className="px-4 md:px-0">
         <div className="flex items-center justify-between mb-6 px-2">
@@ -358,20 +256,18 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           <Link to={`/?category=${listing.category}`} className="text-xs font-black text-primary hover:underline">Xem tất cả →</Link>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4">
-          {similarListings.map(l => (
-            <ListingCard 
-              key={l.id} 
-              listing={l} 
-              isFavorite={userFavorites.includes(l.id)} 
-              onToggleFavorite={handleToggleFav} 
-            />
-          ))}
-          
-          {similarListings.length === 0 && (
-             <div className="col-span-full py-10 text-center text-gray-400 text-sm italic">
-                Chưa có sản phẩm tương tự.
-             </div>
-          )}
+          {allListings
+            .filter(l => l.id !== listing.id && l.category === listing.category)
+            .slice(0, 12)
+            .map(l => (
+              <ListingCard 
+                key={l.id} 
+                listing={l} 
+                isFavorite={userFavorites.includes(l.id)} 
+                onToggleFavorite={handleToggleFav} 
+              />
+            ))
+          }
         </div>
       </div>
 
@@ -427,21 +323,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
       )}
 
       <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} url={getListingUrl(listing)} title={listing.title} />
-
-      {/* --- FOOTER (CHỈ HIỆN TRÊN MÁY TÍNH) --- */}
-      <footer className="hidden md:block pt-16 border-t border-dashed border-gray-200 mt-20">
-         <div className="bg-white border border-borderMain rounded-[3rem] p-10 shadow-soft">
-            <div className="flex items-center justify-between mb-8">
-               <h4 className="text-xl font-black text-textMain flex items-center gap-2"><span className="text-2xl">⚡</span> Chợ Của Tui</h4>
-               <div className="flex gap-4">
-                  {STATIC_LINKS.map(link => <Link key={link.slug} to={`/page/${link.slug}`} className="text-xs font-bold text-gray-400 hover:text-primary transition-colors uppercase">{link.title}</Link>)}
-               </div>
-            </div>
-            <div className="text-[10px] text-gray-400 font-medium text-center border-t border-gray-100 pt-8">© 2024 ChoCuaTui.vn - Nền tảng rao vặt ứng dụng AI. All rights reserved.</div>
-         </div>
-      </footer>
-      {/* ------------------- */}
-
     </div>
   );
 };

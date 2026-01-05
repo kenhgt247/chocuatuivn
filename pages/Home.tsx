@@ -197,7 +197,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     setFavorites(updatedFavs);
   };
 
-  // --- LOGIC ĐẨY TIN (MỚI THÊM) ---
+  // --- LOGIC ĐẨY TIN (GIỮ NGUYÊN) ---
   const handlePushListing = async (listingId: string) => {
     if (!user) {
         if(window.confirm("Bạn cần đăng nhập để thực hiện chức năng này.")) {
@@ -206,25 +206,20 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         return;
     }
 
-    // Xác nhận trước khi đẩy tin (để tránh bấm nhầm trừ tiền oan)
     if (!window.confirm("Bạn có chắc muốn đẩy tin này lên đầu? Phí sẽ được trừ vào ví.")) {
         return;
     }
 
     try {
         setIsLoading(true);
-        // Gọi hàm pushListing trong db.ts
         const result = await db.pushListing(listingId, user.id);
         
         if (result.success) {
             alert("Đẩy tin thành công! Tin của bạn đã lên đầu trang chủ.");
-            // Quan trọng: Gọi lại fetchInitialData để làm mới danh sách tin ngay lập tức
             fetchInitialData();
-            // Scroll lên đầu trang để người dùng thấy tin của mình
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
             alert("Lỗi: " + result.message);
-            // Nếu lỗi do thiếu tiền, gợi ý nạp tiền (tuỳ chọn)
             if (result.message && result.message.includes("không đủ tiền")) {
                  navigate('/wallet');
             }
@@ -238,8 +233,21 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   };
 
   return (
-    <div className="space-y-6 pb-24 px-2 md:px-4 max-w-[1400px] mx-auto">
+    <div className="space-y-6 pb-24 px-2 md:px-4 max-w-[1400px] mx-auto relative">
       
+      {/* --- NÚT ĐĂNG TIN MOBILE MỚI (ĐẸP HƠN) --- */}
+      <Link 
+        to="/post" 
+        className="fixed bottom-24 right-4 z-[60] md:hidden group"
+      >
+        <div className="absolute inset-0 bg-primary/30 blur-xl rounded-full animate-pulse"></div>
+        <div className="relative flex items-center gap-2 bg-gradient-to-br from-primary to-purple-600 text-white pl-4 pr-5 py-3.5 rounded-full shadow-2xl shadow-primary/40 active:scale-95 transition-all border border-white/20">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4"/></svg>
+            <span className="font-black text-[10px] uppercase tracking-widest">Đăng tin</span>
+        </div>
+      </Link>
+      {/* ----------------------------------------- */}
+
       {/* 1. CATEGORY STRIP */}
       <div ref={categoryRef} className="sticky top-20 z-40 bg-bgMain/95 backdrop-blur-lg py-2 -mx-2 px-2 md:mx-0 md:px-0">
          {/* MOBILE */}
@@ -418,7 +426,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                     listing={l} 
                     isFavorite={favorites.includes(l.id)} 
                     onToggleFavorite={toggleFav} 
-                    // Logic quan trọng: Chỉ hiện nút đẩy tin nếu user hiện tại là người bán
                     onPushListing={user && user.id === l.sellerId ? handlePushListing : undefined}
                 />
               ))}

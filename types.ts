@@ -1,7 +1,9 @@
-
 export type UserRole = 'user' | 'admin';
 export type SubscriptionTier = 'free' | 'basic' | 'pro';
 export type UserStatus = 'active' | 'banned';
+
+// --- MỚI THÊM: Trạng thái xác thực ---
+export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
 export interface User {
   id: string;
@@ -20,6 +22,10 @@ export interface User {
   walletBalance: number;
   followers?: string[];
   following?: string[];
+  
+  // --- MỚI THÊM: Trường xác thực ---
+  verificationStatus?: VerificationStatus; // Trạng thái: Chưa, Chờ, Đã duyệt, Từ chối
+  verificationDocuments?: string[];      // Mảng chứa link ảnh (Mặt trước, Mặt sau)
 }
 
 export interface Transaction {
@@ -62,7 +68,7 @@ export interface Listing {
 
 export interface Review {
   id: string;
-  targetId: string; // ID của tin đăng hoặc người dùng được đánh giá
+  targetId: string; 
   targetType: 'listing' | 'user';
   authorId: string;
   authorName: string;

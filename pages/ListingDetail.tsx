@@ -76,15 +76,15 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
       .sort((a, b) => {
         const aVip = (a as any).isVip ? 1 : 0;
         const bVip = (b as any).isVip ? 1 : 0;
-        if (aVip !== bVip) return bVip - aVip;
+        if (aVip !== bVip) return bVip - aVip; // Ưu tiên VIP
 
         const aNear = a.location === listing.location ? 1 : 0;
         const bNear = b.location === listing.location ? 1 : 0;
-        if (aNear !== bNear) return bNear - aNear;
+        if (aNear !== bNear) return bNear - aNear; // Ưu tiên Gần
 
         const dateA = new Date(a.createdAt).getTime();
         const dateB = new Date(b.createdAt).getTime();
-        return dateB - dateA;
+        return dateB - dateA; // Ưu tiên Mới
       })
       .slice(0, 12); 
   }, [allListings, listing]);
@@ -130,10 +130,11 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-6 pb-24">
+    // Thêm pb-24 để nội dung cuối cùng không bị thanh Chat Mobile che mất
+    <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-6 pb-32 md:pb-24">
       
       {/* --- BREADCRUMB --- */}
-      <nav className="flex items-center gap-2 text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-400 px-4 md:px-0 overflow-x-auto no-scrollbar whitespace-nowrap">
+      <nav className="flex items-center gap-2 text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-400 px-4 md:px-0 overflow-x-auto no-scrollbar whitespace-nowrap pt-4 md:pt-0">
         <Link to="/" className="hover:text-primary transition-colors flex-shrink-0">
           Chợ Của Tui
         </Link>
@@ -201,8 +202,19 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           )}
 
           {/* Khối mô tả chi tiết */}
-          <div className="bg-white md:rounded-[2.5rem] p-6 md:p-8 border border-gray-100 shadow-sm space-y-6">
+          <div className="bg-white md:rounded-[2.5rem] p-6 md:p-8 border-t md:border border-gray-100 shadow-sm md:shadow-soft space-y-6">
             <div className="space-y-4">
+               {/* Trên Mobile hiển thị giá và tiêu đề ở đây vì cột phải bị ẩn */}
+               <div className="md:hidden space-y-2 mb-4">
+                  <h1 className="text-lg font-bold text-gray-900 leading-tight">{listing.title}</h1>
+                  <p className="text-2xl font-black text-primary">{formatPrice(listing.price)}</p>
+                  <div className="flex items-center gap-2 text-[10px] text-gray-400 font-black uppercase tracking-widest pt-1">
+                    <span className="flex items-center gap-1">📍 {listing.location}</span>
+                    <span>•</span>
+                    <span>🕒 {formatTimeAgo(listing.createdAt)}</span>
+                  </div>
+               </div>
+
               <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Mô tả chi tiết</h2>
               <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-base font-medium">{listing.description}</p>
             </div>
@@ -228,8 +240,9 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           </div>
         </div>
 
-        {/* Cột phải: Thông tin người bán & Thao tác (Sticky) */}
-        <div className="lg:col-span-4 p-4 md:p-0">
+        {/* Cột phải: Thông tin người bán & Thao tác (Desktop Sticky) */}
+        {/* hidden md:block: Ẩn trên mobile, chỉ hiện trên desktop */}
+        <div className="hidden md:block lg:col-span-4 p-4 md:p-0">
           <div className="bg-white md:rounded-[2.5rem] p-6 md:p-8 md:border border-gray-100 md:shadow-soft space-y-6 sticky top-24">
             <div className="space-y-2">
               <p className="text-3xl font-black text-primary">{formatPrice(listing.price)}</p>
@@ -316,6 +329,28 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       </div>
 
+      {/* --- MOBILE FIXED ACTION BAR (Chỉ hiện trên mobile) --- */}
+      {/* z-50 để nổi lên trên, bottom-0 để dính đáy, pb-4 để tránh bị menu che */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-[100] md:hidden flex gap-2 pb-6 shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
+        <button 
+           onClick={handleStartChat} 
+           className="flex-1 bg-white border-2 border-primary text-primary py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-primary/5 active:scale-95 transition-all flex items-center justify-center gap-2"
+        >
+           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" strokeWidth={2}/></svg>
+           Chat
+        </button>
+        {seller?.phone && (
+           <a 
+              href={`tel:${seller.phone}`} 
+              className="flex-1 bg-primary text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/30 active:scale-95 transition-all flex items-center justify-center gap-2"
+           >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" strokeWidth={2}/></svg>
+              Gọi ngay
+           </a>
+        )}
+      </div>
+      {/* --------------------------------------------------- */}
+
       {/* Sản phẩm tương tự */}
       <div className="px-4 md:px-0">
         <div className="flex items-center justify-between mb-6 px-2">
@@ -393,7 +428,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
       <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} url={getListingUrl(listing)} title={listing.title} />
 
-      {/* --- PHẦN MỚI: FOOTER (CHỈ HIỆN TRÊN MÁY TÍNH) --- */}
+      {/* --- FOOTER (CHỈ HIỆN TRÊN MÁY TÍNH) --- */}
       <footer className="hidden md:block pt-16 border-t border-dashed border-gray-200 mt-20">
          <div className="bg-white border border-borderMain rounded-[3rem] p-10 shadow-soft">
             <div className="flex items-center justify-between mb-8">

@@ -1,9 +1,8 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CATEGORIES, LOCATIONS, TIER_CONFIG } from '../constants';
 import { db } from '../services/db';
-import { User, Listing } from '../types';
+import { User } from '../types';
 import { analyzeListingImages } from '../services/geminiService';
 
 const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
@@ -13,6 +12,8 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [aiSuccess, setAiSuccess] = useState(false);
+  
+  // Lưu tọa độ, mặc định null
   const [locationDetected, setLocationDetected] = useState<{lat: number, lng: number} | null>(null);
   const [agreedToRules, setAgreedToRules] = useState(false);
   
@@ -29,29 +30,41 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     images: [] as string[]
   });
 
+  // --- 1. KIỂM TRA LOGIN & LẤY VỊ TRÍ ---
   useEffect(() => {
     if (!user) {
       navigate('/login');
       return;
     }
+
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        setLocationDetected({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude
-        });
-      }, (err) => {
-        console.warn("⚠️ Không thể lấy vị trí GPS:", err.message);
-      });
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setLocationDetected({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+          });
+        },
+        (err) => {
+          console.warn("⚠️ Không thể lấy vị trí GPS:", err.message);
+          // Không alert lỗi để tránh làm phiền user, chỉ log
+        },
+        { timeout: 10000, enableHighAccuracy: true }
+      );
     }
   }, [user, navigate]);
 
+  // --- 2. XỬ LÝ ẢNH & AI ---
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
+    
+    if (files.length === 0) return;
+
     if (files.length + formData.images.length > tierSettings.maxImages) {
       return alert(`Gói ${tierSettings.name} chỉ cho phép đăng tối đa ${tierSettings.maxImages} ảnh.`);
     }
 
+    // Đọc file sang Base64
     const readPromises = files.map(file => {
       return new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -62,30 +75,48 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
     const results = await Promise.all(readPromises);
     const updatedImages = [...formData.images, ...results];
+    
+    // Cập nhật state ảnh
     setFormData(prev => ({ ...prev, images: updatedImages }));
 
-    if (updatedImages.length > 0) {
+    // Chỉ chạy AI nếu đây là lần upload đầu tiên hoặc form còn trống nhiều
+    // để tránh spam request AI không cần thiết
+    if (results.length > 0) {
       runAIAnalysis(updatedImages);
     }
+    
+    // Reset input để cho phép chọn lại cùng 1 file nếu muốn
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const runAIAnalysis = async (images: string[]) => {
+    // Chỉ lấy tối đa 3 ảnh đầu để phân tích cho nhanh
+    const imagesToAnalyze = images.slice(0, 3);
+    
     setAiAnalyzing(true);
     setAiSuccess(false);
+
     try {
-      const analysis = await analyzeListingImages(images);
+      const analysis = await analyzeListingImages(imagesToAnalyze);
       
       if (analysis.isProhibited) {
         alert(`🚨 Cảnh báo AI: Tin đăng có thể vi phạm chính sách (${analysis.prohibitedReason}). Vui lòng kiểm tra lại.`);
       } else {
+        // --- LOGIC QUAN TRỌNG: CHỈ ĐIỀN NẾU TRƯỜNG ĐÓ ĐANG TRỐNG ---
+        // Giúp không ghi đè nội dung người dùng đã cất công gõ
         setFormData(prev => ({
           ...prev,
-          title: analysis.title || prev.title,
-          category: analysis.category || prev.category,
-          price: analysis.suggestedPrice?.toString() || prev.price,
-          description: analysis.description || prev.description,
+          title: prev.title ? prev.title : (analysis.title || ''),
+          // Nếu user chưa chọn category thì mới dùng AI
+          category: prev.category ? prev.category : (analysis.category || prev.category),
+          // Giá tiền: AI chỉ gợi ý nếu chưa có giá
+          price: prev.price ? prev.price : (analysis.suggestedPrice?.toString() || ''),
+          // Mô tả: Có thể nối thêm vào thay vì ghi đè hoàn toàn? 
+          // Ở đây tôi chọn: nếu trống thì điền, nếu có rồi thì giữ nguyên
+          description: prev.description ? prev.description : (analysis.description || ''),
           condition: analysis.condition || prev.condition
         }));
+        
         setAiSuccess(true);
         setTimeout(() => setAiSuccess(false), 3000);
       }
@@ -96,17 +127,28 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     }
   };
 
+  // --- 3. SUBMIT FORM ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.category || !formData.price || formData.images.length === 0) {
-      return alert('Vui lòng điền đầy đủ thông tin!');
+
+    // Validate cơ bản
+    if (!formData.title.trim() || !formData.category || !formData.price || formData.images.length === 0) {
+      return alert('Vui lòng điền đầy đủ thông tin và tải ít nhất 1 ảnh!');
     }
+    
+    // Validate giá tiền
+    const priceNumber = parseInt(formData.price.replace(/\D/g, '')); // Xóa ký tự không phải số trước khi parse
+    if (isNaN(priceNumber) || priceNumber < 0) {
+      return alert('Giá bán không hợp lệ!');
+    }
+
     if (!agreedToRules) {
       return alert('Vui lòng xác nhận bạn đã đọc và đồng ý với Quy tắc cộng đồng.');
     }
 
     setLoading(true);
     try {
+      // 1. Upload ảnh lên Storage
       const uploadedUrls = await Promise.all(
         formData.images.map((base64, index) => 
           db.uploadImage(base64, `listings/${user!.id}/${Date.now()}_${index}.jpg`)
@@ -115,24 +157,25 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
       const listingStatus = userTier === 'free' ? 'pending' : 'approved';
 
-      // Tạo object dữ liệu sạch, không chứa các trường undefined
+      // 2. Chuẩn bị dữ liệu Save DB
       const listingData: any = {
-        title: formData.title,
-        description: formData.description,
-        price: parseInt(formData.price),
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        price: priceNumber, // Dùng số đã parse sạch
         category: formData.category,
         images: uploadedUrls,
         location: formData.location,
         condition: formData.condition,
         sellerId: user!.id,
         sellerName: user!.name,
-        sellerAvatar: user!.avatar,
+        sellerAvatar: user!.avatar || '', // Fallback nếu không có avatar
         status: listingStatus,
-        tier: userTier
+        tier: userTier,
+        createdAt: new Date().toISOString() // Nên thêm thời gian tạo
       };
 
-      // Chỉ thêm lat/lng nếu chúng thực sự tồn tại
-      if (locationDetected?.lat !== undefined && locationDetected?.lng !== undefined) {
+      // 3. Gắn tọa độ nếu có
+      if (locationDetected?.lat && locationDetected?.lng) {
         listingData.lat = locationDetected.lat;
         listingData.lng = locationDetected.lng;
       }
@@ -140,9 +183,9 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       await db.saveListing(listingData);
 
       if (listingStatus === 'approved') {
-        alert("🎉 Chúc mừng! Tin đăng của bạn đã được duyệt tự động và đang hiển thị.");
+        alert("🎉 Chúc mừng! Tin đăng của bạn đã được duyệt tự động.");
       } else {
-        alert("📩 Tin đăng đã được gửi! Vì bạn đang dùng gói Miễn phí, vui lòng chờ Admin kiểm duyệt trong ít phút.");
+        alert("📩 Tin đăng đã gửi duyệt! Vui lòng chờ Admin kiểm tra.");
       }
       
       navigate('/manage-ads');
@@ -191,6 +234,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
               ))}
               {formData.images.length < tierSettings.maxImages && (
                 <button 
+                  type="button" // Quan trọng: type button để không kích hoạt submit form
                   onClick={() => fileInputRef.current?.click()} 
                   className="aspect-square bg-bgMain border-2 border-dashed border-borderMain rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-all group"
                 >
@@ -204,7 +248,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             <input type="file" ref={fileInputRef} onChange={handleImageUpload} multiple accept="image/*" className="hidden" />
           </div>
 
-          {/* Quy tắc cộng đồng cho Đăng tin */}
+          {/* Quy tắc cộng đồng */}
           <div className="bg-primary/5 border border-primary/20 rounded-[2.5rem] p-6 space-y-4">
             <h4 className="text-xs font-black text-primary uppercase flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
@@ -212,10 +256,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             </h4>
             <ul className="space-y-3">
               {[
-                { icon: '📸', text: 'Phải sử dụng hình ảnh thật, không lấy ảnh từ mạng.' },
-                { icon: '🛡️', text: 'Không đăng hàng cấm, vũ khí, chất kích thích.' },
-                { icon: '🏷️', text: 'Giá bán phải minh bạch, không để giá ảo 1đ.' },
-                { icon: '📝', text: 'Mô tả rõ ràng tình trạng, bảo hành nếu có.' }
+                { icon: '📸', text: 'Phải sử dụng hình ảnh thật.' },
+                { icon: '🛡️', text: 'Không đăng hàng cấm.' },
+                { icon: '🏷️', text: 'Giá bán phải minh bạch.' },
+                { icon: '📝', text: 'Mô tả rõ ràng tình trạng.' }
               ].map((rule, i) => (
                 <li key={i} className="flex gap-2 text-[10px] text-primary/70 font-bold leading-relaxed">
                   <span>{rule.icon}</span>
@@ -230,7 +274,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         <div className="lg:col-span-2">
           <form onSubmit={handleSubmit} className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Tiêu đề tin đăng</label>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Tiêu đề tin đăng <span className="text-red-500">*</span></label>
               <input 
                 type="text" 
                 placeholder="Ví dụ: iPhone 15 Pro Max 256GB mới 99%..."
@@ -242,7 +286,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Danh mục</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Danh mục <span className="text-red-500">*</span></label>
                 <select 
                   value={formData.category} 
                   onChange={(e) => setFormData({...formData, category: e.target.value})} 
@@ -253,10 +297,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 </select>
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Giá bán (VNĐ)</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Giá bán (VNĐ) <span className="text-red-500">*</span></label>
                 <input 
                   type="number" 
                   placeholder="0"
+                  min="0"
                   value={formData.price} 
                   onChange={(e) => setFormData({...formData, price: e.target.value})} 
                   className={`w-full bg-bgMain border rounded-2xl p-4 font-bold text-sm focus:outline-none focus:border-primary transition-all ${aiSuccess ? 'border-green-300' : 'border-borderMain'}`} 
@@ -270,10 +315,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 <div className="flex gap-2">
                    {['new', 'used'].map(cond => (
                      <button
-                        key={cond}
-                        type="button"
-                        onClick={() => setFormData({...formData, condition: cond as any})}
-                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase border-2 transition-all ${formData.condition === cond ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' : 'bg-white border-gray-100 text-gray-400'}`}
+                       key={cond}
+                       type="button"
+                       onClick={() => setFormData({...formData, condition: cond as any})}
+                       className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase border-2 transition-all ${formData.condition === cond ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' : 'bg-white border-gray-100 text-gray-400'}`}
                      >
                        {cond === 'new' ? 'Mới' : 'Đã sử dụng'}
                      </button>
@@ -305,21 +350,21 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
             <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
                <input 
-                  type="checkbox" 
-                  id="agreed" 
-                  checked={agreedToRules} 
-                  onChange={(e) => setAgreedToRules(e.target.checked)}
-                  className="w-5 h-5 rounded-lg border-gray-300 text-primary focus:ring-primary"
+                 type="checkbox" 
+                 id="agreed" 
+                 checked={agreedToRules} 
+                 onChange={(e) => setAgreedToRules(e.target.checked)}
+                 className="w-5 h-5 rounded-lg border-gray-300 text-primary focus:ring-primary"
                />
                <label htmlFor="agreed" className="text-xs font-bold text-gray-500 cursor-pointer select-none">
-                  Tôi cam kết thông tin đăng tải là chính xác và tuân thủ <span className="text-primary underline">Quy tắc cộng đồng</span>.
+                 Tôi cam kết thông tin đăng tải là chính xác và tuân thủ <span className="text-primary underline">Quy tắc cộng đồng</span>.
                </label>
             </div>
 
             <button 
               type="submit" 
               disabled={loading || aiAnalyzing} 
-              className="w-full bg-primary text-white font-black py-5 rounded-2xl hover:bg-primaryHover transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50"
+              className="w-full bg-primary text-white font-black py-5 rounded-2xl hover:bg-primaryHover transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div>

@@ -1,11 +1,19 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { db } from '../services/db';
+import { db, SystemSettings } from '../services/db'; // Import thêm SystemSettings
 import { User, Listing } from '../types';
 import ListingCard from '../components/ListingCard';
 import { LOCATIONS, TIER_CONFIG } from '../constants';
 import { formatPrice } from '../utils/format';
+
+// Interface cho Modal xác nhận
+interface ModalState {
+  show: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  type: 'push' | 'delete' | 'alert';
+}
 
 const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser: (u: User) => void }> = ({ user, onLogout, onUpdateUser }) => {
   const navigate = useNavigate();
@@ -13,6 +21,13 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
   const [myListings, setMyListings] = useState<Listing[]>([]);
   const [myFavs, setMyFavs] = useState<Listing[]>([]);
   
+  // --- STATE CHO QUẢN LÝ TIN (MỚI) ---
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
+  const [isPushing, setIsPushing] = useState<string | null>(null);
+  const [modal, setModal] = useState<ModalState>({
+    show: false, title: '', message: '', type: 'alert', onConfirm: () => {}
+  });
+
   // Settings Form State
   const [editForm, setEditForm] = useState({
     name: user?.name || '',
@@ -30,8 +45,10 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
       return;
     }
     const loadProfileData = async () => {
-      const all = await db.getListings();
+      // Load settings để lấy giá đẩy tin
+      const [all, s] = await Promise.all([db.getListings(true), db.getSettings()]); // true để lấy cả tin pending/rejected
       setMyListings(all.filter(l => l.sellerId === user.id));
+      setSettings(s);
       
       const favIds = await db.getFavorites(user.id);
       setMyFavs(all.filter(l => favIds.includes(l.id)));
@@ -55,6 +72,76 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
 
   if (!user) return null;
 
+  // --- LOGIC XỬ LÝ ĐẨY TIN & XÓA TIN (MỚI) ---
+  const handlePushListing = (listingId: string, title: string) => {
+    if (!user || !settings) return;
+    
+    const pushPrice = settings.pushPrice * (1 - (settings.pushDiscount || 0) / 100);
+    
+    if (user.walletBalance < pushPrice) {
+      setModal({
+        show: true,
+        title: "Số dư không đủ",
+        message: `Ví của bạn không đủ tiền (${formatPrice(pushPrice)}). Bạn có muốn nạp thêm không?`,
+        type: 'alert',
+        onConfirm: () => {
+          setModal(prev => ({ ...prev, show: false }));
+          navigate('/wallet');
+        }
+      });
+      return;
+    }
+
+    setModal({
+      show: true,
+      title: "Xác nhận đẩy tin",
+      message: `Bạn muốn dùng ${formatPrice(pushPrice)} để đưa tin "${title}" lên đầu danh sách?`,
+      type: 'push',
+      onConfirm: async () => {
+        setModal(prev => ({ ...prev, show: false }));
+        setIsPushing(listingId);
+        try {
+          const res = await db.pushListing(listingId, user.id);
+          if (res.success) {
+            // Reload lại data
+            const all = await db.getListings(true);
+            setMyListings(all.filter(l => l.sellerId === user.id));
+            
+            // Cập nhật ví user
+            const updatedUser = await db.getCurrentUser();
+            if (updatedUser) onUpdateUser(updatedUser);
+            
+            alert("Đẩy tin thành công!");
+          }
+        } catch (err) {
+          console.error("Push error:", err);
+          alert("Có lỗi xảy ra khi đẩy tin.");
+        } finally {
+          setIsPushing(null);
+        }
+      }
+    });
+  };
+
+  const handleDelete = (id: string) => {
+    setModal({
+      show: true,
+      title: "Xóa tin đăng",
+      message: "Bạn có chắc chắn muốn xoá tin đăng này? Giao dịch này không thể hoàn tác.",
+      type: 'delete',
+      onConfirm: async () => {
+        setModal(prev => ({ ...prev, show: false }));
+        try {
+            await db.deleteListing(id);
+            setMyListings(prev => prev.filter(l => l.id !== id));
+        } catch (e) {
+            alert("Lỗi khi xóa tin");
+        }
+      }
+    });
+  };
+  // ------------------------------------------------
+
   const handleLogout = async () => {
     await db.logout();
     onLogout();
@@ -65,7 +152,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     e.preventDefault();
     setIsSaving(true);
     
-    // Tạo object sạch để tránh gửi undefined tới Firestore
     const cleanUpdates: any = {};
     Object.keys(editForm).forEach(key => {
       const val = (editForm as any)[key];
@@ -100,8 +186,37 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     }
   };
 
+  const currentPushPrice = settings ? settings.pushPrice * (1 - (settings.pushDiscount || 0) / 100) : 0;
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-20 px-4 md:px-0">
+    <div className="max-w-6xl mx-auto space-y-6 pb-20 px-4 md:px-0 relative">
+      
+      {/* --- MODAL OVERLAY (MỚI) --- */}
+      {modal.show && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModal(prev => ({ ...prev, show: false }))}></div>
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl relative animate-fade-in-up border border-borderMain">
+            <h3 className="text-xl font-black text-textMain mb-2">{modal.title}</h3>
+            <p className="text-gray-500 text-sm font-medium mb-8 leading-relaxed">{modal.message}</p>
+            <div className="flex gap-3">
+               <button 
+                onClick={() => setModal(prev => ({ ...prev, show: false }))}
+                className="flex-1 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
+               >
+                 Hủy
+               </button>
+               <button 
+                onClick={modal.onConfirm}
+                className={`flex-1 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest text-white shadow-lg transition-transform active:scale-95 ${modal.type === 'delete' ? 'bg-red-500' : 'bg-primary'}`}
+               >
+                 Xác nhận
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* --------------------------- */}
+
       {/* Profile Header */}
       <div className="bg-white border border-borderMain rounded-[2.5rem] p-6 md:p-10 shadow-soft overflow-hidden relative">
         <div className="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
@@ -199,7 +314,39 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
             {myListings.length > 0 ? (
               myListings.map(listing => (
-                <ListingCard key={listing.id} listing={listing} />
+                // --- ĐÃ NÂNG CẤP PHẦN NÀY ĐỂ HIỂN THỊ NÚT QUẢN LÝ ---
+                <div key={listing.id} className="flex flex-col gap-3 group">
+                    <div className="relative">
+                        <ListingCard listing={listing} />
+                        {listing.status !== 'approved' && (
+                            <div className="absolute top-2 right-2 bg-gray-800 text-white text-[9px] font-black px-2 py-1 rounded uppercase z-20">
+                                {listing.status === 'pending' ? 'Đang duyệt' : 'Từ chối'}
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* THANH CÔNG CỤ QUẢN LÝ */}
+                    <div className="grid grid-cols-2 gap-2">
+                        <button 
+                            onClick={() => handlePushListing(listing.id, listing.title)}
+                            disabled={isPushing !== null || listing.status !== 'approved'}
+                            className="bg-green-50 text-green-600 hover:bg-green-500 hover:text-white py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-1 disabled:opacity-50 disabled:grayscale"
+                        >
+                             {isPushing === listing.id ? (
+                                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                             ) : (
+                                <>⚡ Đẩy tin</>
+                             )}
+                        </button>
+                        <button 
+                            onClick={() => handleDelete(listing.id)}
+                            className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white py-2 rounded-xl text-[10px] font-black uppercase transition-all"
+                        >
+                            🗑 Xóa
+                        </button>
+                    </div>
+                </div>
+                // ----------------------------------------------------
               ))
             ) : (
               <div className="col-span-full py-32 text-center bg-white border border-borderMain rounded-[3rem] shadow-soft">

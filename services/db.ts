@@ -4,8 +4,10 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, 
   query, where, orderBy, limit, addDoc, serverTimestamp, Timestamp, 
   deleteDoc, onSnapshot, arrayUnion, arrayRemove, runTransaction,
-  startAfter, QueryDocumentSnapshot, DocumentData, writeBatch 
+  startAfter, QueryDocumentSnapshot, DocumentData, writeBatch,
+  getCountFromServer // <-- MỚI THÊM: Để đếm số lượng follow nhanh
 } from "firebase/firestore";
+
 // Fix: Use standard modular SDK imports for Firebase Auth
 import { 
   getAuth, 
@@ -13,8 +15,8 @@ import {
   signOut, 
   onAuthStateChanged, 
   createUserWithEmailAndPassword,
-  GoogleAuthProvider, // <-- Mới thêm
-  signInWithPopup     // <-- Mới thêm
+  GoogleAuthProvider,
+  signInWithPopup
 } from "firebase/auth";
 import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
 import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review } from '../types';
@@ -77,7 +79,7 @@ export const db = {
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
     categoryId?: string,
     sellerId?: string,
-    status?: string, // Admin có thể lọc theo status (pending, rejected...)
+    status?: string,
     search?: string,
     location?: string
   }) => {
@@ -85,12 +87,9 @@ export const db = {
       const colRef = collection(firestore, "listings");
       let constraints: any[] = [];
 
-      // Nếu có status thì lọc theo status, nếu không (và không phải admin search all) thì mặc định là approved
       if (options.status) {
           constraints.push(where("status", "==", options.status));
       } else if (!options.sellerId && !options.search) {
-          // Logic mặc định cho trang chủ: chỉ hiện tin đã duyệt
-          // Nếu đang search hoặc xem profile (sellerId) thì có thể logic khác tùy UI
           constraints.push(where("status", "==", "approved"));
       }
 
@@ -112,7 +111,6 @@ export const db = {
       const lastVisible = snap.docs[snap.docs.length - 1] || null;
 
       let finalResults = results;
-      // Client-side filtering cho search (vì Firestore không hỗ trợ full-text search native tốt)
       if (options.search) {
         const s = options.search.toLowerCase();
         finalResults = results.filter(l => 
@@ -133,7 +131,7 @@ export const db = {
     }
   },
 
-  // --- ADMIN: UPDATE NỘI DUNG TIN (MỚI) ---
+  // --- ADMIN: UPDATE NỘI DUNG TIN ---
   updateListingContent: async (listingId: string, data: Partial<Listing>) => {
     try {
       await updateDoc(doc(firestore, "listings", listingId), data);
@@ -143,7 +141,7 @@ export const db = {
     }
   },
 
-  // --- ADMIN: XÓA HÀNG LOẠT (MỚI - BATCH DELETE) ---
+  // --- ADMIN: XÓA HÀNG LOẠT ---
   deleteListingsBatch: async (ids: string[]) => {
     try {
       const batch = writeBatch(firestore);
@@ -231,7 +229,7 @@ export const db = {
     return userDoc.data() as User;
   },
 
-  // --- HÀM ĐĂNG NHẬP GOOGLE (MỚI THÊM) ---
+  // --- HÀM ĐĂNG NHẬP GOOGLE ---
   loginWithGoogle: async (): Promise<User> => {
     const provider = new GoogleAuthProvider();
     const res = await signInWithPopup(auth, provider);
@@ -240,7 +238,6 @@ export const db = {
     const userDocSnap = await getDoc(userDocRef);
 
     if (!userDocSnap.exists()) {
-      // Nếu là user mới -> Tạo dữ liệu mặc định
       const newUser: User = {
         id: res.user.uid,
         name: res.user.displayName || "Người dùng mới",
@@ -258,11 +255,9 @@ export const db = {
       await setDoc(userDocRef, newUser);
       return newUser;
     } else {
-      // Nếu user cũ -> Trả về data hiện tại
       return userDocSnap.data() as User;
     }
   },
-  // ----------------------------------------
 
   register: async (email: string, pass: string, name: string): Promise<User> => {
     const res = await createUserWithEmailAndPassword(auth, email, pass);
@@ -278,7 +273,7 @@ export const db = {
       walletBalance: 0,
       following: [],
       followers: [],
-      verificationStatus: 'unverified' // Mặc định khi tạo mới
+      verificationStatus: 'unverified'
     };
     await setDoc(doc(firestore, "users", res.user.uid), newUser);
     return newUser;
@@ -353,9 +348,8 @@ export const db = {
     const settings: any = await db.getSettings();
     const user = await db.getUserById(userId);
     
-    // Tính giá sau chiết khấu (ưu tiên pushDiscount)
     const rawPrice = settings?.pushPrice || 20000;
-    const discount = settings?.pushDiscount || 0; // Sử dụng pushDiscount cho đúng logic mới
+    const discount = settings?.pushDiscount || 0;
     const price = rawPrice * (1 - discount / 100);
 
     if (!user || (user.walletBalance || 0) < price) return { success: false, message: "Ví không đủ tiền." };
@@ -420,19 +414,69 @@ export const db = {
   reportListing: async (r: any) => await addDoc(collection(firestore, "reports"), { ...r, status: 'pending', createdAt: new Date().toISOString() }),
   
   // --- SOCIAL & CHAT ---
-  toggleFollow: async (uId: string, tId: string) => {
-    const uRef = doc(firestore, "users", uId);
-    const tRef = doc(firestore, "users", tId);
-    const uSnap = await getDoc(uRef);
-    const following = uSnap.data()?.following || [];
-    if (following.includes(tId)) {
-      await updateDoc(uRef, { following: arrayRemove(tId) });
-      await updateDoc(tRef, { followers: arrayRemove(uId) });
-    } else {
-      await updateDoc(uRef, { following: arrayUnion(tId) });
-      await updateDoc(tRef, { followers: arrayUnion(uId) });
+
+  // 1. --- MỚI: HỆ THỐNG FOLLOW (Dùng Collection riêng) ---
+  
+  // Kiểm tra xem A có đang follow B không
+  checkIsFollowing: async (followerId: string, followedId: string): Promise<boolean> => {
+    try {
+        const followDocId = `${followerId}_${followedId}`; // ID duy nhất
+        const docRef = doc(firestore, "follows", followDocId);
+        const snap = await getDoc(docRef);
+        return snap.exists();
+    } catch (e) {
+        console.error("Check follow failed:", e);
+        return false;
     }
   },
+
+  // Thực hiện Follow
+  followUser: async (followerId: string, followedId: string) => {
+    const followDocId = `${followerId}_${followedId}`;
+    await setDoc(doc(firestore, "follows", followDocId), {
+        followerId,
+        followedId,
+        createdAt: new Date().toISOString()
+    });
+  },
+
+  // Hủy Follow
+  unfollowUser: async (followerId: string, followedId: string) => {
+    const followDocId = `${followerId}_${followedId}`;
+    await deleteDoc(doc(firestore, "follows", followDocId));
+  },
+
+  // Lấy thống kê số lượng (Followers/Following)
+  getFollowStats: async (userId: string) => {
+    try {
+        // Đếm số người đang follow mình (Followers)
+        const followersQuery = query(collection(firestore, "follows"), where("followedId", "==", userId));
+        const followersSnap = await getCountFromServer(followersQuery);
+        
+        // Đếm số người mình đang follow (Following)
+        const followingQuery = query(collection(firestore, "follows"), where("followerId", "==", userId));
+        const followingSnap = await getCountFromServer(followingQuery);
+
+        return {
+            followers: followersSnap.data().count,
+            following: followingSnap.data().count
+        };
+    } catch (e) {
+        console.error("Get follow stats failed:", e);
+        return { followers: 0, following: 0 };
+    }
+  },
+
+  // Hàm cũ (Deprecated) - Đã sửa để tương thích code cũ nếu còn sót lại
+  toggleFollow: async (uId: string, tId: string) => {
+     const isFollowing = await db.checkIsFollowing(uId, tId);
+     if (isFollowing) {
+         await db.unfollowUser(uId, tId);
+     } else {
+         await db.followUser(uId, tId);
+     }
+  },
+  // ----------------------------------------------------
   
   getFavorites: async (id: string) => {
     const d = await getDoc(doc(firestore, "favorites", id));

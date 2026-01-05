@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams, useNavigate, useParams, Link } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import { CATEGORIES } from '../constants';
 import { db } from '../services/db';
 import { Listing, User, Category } from '../types';
@@ -7,7 +7,7 @@ import ListingCard from '../components/ListingCard';
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { getCategoryUrl } from '../utils/format';
 
-// Danh sách các trang tĩnh cho Footer
+// Danh sách các trang tĩnh cho Footer Desktop
 const STATIC_LINKS = [
   { slug: 'gioi-thieu', title: 'Giới thiệu' },
   { slug: 'quy-che-hoat-dong', title: 'Quy chế hoạt động' },
@@ -19,6 +19,7 @@ const STATIC_LINKS = [
 const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation(); // Dùng để active menu
   const { slug } = useParams<{ slug: string }>();
   const categoryRef = useRef<HTMLDivElement>(null);
 
@@ -233,36 +234,8 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   };
 
   return (
-    <div className="space-y-6 pb-24 px-2 md:px-4 max-w-[1400px] mx-auto relative">
+    <div className="space-y-6 pb-28 md:pb-24 px-2 md:px-4 max-w-[1400px] mx-auto relative">
       
-      {/* --- NÚT ĐĂNG TIN MOBILE MỚI (ĐẸP HƠN & CHUẨN UI) --- */}
-      <Link 
-        to="/post" 
-        className="fixed bottom-24 right-4 z-[60] md:hidden group"
-      >
-        {/* Lớp glow nền mạnh hơn */}
-        <div className="absolute inset-0 bg-primary/40 blur-2xl rounded-full animate-pulse-slow"></div>
-        
-        {/* Container chính */}
-        <div className="relative flex items-center gap-3 bg-gradient-to-br from-primary to-purple-600 text-white pl-2 pr-6 py-2 rounded-full shadow-2xl shadow-primary/50 active:scale-95 transition-all border border-white/20 backdrop-blur-md overflow-hidden">
-            
-            {/* ICON ĐƯỢC LÀM MỚI: Dấu + nằm trong hình tròn trắng tạo tương phản */}
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md group-hover:rotate-90 transition-transform duration-500 ease-in-out relative z-10">
-                <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {/* Tăng strokeWidth lên 4 cho đậm hơn */}
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M12 6v12m6-6H6"/>
-                </svg>
-            </div>
-            
-            {/* Text */}
-            <span className="font-black text-[11px] uppercase tracking-[0.15em] text-white/95 relative z-10">Đăng tin</span>
-            
-            {/* Hiệu ứng ánh sáng quét qua khi hover (chỉ thấy khi active trên mobile) */}
-            <div className="absolute inset-0 h-full w-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[150%] group-active:translate-x-[150%] transition-transform duration-700 ease-in-out z-0"></div>
-        </div>
-      </Link>
-      {/* ----------------------------------------- */}
-
       {/* 1. CATEGORY STRIP */}
       <div ref={categoryRef} className="sticky top-20 z-40 bg-bgMain/95 backdrop-blur-lg py-2 -mx-2 px-2 md:mx-0 md:px-0">
          {/* MOBILE */}
@@ -456,7 +429,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         )}
       </section>
 
-      {/* 6. FOOTER */}
+      {/* 6. FOOTER DESKTOP */}
       <footer className="hidden md:block pt-16 border-t border-dashed border-gray-200 mt-20">
          <div className="bg-white border border-borderMain rounded-[3rem] p-10 shadow-soft">
             <div className="flex items-center justify-between mb-8">
@@ -468,6 +441,44 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             <div className="text-[10px] text-gray-400 font-medium text-center border-t border-gray-100 pt-8">© 2024 ChoCuaTui.vn - Nền tảng rao vặt ứng dụng AI. All rights reserved.</div>
          </div>
       </footer>
+
+      {/* 7. MOBILE BOTTOM NAVIGATION (DOCK STYLE - DẤU CỘNG Ở GIỮA) */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden pb-safe">
+         <div className="bg-white border-t border-gray-200 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] px-6 py-2 pb-4">
+            <div className="flex items-center justify-between relative">
+                
+                {/* Left Side */}
+                <Link to="/" className={`flex flex-col items-center gap-1 ${location.pathname === '/' ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}>
+                    <svg className="w-6 h-6" fill={location.pathname === '/' ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                    <span className="text-[9px] font-bold uppercase">Trang chủ</span>
+                </Link>
+                <Link to="/manage" className={`flex flex-col items-center gap-1 ${location.pathname === '/manage' ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}>
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                    <span className="text-[9px] font-bold uppercase">Quản lý</span>
+                </Link>
+
+                {/* CENTER: POST BUTTON (DẤU CỘNG NỔI) */}
+                <div className="relative -top-8 group cursor-pointer" onClick={() => navigate('/post')}>
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-primary to-purple-600 p-1 shadow-2xl shadow-primary/40 border-[6px] border-white group-active:scale-95 transition-transform flex items-center justify-center">
+                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/></svg>
+                    </div>
+                </div>
+
+                {/* Right Side */}
+                <Link to="/chat" className={`flex flex-col items-center gap-1 ${location.pathname === '/chat' ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}>
+                    <svg className="w-6 h-6" fill={location.pathname.startsWith('/chat') ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    <span className="text-[9px] font-bold uppercase">Tin nhắn</span>
+                </Link>
+                <Link to="/profile" className={`flex flex-col items-center gap-1 ${location.pathname === '/profile' ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}>
+                    <div className={`w-6 h-6 rounded-full border-2 overflow-hidden ${location.pathname === '/profile' ? 'border-primary' : 'border-gray-400'}`}>
+                        {user ? <img src={user.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gray-200"></div>}
+                    </div>
+                    <span className="text-[9px] font-bold uppercase">Cá nhân</span>
+                </Link>
+            </div>
+         </div>
+      </div>
+
     </div>
   );
 };

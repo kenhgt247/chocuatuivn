@@ -18,7 +18,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const [agreedToRules, setAgreedToRules] = useState(false);
   
   const userTier = user?.subscriptionTier || 'free';
-  const tierSettings = TIER_CONFIG[userTier];
+  const tierSettings = TIER_CONFIG[userTier as keyof typeof TIER_CONFIG];
 
   const [formData, setFormData] = useState({
     title: '',
@@ -27,7 +27,9 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     description: '',
     location: user?.location || 'TPHCM',
     condition: 'used' as 'new' | 'used',
-    images: [] as string[]
+    images: [] as string[],
+    // --- MỚI: Thuộc tính để chứa thông số cứng (Pin, Km, Diện tích...) ---
+    attributes: {} as Record<string, string>
   });
 
   // --- 1. KIỂM TRA LOGIN & LẤY VỊ TRÍ ---
@@ -47,24 +49,80 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         },
         (err) => {
           console.warn("⚠️ Không thể lấy vị trí GPS:", err.message);
-          // Không alert lỗi để tránh làm phiền user, chỉ log
         },
         { timeout: 10000, enableHighAccuracy: true }
       );
     }
   }, [user, navigate]);
 
+  // --- LOGIC MỚI: HIỂN THỊ CÁC TRƯỜNG THÔNG TIN ĐỘNG THEO DANH MỤC ---
+  const renderDynamicFields = () => {
+    switch (formData.category) {
+      case '1': // Bất động sản
+        return (
+          <div className="space-y-2 animate-fade-in-up">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Diện tích (m²)</label>
+            <input 
+              type="number" 
+              placeholder="Ví dụ: 50"
+              value={formData.attributes.area || ''}
+              onChange={(e) => setFormData({...formData, attributes: {...formData.attributes, area: e.target.value}})}
+              className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm focus:outline-none focus:border-primary transition-all"
+            />
+          </div>
+        );
+      case '2': // Xe cộ
+        return (
+          <div className="space-y-2 animate-fade-in-up">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Số Km đã đi (Km)</label>
+            <input 
+              type="number" 
+              placeholder="Ví dụ: 15000"
+              value={formData.attributes.mileage || ''}
+              onChange={(e) => setFormData({...formData, attributes: {...formData.attributes, mileage: e.target.value}})}
+              className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm focus:outline-none focus:border-primary transition-all"
+            />
+          </div>
+        );
+      case '3': // Đồ điện tử
+        return (
+          <div className="grid grid-cols-2 gap-4 animate-fade-in-up">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Pin (%)</label>
+              <input 
+                type="number" 
+                placeholder="Ví dụ: 99"
+                value={formData.attributes.battery || ''}
+                onChange={(e) => setFormData({...formData, attributes: {...formData.attributes, battery: e.target.value}})}
+                className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm focus:outline-none focus:border-primary transition-all"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Bộ nhớ</label>
+              <input 
+                type="text" 
+                placeholder="Ví dụ: 256GB"
+                value={formData.attributes.storage || ''}
+                onChange={(e) => setFormData({...formData, attributes: {...formData.attributes, storage: e.target.value}})}
+                className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm focus:outline-none focus:border-primary transition-all"
+              />
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   // --- 2. XỬ LÝ ẢNH & AI ---
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
-    
     if (files.length === 0) return;
 
     if (files.length + formData.images.length > tierSettings.maxImages) {
       return alert(`Gói ${tierSettings.name} chỉ cho phép đăng tối đa ${tierSettings.maxImages} ảnh.`);
     }
 
-    // Đọc file sang Base64
     const readPromises = files.map(file => {
       return new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -75,48 +133,37 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
     const results = await Promise.all(readPromises);
     const updatedImages = [...formData.images, ...results];
-    
-    // Cập nhật state ảnh
     setFormData(prev => ({ ...prev, images: updatedImages }));
 
-    // Chỉ chạy AI nếu đây là lần upload đầu tiên hoặc form còn trống nhiều
-    // để tránh spam request AI không cần thiết
     if (results.length > 0) {
       runAIAnalysis(updatedImages);
     }
-    
-    // Reset input để cho phép chọn lại cùng 1 file nếu muốn
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const runAIAnalysis = async (images: string[]) => {
-    // Chỉ lấy tối đa 3 ảnh đầu để phân tích cho nhanh
     const imagesToAnalyze = images.slice(0, 3);
-    
     setAiAnalyzing(true);
     setAiSuccess(false);
 
     try {
       const analysis = await analyzeListingImages(imagesToAnalyze);
-      
       if (analysis.isProhibited) {
         alert(`🚨 Cảnh báo AI: Tin đăng có thể vi phạm chính sách (${analysis.prohibitedReason}). Vui lòng kiểm tra lại.`);
       } else {
-        // --- LOGIC QUAN TRỌNG: CHỈ ĐIỀN NẾU TRƯỜNG ĐÓ ĐANG TRỐNG ---
-        // Giúp không ghi đè nội dung người dùng đã cất công gõ
         setFormData(prev => ({
           ...prev,
           title: prev.title ? prev.title : (analysis.title || ''),
-          // Nếu user chưa chọn category thì mới dùng AI
           category: prev.category ? prev.category : (analysis.category || prev.category),
-          // Giá tiền: AI chỉ gợi ý nếu chưa có giá
           price: prev.price ? prev.price : (analysis.suggestedPrice?.toString() || ''),
-          // Mô tả: Có thể nối thêm vào thay vì ghi đè hoàn toàn? 
-          // Ở đây tôi chọn: nếu trống thì điền, nếu có rồi thì giữ nguyên
           description: prev.description ? prev.description : (analysis.description || ''),
-          condition: analysis.condition || prev.condition
+          condition: analysis.condition || prev.condition,
+          // --- MỚI: Tự động gán thông số bóc tách từ AI vào attributes ---
+          attributes: {
+            ...prev.attributes,
+            ...(analysis.attributes || {})
+          }
         }));
-        
         setAiSuccess(true);
         setTimeout(() => setAiSuccess(false), 3000);
       }
@@ -131,13 +178,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate cơ bản
     if (!formData.title.trim() || !formData.category || !formData.price || formData.images.length === 0) {
       return alert('Vui lòng điền đầy đủ thông tin và tải ít nhất 1 ảnh!');
     }
     
-    // Validate giá tiền
-    const priceNumber = parseInt(formData.price.replace(/\D/g, '')); // Xóa ký tự không phải số trước khi parse
+    const priceNumber = parseInt(formData.price.replace(/\D/g, ''));
     if (isNaN(priceNumber) || priceNumber < 0) {
       return alert('Giá bán không hợp lệ!');
     }
@@ -148,7 +193,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
     setLoading(true);
     try {
-      // 1. Upload ảnh lên Storage
       const uploadedUrls = await Promise.all(
         formData.images.map((base64, index) => 
           db.uploadImage(base64, `listings/${user!.id}/${Date.now()}_${index}.jpg`)
@@ -157,24 +201,24 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
       const listingStatus = userTier === 'free' ? 'pending' : 'approved';
 
-      // 2. Chuẩn bị dữ liệu Save DB
       const listingData: any = {
         title: formData.title.trim(),
         description: formData.description.trim(),
-        price: priceNumber, // Dùng số đã parse sạch
+        price: priceNumber,
         category: formData.category,
         images: uploadedUrls,
         location: formData.location,
         condition: formData.condition,
+        // --- MỚI: Gửi attributes lên DB ---
+        attributes: formData.attributes,
         sellerId: user!.id,
         sellerName: user!.name,
-        sellerAvatar: user!.avatar || '', // Fallback nếu không có avatar
+        sellerAvatar: user!.avatar || '',
         status: listingStatus,
         tier: userTier,
-        createdAt: new Date().toISOString() // Nên thêm thời gian tạo
+        createdAt: new Date().toISOString()
       };
 
-      // 3. Gắn tọa độ nếu có
       if (locationDetected?.lat && locationDetected?.lng) {
         listingData.lat = locationDetected.lat;
         listingData.lng = locationDetected.lng;
@@ -234,7 +278,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
               ))}
               {formData.images.length < tierSettings.maxImages && (
                 <button 
-                  type="button" // Quan trọng: type button để không kích hoạt submit form
+                  type="button" 
                   onClick={() => fileInputRef.current?.click()} 
                   className="aspect-square bg-bgMain border-2 border-dashed border-borderMain rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-all group"
                 >
@@ -289,7 +333,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Danh mục <span className="text-red-500">*</span></label>
                 <select 
                   value={formData.category} 
-                  onChange={(e) => setFormData({...formData, category: e.target.value})} 
+                  onChange={(e) => setFormData({...formData, category: e.target.value, attributes: {}})} 
                   className={`w-full bg-bgMain border rounded-2xl p-4 font-bold text-sm appearance-none cursor-pointer focus:outline-none focus:border-primary transition-all ${aiSuccess ? 'border-green-300' : 'border-borderMain'}`}
                 >
                   <option value="">Chọn danh mục</option>
@@ -308,6 +352,9 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 />
               </div>
             </div>
+
+            {/* HIỂN THỊ CÁC TRƯỜNG ĐỘNG (DIỆN TÍCH, KM, PIN...) */}
+            {renderDynamicFields()}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

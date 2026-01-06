@@ -17,7 +17,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [activeTab, setActiveTab] = useState<'listings' | 'reviews'>('listings');
   
-  // State Follow (MỚI)
+  // State Follow
   const [isFollowing, setIsFollowing] = useState(false);
   const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
   
@@ -46,16 +46,15 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
       if (found) {
         setSeller(found);
         
-        // 2. Lấy thống kê Follow (MỚI)
+        // 2. Lấy thống kê Follow
         try {
-            // Giả sử db.getFollowStats đã được định nghĩa như ở bước trước
             const stats = await db.getFollowStats(id); 
             setFollowStats(stats);
         } catch (e) {
             console.warn("Chưa lấy được follow stats", e);
         }
 
-        // 3. Kiểm tra xem mình có đang follow người này không (MỚI)
+        // 3. Kiểm tra xem mình có đang follow người này không
         if (currentUser) {
             try {
                 const isF = await db.checkIsFollowing(currentUser.id, id);
@@ -125,12 +124,12 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
     return (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1);
   }, [reviews]);
 
-  // --- LOGIC FOLLOW ĐÃ SỬA ---
+  // --- LOGIC FOLLOW ---
   const handleToggleFollow = async () => {
     if (!currentUser) return navigate('/login');
     if (currentUser.id === id) return;
     
-    // Optimistic Update (Cập nhật giao diện trước khi gọi API)
+    // Optimistic Update
     const prevStatus = isFollowing;
     const prevCount = followStats.followers;
     
@@ -142,10 +141,8 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
     
     try {
       if (!prevStatus) {
-        // Chưa follow -> Gọi hàm Follow
         await db.followUser(currentUser.id, id!); 
       } else {
-        // Đang follow -> Gọi hàm Unfollow
         await db.unfollowUser(currentUser.id, id!);
       }
     } catch (err) {
@@ -178,6 +175,8 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
       <div className="bg-white border border-borderMain rounded-[3rem] p-6 md:p-12 shadow-soft overflow-hidden relative">
         <div className="absolute top-0 right-0 w-80 h-80 bg-primary/5 rounded-full -mr-40 -mt-40 blur-3xl"></div>
         <div className="flex flex-col md:flex-row gap-10 items-center md:items-start relative z-10">
+          
+          {/* Avatar Section */}
           <div className="relative">
             <img src={seller.avatar} alt={seller.name} className="w-32 h-32 md:w-44 md:h-44 rounded-[3rem] border-4 border-white shadow-2xl object-cover" />
             <div className="absolute -bottom-2 right-4 bg-green-500 text-white px-3 py-1 rounded-xl border-4 border-white shadow-lg flex items-center gap-1.5">
@@ -185,16 +184,38 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
                <span className="text-[8px] font-black uppercase">Online</span>
             </div>
           </div>
+
+          {/* Info Section */}
           <div className="flex-1 space-y-6 text-center md:text-left w-full">
             <div className="space-y-2">
-              <h1 className="text-3xl md:text-5xl font-black text-textMain tracking-tighter">{seller.name}</h1>
-              <p className="text-[11px] text-gray-400 font-bold uppercase tracking-[0.2em]">Tham gia: {formatTimeAgo(seller.joinedAt)}</p>
+              
+              {/* TÊN + TÍCH XANH */}
+              <div className="flex items-center justify-center md:justify-start gap-3">
+                  <h1 className="text-3xl md:text-5xl font-black text-textMain tracking-tighter">{seller.name}</h1>
+                  {seller.verificationStatus === 'verified' && (
+                      <div className="bg-blue-500 text-white p-1 md:p-1.5 rounded-full shadow-lg shadow-blue-200" title="Tài khoản đã xác thực">
+                          <svg className="w-3 h-3 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>
+                      </div>
+                  )}
+              </div>
+              
+              <div className="flex flex-col md:flex-row items-center justify-center md:justify-start gap-2">
+                  <p className="text-[11px] text-gray-400 font-bold uppercase tracking-[0.2em]">Tham gia: {formatTimeAgo(seller.joinedAt)}</p>
+                  
+                  {/* BADGE UY TÍN */}
+                  {seller.verificationStatus === 'verified' && (
+                      <>
+                        <span className="hidden md:inline text-gray-300">•</span>
+                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-wider">Đã xác thực danh tính (KYC)</span>
+                      </>
+                  )}
+              </div>
             </div>
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-6 border-y border-gray-100">
                <div><p className="text-2xl font-black text-textMain">{avgRating} <span className="text-yellow-400 text-lg">★</span></p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Đánh giá TB</p></div>
                <div className="border-x border-gray-100 px-4"><p className="text-2xl font-black text-textMain">{listings.length}</p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Tin đang bán</p></div>
                
-               {/* SỬA HIỂN THỊ SỐ FOLLOW */}
                <div className="border-r border-gray-100 pr-4">
                  <p className="text-2xl font-black text-textMain">{followStats.followers}</p>
                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Theo dõi</p>
@@ -202,6 +223,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
                
                <div><p className="text-2xl font-black text-green-600">99%</p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Phản hồi</p></div>
             </div>
+
             <div className="flex flex-wrap gap-4 pt-2">
               <button 
                 onClick={handleToggleFollow} 

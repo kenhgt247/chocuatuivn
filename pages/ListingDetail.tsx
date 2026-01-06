@@ -8,6 +8,23 @@ import ShareModal from '../components/ShareModal';
 import ReviewSection from '../components/ReviewSection';
 import { CATEGORIES } from '../constants';
 
+// --- IMPORT LEAFLET MAP ---
+import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix icon lỗi mặc định của Leaflet
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+let DefaultIcon = L.icon({
+    iconUrl: icon,
+    shadowUrl: iconShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
+
 const REPORT_REASONS = [
   "Lừa đảo, giả mạo",
   "Hàng giả, hàng nhái",
@@ -80,6 +97,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   useEffect(() => {
     if (!id) return;
     const loadListing = async () => {
+      // Logic tải dữ liệu tương thích cả 2 version DB (nếu bạn đang trong quá trình chuyển đổi)
       if (db.getListingById) {
          const l = await db.getListingById(id);
          if (l) {
@@ -104,18 +122,31 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     window.scrollTo(0, 0);
   }, [id, user]);
 
+  // --- NÂNG CẤP: Logic gợi ý sản phẩm thông minh ---
   const similarListings = useMemo(() => {
     if (!listing || allListings.length === 0) return [];
+    
+    // Ưu tiên vị trí: Nếu user đăng nhập thì lấy vị trí user, không thì lấy vị trí món hàng
+    const targetLocation = user?.location || listing.location;
+
     return allListings
       .filter(l => l.id !== listing.id && l.category === listing.category)
       .sort((a, b) => {
-        const aVip = (a as any).isVip ? 1 : 0;
-        const bVip = (b as any).isVip ? 1 : 0;
+        // 1. Ưu tiên Tin VIP
+        const aVip = a.tier === 'pro' || a.tier === 'basic' ? 1 : 0;
+        const bVip = b.tier === 'pro' || b.tier === 'basic' ? 1 : 0;
         if (aVip !== bVip) return bVip - aVip;
+
+        // 2. Ưu tiên CÙNG VỊ TRÍ (Mới thêm)
+        const aNear = a.location === targetLocation ? 1 : 0;
+        const bNear = b.location === targetLocation ? 1 : 0;
+        if (aNear !== bNear) return bNear - aNear;
+
+        // 3. Thời gian đăng mới nhất
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       })
       .slice(0, 12); 
-  }, [allListings, listing]);
+  }, [allListings, listing, user]);
 
   if (!listing) return null;
 
@@ -143,7 +174,17 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     setShowReportModal(false);
   };
 
-  const formatHiddenPhone = (phone: string) => phone ? phone.substring(0, 4) + " *** ***" : "";
+  // --- HÀM RENDER TÍCH XANH ---
+  const renderVerificationBadge = () => {
+      if (seller?.verificationStatus === 'verified') {
+          return (
+              <span className="bg-blue-500 text-white p-0.5 rounded-full shadow-sm ml-1" title="Đã xác thực danh tính">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>
+              </span>
+          );
+      }
+      return null;
+  };
 
   return (
     <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-6 pb-24">
@@ -235,28 +276,83 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         {/* RIGHT COLUMN (STICKY) */}
         <div className="lg:col-span-4 p-4 md:p-0">
           <div className="bg-white md:rounded-[2.5rem] p-6 md:p-10 md:border border-gray-100 md:shadow-soft space-y-8 sticky top-24">
+            
+            {/* GIÁ & TIÊU ĐỀ */}
             <div className="space-y-3">
               <p className="text-4xl font-black text-primary tracking-tighter">{formatPrice(listing.price)}</p>
               <h1 className="text-2xl font-black text-textMain leading-tight">{listing.title}</h1>
-              <div className="flex items-center gap-3 text-[10px] text-gray-400 font-black uppercase tracking-widest pt-2">
-                <span>📍 {listing.location}</span>
-                <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                <span>🕒 {formatTimeAgo(listing.createdAt)}</span>
+              
+              {/* ĐỊA CHỈ & THỜI GIAN (Ưu tiên hiển thị địa chỉ cụ thể) */}
+              <div className="flex flex-col gap-1 text-[10px] text-gray-400 font-black uppercase tracking-widest pt-2">
+                <div className="flex items-start gap-2">
+                    <span className="text-lg">📍</span>
+                    <span className="line-clamp-2 mt-1">
+                        {listing.address || listing.location}
+                    </span>
+                </div>
+                <div className="flex items-center gap-2 pl-1">
+                    <span>🕒 {formatTimeAgo(listing.createdAt)}</span>
+                </div>
               </div>
             </div>
 
+            {/* MINI MAP (HIỂN THỊ NẾU CÓ TỌA ĐỘ) */}
+            {listing.lat && listing.lng && (
+                <div className="h-44 w-full rounded-2xl overflow-hidden border border-gray-200 shadow-inner relative z-0 group">
+                    <MapContainer 
+                        center={[listing.lat, listing.lng]} 
+                        zoom={14} 
+                        scrollWheelZoom={false} // Tắt cuộn chuột để không gây khó chịu
+                        dragging={false}        // Tắt kéo
+                        zoomControl={false}     // Tắt nút zoom
+                        style={{ height: '100%', width: '100%' }}
+                    >
+                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                        <Marker position={[listing.lat, listing.lng]} />
+                    </MapContainer>
+                    
+                    {/* Overlay mở Google Maps khi click */}
+                    <a 
+                        href={`https://www.google.com/maps/search/?api=1&query=${listing.lat},${listing.lng}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="absolute inset-0 bg-black/5 group-hover:bg-black/20 transition-colors flex items-center justify-center z-[500]"
+                    >
+                        <span className="bg-white text-primary px-4 py-2 rounded-xl text-xs font-black uppercase shadow-lg scale-90 group-hover:scale-100 transition-transform flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                            Mở Google Maps
+                        </span>
+                    </a>
+                </div>
+            )}
+
             <div className="pt-8 border-t border-gray-100 space-y-6">
+              {/* THẺ NGƯỜI BÁN (ĐÃ CẬP NHẬT TÍCH XANH) */}
               <Link to={`/seller/${listing.sellerId}`} className="flex items-center gap-4 p-4 bg-bgMain rounded-3xl border border-gray-100 hover:shadow-md transition-all group">
                 <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white shadow-sm flex-shrink-0 group-hover:rotate-3 transition-transform">
                   <img src={listing.sellerAvatar} className="w-full h-full object-cover" alt={listing.sellerName} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-black text-sm text-textMain group-hover:text-primary transition-colors truncate">{listing.sellerName}</p>
-                  <p className="text-[9px] font-black text-green-500 uppercase mt-1 flex items-center gap-1.5"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Đang hoạt động</p>
+                  <div className="flex items-center gap-1">
+                      <p className="font-black text-sm text-textMain group-hover:text-primary transition-colors truncate">{listing.sellerName}</p>
+                      {renderVerificationBadge()}
+                  </div>
+                  
+                  {/* Hiển thị trạng thái dựa trên KYC */}
+                  {seller?.verificationStatus === 'verified' ? (
+                      <p className="text-[9px] font-black text-blue-500 uppercase mt-1 flex items-center gap-1.5">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg> 
+                          Người bán uy tín
+                      </p>
+                  ) : (
+                      <p className="text-[9px] font-black text-green-500 uppercase mt-1 flex items-center gap-1.5">
+                          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Đang hoạt động
+                      </p>
+                  )}
                 </div>
               </Link>
 
-              {/* KHU VỰC NÚT BẤM (ĐÃ SỬA GIAO DIỆN ĐẸP HƠN) */}
+              {/* KHU VỰC NÚT BẤM */}
               <div className="flex flex-col gap-3">
                 <button 
                   onClick={handleStartChat} 

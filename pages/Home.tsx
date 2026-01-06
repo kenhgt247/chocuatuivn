@@ -268,7 +268,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                                 onClick={() => selectCategory(null)}
                                 className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all flex-shrink-0 ${!activeCategoryId ? 'bg-primary text-white shadow-lg' : 'bg-gray-50 text-gray-400 hover:text-gray-600'}`}
                             >
-                                🏠 Mặc định
+                                ⚡ Khám Phá
                             </button>
                             {CATEGORIES.slice(0, DISPLAY_COUNT).map(cat => (
                                 <button 
@@ -302,7 +302,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                         </div>
                         <div className="grid grid-cols-4 lg:grid-cols-7 gap-4 px-3 pb-4">
                             <button onClick={() => selectCategory(null)} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] transition-all border-2 ${!activeCategoryId ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-bgMain border-transparent hover:border-primary/30 text-gray-500 hover:text-primary'}`}>
-                                <span className="text-3xl">🏠</span><span className="text-[10px] font-black uppercase text-center leading-tight">Mặc định</span>
+                                <span className="text-3xl">⚡</span><span className="text-[10px] font-black uppercase text-center leading-tight">Chợ Của Tui</span>
                             </button>
                             {CATEGORIES.map(cat => (
                                 <button key={cat.id} onClick={() => selectCategory(cat)} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] transition-all border-2 ${activeCategoryId === cat.id ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-bgMain border-transparent hover:border-primary/30 text-gray-500 hover:text-primary'}`}>

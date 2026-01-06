@@ -244,7 +244,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                 onClick={() => selectCategory(null)}
                 className={`px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all flex-shrink-0 ${!activeCategoryId ? 'bg-primary text-white shadow-lg' : 'bg-gray-100 text-gray-500'}`}
             >
-                Tất cả
+                Khám phá
             </button>
             {CATEGORIES.map(cat => (
                 <button 

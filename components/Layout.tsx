@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { User, Notification, ChatRoom } from '../types.ts';
@@ -37,6 +36,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         unsubNotifs();
         unsubChats();
       };
+    } else {
+      // Dọn dẹp state khi người dùng thoát để không bị hiển thị số cũ
+      setNotifications([]);
+      setChatRooms([]);
     }
   }, [user]);
 
@@ -50,8 +53,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const unreadNotifCount = notifications.filter(n => !n.read).length;
-  const unreadChatCount = chatRooms.filter(r => r.messages.length > 0 && !r.seenBy?.includes(user?.id || '')).length;
+  // CHỈNH SỬA: Chỉ tính toán số lượng nếu có user đăng nhập
+  const unreadNotifCount = user ? notifications.filter(n => !n.read).length : 0;
+  const unreadChatCount = user ? chatRooms.filter(r => r.messages.length > 0 && !r.seenBy?.includes(user?.id || '')).length : 0;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,7 +218,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {children}
       </main>
 
-            {/* Mobile Nav Bar - Đã nâng cấp giao diện */}
+      {/* Mobile Nav Bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex items-end justify-between h-[5.5rem] z-50 px-2 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
         
         {/* 1. TRANG CHỦ */}
@@ -243,7 +247,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           <span className={`text-[10px] font-bold tracking-tight ${location.pathname === '/manage-ads' ? 'opacity-100' : 'opacity-70'}`}>Quản lý</span>
         </Link>
 
-        {/* 3. NÚT GIỮA (ĐĂNG TIN) - ĐÃ CÓ RỒI, GIỮ NGUYÊN HOẶC DÙNG CODE NÀY CHO ĐỒNG BỘ */}
+        {/* 3. NÚT GIỮA (ĐĂNG TIN) */}
         <div className="flex-1 flex justify-center pb-6 relative z-10">
            <Link 
             to="/post" 
@@ -286,8 +290,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         </Link>
       </nav>
 
-
-      {/* Universal PWA Install Prompt */}
       <UniversalInstallPrompt />
     </div>
   );

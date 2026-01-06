@@ -64,6 +64,17 @@ export interface Listing {
   condition: 'new' | 'used';
   tier: SubscriptionTier;
   isFavorite?: boolean;
+  
+  // --- MỚI: Các trường thông tin cứng (Attributes) ---
+  // Dùng Record để linh hoạt cho nhiều loại danh mục khác nhau (Pin, Km, Diện tích, v.v.)
+  attributes?: {
+    battery?: string;  // Phần trăm pin
+    mileage?: string;  // Số Km đã đi
+    area?: string;     // Diện tích m2
+    year?: string;     // Năm sản xuất
+    storage?: string;  // Dung lượng bộ nhớ
+    [key: string]: any; 
+  };
 }
 
 export interface Review {

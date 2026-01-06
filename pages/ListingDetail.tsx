@@ -25,33 +25,41 @@ const STATIC_LINKS = [
   { slug: 'huong-dan-dang-tin', title: 'Hỗ trợ' },
 ];
 
-// Bản đồ nhãn tiếng Việt cho các key attributes
+// --- BẢN ĐỒ NHÃN ĐẦY ĐỦ CHO TẤT CẢ DANH MỤC ---
 const ATTRIBUTE_LABELS: Record<string, { label: string; icon: string }> = {
+  // Xe cộ
   mileage: { label: 'Số Km đã đi', icon: '🚗' },
   year: { label: 'Năm sản xuất', icon: '📅' },
   gearbox: { label: 'Hộp số', icon: '⚙️' },
   fuel: { label: 'Nhiên liệu', icon: '⛽' },
   carType: { label: 'Kiểu dáng', icon: '🚙' },
   seatCount: { label: 'Số chỗ', icon: '💺' },
+  // Bất động sản
   area: { label: 'Diện tích', icon: '📐' },
   bedrooms: { label: 'Phòng ngủ', icon: '🛏️' },
   bathrooms: { label: 'Số WC', icon: '🚿' },
   direction: { label: 'Hướng nhà', icon: '🧭' },
   legal: { label: 'Pháp lý', icon: '📜' },
   propertyType: { label: 'Loại hình', icon: '🏘️' },
+  // Đồ điện tử
   battery: { label: 'Pin', icon: '🔋' },
   storage: { label: 'Bộ nhớ', icon: '💾' },
   ram: { label: 'RAM', icon: '⚡' },
   color: { label: 'Màu sắc', icon: '🎨' },
   warranty: { label: 'Bảo hành', icon: '🛡️' },
+  // Điện lạnh
   capacity: { label: 'Công suất', icon: '❄️' },
   inverter: { label: 'Inverter', icon: '📉' },
+  // Thú cưng
   breed: { label: 'Giống loài', icon: '🐕' },
   age: { label: 'Độ tuổi', icon: '🐾' },
   gender: { label: 'Giới tính', icon: '⚧' },
+  // Nội thất / Đồ dùng
   material: { label: 'Chất liệu', icon: '🪵' },
   size: { label: 'Kích thước', icon: '📏' },
   brand: { label: 'Thương hiệu', icon: '🏷️' },
+  personalSize: { label: 'Size', icon: '👕' },
+  // Việc làm
   salary: { label: 'Mức lương', icon: '💰' },
   jobType: { label: 'Hình thức', icon: '💼' },
   experience: { label: 'Kinh nghiệm', icon: '🎓' },
@@ -61,7 +69,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const { slugWithId } = useParams();
   const navigate = useNavigate();
   const [listing, setListing] = useState<Listing | null>(null);
-  const [seller, setSeller] = useState<User | null>(null); 
+  const [seller, setSeller] = useState<User | null>(null);
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [activeImage, setActiveImage] = useState(0);
   const [userFavorites, setUserFavorites] = useState<string[]>([]);
@@ -80,13 +88,26 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   useEffect(() => {
     if (!id) return;
     const loadListing = async () => {
-      const data = await db.getListings();
-      setAllListings(data);
-      const l = data.find(x => x.id === id);
-      if (l) {
-        setListing(l);
-        db.getUserById(l.sellerId).then(setSeller);
-        if (user) db.getFavorites(user.id).then(setUserFavorites);
+      // Tối ưu: Dùng getListingById nếu có, fallback về getListings
+      if (db.getListingById) {
+         const l = await db.getListingById(id);
+         if (l) {
+            setListing(l);
+            db.getUserById(l.sellerId).then(setSeller);
+            if (user) db.getFavorites(user.id).then(setUserFavorites);
+            // Load similar sau để trang hiện nhanh
+            const all = await db.getListings();
+            setAllListings(all);
+         }
+      } else {
+         const data = await db.getListings();
+         setAllListings(data);
+         const l = data.find(x => x.id === id);
+         if (l) {
+            setListing(l);
+            db.getUserById(l.sellerId).then(setSeller);
+            if (user) db.getFavorites(user.id).then(setUserFavorites);
+         }
       }
     };
     loadListing();
@@ -171,7 +192,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
           )}
 
-          {/* THÔNG SỐ KỸ THUẬT CHI TIẾT (NÂNG CẤP KHỦNG) */}
+          {/* THÔNG SỐ KỸ THUẬT (FULL) */}
           {listing.attributes && Object.keys(listing.attributes).length > 0 && (
             <div className="bg-white md:rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-soft animate-fade-in-up">
               <div className="flex items-center gap-3 mb-8">
@@ -190,7 +211,9 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                       <div className="min-w-0">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter mb-0.5">{info.label}</p>
                         <p className="text-sm font-black text-textMain truncate">
-                          {key === 'mileage' || key === 'area' ? parseInt(value as string).toLocaleString() : value}
+                          {['mileage', 'area'].includes(key) && !isNaN(Number(value)) 
+                            ? parseInt(value as string).toLocaleString() 
+                            : value}
                           {key === 'mileage' && ' Km'}
                           {key === 'area' && ' m²'}
                           {key === 'battery' && '%'}
@@ -205,8 +228,10 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
           {/* Description */}
           <div className="bg-white md:rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-soft space-y-6">
-            <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Mô tả chi tiết</h2>
-            <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-base font-medium">{listing.description}</p>
+            <div className="space-y-4">
+              <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Mô tả chi tiết</h2>
+              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-base font-medium">{listing.description}</p>
+            </div>
             <div className="pt-6 border-t border-gray-100 flex flex-wrap gap-3">
                <div className="bg-bgMain px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase text-gray-500">Tình trạng: <span className="text-textMain">{listing.condition === 'new' ? 'Mới' : 'Đã dùng'}</span></div>
                <div className="bg-bgMain px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase text-gray-500">Danh mục: <span className="text-textMain">{currentCategory?.name || listing.category}</span></div>

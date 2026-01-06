@@ -1,59 +1,49 @@
-// src/utils/locationHelper.ts
+
 
 export interface LocationInfo {
-  address: string;    // Địa chỉ hiển thị đầy đủ (VD: 123 Đường A, Quận B, TP.HCM)
+  address: string;    // Địa chỉ hiển thị đầy đủ
   city: string;       // Tên Thành phố/Tỉnh (Dùng để lọc danh sách)
   lat: number;
   lng: number;
 }
 
 /**
- * Hàm gọi API OpenStreetMap để lấy địa chỉ từ tọa độ (Reverse Geocoding)
- * Hoàn toàn miễn phí, không cần API Key.
+ * Hàm gọi API lấy địa chỉ từ tọa độ (Reverse Geocoding)
+ * ĐÃ SỬA: Dùng API BigDataCloud để tránh lỗi CORS của OpenStreetMap
  */
 export const getLocationFromCoords = async (lat: number, lng: number): Promise<LocationInfo> => {
   try {
-    // Gọi API Nominatim của OpenStreetMap
+    // Sử dụng API BigDataCloud (Miễn phí & Không bị chặn CORS)
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-      {
-        headers: {
-            // Quan trọng: Phải có User-Agent để không bị chặn
-            'User-Agent': 'ChoCuaTui-App/1.0', 
-            'Accept-Language': 'vi' // Ưu tiên tiếng Việt
-        }
-      }
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=vi`
     );
 
     if (!response.ok) throw new Error("Lỗi kết nối đến dịch vụ bản đồ");
 
     const data = await response.json();
     
-    if (data && data.address) {
+    // Logic lấy dữ liệu từ BigDataCloud
+    if (data) {
       // 1. Xác định Thành phố (City) để dùng cho bộ lọc
-      // Nominatim trả về nhiều trường khác nhau tùy khu vực (city, town, village, state...)
-      const city = data.address.city || 
-                   data.address.town || 
-                   data.address.village || 
-                   data.address.state || 
-                   "Khác";
+      // city: Hà Nội, principalSubdivision: Hà Nội
+      const city = data.city || data.principalSubdivision || data.locality || "Khác";
       
       // 2. Tạo địa chỉ hiển thị chi tiết (Address)
-      // Ghép: Số nhà + Đường + Phường + Quận + Thành phố
+      // data.locality: Quận/Huyện
+      // data.principalSubdivision: Tỉnh/Thành phố
+      // data.countryName: Quốc gia
       const parts = [
-        data.address.house_number,
-        data.address.road,
-        data.address.quarter,
-        data.address.suburb || data.address.district,
-        data.address.city || data.address.state
+        data.locality,              // Quận/Huyện (VD: Quận 1)
+        data.principalSubdivision,  // Tỉnh/Thành (VD: Hồ Chí Minh)
+        data.countryName            // Quốc gia (VD: Việt Nam)
       ];
 
-      // Lọc bỏ các giá trị null/undefined và nối lại bằng dấu phẩy
+      // Lọc bỏ các giá trị null/undefined và nối lại
       const displayAddress = parts.filter(Boolean).join(", ");
 
       return {
-        address: displayAddress || "Chưa xác định được tên đường",
-        city: city,
+        address: displayAddress || `${lat.toFixed(4)}, ${lng.toFixed(4)}`, // Nếu rỗng thì hiện tọa độ
+        city: city.replace("Thành phố ", "").replace("Tỉnh ", ""), // Xử lý bớt chữ thừa cho gọn
         lat,
         lng
       };
@@ -63,10 +53,10 @@ export const getLocationFromCoords = async (lat: number, lng: number): Promise<L
 
   } catch (error) {
     console.warn("Lỗi Geocoding:", error);
-    // Fallback: Nếu lỗi thì trả về tọa độ thô
+    // Fallback: Nếu API lỗi thì trả về tọa độ thô để app không bị crash
     return {
-      address: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-      city: lat > 16 ? "Miền Bắc" : (lat > 11 ? "Miền Trung" : "Miền Nam"), // Đoán tạm vùng miền
+      address: `Vị trí: ${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+      city: lat > 16 ? "Miền Bắc" : (lat > 11 ? "Miền Trung" : "Miền Nam"),
       lat,
       lng
     };

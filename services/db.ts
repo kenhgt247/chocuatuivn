@@ -404,6 +404,62 @@ export const db = {
 
   // --- D. NGƯỜI DÙNG (USERS & AUTH) ---
   
+  // [MỚI] Lấy danh sách thành viên có phân trang (Pagination)
+  getUsersPaged: async (options: {
+    pageSize: number,
+    lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
+    search?: string, // Tìm theo tên hoặc email
+    verificationStatus?: string
+  }) => {
+    try {
+      const colRef = collection(firestore, "users");
+      let constraints: any[] = [];
+
+      // Có thể thêm filter status nếu cần
+      if (options.verificationStatus) {
+         constraints.push(where("verificationStatus", "==", options.verificationStatus));
+      }
+
+      // Mặc định sắp xếp theo ngày tham gia mới nhất
+      constraints.push(orderBy("joinedAt", "desc"));
+      
+      // Giới hạn số lượng
+      constraints.push(limit(options.pageSize));
+
+      // Phân trang
+      if (options.lastDoc) {
+         constraints.push(startAfter(options.lastDoc));
+      }
+
+      const q = query(colRef, ...constraints);
+      const snap = await getDocs(q);
+      
+      const users = snap.docs.map(d => d.data() as User);
+      const lastVisible = snap.docs[snap.docs.length - 1] || null;
+
+      // Xử lý tìm kiếm đơn giản ở Client (Do Firestore không support search string 'LIKE')
+      // Lưu ý: Nếu dữ liệu lớn, cần giải pháp search engine riêng (Algolia/Elastic)
+      let finalUsers = users;
+      if (options.search) {
+        const s = options.search.toLowerCase();
+        finalUsers = users.filter(u => 
+            (u.name && u.name.toLowerCase().includes(s)) ||
+            (u.email && u.email.toLowerCase().includes(s))
+        );
+      }
+
+      return {
+        users: finalUsers,
+        lastDoc: lastVisible,
+        hasMore: snap.docs.length === options.pageSize,
+        error: null
+      };
+    } catch (e: any) {
+       console.error("Get users paged error:", e);
+       return { users: [], lastDoc: null, hasMore: false, error: e.toString() };
+    }
+  },
+
   getCurrentUser: (): Promise<User | null> => {
     return new Promise((resolve) => {
       const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {

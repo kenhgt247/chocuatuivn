@@ -147,22 +147,46 @@ export const db = {
     return snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
   },
 
-  // [QUAN TRỌNG] ĐĂNG TIN + GỬI MAIL ADMIN
-  saveListing: async (listing: Omit<Listing, 'id' | 'createdAt'>) => {
+  // THÊM MỚI: Lấy chi tiết 1 tin (Tối ưu tốc độ load trang ListingDetail)
+  getListingById: async (id: string): Promise<Listing | null> => {
     try {
-      // 1. Lưu tin vào Firestore
-      const docRef = await addDoc(collection(firestore, "listings"), { ...listing, createdAt: new Date().toISOString() });
+      const docRef = doc(firestore, "listings", id);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() } as Listing;
+      }
+      return null;
+    } catch (e) {
+      console.error("Error getting listing:", e);
+      return null;
+    }
+  },
+
+  // [QUAN TRỌNG] ĐĂNG TIN + GỬI MAIL ADMIN (Đã cập nhật để lưu attributes)
+  saveListing: async (listingData: any) => {
+    try {
+      // 1. Chuẩn bị dữ liệu (Đảm bảo có attributes và createdAt)
+      const dataToSave = {
+        ...listingData,
+        createdAt: new Date().toISOString(),
+        status: listingData.status || 'pending',
+        attributes: listingData.attributes || {} // Đảm bảo lưu thông số chi tiết
+      };
+
+      // 2. Lưu tin vào Firestore
+      const docRef = await addDoc(collection(firestore, "listings"), dataToSave);
       
-      // 2. Gửi Email thông báo Admin (buivanbac@gmail.com)
+      // 3. Gửi Email thông báo Admin (buivanbac@gmail.com)
       await addDoc(collection(firestore, "mail"), {
         to: [ADMIN_EMAIL],
         message: {
-          subject: `[Tin Mới] ${listing.title} - Cần duyệt`,
+          subject: `[Tin Mới] ${listingData.title} - Cần duyệt`,
           html: `
             <h3>Có người đăng tin bán hàng mới!</h3>
-            <p><strong>Tiêu đề:</strong> ${listing.title}</p>
-            <p><strong>Giá:</strong> ${listing.price.toLocaleString()} VNĐ</p>
-            <p><strong>ID Người bán:</strong> ${listing.sellerId}</p>
+            <p><strong>Tiêu đề:</strong> ${listingData.title}</p>
+            <p><strong>Giá:</strong> ${Number(listingData.price).toLocaleString()} VNĐ</p>
+            <p><strong>Danh mục:</strong> ${listingData.category}</p>
+            <p><strong>ID Người bán:</strong> ${listingData.sellerId}</p>
             <p>Vui lòng vào trang Admin để kiểm duyệt.</p>
           `
         }

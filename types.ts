@@ -2,7 +2,7 @@ export type UserRole = 'user' | 'admin';
 export type SubscriptionTier = 'free' | 'basic' | 'pro';
 export type UserStatus = 'active' | 'banned';
 
-// --- MỚI: Trạng thái xác thực ---
+// --- MỚI: Trạng thái xác thực (KYC) ---
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
 export interface User {
@@ -14,9 +14,13 @@ export interface User {
   status: UserStatus;
   phone?: string;
   joinedAt: string;
-  location?: string;
-  lat?: number;
-  lng?: number;
+  
+  // --- THÔNG TIN VỊ TRÍ ---
+  location?: string; // Tỉnh/Thành phố (Dùng để lọc chung, ví dụ: TPHCM)
+  address?: string;  // <--- QUAN TRỌNG: Địa chỉ cụ thể (Số nhà, đường, phường - Dùng để hiển thị)
+  lat?: number;      // Vĩ độ
+  lng?: number;      // Kinh độ
+
   subscriptionTier: SubscriptionTier;
   subscriptionExpires?: string;
   walletBalance: number;
@@ -53,9 +57,13 @@ export interface Listing {
   price: number;
   category: string;
   images: string[];
-  location: string;
-  lat?: number;
-  lng?: number;
+  
+  // --- THÔNG TIN VỊ TRÍ ---
+  location: string; // Tỉnh/Thành phố (Bắt buộc để lọc)
+  address?: string; // <--- QUAN TRỌNG: Địa chỉ cụ thể (Hiển thị chi tiết cho người mua)
+  lat?: number;     // Vĩ độ
+  lng?: number;     // Kinh độ
+
   sellerId: string;
   sellerName: string;
   sellerAvatar: string;
@@ -66,7 +74,7 @@ export interface Listing {
   isFavorite?: boolean;
   
   // --- MỚI: Các trường thông tin cứng (Attributes) ---
-  // Dùng Record để linh hoạt cho nhiều loại danh mục khác nhau (Pin, Km, Diện tích, v.v.)
+  // Dùng Record để linh hoạt cho nhiều loại danh mục khác nhau
   attributes?: {
     battery?: string;  // Phần trăm pin
     mileage?: string;  // Số Km đã đi
@@ -87,6 +95,7 @@ export interface Review {
   rating: number;
   comment: string;
   createdAt: string;
+  updatedAt?: string; // (Tùy chọn) Thời gian cập nhật
 }
 
 export interface Report {
@@ -104,6 +113,7 @@ export interface Message {
   senderId: string;
   text: string;
   timestamp: string;
+  image?: string; // (Tùy chọn) Hỗ trợ gửi ảnh trong chat
 }
 
 export interface ChatRoom {

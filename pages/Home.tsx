@@ -6,6 +6,7 @@ import { Listing, User, Category } from '../types';
 import ListingCard from '../components/ListingCard';
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { getCategoryUrl } from '../utils/format';
+import { getLocationFromCoords } from '../utils/locationHelper'; // Import hàm định vị mới
 
 // Danh sách các trang tĩnh cho Footer Desktop
 const STATIC_LINKS = [
@@ -62,32 +63,8 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     return match ? match[0] : null;
   };
 
-  // --- HANDLERS ---
-  const handleDetectLocation = useCallback(() => {
-    if (!navigator.geolocation) return;
-    setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const city = latitude > 15 ? "TP Hà Nội" : "TPHCM"; 
-        setDetectedLocation(city);
-        setIsLocating(false);
-        if (user) {
-          db.updateUserProfile(user.id, { location: city, lat: latitude, lng: longitude }).catch(console.error);
-        }
-      },
-      (error) => {
-        setIsLocating(false);
-        console.log("Location error:", error.message);
-      },
-      { enableHighAccuracy: true, timeout: 5000 }
-    );
-  }, [user]);
-
-  useEffect(() => {
-    if (!detectedLocation) handleDetectLocation();
-  }, [handleDetectLocation, detectedLocation]);
-
+  // --- HANDLERS: ĐỊNH VỊ CHÍNH XÁC (MỚI) ---
+  // Tải các phần đặc biệt (VIP, Nearby) dựa trên vị trí
   const loadSpecialSections = useCallback(async (locationToUse: string | null) => {
     // 1. VIP
     const vipRes = await db.getVIPListings(LIMIT_VIP);
@@ -95,7 +72,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       setVipListings(vipRes.listings);
     }
 
-    // 2. Nearby
+    // 2. Nearby (Chỉ tải nếu có vị trí)
     const targetLoc = locationToUse || user?.location;
     if (targetLoc) {
       const nearbyRes = await db.getListingsPaged({
@@ -107,6 +84,69 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       }
     }
   }, [user]);
+
+  const handleDetectLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+        alert("Trình duyệt của bạn không hỗ trợ định vị.");
+        return;
+    }
+
+    setIsLocating(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        
+        try {
+            // Gọi API OpenStreetMap để lấy tên Thành phố chính xác
+            const locationInfo = await getLocationFromCoords(latitude, longitude);
+            
+            // Cập nhật State
+            setDetectedLocation(locationInfo.city);
+            setIsLocating(false);
+
+            // Nếu user đã đăng nhập, lưu vị trí chính xác vào DB
+            if (user) {
+              db.updateUserProfile(user.id, { 
+                  location: locationInfo.city, 
+                  address: locationInfo.address, // Lưu địa chỉ cụ thể
+                  lat: latitude, 
+                  lng: longitude 
+              }).catch(console.error);
+            }
+
+            // Tải lại mục "Tin quanh đây" theo vị trí mới
+            loadSpecialSections(locationInfo.city);
+
+        } catch (err) {
+            console.error("Lỗi lấy địa chỉ:", err);
+            setIsLocating(false);
+            // Fallback: Giữ nguyên logic cũ nếu API lỗi
+            const fallbackCity = latitude > 16 ? "TP Hà Nội" : "TPHCM";
+            setDetectedLocation(fallbackCity);
+        }
+      },
+      (error) => {
+        setIsLocating(false);
+        let msg = "Lỗi định vị.";
+        if (error.code === 1) msg = "Vui lòng cho phép truy cập vị trí trong cài đặt trình duyệt.";
+        console.log("Location error:", error.message);
+        alert(msg);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, [user, loadSpecialSections]);
+
+  // Tự động định vị lần đầu nếu chưa có vị trí
+  useEffect(() => {
+    if (!detectedLocation && !user?.location) {
+        // Chỉ hiện prompt định vị nếu user tương tác (để tránh bị chặn), 
+        // ở đây ta để user tự bấm nút sẽ tốt hơn về UX.
+        // handleDetectLocation(); 
+    } else if (user?.location) {
+        setDetectedLocation(user.location);
+    }
+  }, [user, detectedLocation]);
 
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true);
@@ -198,7 +238,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     setFavorites(updatedFavs);
   };
 
-  // --- LOGIC ĐẨY TIN (GIỮ NGUYÊN) ---
+  // --- LOGIC ĐẨY TIN ---
   const handlePushListing = async (listingId: string) => {
     if (!user) {
         if(window.confirm("Bạn cần đăng nhập để thực hiện chức năng này.")) {

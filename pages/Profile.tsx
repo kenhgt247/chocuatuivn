@@ -5,6 +5,58 @@ import { User, Listing } from '../types';
 import ListingCard from '../components/ListingCard';
 import { LOCATIONS, TIER_CONFIG } from '../constants';
 import { formatPrice } from '../utils/format';
+import { getLocationFromCoords } from '../utils/locationHelper'; // Import hàm tiện ích mới
+
+// --- THÊM: Import Leaflet cho bản đồ ---
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix icon lỗi mặc định của Leaflet trong React
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+let DefaultIcon = L.icon({
+    iconUrl: icon,
+    shadowUrl: iconShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
+
+// --- Component con: Marker có thể kéo thả để chọn vị trí ---
+const DraggableMarker = ({ position, onDragEnd }: { position: {lat: number, lng: number}, onDragEnd: (lat: number, lng: number) => void }) => {
+    const markerRef = useRef<L.Marker>(null);
+    
+    // Sự kiện khi click vào bản đồ cũng di chuyển marker
+    useMapEvents({
+        click(e) {
+            onDragEnd(e.latlng.lat, e.latlng.lng);
+        },
+    });
+
+    const eventHandlers = useMemo(
+      () => ({
+        dragend() {
+          const marker = markerRef.current;
+          if (marker != null) {
+            const { lat, lng } = marker.getLatLng();
+            onDragEnd(lat, lng);
+          }
+        },
+      }),
+      [onDragEnd],
+    );
+  
+    return (
+      <Marker
+        draggable={true}
+        eventHandlers={eventHandlers}
+        position={position}
+        ref={markerRef}
+      />
+    );
+}
 
 // Interface cho Modal xác nhận
 interface ModalState {
@@ -42,8 +94,9 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     name: user?.name || '',
     email: user?.email || '',
     phone: user?.phone || '',
-    location: user?.location || 'TPHCM',
-    lat: user?.lat || 10.762622,
+    location: user?.location || 'TPHCM', // Thành phố (dùng để lọc)
+    address: user?.address || '',        // Địa chỉ cụ thể (dùng để hiển thị)
+    lat: user?.lat || 10.762622,         // Mặc định HCM
     lng: user?.lng || 106.660172
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -59,6 +112,18 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
       setSettings(s);
       const favIds = await db.getFavorites(user.id);
       setMyFavs(all.filter(l => favIds.includes(l.id)));
+      
+      // Cập nhật lại form nếu user thay đổi
+      setEditForm(prev => ({
+        ...prev,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        location: user.location || 'TPHCM',
+        address: user.address || '',
+        lat: user.lat || 10.762622,
+        lng: user.lng || 106.660172
+      }));
     };
     loadProfileData();
   }, [user, navigate]);
@@ -86,7 +151,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
         const file = e.target.files[0];
-        // Validate ảnh (ví dụ < 2MB)
         if (file.size > 2 * 1024 * 1024) {
             alert("Vui lòng chọn ảnh nhỏ hơn 2MB");
             return;
@@ -94,15 +158,11 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
 
         setIsUploadingAvatar(true);
         try {
-            // Convert file sang base64 để upload (hoặc dùng blob tùy logic db.uploadImage của bạn)
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = async () => {
                 const base64 = reader.result as string;
-                // Giả sử db.uploadImage nhận base64 và path
                 const url = await db.uploadImage(base64, `avatars/${user.id}_${Date.now()}`);
-                
-                // Cập nhật profile ngay lập tức
                 const updatedUser = await db.updateUserProfile(user.id, { avatar: url });
                 onUpdateUser(updatedUser);
                 alert("Đổi ảnh đại diện thành công!");
@@ -122,7 +182,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
         const file = e.target.files[0];
         setKycFiles(prev => ({ ...prev, [field]: file }));
         
-        // Tạo preview
         const reader = new FileReader();
         reader.onload = (ev) => {
             setKycPreviews(prev => ({ ...prev, [field]: ev.target?.result as string }));
@@ -141,7 +200,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
 
     setIsSubmittingKyc(true);
     try {
-        // Upload 2 ảnh
         const uploadPromises = [kycFiles.front, kycFiles.back].map(file => {
              return new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
@@ -157,16 +215,13 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
 
         const urls = await Promise.all(uploadPromises);
 
-        // Cập nhật user status sang 'pending'
-        // Lưu ý: Bạn cần update db.ts để hỗ trợ các trường này hoặc dùng updateUserProfile generic
         const updatedUser = await db.updateUserProfile(user.id, { 
             verificationStatus: 'pending',
             verificationDocuments: urls
-        } as any); // cast any nếu type chưa cập nhật
+        } as any);
 
         onUpdateUser(updatedUser);
         alert("Đã gửi yêu cầu xác thực! Admin sẽ duyệt trong 24h.");
-        // Reset form
         setKycFiles({ front: null, back: null });
         setKycPreviews({ front: null, back: null });
 
@@ -178,10 +233,9 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     }
   };
 
-  // --- LOGIC CŨ (Đẩy tin, Xóa tin, Update Profile) ---
+  // --- LOGIC CŨ (Đẩy tin, Xóa tin) ---
   const handlePushListing = (listingId: string, title: string) => {
-    // ... (Giữ nguyên logic cũ của bạn)
-     if (!user || !settings) return;
+    if (!user || !settings) return;
     const pushPrice = settings.pushPrice * (1 - (settings.pushDiscount || 0) / 100);
     if (user.walletBalance < pushPrice) {
       setModal({
@@ -210,7 +264,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
   };
 
   const handleDelete = (id: string) => {
-    // ... (Giữ nguyên logic cũ của bạn)
     setModal({
       show: true, title: "Xóa tin đăng", message: "Hành động này không thể hoàn tác.", type: 'delete',
       onConfirm: async () => {
@@ -232,15 +285,44 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     }, 800);
   };
 
-  const pickCurrentLocation = () => { /* Giữ nguyên */
+  // --- LOGIC ĐỊNH VỊ MỚI: Dùng GPS thật ---
+  const pickCurrentLocation = () => {
      if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        setEditForm(prev => ({ ...prev, lat: pos.coords.latitude, lng: pos.coords.longitude }));
-      }, () => alert("Lỗi GPS"));
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        
+        // 1. Cập nhật marker trên bản đồ
+        setEditForm(prev => ({ ...prev, lat: latitude, lng: longitude }));
+        
+        // 2. Gọi API để lấy tên đường (Reverse Geocoding)
+        try {
+            const info = await getLocationFromCoords(latitude, longitude);
+            setEditForm(prev => ({
+                ...prev,
+                address: info.address, // Tự điền tên đường
+                location: info.city    // Tự điền thành phố
+            }));
+        } catch (e) {
+            console.error("Lỗi lấy tên đường", e);
+        }
+
+      }, () => alert("Không thể lấy vị trí. Vui lòng kiểm tra quyền truy cập GPS."));
+    } else {
+        alert("Trình duyệt không hỗ trợ định vị.");
     }
   };
 
-  const currentPushPrice = settings ? settings.pushPrice * (1 - (settings.pushDiscount || 0) / 100) : 0;
+  // Khi kéo marker xong, tự động cập nhật địa chỉ
+  const handleMarkerDragEnd = async (lat: number, lng: number) => {
+      setEditForm(prev => ({ ...prev, lat, lng }));
+      // Tự động lấy tên đường mới
+      const info = await getLocationFromCoords(lat, lng);
+      setEditForm(prev => ({
+          ...prev,
+          address: info.address,
+          location: info.city
+      }));
+  };
 
   // Render Status Badge
   const renderVerificationStatus = () => {
@@ -255,7 +337,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 px-4 md:px-0 relative">
-      {/* Modal Overlay (Giữ nguyên) */}
+      {/* Modal Overlay */}
       {modal.show && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModal(prev => ({ ...prev, show: false }))}></div>
@@ -313,17 +395,16 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                 </Link>
               )}
             </div>
-            {/* ... (Các phần hiển thị email/phone giữ nguyên) ... */}
+            
             <div className="flex flex-wrap justify-center md:justify-start items-center gap-4 text-gray-400 text-xs font-bold uppercase tracking-widest">
               <span>{user.email}</span>
               <span className="hidden md:inline">•</span>
               <span>{user.phone || 'Chưa cập nhật SĐT'}</span>
             </div>
 
-            {/* ... (Phần VIP Card giữ nguyên) ... */}
+            {/* VIP Card */}
             <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-6">
                 <div className={`relative overflow-hidden p-5 rounded-3xl border shadow-lg transition-all min-w-[280px] ${user.subscriptionTier === 'free' ? 'bg-gray-50 border-gray-200' : 'bg-gradient-to-br from-yellow-500 to-orange-600 border-yellow-400 text-white shadow-yellow-200'}`}>
-                  {/* ... Nội dung VIP card ... */}
                   <div className="relative z-10 flex items-start justify-between">
                      <div className="space-y-1">
                         <p className={`text-[10px] font-black uppercase tracking-widest ${user.subscriptionTier === 'free' ? 'text-gray-400' : 'text-white/80'}`}>Hạng thành viên</p>
@@ -377,7 +458,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
 
       {/* Content */}
       <div className="mt-8">
-        {/* TAB 1 & 2: GIỮ NGUYÊN */}
+        {/* TAB 1: LISTINGS */}
         {activeTab === 'listings' && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
             {myListings.map(listing => (
@@ -402,6 +483,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
           </div>
         )}
 
+        {/* TAB 2: FAVORITES */}
         {activeTab === 'favorites' && (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
                 {myFavs.map(listing => <ListingCard key={listing.id} listing={listing} isFavorite={true} />)}
@@ -409,38 +491,79 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
             </div>
         )}
 
-        {/* TAB 3: SETTINGS (ĐÃ THÊM PHẦN XÁC THỰC) */}
+        {/* TAB 3: SETTINGS */}
         {activeTab === 'settings' && (
           <div className="bg-white border border-borderMain rounded-[3rem] p-6 md:p-12 shadow-soft space-y-12">
             
             {/* 1. FORM THÔNG TIN CƠ BẢN */}
             <form onSubmit={handleSaveSettings} className="space-y-12">
               <div className="grid lg:grid-cols-2 gap-12">
+                
+                {/* Cột trái: Thông tin cá nhân */}
                 <div className="space-y-8">
                   <h3 className="text-xl font-black text-textMain flex items-center gap-3"><span className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">👤</span> Thông tin liên hệ</h3>
                   <div className="space-y-6">
-                    <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Tên hiển thị</label><input type="text" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm" /></div>
-                    <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Email</label><input type="email" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm" /></div>
-                    <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Số điện thoại</label><input type="tel" value={editForm.phone} onChange={e => setEditForm({...editForm, phone: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm" /></div>
+                    <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Tên hiển thị</label><input type="text" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm focus:border-primary outline-none transition-colors" /></div>
+                    <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Email</label><input type="email" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm focus:border-primary outline-none transition-colors" /></div>
+                    <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Số điện thoại</label><input type="tel" value={editForm.phone} onChange={e => setEditForm({...editForm, phone: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm focus:border-primary outline-none transition-colors" /></div>
+                    
+                    {/* Thêm trường địa chỉ cụ thể */}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Địa chỉ chi tiết (Hiện trên bản đồ)</label>
+                        <textarea 
+                            value={editForm.address} 
+                            onChange={e => setEditForm({...editForm, address: e.target.value})} 
+                            className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm focus:border-primary outline-none transition-colors h-24 resize-none" 
+                            placeholder="Số nhà, Tên đường, Phường/Xã..."
+                        />
+                    </div>
                   </div>
                 </div>
+
+                {/* Cột phải: Vị trí bán hàng (Bản đồ) */}
                 <div className="space-y-8">
-                  <h3 className="text-xl font-black text-textMain flex items-center gap-3"><span className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center">📍</span> Vị trí bán hàng</h3>
-                  <div className="space-y-6">
-                    <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Thành phố</label><select value={editForm.location} onChange={e => setEditForm({...editForm, location: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm">{LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}</select></div>
-                    <div className="space-y-4">
-                        <button type="button" onClick={pickCurrentLocation} className="text-[10px] font-black text-primary flex items-center gap-1">Lấy vị trí hiện tại</button>
-                        <div className="relative aspect-video rounded-3xl overflow-hidden border-2 border-white shadow-lg bg-gray-100 flex items-center justify-center">
-                            <p className="text-gray-400 font-bold text-xs">{editForm.lat.toFixed(4)}, {editForm.lng.toFixed(4)}</p>
+                  <h3 className="text-xl font-black text-textMain flex items-center gap-3"><span className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center">📍</span> Vị trí cửa hàng</h3>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                        <div className="flex-1 mr-4">
+                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Thành phố (Lọc)</label>
+                             <select value={editForm.location} onChange={e => setEditForm({...editForm, location: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm outline-none">{LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}</select>
                         </div>
+                        <button type="button" onClick={pickCurrentLocation} className="text-[10px] font-black text-white bg-primary hover:bg-primaryHover px-4 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-primary/30 active:scale-95 transition-all mt-6">
+                            <span>📍</span> Lấy vị trí hiện tại
+                        </button>
+                    </div>
+
+                    {/* BẢN ĐỒ LEAFLET */}
+                    <div className="relative aspect-video rounded-3xl overflow-hidden border-2 border-gray-100 shadow-inner bg-gray-50 z-0">
+                         <MapContainer 
+                            key={`${editForm.lat}-${editForm.lng}`} // Key thay đổi để re-render khi lấy vị trí mới
+                            center={[editForm.lat, editForm.lng]} 
+                            zoom={15} 
+                            scrollWheelZoom={false}
+                            style={{ height: '100%', width: '100%' }}
+                         >
+                            <TileLayer
+                                attribution='&copy; OpenStreetMap'
+                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            />
+                            {/* Marker có thể kéo thả */}
+                            <DraggableMarker 
+                                position={{ lat: editForm.lat, lng: editForm.lng }} 
+                                onDragEnd={handleMarkerDragEnd}
+                            />
+                         </MapContainer>
+                         <div className="absolute bottom-2 left-2 right-2 bg-white/90 backdrop-blur-sm p-2 rounded-xl text-[10px] text-center font-bold text-gray-500 shadow-sm z-[400]">
+                             Kéo ghim đỏ để chọn chính xác vị trí nhà bạn
+                         </div>
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="pt-6 border-t border-gray-100 flex justify-end"><button type="submit" disabled={isSaving} className="px-12 py-4 bg-primary text-white font-black rounded-2xl shadow-lg">{isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}</button></div>
+              <div className="pt-6 border-t border-gray-100 flex justify-end"><button type="submit" disabled={isSaving} className="px-12 py-4 bg-primary text-white font-black rounded-2xl shadow-lg hover:shadow-xl hover:scale-105 transition-all">{isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}</button></div>
             </form>
 
-            {/* 2. FORM XÁC THỰC DANH TÍNH (MỚI) */}
+            {/* 2. FORM XÁC THỰC DANH TÍNH */}
             <div className="pt-6 border-t-4 border-dashed border-gray-100 space-y-8">
                 <h3 className="text-xl font-black text-textMain flex items-center gap-3">
                     <span className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">🛡️</span> 
@@ -448,23 +571,23 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                 </h3>
                 
                 {(user as any).verificationStatus === 'verified' ? (
-                    <div className="bg-green-50 border border-green-200 rounded-3xl p-8 text-center">
+                    <div className="bg-green-50 border border-green-200 rounded-3xl p-8 text-center animate-fade-in-up">
                         <div className="text-5xl mb-4">🎉</div>
                         <h4 className="text-lg font-black text-green-700">Tài khoản đã được xác thực!</h4>
                         <p className="text-sm text-green-600 mt-2">Bạn đã có tích xanh uy tín và được ưu tiên hiển thị.</p>
                     </div>
                 ) : (user as any).verificationStatus === 'pending' ? (
-                     <div className="bg-yellow-50 border border-yellow-200 rounded-3xl p-8 text-center">
+                     <div className="bg-yellow-50 border border-yellow-200 rounded-3xl p-8 text-center animate-fade-in-up">
                         <div className="text-5xl mb-4">⏳</div>
                         <h4 className="text-lg font-black text-yellow-700">Hồ sơ đang chờ duyệt</h4>
                         <p className="text-sm text-yellow-600 mt-2">Admin đang kiểm tra thông tin của bạn. Vui lòng quay lại sau.</p>
                     </div>
                 ) : (
-                    <div className="space-y-6">
-                        <p className="text-sm text-gray-500">Vui lòng tải lên ảnh 2 mặt CCCD hoặc Giấy phép kinh doanh để được cấp tích xanh uy tín.</p>
+                    <div className="space-y-6 animate-fade-in-up">
+                        <p className="text-sm text-gray-500 font-medium">Vui lòng tải lên ảnh 2 mặt CCCD hoặc Giấy phép kinh doanh để được cấp tích xanh uy tín.</p>
                         
                         {(user as any).verificationStatus === 'rejected' && (
-                             <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-sm font-bold border border-red-200">
+                             <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-sm font-bold border border-red-200 flex items-center gap-2">
                                 ❌ Hồ sơ trước đó bị từ chối. Vui lòng kiểm tra lại ảnh chụp rõ nét hơn.
                              </div>
                         )}
@@ -473,14 +596,14 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                             {/* Mặt trước */}
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Mặt trước CCCD / GPKD</label>
-                                <div className="relative aspect-video bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl overflow-hidden hover:border-primary/50 transition-colors group cursor-pointer">
+                                <div className="relative aspect-video bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl overflow-hidden hover:border-primary/50 transition-colors group cursor-pointer flex items-center justify-center">
                                     <input type="file" className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={(e) => handleKycFileChange('front', e)} accept="image/*" />
                                     {kycPreviews.front ? (
                                         <img src={kycPreviews.front} className="w-full h-full object-cover" alt="Front" />
                                     ) : (
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                                            <span className="text-3xl mb-2">📷</span>
-                                            <span className="text-xs font-bold">Tải ảnh lên</span>
+                                        <div className="flex flex-col items-center justify-center text-gray-400 group-hover:text-primary transition-colors">
+                                            <span className="text-4xl mb-2">📷</span>
+                                            <span className="text-xs font-bold uppercase tracking-widest">Tải ảnh lên</span>
                                         </div>
                                     )}
                                 </div>
@@ -489,14 +612,14 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                             {/* Mặt sau */}
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Mặt sau CCCD / GPKD</label>
-                                <div className="relative aspect-video bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl overflow-hidden hover:border-primary/50 transition-colors group cursor-pointer">
+                                <div className="relative aspect-video bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl overflow-hidden hover:border-primary/50 transition-colors group cursor-pointer flex items-center justify-center">
                                     <input type="file" className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={(e) => handleKycFileChange('back', e)} accept="image/*" />
                                     {kycPreviews.back ? (
                                         <img src={kycPreviews.back} className="w-full h-full object-cover" alt="Back" />
                                     ) : (
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                                            <span className="text-3xl mb-2">📷</span>
-                                            <span className="text-xs font-bold">Tải ảnh lên</span>
+                                        <div className="flex flex-col items-center justify-center text-gray-400 group-hover:text-primary transition-colors">
+                                            <span className="text-4xl mb-2">📷</span>
+                                            <span className="text-xs font-bold uppercase tracking-widest">Tải ảnh lên</span>
                                         </div>
                                     )}
                                 </div>
@@ -508,7 +631,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                                 type="button" 
                                 onClick={handleSubmitKyc}
                                 disabled={isSubmittingKyc || !kycFiles.front || !kycFiles.back}
-                                className="px-12 py-4 bg-purple-600 text-white font-black rounded-2xl shadow-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                className="px-12 py-4 bg-purple-600 text-white font-black rounded-2xl shadow-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all uppercase tracking-widest text-xs"
                             >
                                 {isSubmittingKyc ? 'Đang gửi hồ sơ...' : 'Gửi hồ sơ xác thực'}
                             </button>

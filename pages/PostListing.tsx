@@ -4,6 +4,7 @@ import { CATEGORIES, LOCATIONS, TIER_CONFIG } from '../constants';
 import { db } from '../services/db';
 import { User } from '../types';
 import { analyzeListingImages } from '../services/geminiService';
+import { getLocationFromCoords } from '../utils/locationHelper'; // Import hàm định vị
 
 const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const navigate = useNavigate();
@@ -24,30 +25,78 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     category: '',
     price: '',
     description: '',
-    location: user?.location || 'TPHCM',
+    location: user?.location || 'TPHCM', // Thành phố (để lọc)
+    address: user?.address || '',        // Địa chỉ cụ thể (để hiển thị/tìm đường)
     condition: 'used' as 'new' | 'used',
     images: [] as string[],
     attributes: {} as Record<string, string>
   });
 
-  // --- STYLE CHUNG (Đưa ra ngoài để tránh lỗi ReferenceError) ---
+  // --- STYLE CHUNG ---
   const inputStyle = "w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm focus:outline-none focus:border-primary transition-all shadow-sm";
   const labelStyle = "text-[10px] font-black text-gray-400 uppercase tracking-widest px-1";
   const wrapperStyle = "space-y-1.5";
 
+  // --- LOGIC ĐỊNH VỊ THÔNG MINH ---
   useEffect(() => {
     if (!user) {
       navigate('/login');
       return;
     }
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setLocationDetected({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => console.warn("⚠️ GPS Error:", err.message),
-        { timeout: 10000, enableHighAccuracy: true }
-      );
-    }
+
+    // Tự động lấy vị trí khi mở trang (nếu trình duyệt cho phép)
+    const autoDetectLocation = async () => {
+        if (navigator.geolocation && !locationDetected) {
+             navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    const { latitude, longitude } = pos.coords;
+                    setLocationDetected({ lat: latitude, lng: longitude });
+                    
+                    try {
+                        // Gọi API lấy tên đường
+                        const info = await getLocationFromCoords(latitude, longitude);
+                        setFormData(prev => ({
+                            ...prev,
+                            location: info.city || prev.location, // Ưu tiên thành phố từ GPS
+                            address: info.address // Tự điền địa chỉ cụ thể
+                        }));
+                    } catch (e) {
+                        console.warn("Không lấy được tên đường:", e);
+                    }
+                },
+                (err) => console.warn("GPS chưa sẵn sàng:", err.message),
+                { timeout: 10000, enableHighAccuracy: true }
+             );
+        }
+    };
+    
+    autoDetectLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, navigate]);
+
+  // Hàm thủ công khi bấm nút "Lấy vị trí"
+  const handleManualLocate = () => {
+    if (!navigator.geolocation) return alert("Trình duyệt không hỗ trợ GPS");
+    
+    navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+            const { latitude, longitude } = pos.coords;
+            setLocationDetected({ lat: latitude, lng: longitude });
+            try {
+                const info = await getLocationFromCoords(latitude, longitude);
+                setFormData(prev => ({
+                    ...prev,
+                    location: info.city || prev.location,
+                    address: info.address
+                }));
+            } catch (e) {
+                console.error(e);
+            }
+        },
+        () => alert("Vui lòng bật quyền truy cập vị trí."),
+        { enableHighAccuracy: true }
+    );
+  };
 
   const updateAttr = (key: string, value: string) => {
     setFormData(prev => ({
@@ -203,7 +252,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         price: priceNumber,
         category: formData.category,
         images: uploadedUrls,
-        location: formData.location,
+        
+        // --- CẬP NHẬT LOCATION ---
+        location: formData.location, // Thành phố (để lọc)
+        address: formData.address,   // Địa chỉ chi tiết (để hiển thị)
+        
         condition: formData.condition,
         attributes: formData.attributes,
         sellerId: user!.id,
@@ -213,10 +266,13 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         tier: userTier,
         createdAt: new Date().toISOString()
       };
+      
+      // Lưu tọa độ nếu có
       if (locationDetected) {
         listingData.lat = locationDetected.lat;
         listingData.lng = locationDetected.lng;
       }
+      
       await db.saveListing(listingData);
       alert(listingStatus === 'approved' ? "🎉 Thành công!" : "📩 Đang chờ duyệt.");
       navigate('/manage-ads');
@@ -305,10 +361,33 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                    ))}
                 </div>
               </div>
+
+              {/* KHU VỰC VÀ ĐỊA CHỈ */}
               <div className="space-y-2">
-                <label className={labelStyle}>Khu vực</label>
-                <select value={formData.location} onChange={(e) => setFormData({...formData, location: e.target.value})} className={inputStyle}>{LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}</select>
+                <label className={labelStyle}>Thành phố (Lọc)</label>
+                <div className="relative">
+                    <select value={formData.location} onChange={(e) => setFormData({...formData, location: e.target.value})} className={inputStyle}>
+                        {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                    </select>
+                    {locationDetected && <div className="absolute right-8 top-1/2 -translate-y-1/2 text-green-500 text-xs font-bold">📍 GPS</div>}
+                </div>
               </div>
+            </div>
+
+            {/* ĐỊA CHỈ CHI TIẾT */}
+            <div className="space-y-2 animate-fade-in-up">
+               <div className="flex justify-between items-end">
+                   <label className={labelStyle}>Địa chỉ chi tiết (Hiện trên bản đồ)</label>
+                   <button type="button" onClick={handleManualLocate} className="text-[10px] text-primary font-bold hover:underline flex items-center gap-1">
+                       📍 Lấy vị trí
+                   </button>
+               </div>
+               <textarea 
+                  value={formData.address} 
+                  onChange={(e) => setFormData({...formData, address: e.target.value})} 
+                  placeholder="Số nhà, Tên đường, Phường/Xã... (Để người mua tìm đường)"
+                  className={`${inputStyle} h-20 resize-none`}
+               />
             </div>
 
             <div className="space-y-2">

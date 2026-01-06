@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 
 interface ShareModalProps {
@@ -10,7 +9,9 @@ interface ShareModalProps {
 
 const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, url, title }) => {
   const [copySuccess, setCopySuccess] = useState(false);
-  const fullUrl = window.location.origin + url;
+  
+  // Đảm bảo url bắt đầu bằng origin nếu url truyền vào chỉ là path
+  const fullUrl = url.startsWith('http') ? url : window.location.origin + url;
 
   if (!isOpen) return null;
 
@@ -28,9 +29,10 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, url, title }) 
       color: 'bg-[#1877F2]'
     },
     {
-      name: 'X (Twitter)',
-      icon: 'https://abs.twimg.com/favicons/twitter-pip.2.ico',
-      link: `https://twitter.com/intent/tweet?url=${encodeURIComponent(fullUrl)}&text=${encodeURIComponent(title)}`,
+      name: 'X',
+      // Sử dụng logo X mới nhất (SVG)
+      icon: 'https://upload.wikimedia.org/wikipedia/commons/5/53/X_logo_2023_original.svg',
+      link: `https://x.com/intent/tweet?url=${encodeURIComponent(fullUrl)}&text=${encodeURIComponent(title)}`,
       color: 'bg-black'
     },
     {
@@ -45,7 +47,10 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, url, title }) 
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+      {/* Overlay */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose}></div>
+      
+      {/* Modal Content */}
       <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl relative animate-fade-in-up border border-borderMain">
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -61,11 +66,11 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, url, title }) 
 
         <div className="space-y-8">
           {/* QR Code Section */}
-          <div className="flex flex-col items-center gap-4 bg-bgMain p-6 rounded-[2.5rem] border border-borderMain/50">
+          <div className="flex flex-col items-center gap-4 bg-gray-50 p-6 rounded-[2.5rem] border border-gray-100">
             <div className="w-40 h-40 bg-white p-2 rounded-2xl shadow-inner border-2 border-white">
               <img src={qrCodeUrl} alt="QR Code" className="w-full h-full object-contain" />
             </div>
-            <p className="text-[10px] font-black text-gray-400 uppercase">Quét mã để xem trên điện thoại</p>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Quét mã để xem trên điện thoại</p>
           </div>
 
           {/* Social Links */}
@@ -78,8 +83,12 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, url, title }) 
                 rel="noopener noreferrer"
                 className="flex flex-col items-center gap-2 group"
               >
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:scale-110 ${social.color}`}>
-                  <img src={social.icon} alt={social.name} className="w-8 h-8 object-contain brightness-0 invert" />
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1 ${social.color}`}>
+                  <img 
+                    src={social.icon} 
+                    alt={social.name} 
+                    className={`w-7 h-7 object-contain brightness-0 invert ${social.name === 'X' ? 'p-0.5' : ''}`} 
+                  />
                 </div>
                 <span className="text-[10px] font-black text-gray-500 uppercase">{social.name}</span>
               </a>
@@ -94,7 +103,11 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, url, title }) 
               </div>
               <button
                 onClick={handleCopy}
-                className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${copySuccess ? 'bg-green-500 text-white' : 'bg-primary text-white shadow-lg shadow-primary/20 hover:scale-105 active:scale-95'}`}
+                className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                  copySuccess 
+                    ? 'bg-green-500 text-white' 
+                    : 'bg-black text-white shadow-lg hover:bg-gray-800 active:scale-95'
+                }`}
               >
                 {copySuccess ? 'Xong ✓' : 'Sao chép'}
               </button>

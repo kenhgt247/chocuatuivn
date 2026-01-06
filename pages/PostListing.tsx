@@ -112,3 +112,4 @@ const renderDynamicFields = () => {
             return null;
     }
 };
+export default PostListing;

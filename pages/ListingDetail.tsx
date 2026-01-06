@@ -25,41 +25,33 @@ const STATIC_LINKS = [
   { slug: 'huong-dan-dang-tin', title: 'Hỗ trợ' },
 ];
 
-// --- BẢN ĐỒ NHÃN ĐẦY ĐỦ CHO TẤT CẢ DANH MỤC ---
 const ATTRIBUTE_LABELS: Record<string, { label: string; icon: string }> = {
-  // Xe cộ
   mileage: { label: 'Số Km đã đi', icon: '🚗' },
   year: { label: 'Năm sản xuất', icon: '📅' },
   gearbox: { label: 'Hộp số', icon: '⚙️' },
   fuel: { label: 'Nhiên liệu', icon: '⛽' },
   carType: { label: 'Kiểu dáng', icon: '🚙' },
   seatCount: { label: 'Số chỗ', icon: '💺' },
-  // Bất động sản
   area: { label: 'Diện tích', icon: '📐' },
   bedrooms: { label: 'Phòng ngủ', icon: '🛏️' },
   bathrooms: { label: 'Số WC', icon: '🚿' },
   direction: { label: 'Hướng nhà', icon: '🧭' },
   legal: { label: 'Pháp lý', icon: '📜' },
   propertyType: { label: 'Loại hình', icon: '🏘️' },
-  // Đồ điện tử
   battery: { label: 'Pin', icon: '🔋' },
   storage: { label: 'Bộ nhớ', icon: '💾' },
   ram: { label: 'RAM', icon: '⚡' },
   color: { label: 'Màu sắc', icon: '🎨' },
   warranty: { label: 'Bảo hành', icon: '🛡️' },
-  // Điện lạnh
   capacity: { label: 'Công suất', icon: '❄️' },
   inverter: { label: 'Inverter', icon: '📉' },
-  // Thú cưng
   breed: { label: 'Giống loài', icon: '🐕' },
   age: { label: 'Độ tuổi', icon: '🐾' },
   gender: { label: 'Giới tính', icon: '⚧' },
-  // Nội thất / Đồ dùng
   material: { label: 'Chất liệu', icon: '🪵' },
   size: { label: 'Kích thước', icon: '📏' },
   brand: { label: 'Thương hiệu', icon: '🏷️' },
   personalSize: { label: 'Size', icon: '👕' },
-  // Việc làm
   salary: { label: 'Mức lương', icon: '💰' },
   jobType: { label: 'Hình thức', icon: '💼' },
   experience: { label: 'Kinh nghiệm', icon: '🎓' },
@@ -88,14 +80,12 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   useEffect(() => {
     if (!id) return;
     const loadListing = async () => {
-      // Tối ưu: Dùng getListingById nếu có, fallback về getListings
       if (db.getListingById) {
          const l = await db.getListingById(id);
          if (l) {
             setListing(l);
             db.getUserById(l.sellerId).then(setSeller);
             if (user) db.getFavorites(user.id).then(setUserFavorites);
-            // Load similar sau để trang hiện nhanh
             const all = await db.getListings();
             setAllListings(all);
          }
@@ -176,8 +166,8 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             <img src={listing.images[activeImage]} className="w-full h-full object-contain" alt={listing.title} />
             {listing.images.length > 1 && (
               <>
-                <button onClick={() => setActiveImage(prev => prev > 0 ? prev - 1 : listing.images.length - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"><svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" strokeWidth={3}/></svg></button>
-                <button onClick={() => setActiveImage(prev => prev < listing.images.length - 1 ? prev + 1 : 0)} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"><svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" strokeWidth={3}/></svg></button>
+                <button onClick={() => setActiveImage(prev => prev > 0 ? prev - 1 : listing.images.length - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"><svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg></button>
+                <button onClick={() => setActiveImage(prev => prev < listing.images.length - 1 ? prev + 1 : 0)} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"><svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg></button>
               </>
             )}
             <div className="absolute bottom-4 right-4 bg-black/50 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-xs font-bold border border-white/20">{activeImage + 1} / {listing.images.length}</div>
@@ -192,7 +182,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
           )}
 
-          {/* THÔNG SỐ KỸ THUẬT (FULL) */}
+          {/* THÔNG SỐ KỸ THUẬT */}
           {listing.attributes && Object.keys(listing.attributes).length > 0 && (
             <div className="bg-white md:rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-soft animate-fade-in-up">
               <div className="flex items-center gap-3 mb-8">
@@ -228,10 +218,8 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
           {/* Description */}
           <div className="bg-white md:rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-soft space-y-6">
-            <div className="space-y-4">
-              <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Mô tả chi tiết</h2>
-              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-base font-medium">{listing.description}</p>
-            </div>
+            <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Mô tả chi tiết</h2>
+            <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-base font-medium">{listing.description}</p>
             <div className="pt-6 border-t border-gray-100 flex flex-wrap gap-3">
                <div className="bg-bgMain px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase text-gray-500">Tình trạng: <span className="text-textMain">{listing.condition === 'new' ? 'Mới' : 'Đã dùng'}</span></div>
                <div className="bg-bgMain px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase text-gray-500">Danh mục: <span className="text-textMain">{currentCategory?.name || listing.category}</span></div>
@@ -268,26 +256,52 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
               </Link>
 
-              <div className="grid grid-cols-1 gap-3">
-                <button onClick={handleStartChat} className="w-full bg-primary text-white py-4.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primaryHover active:scale-95 transition-all flex items-center justify-center gap-2">💬 Nhắn tin cho người bán</button>
+              {/* KHU VỰC NÚT BẤM (ĐÃ SỬA GIAO DIỆN ĐẸP HƠN) */}
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={handleStartChat} 
+                  className="w-full bg-primary hover:bg-primaryHover text-white py-4 rounded-2xl font-bold text-sm shadow-xl shadow-primary/30 active:scale-95 transition-all flex items-center justify-center gap-3 group"
+                >
+                  <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                  <span>CHAT VỚI NGƯỜI BÁN</span>
+                </button>
+
                 {seller?.phone && (
                   isPhoneVisible ? (
-                    <a href={`tel:${seller.phone}`} className="w-full bg-white border-2 border-primary text-primary py-4.5 rounded-2xl font-black text-xs uppercase tracking-widest text-center hover:bg-primary/5 active:scale-95 transition-all flex items-center justify-center gap-2">📞 Gọi: {seller.phone}</a>
+                    <a 
+                      href={`tel:${seller.phone}`} 
+                      className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-2xl font-bold text-sm shadow-xl shadow-green-500/30 active:scale-95 transition-all flex items-center justify-center gap-3 group"
+                    >
+                      <svg className="w-6 h-6 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                      <span>GỌI: {seller.phone}</span>
+                    </a>
                   ) : (
-                    <button onClick={() => setIsPhoneVisible(true)} className="w-full bg-white border-2 border-primary text-primary py-4.5 rounded-2xl font-black text-xs uppercase tracking-widest text-center hover:bg-primary/5 active:scale-95 transition-all flex items-center justify-center gap-2">📞 Hiện số điện thoại</button>
+                    <button 
+                      onClick={() => setIsPhoneVisible(true)} 
+                      className="w-full bg-white border-2 border-green-500 text-green-600 hover:bg-green-50 py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-3 group"
+                    >
+                      <svg className="w-6 h-6 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                      <span>BẤM ĐỂ HIỆN SỐ ĐIỆN THOẠI</span>
+                    </button>
                   )
                 )}
               </div>
               
               <div className="flex gap-3">
-                <button onClick={handleToggleFav} className="flex-1 flex items-center justify-center gap-2 py-4 border-2 border-gray-100 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all">
-                  <svg className={`w-5 h-5 ${userFavorites.includes(listing.id) ? 'text-red-500 fill-current' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" strokeWidth={2.5}/></svg>
+                <button onClick={handleToggleFav} className="flex-1 flex items-center justify-center gap-2 py-4 border-2 border-gray-100 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all text-gray-500 hover:text-red-500">
+                  <svg className={`w-5 h-5 ${userFavorites.includes(listing.id) ? 'text-red-500 fill-current' : 'text-current'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" strokeWidth={2.5}/></svg>
                   {userFavorites.includes(listing.id) ? 'Đã lưu' : 'Lưu tin'}
                 </button>
-                <button onClick={() => setIsShareModalOpen(true)} className="flex-1 flex items-center justify-center gap-2 py-4 border-2 border-gray-100 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all">📤 Chia sẻ</button>
+                <button onClick={() => setIsShareModalOpen(true)} className="flex-1 flex items-center justify-center gap-2 py-4 border-2 border-gray-100 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all text-gray-500 hover:text-blue-500">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                  Chia sẻ
+                </button>
               </div>
 
-              <button onClick={() => setShowReportModal(true)} className="w-full text-[9px] font-black text-gray-300 uppercase tracking-widest hover:text-red-400 transition-colors py-2 flex items-center justify-center gap-2">🚩 Báo cáo tin đăng vi phạm</button>
+              <button onClick={() => setShowReportModal(true)} className="w-full text-[9px] font-black text-gray-300 uppercase tracking-widest hover:text-red-400 transition-colors py-2 flex items-center justify-center gap-2">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                Báo cáo tin đăng vi phạm
+              </button>
             </div>
           </div>
         </div>

@@ -147,7 +147,7 @@ export const db = {
     return snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
   },
 
-  // THÊM MỚI: Lấy chi tiết 1 tin (Tối ưu tốc độ load trang ListingDetail)
+  // [MỚI] Lấy chi tiết 1 tin theo ID (Tối ưu cho trang ListingDetail)
   getListingById: async (id: string): Promise<Listing | null> => {
     try {
       const docRef = doc(firestore, "listings", id);
@@ -157,12 +157,12 @@ export const db = {
       }
       return null;
     } catch (e) {
-      console.error("Error getting listing:", e);
+      console.error("Error getting listing by ID:", e);
       return null;
     }
   },
 
-  // [QUAN TRỌNG] ĐĂNG TIN + GỬI MAIL ADMIN (Đã cập nhật để lưu attributes)
+  // [QUAN TRỌNG] ĐĂNG TIN + GỬI MAIL ADMIN (Đã update để lưu attributes)
   saveListing: async (listingData: any) => {
     try {
       // 1. Chuẩn bị dữ liệu (Đảm bảo có attributes và createdAt)
@@ -170,7 +170,8 @@ export const db = {
         ...listingData,
         createdAt: new Date().toISOString(),
         status: listingData.status || 'pending',
-        attributes: listingData.attributes || {} // Đảm bảo lưu thông số chi tiết
+        // Đảm bảo lưu object attributes (chứa ODO, Pin, Hướng nhà...)
+        attributes: listingData.attributes || {} 
       };
 
       // 2. Lưu tin vào Firestore
@@ -182,11 +183,11 @@ export const db = {
         message: {
           subject: `[Tin Mới] ${listingData.title} - Cần duyệt`,
           html: `
-            <h3>Có người đăng tin bán hàng mới!</h3>
+            <h3 style="color: #0066cc;">Có người đăng tin bán hàng mới!</h3>
             <p><strong>Tiêu đề:</strong> ${listingData.title}</p>
             <p><strong>Giá:</strong> ${Number(listingData.price).toLocaleString()} VNĐ</p>
-            <p><strong>Danh mục:</strong> ${listingData.category}</p>
-            <p><strong>ID Người bán:</strong> ${listingData.sellerId}</p>
+            <p><strong>Danh mục ID:</strong> ${listingData.category}</p>
+            <p><strong>Người bán:</strong> ${listingData.sellerName}</p>
             <p>Vui lòng vào trang Admin để kiểm duyệt.</p>
           `
         }

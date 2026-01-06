@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, SchemaType } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 // 1. Định nghĩa Interface kết quả trả về (Đầy đủ mọi trường như Chợ Tốt)
 export interface ListingAnalysis {
@@ -76,22 +76,15 @@ Danh mục ID và Tên:
 13: Các loại khác
 `;
 
-// --- XỬ LÝ API KEY AN TOÀN ---
-// Ưu tiên lấy từ biến môi trường Vite, nếu không có thì fallback (bạn nên điền key vào .env)
-const API_KEY = (import.meta as any).env?.VITE_GEMINI_API_KEY || "DÁN_API_KEY_CỦA_BẠN_VÀO_ĐÂY";
-
-const getAIClient = () => {
-  if (!API_KEY || API_KEY.includes("DÁN_API_KEY")) {
-    console.error("❌ Thiếu API Key trong services/geminiService.ts");
-    throw new Error("Vui lòng cấu hình API Key");
-  }
-  return new GoogleGenAI({ apiKey: API_KEY });
+// Lấy API Key: Ưu tiên biến môi trường Vite, fallback sang process.env (như code cũ của bạn)
+const getApiKey = () => {
+  return (import.meta as any).env?.VITE_GEMINI_API_KEY || (process as any).env?.API_KEY || "";
 };
 
 // 2. Hàm nhận diện từ khóa (Dùng model Flash cho nhanh)
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
   try {
-    const ai = getAIClient();
+    const ai = new GoogleGenAI({ apiKey: getApiKey() });
     const imagePart = {
       inlineData: {
         mimeType: 'image/jpeg',
@@ -100,7 +93,7 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', // Dùng model Flash thế hệ 3
+      model: 'gemini-3-flash-preview', // Giữ nguyên model 3 flash
       contents: {
         parts: [
           imagePart,
@@ -115,10 +108,10 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
   }
 };
 
-// 3. Hàm phân tích chi tiết & bóc tách thông số (Dùng model Pro + Schema JSON)
+// 3. Hàm phân tích chi tiết & bóc tách thông số (Dùng model Pro 3 + Schema JSON)
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   try {
-    const ai = getAIClient();
+    const ai = new GoogleGenAI({ apiKey: getApiKey() });
     const imageParts = imagesBase64.map(base64 => ({
       inlineData: {
         mimeType: 'image/jpeg',
@@ -127,7 +120,7 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     }));
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // Dùng model Pro thế hệ 3 để suy luận sâu
+      model: 'gemini-3-pro-preview', // Giữ nguyên model 3 pro để suy luận sâu
       contents: {
         parts: [
           ...imageParts,

@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 
 export interface ListingAnalysis {
@@ -9,6 +8,15 @@ export interface ListingAnalysis {
   condition: 'new' | 'used';
   isProhibited: boolean;
   prohibitedReason?: string;
+  // --- MỚI: Thêm attributes để chứa thông số kỹ thuật bóc tách từ AI ---
+  attributes?: {
+    battery?: string;
+    mileage?: string;
+    area?: string;
+    year?: string;
+    storage?: string;
+    [key: string]: any;
+  };
 }
 
 const CATEGORY_MAP_PROMPT = `
@@ -31,7 +39,6 @@ Danh mục ID và Tên:
 // Sử dụng model gemini-3-flash-preview cho nhiệm vụ nhận diện từ khóa đơn giản
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
   try {
-    // Khởi tạo trực tiếp bằng process.env.API_KEY theo hướng dẫn
     const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
     const imagePart = {
       inlineData: {
@@ -40,7 +47,6 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
       },
     };
 
-    // Sử dụng contents dưới dạng object thay vì array theo hướng dẫn mới nhất
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
@@ -50,7 +56,6 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
         ]
       }
     });
-    // Trích xuất văn bản từ response.text property
     return response.text?.trim() || "";
   } catch (error) {
     console.error("Image Recognition Error:", error);
@@ -61,7 +66,6 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
 // Sử dụng model gemini-3-pro-preview cho nhiệm vụ phân tích hình ảnh phức tạp
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   try {
-    // Luôn tạo instance GoogleGenAI ngay trước khi gọi để đảm bảo sử dụng API Key mới nhất
     const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
     const imageParts = imagesBase64.map(base64 => ({
       inlineData: {
@@ -83,12 +87,15 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
           3. Đề xuất tiêu đề thu hút.
           4. Đề xuất giá bán hợp lý (VNĐ).
           5. Xác định tình trạng (new/used).
-          6. Viết mô tả ngắn gọn, chuyên nghiệp.` }
+          6. Viết mô tả ngắn gọn, chuyên nghiệp.
+          7. TRÍCH XUẤT THÔNG SỐ CỨNG (Nếu có): 
+             - Xe cộ: Tìm số ODO (km đã đi) trên bảng đồng hồ, năm sản xuất.
+             - Đồ điện tử: Tìm phần trăm pin, dung lượng bộ nhớ.
+             - Bất động sản: Ước lượng diện tích m2 nếu có thông tin.` }
         ]
       },
       config: {
         responseMimeType: "application/json",
-        // Bật thinkingBudget để model Pro có không gian suy luận sâu hơn cho dữ liệu multimodal
         thinkingConfig: { thinkingBudget: 32768 },
         responseSchema: {
           type: Type.OBJECT,
@@ -99,7 +106,18 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
             category: { type: Type.STRING, description: "ID danh mục từ 1-13" },
             suggestedPrice: { type: Type.NUMBER },
             condition: { type: Type.STRING },
-            description: { type: Type.STRING }
+            description: { type: Type.STRING },
+            // --- MỚI: Schema cho các thuộc tính bóc tách ---
+            attributes: {
+              type: Type.OBJECT,
+              properties: {
+                battery: { type: Type.STRING, description: "Phần trăm pin (ví dụ: 98)" },
+                mileage: { type: Type.STRING, description: "Số km đã đi (ví dụ: 15000)" },
+                area: { type: Type.STRING, description: "Diện tích m2 (ví dụ: 45)" },
+                year: { type: Type.STRING, description: "Năm sản xuất (ví dụ: 2022)" },
+                storage: { type: Type.STRING, description: "Bộ nhớ (ví dụ: 256GB)" }
+              }
+            }
           },
           required: ["isProhibited", "title", "category", "suggestedPrice", "condition", "description"]
         }

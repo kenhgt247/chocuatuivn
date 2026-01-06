@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Listing, Transaction, Report } from '../types';
-import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
+import { formatPrice, getListingUrl } from '../utils/format';
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
 type AdminTab = 'stats' | 'listings' | 'reports' | 'users' | 'payments' | 'settings';
@@ -26,49 +26,62 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>('stats');
 
-  // --- DATA STATES ---
-  const [users, setUsers] = useState<User[]>([]);
+  // --- GLOBAL DATA STATES ---
   const [reports, setReports] = useState<Report[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
-   
-  // --- LISTING STATES (PHÂN TRANG & FILTER) ---
-  const [listings, setListings] = useState<Listing[]>([]); 
-  const [lastDocs, setLastDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
-  const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(1);
+
+  // --- LISTING STATES (Pagination) ---
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [listingLastDocs, setListingLastDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
+  const [hasMoreListings, setHasMoreListings] = useState(true);
+  const [listingPage, setListingPage] = useState(1);
   const [listingSearch, setListingSearch] = useState('');
-  // THÊM: State lọc trạng thái tin (all hoặc pending)
-  const [listingStatusFilter, setListingStatusFilter] = useState<'all' | 'pending'>('pending'); 
+  const [listingStatusFilter, setListingStatusFilter] = useState<'all' | 'pending'>('pending');
   const [selectedListings, setSelectedListings] = useState<Set<string>>(new Set());
+
+  // --- USER STATES (Pagination - MỚI) ---
+  const [users, setUsers] = useState<User[]>([]);
+  const [userLastDocs, setUserLastDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
+  const [hasMoreUsers, setHasMoreUsers] = useState(true);
+  const [userPage, setUserPage] = useState(1);
+  const [isUserLoading, setIsUserLoading] = useState(false); // Loading riêng cho tab User
+
   const ITEMS_PER_PAGE = 10;
 
   // --- UI STATES ---
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // Loading chung
   const [confirmModal, setConfirmModal] = useState<ConfirmState>({ show: false, title: '', message: '', type: 'warning', onConfirm: () => {} });
   const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'success' });
-   
+
   // Modals
   const [editModal, setEditModal] = useState<EditListingState>({ show: false, listing: null });
   const [verifyModal, setVerifyModal] = useState<VerificationModalState>({ show: false, user: null });
-   
+  
   // Forms
   const [editForm, setEditForm] = useState({ title: '', price: 0, status: '' });
 
-  // --- INIT DATA ---
+  // --- 1. INIT DATA ---
   useEffect(() => {
     if (!user || user.role !== 'admin') { navigate('/'); return; }
     loadInitialData();
   }, [user]);
 
-  // Khi thay đổi bộ lọc (All/Pending), reset lại list và load lại
+  // Khi thay đổi filter Listings -> Reset và load lại
   useEffect(() => {
     if (activeTab === 'listings') {
-        setPage(1);
-        setLastDocs([]);
+        setListingPage(1);
+        setListingLastDocs([]);
         loadListings(null);
     }
   }, [listingStatusFilter]);
+
+  // Khi chuyển sang tab Users lần đầu -> Load Users
+  useEffect(() => {
+    if (activeTab === 'users' && users.length === 0) {
+        loadUsers(null);
+    }
+  }, [activeTab]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ show: true, message, type });
@@ -78,13 +91,13 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const loadInitialData = async () => {
     setIsLoading(true);
     try {
-      const [allUsers, allReports, allTxs, allSettings] = await Promise.all([
-        db.getAllUsers(),
+      // Chỉ load Reports, Transactions, Settings và trang 1 Listings. 
+      // KHÔNG load Users ở đây để tránh nặng.
+      const [allReports, allTxs, allSettings] = await Promise.all([
         db.getAllReports(),
         db.getTransactions(),
         db.getSettings()
       ]);
-      setUsers(allUsers);
       setReports(allReports);
       setTransactions(allTxs);
       setSettings(allSettings);
@@ -98,42 +111,129 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
     }
   };
 
-  // --- LOGIC PHÂN TRANG LISTINGS ---
+  // --- 2. LOGIC LISTINGS (PAGINATION FIXED) ---
   const loadListings = async (lastDoc: QueryDocumentSnapshot<DocumentData> | null, isNext = true) => {
     setIsLoading(true);
-    // Truyền filter status vào db query
     const res = await db.getListingsPaged({
         pageSize: ITEMS_PER_PAGE,
         lastDoc: lastDoc,
         search: listingSearch || undefined,
-        status: listingStatusFilter === 'all' ? undefined : listingStatusFilter // Lọc theo tab đang chọn
+        status: listingStatusFilter === 'all' ? undefined : listingStatusFilter
     });
 
     if (!res.error) {
         setListings(res.listings);
-        setHasMore(res.hasMore);
+        setHasMoreListings(res.hasMore);
         if (res.lastDoc && isNext) {
-            setLastDocs(prev => [...prev, res.lastDoc!]);
+            setListingLastDocs(prev => [...prev, res.lastDoc!]);
         }
     }
     setIsLoading(false);
   };
 
+  const handleNextListingPage = () => {
+    if (!hasMoreListings) return;
+    const nextCursor = listingLastDocs[listingPage - 1];
+    setListingPage(p => p + 1);
+    loadListings(nextCursor, true);
+  };
+
+  const handlePrevListingPage = () => {
+    if (listingPage === 1) return;
+    // Logic lùi trang: Nếu về trang 1 thì cursor là null. Nếu về trang > 1 thì lấy cursor của trang đó (index - 3)
+    const prevCursor = (listingPage - 1) === 1 ? null : listingLastDocs[listingPage - 3];
+    setListingPage(p => p - 1);
+    loadListings(prevCursor, false);
+  };
+
   const handleSearchListings = (e: React.FormEvent) => {
     e.preventDefault();
-    setPage(1);
-    setLastDocs([]);
+    setListingPage(1);
+    setListingLastDocs([]);
     loadListings(null);
   };
 
-  // --- KHÔI PHỤC LOGIC DUYỆT TIN NHANH ---
+  // --- 3. LOGIC USERS (PAGINATION MỚI) ---
+  const loadUsers = async (lastDoc: QueryDocumentSnapshot<DocumentData> | null, isNext = true) => {
+    setIsUserLoading(true);
+    const res = await db.getUsersPaged({
+        pageSize: ITEMS_PER_PAGE,
+        lastDoc: lastDoc
+        // Có thể thêm search ở đây nếu muốn mở rộng
+    });
+
+    if (!res.error) {
+        setUsers(res.users);
+        setHasMoreUsers(res.hasMore);
+        if (res.lastDoc && isNext) {
+            setUserLastDocs(prev => [...prev, res.lastDoc!]);
+        }
+    }
+    setIsUserLoading(false);
+  };
+
+  const handleNextUserPage = () => {
+    if (!hasMoreUsers) return;
+    const nextCursor = userLastDocs[userPage - 1];
+    setUserPage(p => p + 1);
+    loadUsers(nextCursor, true);
+  };
+
+  const handlePrevUserPage = () => {
+    if (userPage === 1) return;
+    const prevCursor = (userPage - 1) === 1 ? null : userLastDocs[userPage - 3];
+    setUserPage(p => p - 1);
+    loadUsers(prevCursor, false);
+  };
+
+  // --- 4. LOGIC REPORTS (OPTIMISTIC UI) ---
+  // Xử lý báo cáo mượt mà: Cập nhật UI ngay -> Gọi API sau
+  const handleResolveReport = async (reportId: string) => {
+    const originalReports = [...reports];
+    // Optimistic Update
+    setReports(prev => prev.filter(r => r.id !== reportId));
+    try {
+        await db.resolveReport(reportId);
+        showToast("✅ Đã xử lý báo cáo");
+    } catch (error) {
+        setReports(originalReports); // Revert nếu lỗi
+        showToast("Lỗi kết nối", "error");
+    }
+  };
+
+  const handleDeleteListingFromReport = async (reportId: string, listingId: string) => {
+    setConfirmModal({
+        show: true, 
+        title: "Xóa tin & Đóng báo cáo?", 
+        message: "Tin đăng sẽ bị xóa vĩnh viễn và báo cáo được đánh dấu đã xử lý.", 
+        type: 'danger',
+        onConfirm: async () => {
+            setConfirmModal(prev => ({ ...prev, show: false }));
+            
+            // Optimistic Update UI
+            setReports(prev => prev.filter(r => r.id !== reportId));
+            setListings(prev => prev.filter(l => l.id !== listingId)); // Cập nhật cả list tin nếu đang hiện
+
+            try {
+                await db.deleteListing(listingId);
+                await db.resolveReport(reportId);
+                showToast("✅ Đã xóa tin và xử lý");
+            } catch (error) {
+                showToast("Lỗi khi xóa tin", "error");
+                // Reload data để đảm bảo đồng bộ
+                loadInitialData();
+            }
+        }
+    });
+  };
+
+  // --- 5. ACTIONS: LISTINGS (Approve/Reject/Batch) ---
   const handleApproveListing = async (lId: string) => {
     setIsLoading(true);
     await db.updateListingStatus(lId, 'approved');
     showToast("✅ Đã duyệt tin đăng");
-    // Cập nhật giao diện ngay lập tức
+    // Update local state
     setListings(prev => prev.map(l => l.id === lId ? { ...l, status: 'approved' } as Listing : l));
-    // Nếu đang ở tab Pending, sau khi duyệt xong có thể muốn loại bỏ nó khỏi list:
     if (listingStatusFilter === 'pending') {
         setListings(prev => prev.filter(l => l.id !== lId));
     }
@@ -160,7 +260,6 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
     });
   };
 
-  // --- LOGIC SỬA TIN & XÓA HÀNG LOẠT ---
   const toggleSelectListing = (id: string) => {
     const newSet = new Set(selectedListings);
     if (newSet.has(id)) newSet.delete(id); else newSet.add(id);
@@ -183,13 +282,15 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
             if(res.success) {
                 showToast(`Đã xóa ${ids.length} tin.`);
                 setSelectedListings(new Set());
-                loadListings(null); 
+                // Reload trang hiện tại để lấp đầy khoảng trống
+                loadListings(listingPage === 1 ? null : listingLastDocs[listingPage - 2] || null, false); 
             } else { showToast("Lỗi xóa: " + res.error, "error"); }
             setIsLoading(false);
         }
     });
   };
 
+  // --- 6. ACTIONS: EDIT LISTING ---
   const openEditModal = (l: Listing) => {
     setEditForm({ title: l.title, price: l.price, status: l.status });
     setEditModal({ show: true, listing: l });
@@ -210,14 +311,14 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
     } else { showToast("Lỗi cập nhật", "error"); }
   };
 
-  // --- LOGIC THANH TOÁN (DUYỆT/TỪ CHỐI) ---
+  // --- 7. ACTIONS: PAYMENTS & KYC ---
   const handleApprovePayment = (txId: string) => {
     setConfirmModal({
         show: true, title: "Duyệt giao dịch", message: "Tiền/Gói sẽ được cộng cho user ngay lập tức.", type: 'success',
         onConfirm: async () => {
             setConfirmModal(prev => ({...prev, show: false})); setIsLoading(true);
             const res = await db.approveTransaction(txId);
-            if(res.success) { showToast("Giao dịch thành công!"); loadInitialData(); }
+            if(res.success) { showToast("Giao dịch thành công!"); loadInitialData(); } // Reload để update ví user nếu cần
             else { showToast("Lỗi: " + res.message, "error"); setIsLoading(false); }
         }
     });
@@ -235,12 +336,14 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
     });
   };
 
-  // --- LOGIC USER & KYC ---
   const handleProcessKyc = (u: User, status: 'verified' | 'rejected') => {
-    setVerifyModal({ show: false, user: null }); setIsLoading(true);
+    setVerifyModal({ show: false, user: null }); 
+    // Optimistic Update cho Users list
+    setUsers(prev => prev.map(usr => usr.id === u.id ? { ...usr, verificationStatus: status } : usr));
+    
     db.updateUserProfile(u.id, { verificationStatus: status })
-       .then(() => { showToast(status === 'verified' ? `Đã xác thực ${u.name}` : `Đã từ chối ${u.name}`); loadInitialData(); })
-       .catch(() => { showToast("Lỗi xử lý KYC", "error"); setIsLoading(false); });
+       .then(() => { showToast(status === 'verified' ? `Đã xác thực ${u.name}` : `Đã từ chối ${u.name}`); })
+       .catch(() => { showToast("Lỗi xử lý KYC", "error"); loadUsers(null); }); // Revert nếu lỗi bằng cách reload
   };
 
   const toggleUserStatus = (u: User) => {
@@ -248,14 +351,18 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
       setConfirmModal({
           show: true, title: newStatus === 'banned' ? "Khóa tài khoản" : "Mở khóa", message: "Xác nhận hành động?", type: newStatus === 'banned' ? 'danger' : 'success',
           onConfirm: async () => {
-              setConfirmModal(prev => ({...prev, show: false})); setIsLoading(true);
+              setConfirmModal(prev => ({...prev, show: false})); 
+              
+              // Optimistic update
+              setUsers(prev => prev.map(usr => usr.id === u.id ? { ...usr, status: newStatus } : usr));
+
               await db.updateUserProfile(u.id, { status: newStatus });
-              showToast("Đã cập nhật trạng thái user"); loadInitialData();
+              showToast("Đã cập nhật trạng thái user");
           }
       });
   };
 
-  // --- LOGIC SETTINGS & QR ---
+  // --- 8. ACTIONS: SETTINGS ---
   const handleQRUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file || !settings) return;
     const reader = new FileReader();
@@ -272,11 +379,9 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   // --- CALCULATED LISTS ---
   const pendingPayments = useMemo(() => transactions.filter(t => t.status === 'pending'), [transactions]);
   const activeReports = useMemo(() => reports.filter(r => r.status === 'pending'), [reports]);
+  // Pending verification tạm tính theo list users hiện tại (hoặc cần API count riêng nếu muốn chính xác tuyệt đối)
   const pendingVerifications = useMemo(() => users.filter(u => u.verificationStatus === 'pending'), [users]);
 
-  // Đếm số lượng tin Pending (Chỉ là ước lượng nếu pagination không trả về count tổng)
-  // Nhưng ở đây ta cứ coi như admin cần check tab "Chờ duyệt"
-  
   if (!user || user.role !== 'admin' || !settings) return null;
 
   return (
@@ -357,9 +462,9 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                {[
                  { id: 'stats', label: 'Bàn làm việc', icon: '📊' },
                  { id: 'payments', label: 'Duyệt tiền', icon: '💰', count: pendingPayments.length },
-                 { id: 'listings', label: 'Duyệt tin', icon: '📦' }, // count: pendingListings.length - nếu muốn hiện count phải fetch riêng
+                 { id: 'listings', label: 'Duyệt tin', icon: '📦' },
                  { id: 'reports', label: 'Báo cáo', icon: '🚨', count: activeReports.length },
-                 { id: 'users', label: 'Thành viên', icon: '👥', count: pendingVerifications.length },
+                 { id: 'users', label: 'Thành viên', icon: '👥' }, // Bỏ count badge vì dùng pagination, hoặc dùng pendingVerifications.length nếu muốn
                  { id: 'settings', label: 'Cấu hình', icon: '⚙️' },
                ].map(tab => (
                    <button key={tab.id} onClick={() => setActiveTab(tab.id as AdminTab)} className={`w-full flex items-center justify-between px-5 py-3.5 rounded-2xl text-[11px] font-black uppercase transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}>
@@ -382,8 +487,8 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                     {[
                       { label: 'Doanh thu', value: formatPrice(transactions.filter(t => t.status === 'success' && t.type === 'payment').reduce((s, t) => s + t.amount, 0)), color: 'text-primary' },
                       { label: 'Chờ duyệt tiền', value: formatPrice(pendingPayments.reduce((s, t) => s + t.amount, 0)), color: 'text-yellow-600' },
-                      { label: 'Tổng User', value: users.length, color: 'text-textMain' },
-                      { label: 'Tổng Tin', value: "∞", color: 'text-green-600' }
+                      { label: 'Tổng User (Trang này)', value: users.length, color: 'text-textMain' },
+                      { label: 'Trạng thái', value: "Online", color: 'text-green-600' }
                     ].map((s, i) => (
                       <div key={i} className="bg-white p-6 rounded-3xl border border-borderMain shadow-soft text-center space-y-1">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{s.label}</p>
@@ -429,13 +534,12 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
              </div>
          )}
 
-         {/* === TAB LISTINGS (NEW: PAGINATION + BATCH + FILTER) === */}
+         {/* === TAB LISTINGS (FIXED PAGINATION) === */}
          {activeTab === 'listings' && (
              <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-6">
                  <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                      <div>
                         <h3 className="text-xl font-black">Quản lý tin đăng</h3>
-                        {/* THÊM: Bộ lọc nhanh */}
                         <div className="flex gap-2 mt-2">
                              <button onClick={() => setListingStatusFilter('pending')} className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border ${listingStatusFilter === 'pending' ? 'bg-yellow-500 text-white border-yellow-500 shadow-md' : 'bg-white border-gray-200 text-gray-500'}`}>Chờ duyệt</button>
                              <button onClick={() => setListingStatusFilter('all')} className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border ${listingStatusFilter === 'all' ? 'bg-primary text-white border-primary shadow-md' : 'bg-white border-gray-200 text-gray-500'}`}>Tất cả</button>
@@ -472,14 +576,12 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                      <td className="py-4"><span className={`text-[9px] px-2 py-1 rounded font-black uppercase ${l.status === 'approved' ? 'bg-green-100 text-green-600' : l.status === 'pending' ? 'bg-yellow-100 text-yellow-600' : 'bg-red-100 text-red-600'}`}>{l.status}</span></td>
                                      <td className="py-4 text-right">
                                          <div className="flex justify-end gap-2">
-                                             {/* THÊM: Nút duyệt nhanh nếu là Pending */}
                                              {l.status === 'pending' && (
                                                 <>
                                                     <button onClick={() => handleApproveListing(l.id)} className="bg-green-500 text-white p-2 rounded-lg transition-colors hover:shadow-lg" title="Duyệt ngay">✅</button>
                                                     <button onClick={() => handleRejectListing(l.id)} className="bg-red-100 text-red-500 p-2 rounded-lg transition-colors hover:bg-red-200" title="Từ chối">⛔</button>
                                                 </>
                                              )}
-                                             
                                              <button onClick={() => openEditModal(l)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-colors" title="Sửa nhanh">✏️</button>
                                              <button onClick={() => { setSelectedListings(new Set([l.id])); handleBatchDelete(); }} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Xóa">🗑</button>
                                          </div>
@@ -490,22 +592,24 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                      </table>
                      {listings.length === 0 && <div className="text-center py-10 text-gray-400 font-bold text-xs uppercase">Không tìm thấy tin nào.</div>}
                  </div>
+                 {/* LISTING PAGINATION CONTROLS */}
                  <div className="flex justify-between items-center pt-4 border-t border-gray-100">
-                     <p className="text-[10px] font-bold text-gray-400 uppercase">Trang {page}</p>
+                     <p className="text-[10px] font-bold text-gray-400 uppercase">Trang {listingPage}</p>
                      <div className="flex gap-2">
-                         <button onClick={() => { setPage(p => Math.max(1, p-1)); loadListings(null, false); }} disabled={page === 1} className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-bold uppercase hover:bg-gray-50 disabled:opacity-50">Trước</button>
-                         <button onClick={() => { setPage(p => p+1); loadListings(listings[listings.length-1] as any); }} disabled={!hasMore} className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold uppercase hover:bg-primaryHover disabled:opacity-50">Sau</button>
+                         <button onClick={handlePrevListingPage} disabled={listingPage === 1 || isLoading} className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-bold uppercase hover:bg-gray-50 disabled:opacity-50">Trước</button>
+                         <button onClick={handleNextListingPage} disabled={!hasMoreListings || isLoading} className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold uppercase hover:bg-primaryHover disabled:opacity-50">Sau</button>
                      </div>
                  </div>
              </div>
          )}
 
-         {/* === TAB USERS (CÓ KYC) === */}
+         {/* === TAB USERS (PAGINATION MỚI) === */}
          {activeTab === 'users' && (
              <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-8">
+                {/* Phần Alert Pending KYC (Nếu cần có thể lọc từ danh sách trang hiện tại hoặc dùng API count riêng) */}
                 {pendingVerifications.length > 0 && (
                     <div className="bg-yellow-50 border border-yellow-100 rounded-3xl p-6">
-                        <h3 className="text-lg font-black text-yellow-800 mb-4 flex items-center gap-2"><span className="animate-pulse">⚠️</span> Yêu cầu xác thực ({pendingVerifications.length})</h3>
+                        <h3 className="text-lg font-black text-yellow-800 mb-4 flex items-center gap-2"><span className="animate-pulse">⚠️</span> Yêu cầu xác thực (Trang này)</h3>
                         <div className="grid md:grid-cols-2 gap-4">
                             {pendingVerifications.map(u => (
                                 <div key={u.id} className="bg-white p-4 rounded-2xl flex items-center justify-between shadow-sm">
@@ -516,7 +620,12 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                         </div>
                     </div>
                 )}
-                <h3 className="text-xl font-black mb-8">Danh sách thành viên ({users.length})</h3>
+                
+                <div className="flex justify-between items-center">
+                    <h3 className="text-xl font-black">Danh sách thành viên</h3>
+                    {isUserLoading && <span className="text-xs font-bold text-primary animate-pulse">Đang tải...</span>}
+                </div>
+
                 <div className="overflow-x-auto">
                    <table className="w-full text-left">
                       <thead><tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100"><th className="pb-4">User</th><th className="pb-4">Xác thực</th><th className="pb-4">Ví</th><th className="pb-4">Thao tác</th></tr></thead>
@@ -536,16 +645,25 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                         ))}
                       </tbody>
                    </table>
+                   {users.length === 0 && !isUserLoading && <div className="text-center py-10 text-gray-400 font-bold text-xs uppercase">Không tìm thấy thành viên nào.</div>}
                 </div>
+                {/* USER PAGINATION CONTROLS */}
+                <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+                     <p className="text-[10px] font-bold text-gray-400 uppercase">Trang {userPage}</p>
+                     <div className="flex gap-2">
+                         <button onClick={handlePrevUserPage} disabled={userPage === 1 || isUserLoading} className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-bold uppercase hover:bg-gray-50 disabled:opacity-50">Trước</button>
+                         <button onClick={handleNextUserPage} disabled={!hasMoreUsers || isUserLoading} className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold uppercase hover:bg-primaryHover disabled:opacity-50">Sau</button>
+                     </div>
+                 </div>
              </div>
          )}
 
-         {/* === TAB REPORTS === */}
+         {/* === TAB REPORTS (OPTIMISTIC UI) === */}
          {activeTab === 'reports' && (
              <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft">
-                 <h3 className="text-xl font-black mb-8">Báo cáo vi phạm ({reports.length})</h3>
+                 <h3 className="text-xl font-black mb-8">Báo cáo vi phạm ({activeReports.length})</h3>
                  <div className="space-y-4">
-                    {reports.map(r => (
+                    {activeReports.map(r => (
                         <div key={r.id} className="border-2 border-red-50 bg-red-50/10 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
                             <div className="flex-1 space-y-2">
                                 <div className="flex items-center gap-3"><span className="bg-red-500 text-white text-[9px] font-black px-2 py-1 rounded uppercase">VI PHẠM</span><h4 className="text-sm font-black text-textMain">{r.reason}</h4></div>
@@ -553,12 +671,12 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                 <p className="text-[10px] text-gray-400 font-bold uppercase">ID Tin: {r.listingId}</p>
                             </div>
                             <div className="flex gap-2">
-                                <button onClick={() => db.resolveReport(r.id).then(() => { showToast("Đã xử lý"); loadInitialData(); })} className="bg-green-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase">Đánh dấu xử lý</button>
-                                <button onClick={() => db.deleteListing(r.listingId).then(() => db.resolveReport(r.id)).then(() => { showToast("Đã xóa tin"); loadInitialData(); })} className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase">Xóa tin</button>
+                                <button onClick={() => handleResolveReport(r.id)} className="bg-green-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:scale-105 transition-transform">Đánh dấu xử lý</button>
+                                <button onClick={() => handleDeleteListingFromReport(r.id, r.listingId)} className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:scale-105 transition-transform">Xóa tin</button>
                             </div>
                         </div>
                     ))}
-                    {reports.length === 0 && <div className="text-center py-20 text-gray-400 font-bold bg-bgMain rounded-3xl uppercase text-[10px] tracking-widest">Không có báo cáo.</div>}
+                    {activeReports.length === 0 && <div className="text-center py-20 text-gray-400 font-bold bg-bgMain rounded-3xl uppercase text-[10px] tracking-widest">Không có báo cáo.</div>}
                  </div>
              </div>
          )}

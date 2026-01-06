@@ -150,7 +150,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           {listing.title}
         </span>
       </nav>
-      {/* ------------------- */}
 
       <div className="grid lg:grid-cols-12 gap-0 md:gap-8 bg-white md:bg-transparent overflow-hidden">
         
@@ -185,7 +184,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
           </div>
 
-          {/* Thumbnails trên Desktop */}
           {listing.images.length > 1 && (
             <div className="hidden md:flex gap-3 overflow-x-auto no-scrollbar py-2">
               {listing.images.map((img, idx) => (
@@ -197,6 +195,60 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                   <img src={img} className="w-full h-full object-cover" alt="" />
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* Khối Thông số kỹ thuật (MỚI) */}
+          {listing.attributes && Object.values(listing.attributes).some(v => v) && (
+            <div className="bg-white md:rounded-[2.5rem] p-6 md:p-8 border border-gray-100 shadow-sm animate-fade-in-up">
+              <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6">Thông số kỹ thuật</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                {listing.attributes.battery && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center text-green-600 text-lg">🔋</div>
+                    <div>
+                      <p className="text-[9px] font-black text-gray-400 uppercase">Pin</p>
+                      <p className="text-sm font-bold text-textMain">{listing.attributes.battery}%</p>
+                    </div>
+                  </div>
+                )}
+                {listing.attributes.mileage && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 text-lg">🚗</div>
+                    <div>
+                      <p className="text-[9px] font-black text-gray-400 uppercase">Số Km</p>
+                      <p className="text-sm font-bold text-textMain">{parseInt(listing.attributes.mileage).toLocaleString()} Km</p>
+                    </div>
+                  </div>
+                )}
+                {listing.attributes.area && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600 text-lg">📐</div>
+                    <div>
+                      <p className="text-[9px] font-black text-gray-400 uppercase">Diện tích</p>
+                      <p className="text-sm font-bold text-textMain">{listing.attributes.area} m²</p>
+                    </div>
+                  </div>
+                )}
+                {listing.attributes.storage && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 text-lg">💾</div>
+                    <div>
+                      <p className="text-[9px] font-black text-gray-400 uppercase">Bộ nhớ</p>
+                      <p className="text-sm font-bold text-textMain">{listing.attributes.storage}</p>
+                    </div>
+                  </div>
+                )}
+                {listing.attributes.year && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-600 text-lg">📅</div>
+                    <div>
+                      <p className="text-[9px] font-black text-gray-400 uppercase">Năm SX</p>
+                      <p className="text-sm font-bold text-textMain">{listing.attributes.year}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Listing, Transaction, Report } from '../types';
 import { formatPrice, getListingUrl } from '../utils/format';
-import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { QueryDocumentSnapshot, DocumentData, collection, getDocs, getFirestore } from 'firebase/firestore';
 
 type AdminTab = 'stats' | 'listings' | 'reports' | 'users' | 'payments' | 'settings';
 
@@ -23,7 +23,6 @@ interface VerificationModalState {
 
 const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const navigate = useNavigate();
-  // Đã xóa fileInputRef vì không còn dùng upload ảnh QR thủ công
   const [activeTab, setActiveTab] = useState<AdminTab>('stats');
 
   // --- GLOBAL DATA STATES ---
@@ -347,13 +346,66 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
       });
   };
 
-  // --- 8. ACTIONS: SETTINGS ---
-  // Đã xóa hàm handleQRUpload
-
+  // --- 8. ACTIONS: SETTINGS & TOOLS ---
+  
   const handleSaveSettings = async (e: React.FormEvent) => {
       e.preventDefault(); setIsLoading(true);
       await db.updateSettings(settings);
       setIsLoading(false); showToast("Đã lưu cấu hình hệ thống!");
+  };
+
+  const handleDownloadSitemap = async () => {
+    setIsLoading(true);
+    try {
+      // 1. Lấy toàn bộ Listing ID và ngày cập nhật
+      const firestore = getFirestore();
+      const qListings = collection(firestore, "listings");
+      const snap = await getDocs(qListings);
+      const allListings = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Listing));
+
+      // 2. Tạo nội dung XML
+      let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://www.chocuatui.vn/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://www.chocuatui.vn/login</loc><priority>0.8</priority></url>
+  <url><loc>https://www.chocuatui.vn/register</loc><priority>0.8</priority></url>
+  <url><loc>https://www.chocuatui.vn/wallet</loc><priority>0.8</priority></url>`;
+
+      // 3. Vòng lặp qua các tin đăng thực tế
+      allListings.forEach(l => {
+        // Chỉ index tin đã duyệt
+        if (l.status === 'approved') {
+            const date = l.createdAt ? new Date(l.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+            xml += `
+  <url>
+    <loc>https://www.chocuatui.vn/listing/${l.id}</loc>
+    <lastmod>${date}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>`;
+        }
+      });
+
+      xml += `\n</urlset>`;
+
+      // 4. Tải file xuống trình duyệt
+      const blob = new Blob([xml], { type: 'text/xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sitemap.xml';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast("✅ Đã tạo xong Sitemap! Hãy chép vào thư mục public.");
+    } catch (error) {
+      console.error(error);
+      showToast("Lỗi tạo sitemap", "error");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // --- CALCULATED LISTS ---
@@ -671,7 +723,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
              </div>
          )}
 
-         {/* === TAB SETTINGS (UPDATED FOR VIETQR) === */}
+         {/* === TAB SETTINGS (UPDATED FOR VIETQR & TOOLS) === */}
          {activeTab === 'settings' && (
              <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft">
                  <form onSubmit={handleSaveSettings} className="space-y-12">
@@ -766,35 +818,49 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                         </div>
                    </div>
 
-                   {/* 4. SEED DATA TOOL */}
+                   {/* 4. SEED DATA & SEO TOOLS */}
                    <div className="space-y-6 pt-6 border-t border-gray-100">
-                       <h4 className="text-sm font-black uppercase tracking-widest text-red-500 flex items-center gap-2">
-                           <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span> Công cụ Developer
+                       <h4 className="text-sm font-black uppercase tracking-widest text-gray-800 flex items-center gap-2">
+                           <span className="w-2 h-2 bg-gray-800 rounded-full"></span> Công cụ Developer & SEO
                        </h4>
-                       <div className="bg-red-50 p-6 rounded-3xl border border-red-100 flex flex-col md:flex-row items-center justify-between gap-4">
-                           <div>
-                               <h5 className="font-black text-gray-800">Tạo dữ liệu mẫu (Seed Data)</h5>
-                               <p className="text-[10px] text-gray-500 mt-1">Tự động tạo 50 User + 100 Tin đăng đẹp mắt để test.</p>
-                           </div>
-                           <button 
-                               type="button" 
-                               onClick={async () => {
-                                   if(window.confirm("Hành động này sẽ tạo ra rất nhiều dữ liệu giả. Bạn chắc chứ?")) {
-                                       setIsLoading(true);
-                                       const res = await db.seedDatabase(); 
-                                       setIsLoading(false);
-                                       if(res.success) {
-                                           showToast(res.message);
+                       
+                       <div className="grid md:grid-cols-2 gap-6">
+                           {/* SEED TOOL */}
+                           <div className="bg-red-50 p-6 rounded-3xl border border-red-100 flex flex-col justify-between">
+                               <div>
+                                   <h5 className="font-black text-gray-800">Tạo dữ liệu mẫu (Seed)</h5>
+                                   <p className="text-[10px] text-gray-500 mt-1">Reset và tạo mới 100 tin đăng giả để test web.</p>
+                               </div>
+                               <button 
+                                   type="button" 
+                                   onClick={async () => {
+                                       if(window.confirm("Hành động này sẽ xóa dữ liệu cũ. Tiếp tục?")) {
+                                           setIsLoading(true);
+                                           await db.seedDatabase(); 
+                                           setIsLoading(false);
                                            loadInitialData();
                                        }
-                                       else showToast("Lỗi: " + res.message, "error");
-                                   }
-                               }}
-                               disabled={isLoading}
-                               className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-red-600 transition-all w-full md:w-auto"
-                           >
-                               {isLoading ? "Đang tạo..." : "Khởi tạo ngay"}
-                           </button>
+                                   }}
+                                   className="mt-4 bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-red-600 transition-all"
+                               >
+                                   Khởi tạo ngay
+                               </button>
+                           </div>
+
+                           {/* SITEMAP TOOL */}
+                           <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 flex flex-col justify-between">
+                               <div>
+                                   <h5 className="font-black text-gray-800">Tạo Sitemap SEO</h5>
+                                   <p className="text-[10px] text-gray-500 mt-1">Quét toàn bộ tin đã duyệt và tạo file sitemap.xml tự động.</p>
+                               </div>
+                               <button 
+                                   type="button" 
+                                   onClick={handleDownloadSitemap}
+                                   className="mt-4 bg-blue-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                               >
+                                   <span>📥</span> Tải Sitemap.xml
+                               </button>
+                           </div>
                        </div>
                    </div>
 

@@ -226,7 +226,7 @@ export const db = {
     }
   },
 
-  // [CẬP NHẬT] Đã thêm gửi thông báo khi duyệt tin
+  // [ĐÃ CẬP NHẬT LINK] Duyệt tin -> Link về bài viết
   updateListingStatus: async (listingId: string, status: 'approved' | 'rejected') => {
     try {
       // 1. Cập nhật trạng thái
@@ -240,7 +240,7 @@ export const db = {
           title: status === 'approved' ? 'Tin đăng đã được duyệt' : 'Tin đăng bị từ chối',
           message: `Tin "${listing.title}" của bạn đã được chuyển sang trạng thái ${status === 'approved' ? 'Đang hiển thị' : 'Từ chối'}.`,
           type: status === 'approved' ? 'success' : 'error',
-          link: `/listings/${listingId}`
+          link: `/listings/${listingId}` // Link khớp với Route App.tsx
         });
       }
     } catch (error) {
@@ -389,7 +389,7 @@ export const db = {
     }
   },
 
-  // [CẬP NHẬT] Đã thêm gửi thông báo khi duyệt tiền/VIP thành công
+  // [ĐÃ CẬP NHẬT LINK] Duyệt tiền -> Link về Ví
   approveTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
     try {
       let targetUserId = "";
@@ -434,7 +434,8 @@ export const db = {
             message: type === 'deposit' 
               ? `Hệ thống đã cộng ${amount.toLocaleString()} VNĐ vào ví của bạn.` 
               : `Gói thành viên của bạn đã được nâng cấp thành công.`,
-            type: 'success'
+            type: 'success',
+            link: '/wallet' // [QUAN TRỌNG] Link về ví để xem tiền
          });
       }
       
@@ -640,7 +641,7 @@ export const db = {
     }
   },
 
-  // [CẬP NHẬT] Gửi thông báo khi có người theo dõi
+  // [ĐÃ CẬP NHẬT LINK] Follow -> Link về profile
   followUser: async (followerId: string, followedId: string) => {
     const followDocId = `${followerId}_${followedId}`;
     await setDoc(doc(firestore, "follows", followDocId), {
@@ -649,7 +650,6 @@ export const db = {
         createdAt: new Date().toISOString()
     });
 
-    // Lấy tên người follow để gửi thông báo đẹp hơn
     const follower = await db.getUserById(followerId);
     
     await db.sendNotification({
@@ -657,7 +657,7 @@ export const db = {
       title: 'Có người theo dõi mới',
       message: `${follower?.name || 'Một người dùng'} đã bắt đầu theo dõi bạn.`,
       type: 'follow',
-      link: `/profile/${followerId}`
+      link: `/profile/${followerId}` // Link về trang người follow
     });
   },
 
@@ -707,7 +707,7 @@ export const db = {
     });
   },
 
-  // [CẬP NHẬT] Gửi thông báo khi có Review mới
+  // [ĐÃ CẬP NHẬT LINK] Review -> Link về profile/listing
   addReview: async (reviewData: Omit<Review, 'id' | 'createdAt'>) => {
     try {
       // 1. Lưu Review
@@ -721,17 +721,16 @@ export const db = {
       if (reviewData.targetType === 'user') {
         receiverId = reviewData.targetId;
         notifTitle = "Bạn nhận được đánh giá mới";
-        link = `/profile/${reviewData.authorId}`;
+        link = `/profile/${reviewData.authorId}`; // Xem ai đánh giá mình
       } else if (reviewData.targetType === 'listing') {
         const listing = await db.getListingById(reviewData.targetId);
         if (listing) {
           receiverId = listing.sellerId;
           notifTitle = `Tin "${listing.title}" có đánh giá mới`;
-          link = `/listings/${reviewData.targetId}`;
+          link = `/listings/${reviewData.targetId}`; // Xem tin nào được đánh giá
         }
       }
 
-      // Chỉ gửi thông báo nếu người nhận tồn tại và KHÔNG phải là chính người viết review
       if (receiverId && receiverId !== reviewData.authorId) {
         await db.sendNotification({
           userId: receiverId,
@@ -749,13 +748,12 @@ export const db = {
     }
   },
 
-  // [CẬP NHẬT] Thêm sắp xếp và limit để tối ưu hiệu năng
   getNotifications: (userId: string, callback: (notifs: Notification[]) => void) => {
     const q = query(
       collection(firestore, "notifications"), 
       where("userId", "==", userId),
-      orderBy("createdAt", "desc"), // Sắp xếp giảm dần theo thời gian
-      limit(50) // Giới hạn 50 thông báo mới nhất
+      orderBy("createdAt", "desc"), 
+      limit(50) 
     );
     return onSnapshot(q, (snapshot) => {
       const notifs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Notification));

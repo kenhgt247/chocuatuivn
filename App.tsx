@@ -68,7 +68,9 @@ const App: React.FC = () => {
       {/* Chỉ hiển thị khi ứng dụng đã tải xong (isInitializing = false) */}
       {/* VÀ người dùng chưa đăng nhập (!user) */}
       {/* ========================================================= */}
-      {!isInitializing && !user && <GoogleOneTap />}
+    {/* Truyền hàm handleLogin vào để cập nhật state ngay lập tức */}
+{!isInitializing && !user && <GoogleOneTap onLogin={handleLogin} />}
+
 
       <Layout user={user}>
         <Routes>

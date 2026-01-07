@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Notification, ChatRoom } from '../types'; // Đảm bảo import đúng đường dẫn types
+import { User, Notification, ChatRoom } from '../types'; 
 import { identifyProductForSearch } from '../services/geminiService';
-import { formatPrice, formatTimeAgo } from '../utils/format';
+import { formatTimeAgo } from '../utils/format';
 import { db } from '../services/db';
 import UniversalInstallPrompt from './UniversalInstallPrompt';
 
@@ -24,16 +24,21 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
 
-  // --- 1. DATA FETCHING ---
+  // --- 1. DATA FETCHING (REAL-TIME) ---
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
+      // Lắng nghe thông báo real-time từ DB mới
       const unsubNotifs = db.getNotifications(user.id, (notifs) => {
         setNotifications(notifs);
       });
+      
+      // Lắng nghe tin nhắn real-time
       const unsubChats = db.getChatRooms(user.id, (rooms) => {
         setChatRooms(rooms);
       });
+
       return () => {
+        // Hủy lắng nghe khi unmount hoặc user thay đổi để tránh memory leak
         unsubNotifs();
         unsubChats();
       };
@@ -41,7 +46,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
       setNotifications([]);
       setChatRooms([]);
     }
-  }, [user]);
+  }, [user?.id]); // Chỉ chạy lại khi ID user thay đổi
 
   // --- 2. CLICK OUTSIDE TO CLOSE NOTIFS ---
   useEffect(() => {
@@ -60,7 +65,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   // --- 3. SEARCH HANDLERS ---
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    // Trim khoảng trắng thừa để tối ưu tìm kiếm
     const cleanQuery = searchQuery.trim();
     if (cleanQuery) {
       navigate(`/?search=${encodeURIComponent(cleanQuery)}`);
@@ -84,7 +88,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
       try {
         const keywords = await identifyProductForSearch(base64);
         setSearchQuery(keywords);
-        // Tự động trim keywords từ AI
         navigate(`/?search=${encodeURIComponent(keywords.trim())}&visual=true`);
       } catch (err) {
         alert("Không thể nhận diện hình ảnh.");
@@ -98,12 +101,15 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
 
   // --- 4. NOTIFICATION HANDLERS ---
   const handleMarkAsRead = async (notif: Notification) => {
+    // Đánh dấu đã đọc trên server
     if (!notif.read) {
       await db.markNotificationAsRead(notif.id);
     }
+    // Đóng dropdown
+    setShowNotifs(false);
+    // Điều hướng nếu có link
     if (notif.link) {
       navigate(notif.link);
-      setShowNotifs(false);
     }
   };
 
@@ -115,6 +121,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   };
 
+  // Helper: Lấy màu sắc và icon dựa trên loại thông báo
+  // Đã cập nhật đầy đủ các case từ db.ts mới (system, warning, info...)
   const getNotificationStyle = (type: string) => {
     switch (type) {
       case 'review':
@@ -139,14 +147,20 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
         };
       case 'error':
+      case 'warning':
         return {
           bg: 'bg-red-100', text: 'text-red-600',
-          icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
         };
-      default:
+      case 'system':
+        return {
+          bg: 'bg-indigo-100', text: 'text-indigo-600',
+          icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+        };
+      default: // info
         return {
           bg: 'bg-gray-100', text: 'text-gray-600',
-          icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+          icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         };
     }
   };
@@ -211,11 +225,15 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
               onClick={handleNotifClick}
               className={`relative p-2.5 rounded-2xl transition-all ${showNotifs ? 'bg-primary/10 text-primary' : 'text-gray-400 hover:bg-gray-100'}`}
             >
-              <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
+              {/* Hiệu ứng rung nhẹ khi có thông báo mới */}
+              <div className={unreadNotifCount > 0 ? "animate-pulse origin-top" : ""}>
+                 <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                 </svg>
+              </div>
+              
               {unreadNotifCount > 0 && (
-                <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+                <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-pulse">
                   {unreadNotifCount}
                 </span>
               )}
@@ -241,6 +259,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
                            <p className="text-[10px] text-gray-500 line-clamp-2 font-medium mt-0.5">{notif.message}</p>
                            <p className="text-[8px] text-gray-300 font-bold uppercase mt-1.5">{formatTimeAgo(notif.createdAt)}</p>
                          </div>
+                         {!notif.read && <div className="w-2 h-2 bg-primary rounded-full mt-2"></div>}
                       </button>
                     )
                   }) : (

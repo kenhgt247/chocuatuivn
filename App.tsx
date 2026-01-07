@@ -56,7 +56,7 @@ const App: React.FC = () => {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-bgMain">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-primary font-black uppercase text-[10px] tracking-widest">Đang tải hồ sơ...</p>
+        <p className="text-primary font-black uppercase text-[10px] tracking-widest">Đang tải...</p>
       </div>
     );
   }

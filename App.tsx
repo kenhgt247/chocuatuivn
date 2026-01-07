@@ -65,53 +65,61 @@ const App: React.FC = () => {
     <Router>
       {/* ========================================================= */}
       {/* TÍCH HỢP GOOGLE ONE TAP LOGIN */}
-      {/* Chỉ hiển thị khi ứng dụng đã tải xong (isInitializing = false) */}
-      {/* VÀ người dùng chưa đăng nhập (!user) */}
       {/* ========================================================= */}
-    {/* Truyền hàm handleLogin vào để cập nhật state ngay lập tức */}
-{!isInitializing && !user && <GoogleOneTap onLogin={handleLogin} />}
-
+      {!isInitializing && !user && <GoogleOneTap onLogin={handleLogin} />}
 
       <Layout user={user}>
         <Routes>
           {/* ========================================================= */}
-          {/* ROUTE QUAN TRỌNG: TRANG CHỦ & TÌM KIẾM/LỌC (VIP, LOCATION) */}
+          {/* 1. TRANG CHỦ & TÌM KIẾM */}
           {/* ========================================================= */}
-          
-          {/* 1. Trang chủ mặc định */}
           <Route path="/" element={<Home user={user} />} />
-
-          {/* 2. QUAN TRỌNG: Route xử lý Xem tất cả VIP & Tin quanh đây */}
-          {/* Khi bấm link /search?type=vip hoặc /search?location=HN, route này sẽ bắt và render Home */}
           <Route path="/search" element={<Home user={user} />} />
-
-          {/* 3. Xem theo danh mục (Ví dụ: /danh-muc/xe-co) */}
           <Route path="/danh-muc/:slug" element={<Home user={user} />} />
 
           {/* ========================================================= */}
-          {/* CHI TIẾT SẢN PHẨM */}
+          {/* 2. CHI TIẾT SẢN PHẨM & ROUTES HỖ TRỢ THÔNG BÁO */}
           {/* ========================================================= */}
+          
+          {/* Route SEO chuẩn (hiển thị trên web) */}
           <Route path="/san-pham/:slugWithId" element={<ListingDetail user={user} />} />
           
+          {/* [QUAN TRỌNG] Route Cầu nối cho Thông báo (Do db.ts gửi link dạng này) */}
+          {/* Khi bấm thông báo "Tin được duyệt", nó chạy vào đây và vẫn hiển thị ListingDetail */}
+          <Route path="/listings/:id" element={<ListingDetail user={user} />} />
+
+
           {/* ========================================================= */}
-          {/* USER & SELLER */}
+          {/* 3. USER & SELLER */}
           {/* ========================================================= */}
+          
+          {/* Route xem Profile người khác */}
           <Route path="/seller/:id" element={<SellerProfile currentUser={user} />} />
+          
+          {/* [QUAN TRỌNG] Route Cầu nối cho Thông báo Follow */}
+          {/* Khi bấm thông báo "Có người theo dõi", nó chạy vào đây */}
+          <Route path="/profile/:id" element={<SellerProfile currentUser={user} />} />
+
+          {/* Trang cá nhân của MÌNH */}
           <Route path="/profile" element={<Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} />} />
           
           {/* ========================================================= */}
-          {/* CÁC ROUTE CẦN ĐĂNG NHẬP (PROTECTED ROUTES) */}
+          {/* 4. CÁC ROUTE CẦN ĐĂNG NHẬP (PROTECTED ROUTES) */}
           {/* ========================================================= */}
           <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
           <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
+          
           <Route path="/chat" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
           <Route path="/chat/:roomId" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
+          
           <Route path="/upgrade" element={<Subscription user={user} onUpdateUser={handleUpdateUser} />} />
           <Route path="/wallet" element={user ? <Wallet user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
+          
+          {/* Admin Route */}
           <Route path="/admin" element={<Admin user={user} />} />
 
           {/* ========================================================= */}
-          {/* AUTH & STATIC PAGES */}
+          {/* 5. AUTH & STATIC PAGES */}
           {/* ========================================================= */}
           <Route path="/login" element={<Auth onLogin={handleLogin} />} />
           <Route path="/register" element={<Register onLogin={handleLogin} />} />

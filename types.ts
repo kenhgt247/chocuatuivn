@@ -16,10 +16,10 @@ export interface User {
   joinedAt: string;
   
   // --- THÔNG TIN VỊ TRÍ ---
-  location?: string; // Tỉnh/Thành phố (Dùng để lọc chung, ví dụ: TPHCM)
-  address?: string;  // <--- QUAN TRỌNG: Địa chỉ cụ thể (Số nhà, đường, phường - Dùng để hiển thị)
-  lat?: number;      // Vĩ độ
-  lng?: number;      // Kinh độ
+  location?: string; 
+  address?: string; 
+  lat?: number;      
+  lng?: number;      
 
   subscriptionTier: SubscriptionTier;
   subscriptionExpires?: string;
@@ -29,7 +29,7 @@ export interface User {
   
   // --- MỚI: Các trường cho tính năng xác thực ---
   verificationStatus?: VerificationStatus; 
-  verificationDocuments?: string[]; // Chứa link ảnh mặt trước, mặt sau
+  verificationDocuments?: string[]; 
 }
 
 export interface Transaction {
@@ -41,6 +41,9 @@ export interface Transaction {
   description: string;
   status: 'success' | 'pending' | 'failed';
   createdAt: string;
+  
+  // [BỔ SUNG CHO CHUẨN] Dùng để lưu thông tin gói VIP khi mua
+  metadata?: any; 
 }
 
 export interface Category {
@@ -59,10 +62,10 @@ export interface Listing {
   images: string[];
   
   // --- THÔNG TIN VỊ TRÍ ---
-  location: string; // Tỉnh/Thành phố (Bắt buộc để lọc)
-  address?: string; // <--- QUAN TRỌNG: Địa chỉ cụ thể (Hiển thị chi tiết cho người mua)
-  lat?: number;     // Vĩ độ
-  lng?: number;     // Kinh độ
+  location: string; 
+  address?: string; 
+  lat?: number;     
+  lng?: number;     
 
   sellerId: string;
   sellerName: string;
@@ -74,13 +77,12 @@ export interface Listing {
   isFavorite?: boolean;
   
   // --- MỚI: Các trường thông tin cứng (Attributes) ---
-  // Dùng Record để linh hoạt cho nhiều loại danh mục khác nhau
   attributes?: {
-    battery?: string;  // Phần trăm pin
-    mileage?: string;  // Số Km đã đi
-    area?: string;     // Diện tích m2
-    year?: string;     // Năm sản xuất
-    storage?: string;  // Dung lượng bộ nhớ
+    battery?: string;  
+    mileage?: string;  
+    area?: string;     
+    year?: string;     
+    storage?: string;  
     [key: string]: any; 
   };
 }
@@ -95,7 +97,7 @@ export interface Review {
   rating: number;
   comment: string;
   createdAt: string;
-  updatedAt?: string; // (Tùy chọn) Thời gian cập nhật
+  updatedAt?: string; 
 }
 
 export interface Report {
@@ -113,7 +115,7 @@ export interface Message {
   senderId: string;
   text: string;
   timestamp: string;
-  image?: string; // (Tùy chọn) Hỗ trợ gửi ảnh trong chat
+  image?: string; 
 }
 
 export interface ChatRoom {
@@ -139,9 +141,11 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  // UPDATE: Thêm các loại thông báo mới (review, message, approval, follow, system)
+  // UPDATE: Thêm các loại thông báo mới
   type: 'info' | 'success' | 'warning' | 'error' | 'review' | 'message' | 'approval' | 'follow' | 'system';
   read: boolean;
   createdAt: string;
+  
+  // [QUAN TRỌNG] Link để điều hướng khi bấm vào thông báo
   link?: string;
 }

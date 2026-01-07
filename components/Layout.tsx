@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Notification, ChatRoom } from '../types.ts';
-import { identifyProductForSearch } from '../services/geminiService.ts';
-import { formatPrice, formatTimeAgo } from '../utils/format.ts';
-import { db } from '../services/db.ts';
-import UniversalInstallPrompt from './UniversalInstallPrompt.tsx';
+import { User, Notification, ChatRoom } from '../types'; // Đảm bảo import đúng đường dẫn types
+import { identifyProductForSearch } from '../services/geminiService';
+import { formatPrice, formatTimeAgo } from '../utils/format';
+import { db } from '../services/db';
+import UniversalInstallPrompt from './UniversalInstallPrompt';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,6 +24,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
 
+  // --- 1. DATA FETCHING ---
   useEffect(() => {
     if (user) {
       const unsubNotifs = db.getNotifications(user.id, (notifs) => {
@@ -42,6 +43,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   }, [user]);
 
+  // --- 2. CLICK OUTSIDE TO CLOSE NOTIFS ---
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
@@ -55,10 +57,13 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const unreadNotifCount = user ? notifications.filter(n => !n.read).length : 0;
   const unreadChatCount = user ? chatRooms.filter(r => r.messages.length > 0 && !r.seenBy?.includes(user?.id || '')).length : 0;
 
+  // --- 3. SEARCH HANDLERS ---
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/?search=${encodeURIComponent(searchQuery.trim())}`);
+    // Trim khoảng trắng thừa để tối ưu tìm kiếm
+    const cleanQuery = searchQuery.trim();
+    if (cleanQuery) {
+      navigate(`/?search=${encodeURIComponent(cleanQuery)}`);
     } else {
       navigate(`/`);
     }
@@ -79,7 +84,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
       try {
         const keywords = await identifyProductForSearch(base64);
         setSearchQuery(keywords);
-        navigate(`/?search=${encodeURIComponent(keywords)}&visual=true`);
+        // Tự động trim keywords từ AI
+        navigate(`/?search=${encodeURIComponent(keywords.trim())}&visual=true`);
       } catch (err) {
         alert("Không thể nhận diện hình ảnh.");
       } finally {
@@ -90,6 +96,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     reader.readAsDataURL(file);
   };
 
+  // --- 4. NOTIFICATION HANDLERS ---
   const handleMarkAsRead = async (notif: Notification) => {
     if (!notif.read) {
       await db.markNotificationAsRead(notif.id);
@@ -100,7 +107,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   };
 
-  // HÀM MỚI: Kiểm tra đăng nhập khi bấm chuông
   const handleNotifClick = () => {
     if (!user) {
       navigate('/login');
@@ -109,9 +115,47 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   };
 
+  const getNotificationStyle = (type: string) => {
+    switch (type) {
+      case 'review':
+        return {
+          bg: 'bg-yellow-100', text: 'text-yellow-600',
+          icon: <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+        };
+      case 'message':
+        return {
+          bg: 'bg-blue-100', text: 'text-blue-600',
+          icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+        };
+      case 'approval':
+      case 'success':
+        return {
+          bg: 'bg-green-100', text: 'text-green-600',
+          icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        };
+      case 'follow':
+        return {
+          bg: 'bg-purple-100', text: 'text-purple-600',
+          icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+        };
+      case 'error':
+        return {
+          bg: 'bg-red-100', text: 'text-red-600',
+          icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        };
+      default:
+        return {
+          bg: 'bg-gray-100', text: 'text-gray-600',
+          icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+        };
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-bgMain">
+      {/* HEADER */}
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-borderMain/50 px-3 md:px-6 lg:px-10 h-20 flex items-center justify-between gap-2 md:gap-4 shadow-sm">
+        {/* LOGO */}
         <div className="flex items-center flex-shrink-0">
           <Link to="/" className="flex items-center gap-2 group">
             <div className="w-10 h-10 md:w-11 md:h-11 bg-gradient-to-tr from-primary to-blue-400 rounded-xl md:rounded-2xl flex items-center justify-center text-white text-xl md:text-2xl shadow-lg shadow-primary/25 group-hover:rotate-6 transition-all duration-300">⚡</div>
@@ -119,6 +163,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           </Link>
         </div>
 
+        {/* SEARCH BAR */}
         <form onSubmit={handleSearch} className="flex-1 max-w-2xl relative group px-1 md:px-0">
           <div className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors">
             <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -146,7 +191,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
         </form>
 
+        {/* ACTIONS */}
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
+          {/* Chat Icon */}
           <Link to="/chat" className={`hidden md:flex relative p-2.5 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10 text-primary' : 'text-gray-400 hover:bg-gray-100'}`}>
             <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -158,9 +205,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             )}
           </Link>
 
+          {/* Notification Icon */}
           <div className="relative" ref={notifRef}>
             <button 
-              onClick={handleNotifClick} // SỬ DỤNG HÀM KIỂM TRA ĐĂNG NHẬP
+              onClick={handleNotifClick}
               className={`relative p-2.5 rounded-2xl transition-all ${showNotifs ? 'bg-primary/10 text-primary' : 'text-gray-400 hover:bg-gray-100'}`}
             >
               <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -172,25 +220,30 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
                 </span>
               )}
             </button>
+            
+            {/* NOTIFICATION DROPDOWN */}
             {showNotifs && (
-              <div className="absolute right-0 mt-3 w-80 bg-white border border-borderMain rounded-[2rem] shadow-2xl overflow-hidden animate-fade-in-up">
+              <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white border border-borderMain rounded-[2rem] shadow-2xl overflow-hidden animate-fade-in-up z-50">
                 <div className="p-5 border-b border-gray-50 flex items-center justify-between bg-bgMain/30">
                   <h3 className="font-black text-sm uppercase tracking-tight">Thông báo</h3>
                   <span className="text-[10px] font-black text-primary bg-primary/10 px-2.5 py-1 rounded-lg">{unreadNotifCount} mới</span>
                 </div>
                 <div className="max-h-96 overflow-y-auto no-scrollbar">
-                  {notifications.length > 0 ? notifications.map(notif => (
-                    <button key={notif.id} onClick={() => handleMarkAsRead(notif)} className={`w-full text-left p-4 hover:bg-bgMain transition-colors flex gap-4 border-b border-gray-50 last:border-0 ${!notif.read ? 'bg-primary/5' : ''}`}>
-                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-xl ${notif.type === 'success' ? 'bg-green-100 text-green-600' : notif.type === 'error' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                        {notif.type === 'success' ? '✅' : notif.type === 'error' ? '❌' : '🔔'}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className={`text-xs font-black truncate ${!notif.read ? 'text-primary' : 'text-textMain'}`}>{notif.title}</p>
-                        <p className="text-[10px] text-gray-500 line-clamp-2 font-medium mt-0.5">{notif.message}</p>
-                        <p className="text-[8px] text-gray-300 font-bold uppercase mt-1.5">{formatTimeAgo(notif.createdAt)}</p>
-                      </div>
-                    </button>
-                  )) : (
+                  {notifications.length > 0 ? notifications.map(notif => {
+                    const style = getNotificationStyle(notif.type);
+                    return (
+                      <button key={notif.id} onClick={() => handleMarkAsRead(notif)} className={`w-full text-left p-4 hover:bg-bgMain transition-colors flex gap-4 border-b border-gray-50 last:border-0 ${!notif.read ? 'bg-primary/5' : ''}`}>
+                         <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-xl ${style.bg} ${style.text}`}>
+                           {style.icon}
+                         </div>
+                         <div className="min-w-0 flex-1">
+                           <p className={`text-xs font-black truncate ${!notif.read ? 'text-primary' : 'text-textMain'}`}>{notif.title}</p>
+                           <p className="text-[10px] text-gray-500 line-clamp-2 font-medium mt-0.5">{notif.message}</p>
+                           <p className="text-[8px] text-gray-300 font-bold uppercase mt-1.5">{formatTimeAgo(notif.createdAt)}</p>
+                         </div>
+                      </button>
+                    )
+                  }) : (
                     <div className="p-16 text-center opacity-30">
                       <div className="text-4xl mb-4">📭</div>
                       <p className="text-gray-400 text-[10px] font-black uppercase">Không có thông báo mới</p>
@@ -201,6 +254,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             )}
           </div>
 
+          {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-4">
             <Link to="/post" className="flex items-center gap-2 bg-primary text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primaryHover hover:-translate-y-1 transition-all active:scale-95">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4"/></svg>
@@ -221,11 +275,12 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         </div>
       </header>
 
+      {/* MAIN CONTENT */}
       <main className="flex-1 w-full max-w-screen-2xl mx-auto md:px-8 py-6 md:py-10">
         {children}
       </main>
 
-      {/* Mobile Nav Bar */}
+      {/* MOBILE NAV BAR */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex items-end justify-between h-[5.5rem] z-50 px-2 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
         
         <Link to="/" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-4 group transition-all duration-300 ${location.pathname === '/' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-500'}`}>

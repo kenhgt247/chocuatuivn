@@ -6,9 +6,8 @@ import { Listing, User, Category } from '../types';
 import ListingCard from '../components/ListingCard';
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { getCategoryUrl } from '../utils/format';
-import { getLocationFromCoords } from '../utils/locationHelper'; // Import hàm định vị mới
+import { getLocationFromCoords } from '../utils/locationHelper'; 
 
-// Danh sách các trang tĩnh cho Footer Desktop
 const STATIC_LINKS = [
   { slug: 'gioi-thieu', title: 'Giới thiệu' },
   { slug: 'quy-che-hoat-dong', title: 'Quy chế hoạt động' },
@@ -20,13 +19,11 @@ const STATIC_LINKS = [
 const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const location = useLocation(); // Dùng để highlight menu đang chọn
   const { slug } = useParams<{ slug: string }>();
   const categoryRef = useRef<HTMLDivElement>(null);
 
   const search = searchParams.get('search') || '';
 
-  // --- LOGIC: XÁC ĐỊNH DANH MỤC TỪ SEO URL ---
   const currentCategory = slug 
     ? CATEGORIES.find(c => c.slug === slug || c.slug === slug.split('-')[0]) 
     : null;
@@ -52,27 +49,21 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [isLocating, setIsLocating] = useState(false);
   const [indexErrors, setIndexErrors] = useState<{msg: string, link: string | null}[]>([]);
 
-  // GIỚI HẠN HIỂN THỊ
-  const LIMIT_VIP = 10;      // Chỉ tải 10 tin VIP
-  const LIMIT_NEARBY = 12;   // Chỉ tải 12 tin quanh đây
-  const PAGE_SIZE = 12;      // Load more từng 12 tin một
+  const LIMIT_VIP = 10;
+  const LIMIT_NEARBY = 12;
+  const PAGE_SIZE = 12;
 
-  // --- HELPER FUNCTIONS ---
   const extractIndexLink = (error: string) => {
     const match = error.match(/https:\/\/console\.firebase\.google\.com[^\s]*/);
     return match ? match[0] : null;
   };
 
-  // --- HANDLERS: ĐỊNH VỊ CHÍNH XÁC (MỚI) ---
-  // Tải các phần đặc biệt (VIP, Nearby) dựa trên vị trí
   const loadSpecialSections = useCallback(async (locationToUse: string | null) => {
-    // 1. VIP
     const vipRes = await db.getVIPListings(LIMIT_VIP);
     if (!vipRes.error) {
       setVipListings(vipRes.listings);
     }
 
-    // 2. Nearby (Chỉ tải nếu có vị trí)
     const targetLoc = locationToUse || user?.location;
     if (targetLoc) {
       const nearbyRes = await db.getListingsPaged({
@@ -98,30 +89,25 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         const { latitude, longitude } = position.coords;
         
         try {
-            // Gọi API OpenStreetMap để lấy tên Thành phố chính xác
             const locationInfo = await getLocationFromCoords(latitude, longitude);
             
-            // Cập nhật State
             setDetectedLocation(locationInfo.city);
             setIsLocating(false);
 
-            // Nếu user đã đăng nhập, lưu vị trí chính xác vào DB
             if (user) {
               db.updateUserProfile(user.id, { 
                   location: locationInfo.city, 
-                  address: locationInfo.address, // Lưu địa chỉ cụ thể
+                  address: locationInfo.address, 
                   lat: latitude, 
                   lng: longitude 
               }).catch(console.error);
             }
 
-            // Tải lại mục "Tin quanh đây" theo vị trí mới
             loadSpecialSections(locationInfo.city);
 
         } catch (err) {
             console.error("Lỗi lấy địa chỉ:", err);
             setIsLocating(false);
-            // Fallback: Giữ nguyên logic cũ nếu API lỗi
             const fallbackCity = latitude > 16 ? "TP Hà Nội" : "TPHCM";
             setDetectedLocation(fallbackCity);
         }
@@ -130,19 +116,15 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         setIsLocating(false);
         let msg = "Lỗi định vị.";
         if (error.code === 1) msg = "Vui lòng cho phép truy cập vị trí trong cài đặt trình duyệt.";
-        console.log("Location error:", error.message);
         alert(msg);
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }, [user, loadSpecialSections]);
 
-  // Tự động định vị lần đầu nếu chưa có vị trí
   useEffect(() => {
     if (!detectedLocation && !user?.location) {
-        // Chỉ hiện prompt định vị nếu user tương tác (để tránh bị chặn), 
-        // ở đây ta để user tự bấm nút sẽ tốt hơn về UX.
-        // handleDetectLocation(); 
+       // logic tự động định vị nếu cần
     } else if (user?.location) {
         setDetectedLocation(user.location);
     }
@@ -160,7 +142,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         await loadSpecialSections(detectedLocation);
       }
 
-      // Main Feed
       const result = await db.getListingsPaged({
         pageSize: PAGE_SIZE,
         categoryId: activeCategoryId || undefined,
@@ -205,7 +186,10 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   }, []);
 
   const handleLoadMore = async () => {
-    if (isFetchingMore || !hasMore || !lastDoc) return;
+    // Nếu đang search thông minh thì hasMore sẽ tự động là false (do db.ts set),
+    // nên nút load more sẽ ẩn đi, logic này an toàn.
+    if (isFetchingMore || !hasMore || (search && !lastDoc)) return;
+    
     setIsFetchingMore(true);
     try {
       const result = await db.getListingsPaged({
@@ -238,7 +222,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     setFavorites(updatedFavs);
   };
 
-  // --- LOGIC ĐẨY TIN ---
   const handlePushListing = async (listingId: string) => {
     if (!user) {
         if(window.confirm("Bạn cần đăng nhập để thực hiện chức năng này.")) {
@@ -325,11 +308,11 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                              <button onClick={handleDetectLocation} disabled={isLocating} className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all text-[10px] font-black uppercase ${detectedLocation ? 'border-green-200 bg-green-50 text-green-600' : 'border-gray-100 text-gray-400 hover:border-primary/30 hover:text-primary'}`}>
                                 {isLocating ? <div className="w-3 h-3 border-2 border-current border-t-transparent animate-spin rounded-full"></div> : '📍'}
                                 <span>{detectedLocation || 'Định vị'}</span>
-                            </button>
-                            <button onClick={() => setIsExpanded(true)} className="flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase bg-gray-100 text-gray-600 hover:bg-primary hover:text-white transition-all shadow-sm flex-shrink-0 group">
+                             </button>
+                             <button onClick={() => setIsExpanded(true)} className="flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase bg-gray-100 text-gray-600 hover:bg-primary hover:text-white transition-all shadow-sm flex-shrink-0 group">
                                 <span>Xem tất cả</span>
                                 <svg className="w-4 h-4 group-hover:rotate-180 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7"/></svg>
-                            </button>
+                             </button>
                         </div>
                     </div>
                 ) : (
@@ -388,7 +371,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                 listing={l} 
                 isFavorite={favorites.includes(l.id)} 
                 onToggleFavorite={toggleFav} 
-                // Chỉ truyền onPushListing nếu user là chủ sở hữu
                 onPushListing={user && user.id === l.sellerId ? handlePushListing : undefined}
               />
             ))}
@@ -400,14 +382,14 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       {!search && !activeCategoryId && detectedLocation && nearbyListings.length > 0 && (
         <section className="space-y-4 animate-fade-in-up">
           <div className="flex items-center justify-between px-2">
-             <div className="flex items-center gap-2">
-               <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight">Tin Quanh Đây</h2>
-               <span className="text-[10px] font-black text-green-600 uppercase bg-green-50 px-2 py-1 rounded-md">{detectedLocation}</span>
-             </div>
-             <div className="flex gap-4 items-center">
-                <button onClick={handleDetectLocation} className="text-[10px] font-black text-gray-400 uppercase underline hover:text-primary">Làm mới</button>
-                <Link to={`/search?location=${detectedLocation}`} className="text-[10px] font-black text-primary uppercase hover:underline">Xem thêm &gt;</Link>
-             </div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight">Tin Quanh Đây</h2>
+                <span className="text-[10px] font-black text-green-600 uppercase bg-green-50 px-2 py-1 rounded-md">{detectedLocation}</span>
+              </div>
+              <div className="flex gap-4 items-center">
+                 <button onClick={handleDetectLocation} className="text-[10px] font-black text-gray-400 uppercase underline hover:text-primary">Làm mới</button>
+                 <Link to={`/search?location=${detectedLocation}`} className="text-[10px] font-black text-primary uppercase hover:underline">Xem thêm &gt;</Link>
+              </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
             {nearbyListings.map(l => (
@@ -458,7 +440,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                 />
               ))}
             </div>
-            {hasMore && (
+            {hasMore && !search && (
               <div className="pt-8 flex justify-center">
                 <button onClick={handleLoadMore} disabled={isFetchingMore} className="px-10 py-3 bg-white border-2 border-primary text-primary font-black rounded-full text-[11px] uppercase tracking-widest hover:bg-primary hover:text-white transition-all shadow-md active:scale-95">
                   {isFetchingMore ? 'Đang tải...' : 'Xem thêm tin đăng'}
@@ -482,7 +464,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
          </div>
       </footer>
         
-
     </div>
   );
 };

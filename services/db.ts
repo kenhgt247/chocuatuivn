@@ -4,10 +4,10 @@
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { 
   getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, 
-  query, where, orderBy, limit, addDoc, serverTimestamp, Timestamp, 
-  deleteDoc, onSnapshot, arrayUnion, arrayRemove, runTransaction,
+  query, where, orderBy, limit, addDoc, runTransaction,
   startAfter, QueryDocumentSnapshot, DocumentData, writeBatch,
-  getCountFromServer 
+  getCountFromServer, deleteDoc, arrayUnion, arrayRemove, 
+  onSnapshot // <--- ĐÃ BỔ SUNG IMPORT NÀY
 } from "firebase/firestore";
 import { 
   getAuth, 
@@ -16,12 +16,16 @@ import {
   onAuthStateChanged, 
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  signInWithCredential
 } from "firebase/auth";
 import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
 import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review } from '../types';
 
-// 2. CẤU HÌNH ADMIN EMAIL (Email nhận thông báo)
+// IMPORT LOGIC TÌM KIẾM THÔNG MINH
+import { isSearchMatch, calculateRelevanceScore } from '../utils/format';
+
+// 2. CẤU HÌNH ADMIN EMAIL
 const ADMIN_EMAIL = "buivanbac@gmail.com"; 
 
 export interface SystemSettings {
@@ -55,12 +59,11 @@ const firestore = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 
-// 4. OBJECT DB CHỨA TOÀN BỘ CÁC HÀM
+// 4. OBJECT DB
 export const db = {
   
   // --- A. QUẢN LÝ TIN ĐĂNG (LISTINGS) ---
 
-  // Lấy tin VIP
   getVIPListings: async (max = 10) => {
     try {
       const q = query(
@@ -80,7 +83,7 @@ export const db = {
     }
   },
 
-  // Lấy danh sách tin có phân trang & lọc
+  // HÀM LẤY DANH SÁCH TIN (HỖ TRỢ SMART SEARCH)
   getListingsPaged: async (options: {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
@@ -92,11 +95,48 @@ export const db = {
   }) => {
     try {
       const colRef = collection(firestore, "listings");
+      
+      // === TRƯỜNG HỢP 1: CÓ TỪ KHÓA TÌM KIẾM (SMART SEARCH) ===
+      if (options.search && options.search.trim().length > 0) {
+        let constraints: any[] = [
+           where("status", "==", "approved"),
+           orderBy("createdAt", "desc"),
+           limit(500) // Giới hạn vùng tìm kiếm
+        ];
+
+        if (options.categoryId) constraints.push(where("category", "==", options.categoryId));
+        if (options.location) constraints.push(where("location", "==", options.location));
+
+        const q = query(colRef, ...constraints);
+        const snap = await getDocs(q);
+        
+        let allListings = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
+
+        // Lọc thông minh
+        const queryText = options.search.trim();
+        let filtered = allListings.filter(l => isSearchMatch(l.title, queryText));
+
+        // Sắp xếp
+        filtered.sort((a, b) => {
+           const scoreA = calculateRelevanceScore(a.title, queryText);
+           const scoreB = calculateRelevanceScore(b.title, queryText);
+           return scoreB - scoreA;
+        });
+
+        return {
+          listings: filtered,
+          lastDoc: null,
+          hasMore: false,
+          error: null
+        };
+      }
+
+      // === TRƯỜNG HỢP 2: KHÔNG TÌM KIẾM (PAGINATION BÌNH THƯỜNG) ===
       let constraints: any[] = [];
 
       if (options.status) {
           constraints.push(where("status", "==", options.status));
-      } else if (!options.sellerId && !options.search) {
+      } else if (!options.sellerId) {
           constraints.push(where("status", "==", "approved"));
       }
 
@@ -117,21 +157,13 @@ export const db = {
       const results = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
       const lastVisible = snap.docs[snap.docs.length - 1] || null;
 
-      let finalResults = results;
-      if (options.search) {
-        const s = options.search.toLowerCase();
-        finalResults = results.filter(l => 
-          l.title.toLowerCase().includes(s) || 
-          l.description.toLowerCase().includes(s)
-        );
-      }
-
       return {
-        listings: finalResults,
+        listings: results,
         lastDoc: lastVisible,
         hasMore: snap.docs.length === options.pageSize,
         error: null
       };
+
     } catch (e: any) {
       console.error("Get listings error:", e);
       return { listings: [], lastDoc: null, hasMore: false, error: e.toString() };
@@ -147,7 +179,6 @@ export const db = {
     return snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
   },
 
-  // [MỚI] Lấy chi tiết 1 tin theo ID (Tối ưu cho trang ListingDetail)
   getListingById: async (id: string): Promise<Listing | null> => {
     try {
       const docRef = doc(firestore, "listings", id);
@@ -162,22 +193,17 @@ export const db = {
     }
   },
 
-  // [QUAN TRỌNG] ĐĂNG TIN + GỬI MAIL ADMIN (Đã update để lưu attributes)
   saveListing: async (listingData: any) => {
     try {
-      // 1. Chuẩn bị dữ liệu (Đảm bảo có attributes và createdAt)
       const dataToSave = {
         ...listingData,
         createdAt: new Date().toISOString(),
         status: listingData.status || 'pending',
-        // Đảm bảo lưu object attributes (chứa ODO, Pin, Hướng nhà...)
         attributes: listingData.attributes || {} 
       };
 
-      // 2. Lưu tin vào Firestore
       const docRef = await addDoc(collection(firestore, "listings"), dataToSave);
       
-      // 3. Gửi Email thông báo Admin (buivanbac@gmail.com)
       await addDoc(collection(firestore, "mail"), {
         to: [ADMIN_EMAIL],
         message: {
@@ -206,7 +232,6 @@ export const db = {
 
   deleteListing: async (id: string) => await deleteDoc(doc(firestore, "listings", id)),
 
-  // Update nội dung tin (Admin/User sửa tin)
   updateListingContent: async (listingId: string, data: Partial<Listing>) => {
     try {
       await updateDoc(doc(firestore, "listings", listingId), data);
@@ -216,7 +241,6 @@ export const db = {
     }
   },
 
-  // Xóa hàng loạt (Admin)
   deleteListingsBatch: async (ids: string[]) => {
     try {
       const batch = writeBatch(firestore);
@@ -231,7 +255,6 @@ export const db = {
     }
   },
 
-  // --- B. ĐẨY TIN (PUSH LISTING) ---
   pushListing: async (listingId: string, userId: string) => {
     const settings: any = await db.getSettings();
     const user = await db.getUserById(userId);
@@ -242,12 +265,9 @@ export const db = {
 
     if (!user || (user.walletBalance || 0) < price) return { success: false, message: "Ví không đủ tiền." };
     
-    // Trừ tiền user
     await updateDoc(doc(firestore, "users", userId), { walletBalance: (user.walletBalance || 0) - price });
-    // Cập nhật thời gian tin lên đầu
     await updateDoc(doc(firestore, "listings", listingId), { createdAt: new Date().toISOString() });
 
-    // Gửi mail báo doanh thu (Tùy chọn, để biết có người đẩy tin)
     await addDoc(collection(firestore, "mail"), {
         to: [ADMIN_EMAIL],
         message: {
@@ -259,9 +279,8 @@ export const db = {
     return { success: true };
   },
 
-  // --- C. GIAO DỊCH & VÍ (TRANSACTIONS) ---
+  // --- C. GIAO DỊCH & VÍ ---
 
-  // [QUAN TRỌNG] NẠP TIỀN + GỬI MAIL ADMIN
   requestDeposit: async (userId: string, amount: number, method: string) => {
     try {
       const res = await addDoc(collection(firestore, "transactions"), {
@@ -271,7 +290,6 @@ export const db = {
         createdAt: new Date().toISOString()
       });
 
-      // Gửi Email thông báo Admin
       await addDoc(collection(firestore, "mail"), {
         to: [ADMIN_EMAIL],
         message: {
@@ -293,7 +311,6 @@ export const db = {
     }
   },
 
-  // [QUAN TRỌNG] MUA VIP BẰNG VÍ + GỬI MAIL THÔNG BÁO
   buySubscriptionWithWallet: async (userId: string, tier: SubscriptionTier, price: number) => {
     const user = await db.getUserById(userId);
     if (!user || (user.walletBalance || 0) < price) return { success: false, message: "Số dư không đủ." };
@@ -307,7 +324,6 @@ export const db = {
       subscriptionExpires: expires.toISOString()
     });
 
-    // Gửi Email thông báo doanh thu
     await addDoc(collection(firestore, "mail"), {
       to: [ADMIN_EMAIL],
       message: {
@@ -323,7 +339,6 @@ export const db = {
     return { success: true };
   },
 
-  // [QUAN TRỌNG] CHUYỂN KHOẢN MUA VIP + GỬI MAIL ADMIN
   requestSubscriptionTransfer: async (userId: string, tier: SubscriptionTier, price: number) => {
     try {
       const res = await addDoc(collection(firestore, "transactions"), {
@@ -334,7 +349,6 @@ export const db = {
         createdAt: new Date().toISOString()
       });
 
-      // Gửi Email thông báo Admin
       await addDoc(collection(firestore, "mail"), {
         to: [ADMIN_EMAIL],
         message: {
@@ -404,29 +418,23 @@ export const db = {
 
   // --- D. NGƯỜI DÙNG (USERS & AUTH) ---
   
-  // [MỚI] Lấy danh sách thành viên có phân trang (Pagination)
   getUsersPaged: async (options: {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
-    search?: string, // Tìm theo tên hoặc email
+    search?: string, 
     verificationStatus?: string
   }) => {
     try {
       const colRef = collection(firestore, "users");
       let constraints: any[] = [];
 
-      // Có thể thêm filter status nếu cần
       if (options.verificationStatus) {
          constraints.push(where("verificationStatus", "==", options.verificationStatus));
       }
 
-      // Mặc định sắp xếp theo ngày tham gia mới nhất
       constraints.push(orderBy("joinedAt", "desc"));
-      
-      // Giới hạn số lượng
       constraints.push(limit(options.pageSize));
 
-      // Phân trang
       if (options.lastDoc) {
          constraints.push(startAfter(options.lastDoc));
       }
@@ -437,8 +445,6 @@ export const db = {
       const users = snap.docs.map(d => d.data() as User);
       const lastVisible = snap.docs[snap.docs.length - 1] || null;
 
-      // Xử lý tìm kiếm đơn giản ở Client (Do Firestore không support search string 'LIKE')
-      // Lưu ý: Nếu dữ liệu lớn, cần giải pháp search engine riêng (Algolia/Elastic)
       let finalUsers = users;
       if (options.search) {
         const s = options.search.toLowerCase();
@@ -526,6 +532,35 @@ export const db = {
     }
   },
 
+  loginWithOneTap: async (credential: string): Promise<User> => {
+    const googleCredential = GoogleAuthProvider.credential(credential);
+    const res = await signInWithCredential(auth, googleCredential);
+    
+    const userDocRef = doc(firestore, "users", res.user.uid);
+    const userDocSnap = await getDoc(userDocRef);
+
+    if (!userDocSnap.exists()) {
+      const newUser: User = {
+        id: res.user.uid,
+        name: res.user.displayName || "Người dùng mới",
+        email: res.user.email || "",
+        avatar: res.user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${res.user.uid}`,
+        role: 'user',
+        status: 'active',
+        joinedAt: new Date().toISOString(),
+        subscriptionTier: 'free',
+        walletBalance: 0,
+        following: [],
+        followers: [],
+        verificationStatus: 'unverified'
+      };
+      await setDoc(userDocRef, newUser);
+      return newUser;
+    } else {
+      return userDocSnap.data() as User;
+    }
+  },
+
   register: async (email: string, pass: string, name: string): Promise<User> => {
     const res = await createUserWithEmailAndPassword(auth, email, pass);
     const newUser: User = {
@@ -548,7 +583,7 @@ export const db = {
 
   logout: async () => await signOut(auth),
 
-  // --- E. HỆ THỐNG FOLLOW (MỚI - SỬ DỤNG COLLECTION RIÊNG) ---
+  // --- E. HỆ THỐNG FOLLOW ---
   
   checkIsFollowing: async (followerId: string, followedId: string): Promise<boolean> => {
     try {
@@ -603,7 +638,7 @@ export const db = {
      }
   },
 
-  // --- F. CÁC TÍNH NĂNG KHÁC (Review, Chat, Report, System) ---
+  // --- F. CÁC TÍNH NĂNG KHÁC ---
 
   getReviews: (targetId: string, targetType: 'listing' | 'user', callback: (reviews: Review[]) => void) => {
     const q = query(
@@ -710,6 +745,156 @@ export const db = {
       participantIds: [bId, l.sellerId], messages: [], lastUpdate: new Date().toISOString(), seenBy: [bId]
     });
     return res.id;
+  },
+
+  // --- G. SEED DATA (TẠO DỮ LIỆU MẪU - CÓ XÓA DỮ LIỆU CŨ) ---
+  seedDatabase: async () => {
+    try {
+      console.log("🧹 Đang dọn dẹp dữ liệu rác...");
+      
+      // 1. XÓA DỮ LIỆU GIẢ CŨ (User & Listing có ID bắt đầu bằng 'seed_')
+      // Lưu ý: Firestore giới hạn batch 500 ops, nên ta tách ra xử lý từng cụm
+      
+      // A. Lấy danh sách cần xóa
+      const allUsers = await getDocs(collection(firestore, "users"));
+      const allListings = await getDocs(collection(firestore, "listings"));
+
+      const seedUserDocs = allUsers.docs.filter(d => d.id.startsWith("seed_"));
+      const seedListingDocs = allListings.docs.filter(d => d.id.startsWith("seed_"));
+
+      // B. Thực hiện xóa (Dùng Batch để xóa nhanh)
+      const deleteBatch = writeBatch(firestore);
+      let deleteCount = 0;
+
+      seedUserDocs.forEach(d => {
+        deleteBatch.delete(d.ref);
+        deleteCount++;
+      });
+      seedListingDocs.forEach(d => {
+        deleteBatch.delete(d.ref);
+        deleteCount++;
+      });
+
+      // Nếu có dữ liệu cũ thì commit xóa
+      if (deleteCount > 0) {
+        await deleteBatch.commit();
+        console.log(`✅ Đã xóa ${seedUserDocs.length} user giả và ${seedListingDocs.length} tin giả cũ.`);
+      }
+
+      console.log("🌱 Bắt đầu tạo dữ liệu mới...");
+      const createBatch = writeBatch(firestore);
+
+      // 2. CHUẨN BỊ DỮ LIỆU MỚI
+      const firstNames = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Huỳnh", "Phan", "Vũ", "Võ", "Đặng"];
+      const middleNames = ["Văn", "Thị", "Hữu", "Đức", "Ngọc", "Minh", "Quốc", "Thanh", "Mỹ", "Anh"];
+      const lastNames = ["An", "Bình", "Cường", "Dũng", "Giang", "Hương", "Khánh", "Lan", "Nam", "Tâm", "Tuấn", "Vy"];
+      const cities = ["Hà Nội", "TPHCM", "Đà Nẵng", "Cần Thơ", "Hải Phòng", "Bình Dương", "Đồng Nai"];
+      
+      // Nguồn ảnh LoremFlickr (đổi từ khóa để ảnh đa dạng)
+      const categories = [
+        { id: "xe-co", name: "Xe cộ", keyword: "motorcycle,car", products: [
+            { title: "Honda SH 150i 2022 Chính chủ", price: 85000000 },
+            { title: "Yamaha Exciter 155 VVA Lướt", price: 42000000 },
+            { title: "Mazda 3 Luxury 2021 Màu Đỏ", price: 620000000 },
+            { title: "VinFast Lux A2.0 Bản Cao Cấp", price: 750000000 }
+        ]},
+        { id: "do-dien-tu", name: "Đồ điện tử", keyword: "smartphone,laptop", products: [
+            { title: "iPhone 15 Pro Max 256GB VNA", price: 29500000 },
+            { title: "MacBook Air M2 Midnight Fullbox", price: 24000000 },
+            { title: "Samsung Galaxy S24 Ultra Xám", price: 26000000 },
+            { title: "Tai nghe Sony WH-1000XM5", price: 6500000 }
+        ]},
+        { id: "bat-dong-san", name: "Bất động sản", keyword: "apartment,house", products: [
+            { title: "Chung cư cao cấp Vinhome 2PN", price: 4500000000 },
+            { title: "Nhà phố liền kề Khu đô thị mới", price: 8200000000 },
+            { title: "Phòng trọ khép kín Full nội thất", price: 3500000 }
+        ]},
+        { id: "thoi-trang", name: "Thời trang", keyword: "fashion,shoes", products: [
+            { title: "Giày Nike Jordan 1 High Panda", price: 3200000 },
+            { title: "Áo Hoodie Essentials Chính hãng", price: 1500000 }
+        ]}
+      ];
+
+      const getRandom = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
+      const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+      // 3. TẠO 50 USERS GIẢ
+      const fakeUsers: User[] = [];
+      for (let i = 0; i < 50; i++) {
+        const uid = `seed_user_${i}`; // ID cố định dạng seed_user_0, seed_user_1 để dễ quản lý
+        const name = `${getRandom(firstNames)} ${getRandom(middleNames)} ${getRandom(lastNames)}`;
+        
+        const userRef = doc(firestore, "users", uid);
+        const newUser: User = {
+          id: uid,
+          name: name,
+          email: `user${i}@seed.com`,
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`,
+          role: 'user',
+          status: 'active',
+          location: getRandom(cities),
+          joinedAt: new Date(Date.now() - randomInt(0, 10000000000)).toISOString(),
+          walletBalance: randomInt(0, 5000000),
+          subscriptionTier: Math.random() > 0.8 ? 'pro' : (Math.random() > 0.5 ? 'basic' : 'free'),
+          verificationStatus: Math.random() > 0.7 ? 'verified' : 'unverified',
+          followers: [],
+          following: []
+        };
+        
+        fakeUsers.push(newUser);
+        createBatch.set(userRef, newUser);
+      }
+
+      // 4. TẠO 100 LISTINGS GIẢ
+      for (let i = 0; i < 100; i++) {
+        const lid = `seed_listing_${i}`; // ID cố định dạng seed_listing_0...
+        const seller = getRandom(fakeUsers);
+        const cat = getRandom(categories);
+        const prod = getRandom(cat.products);
+        
+        const isVip = Math.random() > 0.8;
+        const tier = isVip ? 'pro' : 'free';
+        const finalPrice = prod.price + randomInt(-500000, 500000); 
+
+        const mainImage = `https://loremflickr.com/800/600/${cat.keyword}?lock=${i}`;
+        const subImage = `https://picsum.photos/seed/${i}/800/600`;
+
+        const listingRef = doc(firestore, "listings", lid);
+        const newListing: Listing = {
+          id: lid,
+          title: prod.title,
+          description: `Cần bán ${prod.title}. Hàng còn mới, sử dụng kỹ. Bao test thoải mái. Liên hệ ${seller.name} để ép giá. Giao dịch trực tiếp tại ${seller.location}.`,
+          price: finalPrice > 0 ? finalPrice : 1000000,
+          category: cat.id,
+          images: [mainImage, subImage], 
+          location: seller.location || "Toàn quốc",
+          address: `Quận ${randomInt(1, 12)}, ${seller.location}`,
+          sellerId: seller.id,
+          sellerName: seller.name,
+          sellerAvatar: seller.avatar,
+          createdAt: new Date(Date.now() - randomInt(0, 604800000)).toISOString(),
+          status: Math.random() > 0.1 ? 'approved' : 'pending',
+          condition: Math.random() > 0.5 ? 'used' : 'new',
+          tier: tier as SubscriptionTier,
+          attributes: {
+             brand: "Chính hãng",
+             origin: "Việt Nam",
+             status: "99%"
+          }
+        };
+
+        createBatch.set(listingRef, newListing);
+      }
+
+      // 5. THỰC THI TẠO MỚI
+      await createBatch.commit();
+      
+      return { success: true, message: `Đã Reset: Xóa dữ liệu cũ & Tạo mới ${fakeUsers.length} user, 100 tin đăng!` };
+
+    } catch (e: any) {
+      console.error("Seed error:", e);
+      return { success: false, message: e.message };
+    }
   },
 
   init: () => {}

@@ -139,7 +139,8 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  // UPDATE: Thêm các loại thông báo mới (review, message, approval, follow, system)
+  type: 'info' | 'success' | 'warning' | 'error' | 'review' | 'message' | 'approval' | 'follow' | 'system';
   read: boolean;
   createdAt: string;
   link?: string;

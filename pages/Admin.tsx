@@ -381,6 +381,8 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const activeReports = useMemo(() => reports.filter(r => r.status === 'pending'), [reports]);
   // Pending verification tạm tính theo list users hiện tại (hoặc cần API count riêng nếu muốn chính xác tuyệt đối)
   const pendingVerifications = useMemo(() => users.filter(u => u.verificationStatus === 'pending'), [users]);
+  // Kiểm tra xem có tin đăng nào chờ duyệt trong trang hiện tại không (cho red dot)
+  const hasPendingListings = useMemo(() => listings.some(l => l.status === 'pending'), [listings]);
 
   if (!user || user.role !== 'admin' || !settings) return null;
 
@@ -460,16 +462,29 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
             <div className="px-4 py-2"><h2 className="text-xl font-black text-primary">Admin Console</h2></div>
             <nav className="space-y-1">
                {[
-                 { id: 'stats', label: 'Bàn làm việc', icon: '📊' },
-                 { id: 'payments', label: 'Duyệt tiền', icon: '💰', count: pendingPayments.length },
-                 { id: 'listings', label: 'Duyệt tin', icon: '📦' },
-                 { id: 'reports', label: 'Báo cáo', icon: '🚨', count: activeReports.length },
-                 { id: 'users', label: 'Thành viên', icon: '👥' }, // Bỏ count badge vì dùng pagination, hoặc dùng pendingVerifications.length nếu muốn
-                 { id: 'settings', label: 'Cấu hình', icon: '⚙️' },
+                 { id: 'stats', label: 'Bàn làm việc', icon: '📊', notify: false },
+                 { id: 'payments', label: 'Duyệt tiền', icon: '💰', notify: pendingPayments.length > 0 },
+                 { id: 'listings', label: 'Duyệt tin', icon: '📦', notify: hasPendingListings },
+                 { id: 'reports', label: 'Báo cáo', icon: '🚨', notify: activeReports.length > 0 },
+                 { id: 'users', label: 'Thành viên', icon: '👥', notify: pendingVerifications.length > 0 },
+                 { id: 'settings', label: 'Cấu hình', icon: '⚙️', notify: false },
                ].map(tab => (
                    <button key={tab.id} onClick={() => setActiveTab(tab.id as AdminTab)} className={`w-full flex items-center justify-between px-5 py-3.5 rounded-2xl text-[11px] font-black uppercase transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}>
                       <div className="flex items-center gap-4"><span className="text-lg">{tab.icon}</span><span>{tab.label}</span></div>
-                      {tab.count !== undefined && tab.count > 0 && <span className="bg-red-500 text-white px-2.5 py-1 rounded-full text-[9px] font-black animate-pulse">{tab.count}</span>}
+                      
+                      {/* === UPDATE: NOTIFICATION DOT === */}
+                      <div className="flex items-center gap-2">
+                          {/* Giữ lại số đếm nếu muốn, hoặc thay thế bằng dot */}
+                          {['payments', 'reports'].includes(tab.id) && (tab as any).count > 0 && <span className="bg-red-500 text-white px-2.5 py-1 rounded-full text-[9px] font-black animate-pulse">{(tab as any).count}</span>}
+                          
+                          {/* Chấm đỏ báo hiệu mới */}
+                          {tab.notify && (
+                              <span className="relative flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-white"></span>
+                              </span>
+                          )}
+                      </div>
                    </button>
                ))}
             </nav>
@@ -576,14 +591,14 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                      <td className="py-4"><span className={`text-[9px] px-2 py-1 rounded font-black uppercase ${l.status === 'approved' ? 'bg-green-100 text-green-600' : l.status === 'pending' ? 'bg-yellow-100 text-yellow-600' : 'bg-red-100 text-red-600'}`}>{l.status}</span></td>
                                      <td className="py-4 text-right">
                                          <div className="flex justify-end gap-2">
-                                             {l.status === 'pending' && (
-                                                <>
-                                                    <button onClick={() => handleApproveListing(l.id)} className="bg-green-500 text-white p-2 rounded-lg transition-colors hover:shadow-lg" title="Duyệt ngay">✅</button>
-                                                    <button onClick={() => handleRejectListing(l.id)} className="bg-red-100 text-red-500 p-2 rounded-lg transition-colors hover:bg-red-200" title="Từ chối">⛔</button>
-                                                </>
-                                             )}
-                                             <button onClick={() => openEditModal(l)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-colors" title="Sửa nhanh">✏️</button>
-                                             <button onClick={() => { setSelectedListings(new Set([l.id])); handleBatchDelete(); }} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Xóa">🗑</button>
+                                              {l.status === 'pending' && (
+                                                  <>
+                                                      <button onClick={() => handleApproveListing(l.id)} className="bg-green-500 text-white p-2 rounded-lg transition-colors hover:shadow-lg" title="Duyệt ngay">✅</button>
+                                                      <button onClick={() => handleRejectListing(l.id)} className="bg-red-100 text-red-500 p-2 rounded-lg transition-colors hover:bg-red-200" title="Từ chối">⛔</button>
+                                                  </>
+                                              )}
+                                              <button onClick={() => openEditModal(l)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-colors" title="Sửa nhanh">✏️</button>
+                                              <button onClick={() => { setSelectedListings(new Set([l.id])); handleBatchDelete(); }} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Xóa">🗑</button>
                                          </div>
                                      </td>
                                  </tr>
@@ -693,6 +708,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                           <div className="space-y-3"><label className="text-[11px] font-black text-gray-400 uppercase px-1">Chiết khấu chung (%)</label><input type="number" value={settings.pushDiscount || 0} onChange={e => setSettings({...settings, pushDiscount: parseInt(e.target.value)})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
                        </div>
                     </div>
+                    
                     {/* 2. VIP Config */}
                     <div className="space-y-6 pt-6 border-t border-gray-100">
                         <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2"><span className="w-2 h-2 bg-primary rounded-full"></span> Gói VIP</h4>
@@ -711,6 +727,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                            </div>
                         </div>
                     </div>
+
                     {/* 3. Bank */}
                     <div className="space-y-6 pt-6 border-t border-gray-100">
                         <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2"><span className="w-2 h-2 bg-primary rounded-full"></span> Ngân hàng</h4>
@@ -728,6 +745,40 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                             </div>
                         </div>
                     </div>
+
+                    {/* 4. SEED DATA TOOL (MỚI THÊM) */}
+                    <div className="space-y-6 pt-6 border-t border-gray-100">
+                        <h4 className="text-sm font-black uppercase tracking-widest text-red-500 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span> Công cụ Developer
+                        </h4>
+                        <div className="bg-red-50 p-6 rounded-3xl border border-red-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div>
+                                <h5 className="font-black text-gray-800">Tạo dữ liệu mẫu (Seed Data)</h5>
+                                <p className="text-[10px] text-gray-500 mt-1">Tự động tạo 50 User + 100 Tin đăng đẹp mắt để test.</p>
+                            </div>
+                            <button 
+                                type="button" 
+                                onClick={async () => {
+                                    if(window.confirm("Hành động này sẽ tạo ra rất nhiều dữ liệu giả. Bạn chắc chứ?")) {
+                                        setIsLoading(true);
+                                        const res = await db.seedDatabase(); 
+                                        setIsLoading(false);
+                                        if(res.success) {
+                                            showToast(res.message);
+                                            // Reload lại dữ liệu sau khi seed xong
+                                            loadInitialData();
+                                        }
+                                        else showToast("Lỗi: " + res.message, "error");
+                                    }
+                                }}
+                                disabled={isLoading}
+                                className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-red-600 transition-all w-full md:w-auto"
+                            >
+                                {isLoading ? "Đang tạo..." : "Khởi tạo ngay"}
+                            </button>
+                        </div>
+                    </div>
+
                     <button type="submit" disabled={isLoading} className="w-full bg-primary text-white font-black py-5 rounded-3xl shadow-2xl shadow-primary/20 hover:scale-[1.01] active:scale-95 transition-all uppercase tracking-widest text-xs">Lưu cấu hình</button>
                  </form>
              </div>

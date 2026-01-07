@@ -17,6 +17,9 @@ import Wallet from './pages/Wallet';
 import Admin from './pages/Admin';
 import StaticPage from './pages/StaticPage';
 
+// Component Google One Tap
+import GoogleOneTap from './components/GoogleOneTap';
+
 // Services & Types
 import { db } from './services/db';
 import { User } from './types';
@@ -60,6 +63,13 @@ const App: React.FC = () => {
 
   return (
     <Router>
+      {/* ========================================================= */}
+      {/* TÍCH HỢP GOOGLE ONE TAP LOGIN */}
+      {/* Chỉ hiển thị khi ứng dụng đã tải xong (isInitializing = false) */}
+      {/* VÀ người dùng chưa đăng nhập (!user) */}
+      {/* ========================================================= */}
+      {!isInitializing && !user && <GoogleOneTap />}
+
       <Layout user={user}>
         <Routes>
           {/* ========================================================= */}

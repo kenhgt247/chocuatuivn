@@ -103,7 +103,7 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
                <div className="flex items-center justify-between px-1">
                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Phương thức thanh toán</span>
                   <span className="text-[10px] font-black text-primary uppercase flex items-center gap-1">
-                    <img src="https://vietqr.net/img/logo.svg" className="h-4" alt="VietQR" /> Quét mã tự động
+                    <img src="/v.png" className="h-4" alt="VietQR" /> Quét mã tự động
                   </span>
                </div>
                <button 

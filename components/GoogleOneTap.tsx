@@ -1,69 +1,79 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
 
-// Khai báo type cho window.google để không bị lỗi TypeScript
-declare global {
-  interface Window {
-    google: any;
-  }
-}
-
 const GoogleOneTap: React.FC = () => {
   const navigate = useNavigate();
+  // Dùng ref để kiểm tra xem đã khởi tạo chưa (tránh React chạy 2 lần)
+  const isInitialized = useRef(false);
 
   useEffect(() => {
-    // Nếu người dùng đã đăng nhập (kiểm tra qua localStorage hoặc state cha), bạn có thể return để không hiện popup
-    // Tuy nhiên, One Tap thông minh, nó sẽ tự ẩn nếu đã đăng nhập google nhưng logic ứng dụng cần chặt chẽ.
+    // Nếu đã chạy rồi thì dừng ngay, không chạy lại
+    if (isInitialized.current) return;
+    isInitialized.current = true;
 
     const handleGoogleOneTap = () => {
+      // Kiểm tra Google script đã tải xong chưa
       if (!window.google) return;
 
+      // 1. Khởi tạo cấu hình
       window.google.accounts.id.initialize({
-        client_id: "373357283352-d756his44ie84b014r4jus4lr9i03jik.apps.googleusercontent.com", // <--- DÁN CLIENT ID VÀO ĐÂY
+        client_id: "YOUR_GOOGLE_CLIENT_ID", // <--- NHỚ THAY CLIENT ID CỦA BẠN VÀO ĐÂY
         callback: async (response: any) => {
           try {
-            // response.credential chính là ID Token
-            const user = await db.loginWithOneTap(response.credential);
-            console.log("One Tap Login Success:", user);
-            
-            // Reload hoặc điều hướng sau khi đăng nhập thành công
-            // Vì App.tsx của bạn dùng onAuthStateChanged nên UI sẽ tự cập nhật, 
-            // nhưng an toàn thì chuyển hướng về Home hoặc reload.
-            navigate('/'); 
-            // Hoặc window.location.reload(); nếu state không tự cập nhật
+            console.log("Google response:", response);
+            // Gọi hàm login bên db.ts
+            await db.loginWithOneTap(response.credential);
+            // Đăng nhập xong thì reload hoặc về trang chủ
+            window.location.reload(); 
           } catch (error) {
-            console.error("One Tap Error:", error);
+            console.error("Login Failed:", error);
           }
         },
-        // Tắt tự động chọn tài khoản để tránh loop nếu user muốn logout
+        // Tắt tự động chọn để tránh vòng lặp nếu user logout
         auto_select: false, 
-        cancel_on_tap_outside: false
+        cancel_on_tap_outside: false,
+        // Quan trọng: fix lỗi FedCM hiển thị trên một số trình duyệt mới
+        use_fedcm_for_prompt: true 
       });
 
-      // Hiển thị popup
-      window.google.accounts.id.prompt((notification: any) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          console.log("One Tap skipped/not displayed reason:", notification.getNotDisplayedReason());
-        }
-      });
+      // 2. Hiển thị Popup (Bọc trong try catch để tránh lỗi "Only one request")
+      try {
+        window.google.accounts.id.prompt((notification: any) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            console.log("One Tap không hiển thị vì:", notification.getNotDisplayedReason());
+          }
+        });
+      } catch (err) {
+        console.warn("One Tap prompt error (có thể do gọi 2 lần):", err);
+      }
     };
 
-    // Tải script Google Identity Services
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = handleGoogleOneTap;
-    document.body.appendChild(script);
+    // 3. Tải script Google (nếu chưa có)
+    const scriptUrl = 'https://accounts.google.com/gsi/client';
+    const existingScript = document.querySelector(`script[src="${scriptUrl}"]`);
 
+    if (!existingScript) {
+      const script = document.createElement('script');
+      script.src = scriptUrl;
+      script.async = true;
+      script.defer = true;
+      script.onload = handleGoogleOneTap;
+      document.body.appendChild(script);
+    } else {
+      // Nếu script đã có sẵn, gọi luôn hàm xử lý
+      handleGoogleOneTap();
+    }
+
+    // Cleanup function: Tắt prompt khi component bị hủy (chuyển trang)
     return () => {
-      // Cleanup script khi component unmount
-      document.body.removeChild(script);
+      if (window.google) {
+        window.google.accounts.id.cancel();
+      }
     };
   }, [navigate]);
 
-  return null; // Component này không render UI gì cả, nó chỉ gọi popup của Google
+  return null;
 };
 
 export default GoogleOneTap;

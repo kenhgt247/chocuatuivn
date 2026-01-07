@@ -86,7 +86,7 @@ const App: React.FC = () => {
           
           {/* [QUAN TRỌNG] Route Cầu nối cho Thông báo (Do db.ts gửi link dạng này) */}
           {/* Khi bấm thông báo "Tin được duyệt", nó chạy vào đây và vẫn hiển thị ListingDetail */}
-          <Route path="/listings/:id" element={<ListingDetail user={user} />} />
+          <Route path="/listings/:slugWithId" element={<ListingDetail user={user} />} />
 
 
           {/* ========================================================= */}

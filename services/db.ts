@@ -62,6 +62,18 @@ const storage = getStorage(app);
 // 4. OBJECT DB
 export const db = {
   
+  // --- HÀM HELPER: Tạo đường dẫn đẹp (Slug) ---
+  // [MỚI] Hàm này dùng để tạo link chuẩn SEO
+  toSlug: (str: string) => {
+    return str
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Xóa dấu tiếng Việt
+      .replace(/[đĐ]/g, "d")
+      .replace(/[^a-z0-9\s-]/g, "") // Xóa ký tự đặc biệt
+      .trim()
+      .replace(/\s+/g, "-"); // Thay khoảng trắng bằng dấu gạch ngang
+  },
+
   // --- A. QUẢN LÝ TIN ĐĂNG (LISTINGS) ---
 
   getVIPListings: async (max = 10) => {
@@ -226,7 +238,7 @@ export const db = {
     }
   },
 
-  // [ĐÃ CẬP NHẬT LINK] Duyệt tin -> Link về bài viết
+  // [CẬP NHẬT: LINK SEO] Duyệt tin -> Link về bài viết chuẩn SEO
   updateListingStatus: async (listingId: string, status: 'approved' | 'rejected') => {
     try {
       // 1. Cập nhật trạng thái
@@ -235,12 +247,16 @@ export const db = {
       // 2. Lấy thông tin tin đăng để gửi thông báo cho chủ sở hữu
       const listing = await db.getListingById(listingId);
       if (listing) {
+        // [MỚI] Tạo link đẹp chuẩn SEO: /san-pham/ten-san-pham-id
+        const slug = db.toSlug(listing.title);
+        const prettyLink = `/san-pham/${slug}-${listingId}`;
+
         await db.sendNotification({
           userId: listing.sellerId,
           title: status === 'approved' ? 'Tin đăng đã được duyệt' : 'Tin đăng bị từ chối',
           message: `Tin "${listing.title}" của bạn đã được chuyển sang trạng thái ${status === 'approved' ? 'Đang hiển thị' : 'Từ chối'}.`,
           type: status === 'approved' ? 'success' : 'error',
-          link: `/listings/${listingId}` // Link khớp với Route App.tsx
+          link: prettyLink
         });
       }
     } catch (error) {
@@ -389,7 +405,6 @@ export const db = {
     }
   },
 
-  // [ĐÃ CẬP NHẬT LINK] Duyệt tiền -> Link về Ví
   approveTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
     try {
       let targetUserId = "";
@@ -435,7 +450,7 @@ export const db = {
               ? `Hệ thống đã cộng ${amount.toLocaleString()} VNĐ vào ví của bạn.` 
               : `Gói thành viên của bạn đã được nâng cấp thành công.`,
             type: 'success',
-            link: '/wallet' // [QUAN TRỌNG] Link về ví để xem tiền
+            link: '/wallet' // Link về ví để xem tiền
          });
       }
       
@@ -707,7 +722,7 @@ export const db = {
     });
   },
 
-  // [ĐÃ CẬP NHẬT LINK] Review -> Link về profile/listing
+  // [CẬP NHẬT: LINK SEO] Review -> Link về profile hoặc tin đăng chuẩn SEO
   addReview: async (reviewData: Omit<Review, 'id' | 'createdAt'>) => {
     try {
       // 1. Lưu Review
@@ -727,7 +742,9 @@ export const db = {
         if (listing) {
           receiverId = listing.sellerId;
           notifTitle = `Tin "${listing.title}" có đánh giá mới`;
-          link = `/listings/${reviewData.targetId}`; // Xem tin nào được đánh giá
+          // [MỚI] Link SEO
+          const slug = db.toSlug(listing.title);
+          link = `/san-pham/${slug}-${reviewData.targetId}`; 
         }
       }
 

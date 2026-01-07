@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Listing, Transaction, Report } from '../types';
@@ -23,7 +23,7 @@ interface VerificationModalState {
 
 const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Đã xóa fileInputRef vì không còn dùng upload ảnh QR thủ công
   const [activeTab, setActiveTab] = useState<AdminTab>('stats');
 
   // --- GLOBAL DATA STATES ---
@@ -40,17 +40,17 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const [listingStatusFilter, setListingStatusFilter] = useState<'all' | 'pending'>('pending');
   const [selectedListings, setSelectedListings] = useState<Set<string>>(new Set());
 
-  // --- USER STATES (Pagination - MỚI) ---
+  // --- USER STATES (Pagination) ---
   const [users, setUsers] = useState<User[]>([]);
   const [userLastDocs, setUserLastDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
   const [hasMoreUsers, setHasMoreUsers] = useState(true);
   const [userPage, setUserPage] = useState(1);
-  const [isUserLoading, setIsUserLoading] = useState(false); // Loading riêng cho tab User
+  const [isUserLoading, setIsUserLoading] = useState(false);
 
   const ITEMS_PER_PAGE = 10;
 
   // --- UI STATES ---
-  const [isLoading, setIsLoading] = useState(false); // Loading chung
+  const [isLoading, setIsLoading] = useState(false);
   const [confirmModal, setConfirmModal] = useState<ConfirmState>({ show: false, title: '', message: '', type: 'warning', onConfirm: () => {} });
   const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'success' });
 
@@ -91,8 +91,6 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const loadInitialData = async () => {
     setIsLoading(true);
     try {
-      // Chỉ load Reports, Transactions, Settings và trang 1 Listings. 
-      // KHÔNG load Users ở đây để tránh nặng.
       const [allReports, allTxs, allSettings] = await Promise.all([
         db.getAllReports(),
         db.getTransactions(),
@@ -111,7 +109,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
     }
   };
 
-  // --- 2. LOGIC LISTINGS (PAGINATION FIXED) ---
+  // --- 2. LOGIC LISTINGS (PAGINATION) ---
   const loadListings = async (lastDoc: QueryDocumentSnapshot<DocumentData> | null, isNext = true) => {
     setIsLoading(true);
     const res = await db.getListingsPaged({
@@ -140,7 +138,6 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
 
   const handlePrevListingPage = () => {
     if (listingPage === 1) return;
-    // Logic lùi trang: Nếu về trang 1 thì cursor là null. Nếu về trang > 1 thì lấy cursor của trang đó (index - 3)
     const prevCursor = (listingPage - 1) === 1 ? null : listingLastDocs[listingPage - 3];
     setListingPage(p => p - 1);
     loadListings(prevCursor, false);
@@ -153,13 +150,12 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
     loadListings(null);
   };
 
-  // --- 3. LOGIC USERS (PAGINATION MỚI) ---
+  // --- 3. LOGIC USERS (PAGINATION) ---
   const loadUsers = async (lastDoc: QueryDocumentSnapshot<DocumentData> | null, isNext = true) => {
     setIsUserLoading(true);
     const res = await db.getUsersPaged({
         pageSize: ITEMS_PER_PAGE,
         lastDoc: lastDoc
-        // Có thể thêm search ở đây nếu muốn mở rộng
     });
 
     if (!res.error) {
@@ -186,17 +182,15 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
     loadUsers(prevCursor, false);
   };
 
-  // --- 4. LOGIC REPORTS (OPTIMISTIC UI) ---
-  // Xử lý báo cáo mượt mà: Cập nhật UI ngay -> Gọi API sau
+  // --- 4. LOGIC REPORTS ---
   const handleResolveReport = async (reportId: string) => {
     const originalReports = [...reports];
-    // Optimistic Update
     setReports(prev => prev.filter(r => r.id !== reportId));
     try {
         await db.resolveReport(reportId);
         showToast("✅ Đã xử lý báo cáo");
     } catch (error) {
-        setReports(originalReports); // Revert nếu lỗi
+        setReports(originalReports);
         showToast("Lỗi kết nối", "error");
     }
   };
@@ -209,10 +203,8 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
         type: 'danger',
         onConfirm: async () => {
             setConfirmModal(prev => ({ ...prev, show: false }));
-            
-            // Optimistic Update UI
             setReports(prev => prev.filter(r => r.id !== reportId));
-            setListings(prev => prev.filter(l => l.id !== listingId)); // Cập nhật cả list tin nếu đang hiện
+            setListings(prev => prev.filter(l => l.id !== listingId));
 
             try {
                 await db.deleteListing(listingId);
@@ -220,19 +212,17 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                 showToast("✅ Đã xóa tin và xử lý");
             } catch (error) {
                 showToast("Lỗi khi xóa tin", "error");
-                // Reload data để đảm bảo đồng bộ
                 loadInitialData();
             }
         }
     });
   };
 
-  // --- 5. ACTIONS: LISTINGS (Approve/Reject/Batch) ---
+  // --- 5. ACTIONS: LISTINGS ---
   const handleApproveListing = async (lId: string) => {
     setIsLoading(true);
     await db.updateListingStatus(lId, 'approved');
     showToast("✅ Đã duyệt tin đăng");
-    // Update local state
     setListings(prev => prev.map(l => l.id === lId ? { ...l, status: 'approved' } as Listing : l));
     if (listingStatusFilter === 'pending') {
         setListings(prev => prev.filter(l => l.id !== lId));
@@ -282,7 +272,6 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
             if(res.success) {
                 showToast(`Đã xóa ${ids.length} tin.`);
                 setSelectedListings(new Set());
-                // Reload trang hiện tại để lấp đầy khoảng trống
                 loadListings(listingPage === 1 ? null : listingLastDocs[listingPage - 2] || null, false); 
             } else { showToast("Lỗi xóa: " + res.error, "error"); }
             setIsLoading(false);
@@ -318,7 +307,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
         onConfirm: async () => {
             setConfirmModal(prev => ({...prev, show: false})); setIsLoading(true);
             const res = await db.approveTransaction(txId);
-            if(res.success) { showToast("Giao dịch thành công!"); loadInitialData(); } // Reload để update ví user nếu cần
+            if(res.success) { showToast("Giao dịch thành công!"); loadInitialData(); }
             else { showToast("Lỗi: " + res.message, "error"); setIsLoading(false); }
         }
     });
@@ -338,12 +327,11 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
 
   const handleProcessKyc = (u: User, status: 'verified' | 'rejected') => {
     setVerifyModal({ show: false, user: null }); 
-    // Optimistic Update cho Users list
     setUsers(prev => prev.map(usr => usr.id === u.id ? { ...usr, verificationStatus: status } : usr));
     
     db.updateUserProfile(u.id, { verificationStatus: status })
        .then(() => { showToast(status === 'verified' ? `Đã xác thực ${u.name}` : `Đã từ chối ${u.name}`); })
-       .catch(() => { showToast("Lỗi xử lý KYC", "error"); loadUsers(null); }); // Revert nếu lỗi bằng cách reload
+       .catch(() => { showToast("Lỗi xử lý KYC", "error"); loadUsers(null); });
   };
 
   const toggleUserStatus = (u: User) => {
@@ -352,10 +340,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
           show: true, title: newStatus === 'banned' ? "Khóa tài khoản" : "Mở khóa", message: "Xác nhận hành động?", type: newStatus === 'banned' ? 'danger' : 'success',
           onConfirm: async () => {
               setConfirmModal(prev => ({...prev, show: false})); 
-              
-              // Optimistic update
               setUsers(prev => prev.map(usr => usr.id === u.id ? { ...usr, status: newStatus } : usr));
-
               await db.updateUserProfile(u.id, { status: newStatus });
               showToast("Đã cập nhật trạng thái user");
           }
@@ -363,12 +348,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   };
 
   // --- 8. ACTIONS: SETTINGS ---
-  const handleQRUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file || !settings) return;
-    const reader = new FileReader();
-    reader.onloadend = async () => { setSettings({ ...settings, beneficiaryQR: reader.result as string }); };
-    reader.readAsDataURL(file);
-  };
+  // Đã xóa hàm handleQRUpload
 
   const handleSaveSettings = async (e: React.FormEvent) => {
       e.preventDefault(); setIsLoading(true);
@@ -379,9 +359,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   // --- CALCULATED LISTS ---
   const pendingPayments = useMemo(() => transactions.filter(t => t.status === 'pending'), [transactions]);
   const activeReports = useMemo(() => reports.filter(r => r.status === 'pending'), [reports]);
-  // Pending verification tạm tính theo list users hiện tại (hoặc cần API count riêng nếu muốn chính xác tuyệt đối)
   const pendingVerifications = useMemo(() => users.filter(u => u.verificationStatus === 'pending'), [users]);
-  // Kiểm tra xem có tin đăng nào chờ duyệt trong trang hiện tại không (cho red dot)
   const hasPendingListings = useMemo(() => listings.some(l => l.status === 'pending'), [listings]);
 
   if (!user || user.role !== 'admin' || !settings) return null;
@@ -472,12 +450,9 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                    <button key={tab.id} onClick={() => setActiveTab(tab.id as AdminTab)} className={`w-full flex items-center justify-between px-5 py-3.5 rounded-2xl text-[11px] font-black uppercase transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}>
                       <div className="flex items-center gap-4"><span className="text-lg">{tab.icon}</span><span>{tab.label}</span></div>
                       
-                      {/* === UPDATE: NOTIFICATION DOT === */}
                       <div className="flex items-center gap-2">
-                          {/* Giữ lại số đếm nếu muốn, hoặc thay thế bằng dot */}
                           {['payments', 'reports'].includes(tab.id) && (tab as any).count > 0 && <span className="bg-red-500 text-white px-2.5 py-1 rounded-full text-[9px] font-black animate-pulse">{(tab as any).count}</span>}
                           
-                          {/* Chấm đỏ báo hiệu mới */}
                           {tab.notify && (
                               <span className="relative flex h-2.5 w-2.5">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -618,10 +593,10 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
              </div>
          )}
 
-         {/* === TAB USERS (PAGINATION MỚI) === */}
+         {/* === TAB USERS (PAGINATION) === */}
          {activeTab === 'users' && (
              <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-8">
-                {/* Phần Alert Pending KYC (Nếu cần có thể lọc từ danh sách trang hiện tại hoặc dùng API count riêng) */}
+                {/* Phần Alert Pending KYC */}
                 {pendingVerifications.length > 0 && (
                     <div className="bg-yellow-50 border border-yellow-100 rounded-3xl p-6">
                         <h3 className="text-lg font-black text-yellow-800 mb-4 flex items-center gap-2"><span className="animate-pulse">⚠️</span> Yêu cầu xác thực (Trang này)</h3>
@@ -696,91 +671,135 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
              </div>
          )}
 
-         {/* === TAB SETTINGS (FULL) === */}
+         {/* === TAB SETTINGS (UPDATED FOR VIETQR) === */}
          {activeTab === 'settings' && (
              <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft">
                  <form onSubmit={handleSaveSettings} className="space-y-12">
-                    {/* 1. General */}
-                    <div className="space-y-6">
-                       <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2"><span className="w-2 h-2 bg-primary rounded-full"></span> Phí & Ưu đãi</h4>
-                       <div className="grid md:grid-cols-2 gap-8">
-                          <div className="space-y-3"><label className="text-[11px] font-black text-gray-400 uppercase px-1">Giá đẩy tin (VNĐ)</label><input type="number" value={settings.pushPrice} onChange={e => setSettings({...settings, pushPrice: parseInt(e.target.value)})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
-                          <div className="space-y-3"><label className="text-[11px] font-black text-gray-400 uppercase px-1">Chiết khấu chung (%)</label><input type="number" value={settings.pushDiscount || 0} onChange={e => setSettings({...settings, pushDiscount: parseInt(e.target.value)})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
+                   {/* 1. General */}
+                   <div className="space-y-6">
+                      <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2"><span className="w-2 h-2 bg-primary rounded-full"></span> Phí & Ưu đãi</h4>
+                      <div className="grid md:grid-cols-2 gap-8">
+                         <div className="space-y-3"><label className="text-[11px] font-black text-gray-400 uppercase px-1">Giá đẩy tin (VNĐ)</label><input type="number" value={settings.pushPrice} onChange={e => setSettings({...settings, pushPrice: parseInt(e.target.value)})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
+                         <div className="space-y-3"><label className="text-[11px] font-black text-gray-400 uppercase px-1">Chiết khấu chung (%)</label><input type="number" value={settings.pushDiscount || 0} onChange={e => setSettings({...settings, pushDiscount: parseInt(e.target.value)})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
+                      </div>
+                   </div>
+                   
+                   {/* 2. VIP Config */}
+                   <div className="space-y-6 pt-6 border-t border-gray-100">
+                       <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2"><span className="w-2 h-2 bg-primary rounded-full"></span> Gói VIP</h4>
+                       <div className="grid md:grid-cols-2 gap-6">
+                          {/* Basic */}
+                          <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 space-y-4">
+                              <h5 className="font-black text-blue-600 text-xs uppercase">Gói Basic</h5>
+                              <input type="number" placeholder="Giá" value={settings.tierConfigs.basic.price} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, basic: {...settings.tierConfigs.basic, price: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
+                              <input type="number" placeholder="Số ảnh" value={settings.tierConfigs.basic.maxImages} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, basic: {...settings.tierConfigs.basic, maxImages: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
+                          </div>
+                          {/* Pro */}
+                          <div className="bg-yellow-50 p-6 rounded-3xl border border-yellow-100 space-y-4">
+                              <h5 className="font-black text-yellow-600 text-xs uppercase">Gói Pro</h5>
+                              <input type="number" placeholder="Giá" value={settings.tierConfigs.pro.price} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, pro: {...settings.tierConfigs.pro, price: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
+                              <input type="number" placeholder="Số ảnh" value={settings.tierConfigs.pro.maxImages} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, pro: {...settings.tierConfigs.pro, maxImages: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
+                          </div>
                        </div>
-                    </div>
-                    
-                    {/* 2. VIP Config */}
-                    <div className="space-y-6 pt-6 border-t border-gray-100">
-                        <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2"><span className="w-2 h-2 bg-primary rounded-full"></span> Gói VIP</h4>
-                        <div className="grid md:grid-cols-2 gap-6">
-                           {/* Basic */}
-                           <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 space-y-4">
-                               <h5 className="font-black text-blue-600 text-xs uppercase">Gói Basic</h5>
-                               <input type="number" placeholder="Giá" value={settings.tierConfigs.basic.price} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, basic: {...settings.tierConfigs.basic, price: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
-                               <input type="number" placeholder="Số ảnh" value={settings.tierConfigs.basic.maxImages} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, basic: {...settings.tierConfigs.basic, maxImages: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
-                           </div>
-                           {/* Pro */}
-                           <div className="bg-yellow-50 p-6 rounded-3xl border border-yellow-100 space-y-4">
-                               <h5 className="font-black text-yellow-600 text-xs uppercase">Gói Pro</h5>
-                               <input type="number" placeholder="Giá" value={settings.tierConfigs.pro.price} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, pro: {...settings.tierConfigs.pro, price: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
-                               <input type="number" placeholder="Số ảnh" value={settings.tierConfigs.pro.maxImages} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, pro: {...settings.tierConfigs.pro, maxImages: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
-                           </div>
-                        </div>
-                    </div>
+                   </div>
 
-                    {/* 3. Bank */}
-                    <div className="space-y-6 pt-6 border-t border-gray-100">
-                        <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2"><span className="w-2 h-2 bg-primary rounded-full"></span> Ngân hàng</h4>
+                   {/* 3. Bank Configuration for VietQR */}
+                   <div className="space-y-6 pt-6 border-t border-gray-100">
+                        <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                            <span className="w-2 h-2 bg-primary rounded-full"></span> Ngân hàng (VietQR)
+                        </h4>
+                        <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 mb-4">
+                            <p className="text-[10px] font-bold text-blue-600">
+                                ℹ️ Lưu ý: Để tạo mã VietQR tự động, vui lòng nhập chính xác "Mã Ngân Hàng" (Bank Code).
+                                <br/>Ví dụ: Vietcombank nhập <b>VCB</b>, MBBank nhập <b>MB</b>, Techcombank nhập <b>TCB</b>...
+                            </p>
+                        </div>
                         <div className="grid md:grid-cols-2 gap-10">
                             <div className="space-y-4">
-                                <input type="text" placeholder="Tên NH" value={settings.bankName} onChange={e => setSettings({...settings, bankName: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" />
-                                <input type="text" placeholder="Số TK" value={settings.accountNumber} onChange={e => setSettings({...settings, accountNumber: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" />
-                                <input type="text" placeholder="Tên Chủ TK" value={settings.accountName} onChange={e => setSettings({...settings, accountName: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" />
-                            </div>
-                            <div className="space-y-4">
-                                <div className="aspect-square bg-bgMain border-2 border-dashed border-borderMain rounded-3xl relative overflow-hidden group">
-                                    {settings.beneficiaryQR ? <><img src={settings.beneficiaryQR} className="w-full h-full object-contain p-4" /><button type="button" onClick={() => setSettings({...settings, beneficiaryQR: ''})} className="absolute top-4 right-4 bg-red-500 text-white p-2 rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">✕</button></> : <button type="button" onClick={() => fileInputRef.current?.click()} className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 hover:text-primary"><span className="text-[10px] font-black uppercase">Upload QR</span></button>}
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-gray-400 pl-1">Mã Ngân Hàng (Bank Code)</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="VD: MB, VCB, TPB, ACB..." 
+                                        value={settings.bankName} 
+                                        onChange={e => setSettings({...settings, bankName: e.target.value.toUpperCase()})} 
+                                        className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold placeholder:font-normal" 
+                                    />
                                 </div>
-                                <input type="file" ref={fileInputRef} onChange={handleQRUpload} accept="image/*" className="hidden" />
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-gray-400 pl-1">Số Tài Khoản</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Số TK" 
+                                        value={settings.accountNumber} 
+                                        onChange={e => setSettings({...settings, accountNumber: e.target.value})} 
+                                        className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-gray-400 pl-1">Tên Chủ Tài Khoản</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="NGUYEN VAN A" 
+                                        value={settings.accountName} 
+                                        onChange={e => setSettings({...settings, accountName: e.target.value.toUpperCase()})} 
+                                        className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" 
+                                    />
+                                </div>
+                            </div>
+                            
+                            {/* Preview VietQR trong Admin */}
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-gray-400 pl-1">Xem trước QR</label>
+                                <div className="aspect-square bg-white border border-gray-200 rounded-3xl flex items-center justify-center p-4 shadow-sm">
+                                    {settings.bankName && settings.accountNumber ? (
+                                        <img 
+                                            src={`https://img.vietqr.io/image/${settings.bankName}-${settings.accountNumber}-compact.jpg?accountName=${encodeURI(settings.accountName)}`}
+                                            className="w-full h-full object-contain"
+                                            alt="Preview"
+                                        />
+                                    ) : (
+                                        <span className="text-gray-300 text-xs font-bold text-center">Nhập thông tin bên trái<br/>để xem trước</span>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </div>
+                   </div>
 
-                    {/* 4. SEED DATA TOOL (MỚI THÊM) */}
-                    <div className="space-y-6 pt-6 border-t border-gray-100">
-                        <h4 className="text-sm font-black uppercase tracking-widest text-red-500 flex items-center gap-2">
-                            <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span> Công cụ Developer
-                        </h4>
-                        <div className="bg-red-50 p-6 rounded-3xl border border-red-100 flex flex-col md:flex-row items-center justify-between gap-4">
-                            <div>
-                                <h5 className="font-black text-gray-800">Tạo dữ liệu mẫu (Seed Data)</h5>
-                                <p className="text-[10px] text-gray-500 mt-1">Tự động tạo 50 User + 100 Tin đăng đẹp mắt để test.</p>
-                            </div>
-                            <button 
-                                type="button" 
-                                onClick={async () => {
-                                    if(window.confirm("Hành động này sẽ tạo ra rất nhiều dữ liệu giả. Bạn chắc chứ?")) {
-                                        setIsLoading(true);
-                                        const res = await db.seedDatabase(); 
-                                        setIsLoading(false);
-                                        if(res.success) {
-                                            showToast(res.message);
-                                            // Reload lại dữ liệu sau khi seed xong
-                                            loadInitialData();
-                                        }
-                                        else showToast("Lỗi: " + res.message, "error");
-                                    }
-                                }}
-                                disabled={isLoading}
-                                className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-red-600 transition-all w-full md:w-auto"
-                            >
-                                {isLoading ? "Đang tạo..." : "Khởi tạo ngay"}
-                            </button>
-                        </div>
-                    </div>
+                   {/* 4. SEED DATA TOOL */}
+                   <div className="space-y-6 pt-6 border-t border-gray-100">
+                       <h4 className="text-sm font-black uppercase tracking-widest text-red-500 flex items-center gap-2">
+                           <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span> Công cụ Developer
+                       </h4>
+                       <div className="bg-red-50 p-6 rounded-3xl border border-red-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                           <div>
+                               <h5 className="font-black text-gray-800">Tạo dữ liệu mẫu (Seed Data)</h5>
+                               <p className="text-[10px] text-gray-500 mt-1">Tự động tạo 50 User + 100 Tin đăng đẹp mắt để test.</p>
+                           </div>
+                           <button 
+                               type="button" 
+                               onClick={async () => {
+                                   if(window.confirm("Hành động này sẽ tạo ra rất nhiều dữ liệu giả. Bạn chắc chứ?")) {
+                                       setIsLoading(true);
+                                       const res = await db.seedDatabase(); 
+                                       setIsLoading(false);
+                                       if(res.success) {
+                                           showToast(res.message);
+                                           loadInitialData();
+                                       }
+                                       else showToast("Lỗi: " + res.message, "error");
+                                   }
+                               }}
+                               disabled={isLoading}
+                               className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-red-600 transition-all w-full md:w-auto"
+                           >
+                               {isLoading ? "Đang tạo..." : "Khởi tạo ngay"}
+                           </button>
+                       </div>
+                   </div>
 
-                    <button type="submit" disabled={isLoading} className="w-full bg-primary text-white font-black py-5 rounded-3xl shadow-2xl shadow-primary/20 hover:scale-[1.01] active:scale-95 transition-all uppercase tracking-widest text-xs">Lưu cấu hình</button>
-                 </form>
+                   <button type="submit" disabled={isLoading} className="w-full bg-primary text-white font-black py-5 rounded-3xl shadow-2xl shadow-primary/20 hover:scale-[1.01] active:scale-95 transition-all uppercase tracking-widest text-xs">Lưu cấu hình</button>
+                </form>
              </div>
          )}
       </div>

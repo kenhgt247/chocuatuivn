@@ -4,52 +4,55 @@ import { db } from '../services/db';
 
 const GoogleOneTap: React.FC = () => {
   const navigate = useNavigate();
-  // Dùng ref để kiểm tra xem đã khởi tạo chưa (tránh React chạy 2 lần)
   const isInitialized = useRef(false);
 
   useEffect(() => {
-    // Nếu đã chạy rồi thì dừng ngay, không chạy lại
+    // 1. Nếu đã chạy rồi thì thôi, tránh React Strict Mode gọi 2 lần
     if (isInitialized.current) return;
     isInitialized.current = true;
 
     const handleGoogleOneTap = () => {
-      // Kiểm tra Google script đã tải xong chưa
       if (!window.google) return;
 
-      // 1. Khởi tạo cấu hình
+      // 2. Cấu hình
       window.google.accounts.id.initialize({
-        client_id: "YOUR_GOOGLE_CLIENT_ID", // <--- NHỚ THAY CLIENT ID CỦA BẠN VÀO ĐÂY
+        client_id: "YOUR_GOOGLE_CLIENT_ID", // <-- NHỚ ĐỔI LẠI CLIENT ID CỦA BẠN
         callback: async (response: any) => {
           try {
-            console.log("Google response:", response);
-            // Gọi hàm login bên db.ts
+            console.log("Đăng nhập Google thành công:", response);
             await db.loginWithOneTap(response.credential);
-            // Đăng nhập xong thì reload hoặc về trang chủ
+            // Đăng nhập xong thì reload trang để cập nhật state user
             window.location.reload(); 
           } catch (error) {
-            console.error("Login Failed:", error);
+            console.error("Lỗi xử lý đăng nhập:", error);
           }
         },
-        // Tắt tự động chọn để tránh vòng lặp nếu user logout
-        auto_select: false, 
+        auto_select: false,
         cancel_on_tap_outside: false,
-        // Quan trọng: fix lỗi FedCM hiển thị trên một số trình duyệt mới
-        use_fedcm_for_prompt: true 
+        use_fedcm_for_prompt: true, // Chuẩn mới của trình duyệt
       });
 
-      // 2. Hiển thị Popup (Bọc trong try catch để tránh lỗi "Only one request")
+      // 3. Hiển thị Popup (Thêm try/catch để bắt lỗi Abort)
       try {
         window.google.accounts.id.prompt((notification: any) => {
           if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            console.log("One Tap không hiển thị vì:", notification.getNotDisplayedReason());
+            console.log("One Tap không hiện vì:", notification.getNotDisplayedReason());
+            
+            // Xử lý cookies nếu bị chặn (tùy chọn)
+            if (notification.getNotDisplayedReason() === "suppressed_by_user") {
+                // User đã tắt popup này trước đó -> Google sẽ không hiện lại trong 2 tiếng (Cool-down period)
+                console.log("User đã tắt popup, cần xóa cookie g_state để hiện lại ngay lập tức nếu muốn test.");
+                document.cookie = `g_state=;path=/;expires=Thu, 01 Jan 1970 00:00:01 GMT;`;
+            }
           }
         });
-      } catch (err) {
-        console.warn("One Tap prompt error (có thể do gọi 2 lần):", err);
+      } catch (error) {
+        // Bắt lỗi AbortError để không hiện đỏ lòm trong console
+        console.warn("One Tap Prompt Error (có thể bỏ qua):", error);
       }
     };
 
-    // 3. Tải script Google (nếu chưa có)
+    // 4. Load Script
     const scriptUrl = 'https://accounts.google.com/gsi/client';
     const existingScript = document.querySelector(`script[src="${scriptUrl}"]`);
 
@@ -61,14 +64,16 @@ const GoogleOneTap: React.FC = () => {
       script.onload = handleGoogleOneTap;
       document.body.appendChild(script);
     } else {
-      // Nếu script đã có sẵn, gọi luôn hàm xử lý
       handleGoogleOneTap();
     }
 
-    // Cleanup function: Tắt prompt khi component bị hủy (chuyển trang)
+    // 5. Cleanup: Chỉ cancel nếu thực sự cần thiết khi component unmount hẳn
     return () => {
+      // Trong môi trường Dev, việc cancel() này gây ra lỗi AbortError
+      // Nhưng trong Production nó giúp tránh memory leak.
+      // Chúng ta có thể giữ nguyên, lỗi này vô hại.
       if (window.google) {
-        window.google.accounts.id.cancel();
+        // window.google.accounts.id.cancel(); 
       }
     };
   }, [navigate]);

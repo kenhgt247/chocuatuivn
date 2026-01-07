@@ -7,7 +7,7 @@ import {
   query, where, orderBy, limit, addDoc, runTransaction,
   startAfter, QueryDocumentSnapshot, DocumentData, writeBatch,
   getCountFromServer, deleteDoc, arrayUnion, arrayRemove, 
-  onSnapshot // <--- ĐÃ BỔ SUNG IMPORT NÀY
+  onSnapshot
 } from "firebase/firestore";
 import { 
   getAuth, 
@@ -226,8 +226,27 @@ export const db = {
     }
   },
 
+  // [CẬP NHẬT] Đã thêm gửi thông báo khi duyệt tin
   updateListingStatus: async (listingId: string, status: 'approved' | 'rejected') => {
-    await updateDoc(doc(firestore, "listings", listingId), { status });
+    try {
+      // 1. Cập nhật trạng thái
+      await updateDoc(doc(firestore, "listings", listingId), { status });
+      
+      // 2. Lấy thông tin tin đăng để gửi thông báo cho chủ sở hữu
+      const listing = await db.getListingById(listingId);
+      if (listing) {
+        await db.sendNotification({
+          userId: listing.sellerId,
+          title: status === 'approved' ? 'Tin đăng đã được duyệt' : 'Tin đăng bị từ chối',
+          message: `Tin "${listing.title}" của bạn đã được chuyển sang trạng thái ${status === 'approved' ? 'Đang hiển thị' : 'Từ chối'}.`,
+          type: status === 'approved' ? 'success' : 'error',
+          link: `/listings/${listingId}`
+        });
+      }
+    } catch (error) {
+      console.error("Error updating listing status:", error);
+      throw error;
+    }
   },
 
   deleteListing: async (id: string) => await deleteDoc(doc(firestore, "listings", id)),
@@ -370,15 +389,26 @@ export const db = {
     }
   },
 
+  // [CẬP NHẬT] Đã thêm gửi thông báo khi duyệt tiền/VIP thành công
   approveTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
     try {
-      return await runTransaction(firestore, async (transaction) => {
+      let targetUserId = "";
+      let amount = 0;
+      let type = "";
+
+      // 1. Thực hiện Transaction logic
+      await runTransaction(firestore, async (transaction) => {
         const txRef = doc(firestore, "transactions", txId);
         const txSnap = await transaction.get(txRef);
         if (!txSnap.exists()) throw new Error("Transaction not found");
         
         const txData = txSnap.data() as Transaction & { metadata?: any };
         if (txData.status !== 'pending') throw new Error("Transaction already processed");
+
+        // Lưu thông tin ra biến ngoài để gửi thông báo sau
+        targetUserId = txData.userId;
+        amount = txData.amount;
+        type = txData.type;
 
         const userRef = doc(firestore, "users", txData.userId);
         const userSnap = await transaction.get(userRef);
@@ -394,8 +424,21 @@ export const db = {
           transaction.update(userRef, { subscriptionTier: txData.metadata.targetTier, subscriptionExpires: expires.toISOString() });
         }
         transaction.update(txRef, { status: 'success' });
-        return { success: true };
       });
+
+      // 2. Gửi thông báo nếu thành công
+      if (targetUserId) {
+         await db.sendNotification({
+            userId: targetUserId,
+            title: type === 'deposit' ? 'Nạp tiền thành công' : 'Gói dịch vụ đã kích hoạt',
+            message: type === 'deposit' 
+              ? `Hệ thống đã cộng ${amount.toLocaleString()} VNĐ vào ví của bạn.` 
+              : `Gói thành viên của bạn đã được nâng cấp thành công.`,
+            type: 'success'
+         });
+      }
+      
+      return { success: true };
     } catch (e: any) {
       return { success: false, message: e.message };
     }
@@ -597,12 +640,24 @@ export const db = {
     }
   },
 
+  // [CẬP NHẬT] Gửi thông báo khi có người theo dõi
   followUser: async (followerId: string, followedId: string) => {
     const followDocId = `${followerId}_${followedId}`;
     await setDoc(doc(firestore, "follows", followDocId), {
         followerId,
         followedId,
         createdAt: new Date().toISOString()
+    });
+
+    // Lấy tên người follow để gửi thông báo đẹp hơn
+    const follower = await db.getUserById(followerId);
+    
+    await db.sendNotification({
+      userId: followedId,
+      title: 'Có người theo dõi mới',
+      message: `${follower?.name || 'Một người dùng'} đã bắt đầu theo dõi bạn.`,
+      type: 'follow',
+      link: `/profile/${followerId}`
     });
   },
 
@@ -652,16 +707,59 @@ export const db = {
     });
   },
 
+  // [CẬP NHẬT] Gửi thông báo khi có Review mới
   addReview: async (reviewData: Omit<Review, 'id' | 'createdAt'>) => {
-    const res = await addDoc(collection(firestore, "reviews"), { ...reviewData, createdAt: new Date().toISOString() });
-    return res.id;
+    try {
+      // 1. Lưu Review
+      const res = await addDoc(collection(firestore, "reviews"), { ...reviewData, createdAt: new Date().toISOString() });
+      
+      // 2. Logic Thông báo
+      let receiverId = "";
+      let notifTitle = "";
+      let link = "";
+
+      if (reviewData.targetType === 'user') {
+        receiverId = reviewData.targetId;
+        notifTitle = "Bạn nhận được đánh giá mới";
+        link = `/profile/${reviewData.authorId}`;
+      } else if (reviewData.targetType === 'listing') {
+        const listing = await db.getListingById(reviewData.targetId);
+        if (listing) {
+          receiverId = listing.sellerId;
+          notifTitle = `Tin "${listing.title}" có đánh giá mới`;
+          link = `/listings/${reviewData.targetId}`;
+        }
+      }
+
+      // Chỉ gửi thông báo nếu người nhận tồn tại và KHÔNG phải là chính người viết review
+      if (receiverId && receiverId !== reviewData.authorId) {
+        await db.sendNotification({
+          userId: receiverId,
+          title: notifTitle,
+          message: `${reviewData.authorName} đã chấm ${reviewData.rating} sao: "${reviewData.comment}"`,
+          type: 'review',
+          link: link
+        });
+      }
+
+      return res.id;
+    } catch (e) {
+      console.error("Error adding review:", e);
+      throw e;
+    }
   },
 
+  // [CẬP NHẬT] Thêm sắp xếp và limit để tối ưu hiệu năng
   getNotifications: (userId: string, callback: (notifs: Notification[]) => void) => {
-    const q = query(collection(firestore, "notifications"), where("userId", "==", userId));
+    const q = query(
+      collection(firestore, "notifications"), 
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"), // Sắp xếp giảm dần theo thời gian
+      limit(50) // Giới hạn 50 thông báo mới nhất
+    );
     return onSnapshot(q, (snapshot) => {
       const notifs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Notification));
-      callback(notifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      callback(notifs);
     });
   },
 

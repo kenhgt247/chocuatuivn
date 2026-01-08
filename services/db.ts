@@ -858,14 +858,37 @@ export const db = {
   },
   
   createChatRoom: async (l: any, bId: string) => {
-    const q = query(collection(firestore, "chats"), where("listingId", "==", l.id), where("participantIds", "array-contains", bId));
-    const s = await getDocs(q);
-    if (!s.empty) return s.docs[0].id;
-    const res = await addDoc(collection(firestore, "chats"), {
-      listingId: l.id, listingTitle: l.title, listingImage: l.images[0], listingPrice: l.price,
-      participantIds: [bId, l.sellerId], messages: [], lastUpdate: new Date().toISOString(), seenBy: [bId]
-    });
-    return res.id;
+    try {
+        // Query: Tìm phòng chat của Listing này mà có chứa Buyer ID này
+        // Điều này đảm bảo mỗi người mua có 1 phòng riêng với người bán cho món hàng đó
+        const q = query(
+            collection(firestore, "chats"), 
+            where("listingId", "==", l.id), 
+            where("participantIds", "array-contains", bId)
+        );
+        
+        const s = await getDocs(q);
+        
+        // Nếu đã tồn tại -> Trả về ID cũ
+        if (!s.empty) return s.docs[0].id;
+
+        // Nếu chưa -> Tạo mới
+        const res = await addDoc(collection(firestore, "chats"), {
+            listingId: l.id, 
+            listingTitle: l.title, 
+            // Handle trường hợp ảnh bị thiếu (chat profile)
+            listingImage: l.images && l.images.length > 0 ? l.images[0] : 'https://placehold.co/100x100?text=Chat', 
+            listingPrice: l.price || 0,
+            participantIds: [bId, l.sellerId], 
+            messages: [], 
+            lastUpdate: new Date().toISOString(), 
+            seenBy: [bId]
+        });
+        return res.id;
+    } catch (e) {
+        console.error("Error creating chat room:", e);
+        throw e;
+    }
   },
 
   // --- G. SEED DATA (TẠO DỮ LIỆU MẪU - CÓ XÓA DỮ LIỆU CŨ) ---

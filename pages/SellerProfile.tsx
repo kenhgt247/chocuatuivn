@@ -239,7 +239,18 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-6 border-y border-gray-100">
-               <div><p className="text-2xl font-black text-textMain">{avgRating} <span className="text-yellow-400 text-lg">★</span></p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Đánh giá TB</p></div>
+               {/* FIX: Cập nhật hiển thị Rating trên Header đồng bộ với ReviewSection */}
+               <div>
+                 <div className="flex items-center justify-center md:justify-start gap-2">
+                   <span className="text-2xl font-black text-textMain">{avgRating}</span>
+                   <div className="flex text-[10px] gap-0.5">
+                     <span className="text-yellow-400">{"★".repeat(Math.round(Number(avgRating)))}</span>
+                     <span className="text-gray-300">{"★".repeat(5 - Math.round(Number(avgRating)))}</span>
+                   </div>
+                 </div>
+                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Đánh giá TB</p>
+               </div>
+
                <div className="border-x border-gray-100 px-4"><p className="text-2xl font-black text-textMain">{listings.length}</p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Tin đang bán</p></div>
                <div className="border-r border-gray-100 pr-4">
                  <p className="text-2xl font-black text-textMain">{followStats.followers}</p>
@@ -310,6 +321,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
               </>
             ) : (
               <div className="bg-white border border-borderMain rounded-[3rem] p-8 md:p-12 shadow-soft">
+                {/* Sử dụng component ReviewSection đã được fix ở bước trước */}
                 <ReviewSection targetId={seller.id} targetType="user" currentUser={currentUser} />
               </div>
             )}

@@ -4,6 +4,7 @@ import { CATEGORIES } from '../constants';
 import { db } from '../services/db';
 import { Listing, User, Category } from '../types';
 import ListingCard from '../components/ListingCard';
+import HomeBanner from '../components/HomeBanner'; // [MỚI] Import Banner
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { getCategoryUrl } from '../utils/format';
 import { getLocationFromCoords } from '../utils/locationHelper'; 
@@ -37,7 +38,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [nearbyListings, setNearbyListings] = useState<Listing[]>([]);
   const [latestListings, setLatestListings] = useState<Listing[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
-   
+    
   const [isLoading, setIsLoading] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
@@ -348,6 +349,11 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       </div>
 
+      {/* --- [MỚI] BANNER QUẢNG CÁO ĐẸP --- */}
+      {!search && !activeCategoryId && !typeParam && !locationParam && (
+         <HomeBanner />
+      )}
+
       {/* 2. ADMIN ALERTS */}
       {indexErrors.length > 0 && (
         <section className="bg-red-50 border-2 border-dashed border-red-200 rounded-[2.5rem] p-10 text-center space-y-6">
@@ -370,13 +376,12 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           <div className="flex items-center justify-between px-2">
             <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
               <div className="flex items-center gap-2">
-  <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-md shadow-orange-200 flex items-center gap-1 uppercase tracking-wider transform hover:scale-105 transition-transform">
-    <span className="animate-pulse">👑</span> VIP
-  </span>
-  <span className="font-bold text-gray-800">Tin được tài trợ</span>
-</div>
+                <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-md shadow-orange-200 flex items-center gap-1 uppercase tracking-wider transform hover:scale-105 transition-transform">
+                    <span className="animate-pulse">👑</span> VIP
+                </span>
+                <span className="font-bold text-gray-800">Tin được tài trợ</span>
+              </div>
             </h2>
-            {/* CẬP NHẬT LINK CHÍNH XÁC */}
             <Link to="/?type=vip" className="text-[10px] font-black text-primary uppercase hover:underline">Xem tất cả</Link>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
@@ -403,7 +408,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
               </div>
               <div className="flex gap-4 items-center">
                  <button onClick={handleDetectLocation} className="text-[10px] font-black text-gray-400 uppercase underline hover:text-primary">Làm mới</button>
-                 {/* CẬP NHẬT LINK CHÍNH XÁC */}
                  <Link to={`/?location=${encodeURIComponent(detectedLocation)}`} className="text-[10px] font-black text-primary uppercase hover:underline">Xem thêm &gt;</Link>
               </div>
           </div>
@@ -430,7 +434,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
               : locationParam ? `Tin đăng tại ${locationParam}`
               : currentCategory ? `Danh mục: ${currentCategory.name}` 
               : (
-                 /* --- BẮT ĐẦU PHẦN THAY THẾ --- */
+                 /* --- [MỚI] TIÊU ĐỀ TIN MỚI ĐẸP HƠN --- */
                  <span className="flex items-center gap-2">
                    <span className="relative flex h-3 w-3">
                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
@@ -439,7 +443,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                    <span className="text-yellow-500 text-2xl">✨</span>
                    <span>Tin mới đăng</span>
                  </span>
-                 /* --- KẾT THÚC PHẦN THAY THẾ --- */
               )}
            </h2>
         </div>

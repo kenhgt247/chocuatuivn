@@ -63,15 +63,14 @@ const storage = getStorage(app);
 export const db = {
   
   // --- HÀM HELPER: Tạo đường dẫn đẹp (Slug) ---
-  // [MỚI] Hàm này dùng để tạo link chuẩn SEO
   toSlug: (str: string) => {
     return str
       .toLowerCase()
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Xóa dấu tiếng Việt
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
       .replace(/[đĐ]/g, "d")
-      .replace(/[^a-z0-9\s-]/g, "") // Xóa ký tự đặc biệt
+      .replace(/[^a-z0-9\s-]/g, "") 
       .trim()
-      .replace(/\s+/g, "-"); // Thay khoảng trắng bằng dấu gạch ngang
+      .replace(/\s+/g, "-");
   },
 
   // --- A. QUẢN LÝ TIN ĐĂNG (LISTINGS) ---
@@ -104,7 +103,7 @@ export const db = {
     status?: string,
     search?: string,
     location?: string,
-    isVip?: boolean // [MỚI] Thêm tham số lọc VIP
+    isVip?: boolean
   }) => {
     try {
       const colRef = collection(firestore, "listings");
@@ -114,12 +113,11 @@ export const db = {
         let constraints: any[] = [
            where("status", "==", "approved"),
            orderBy("createdAt", "desc"),
-           limit(500) // Giới hạn vùng tìm kiếm
+           limit(500)
         ];
 
         if (options.categoryId) constraints.push(where("category", "==", options.categoryId));
         if (options.location) constraints.push(where("location", "==", options.location));
-        // [MỚI] Lọc VIP trong Smart Search
         if (options.isVip) constraints.push(where("tier", "==", "pro"));
 
         const q = query(colRef, ...constraints);
@@ -159,7 +157,6 @@ export const db = {
       if (options.sellerId) constraints.push(where("sellerId", "==", options.sellerId));
       if (options.location) constraints.push(where("location", "==", options.location));
       
-      // [MỚI] Logic lọc tin VIP cho phân trang thường
       if (options.isVip) {
         constraints.push(where("tier", "==", "pro"));
       }
@@ -246,16 +243,12 @@ export const db = {
     }
   },
 
-  // [CẬP NHẬT: LINK SEO] Duyệt tin -> Link về bài viết chuẩn SEO
   updateListingStatus: async (listingId: string, status: 'approved' | 'rejected') => {
     try {
-      // 1. Cập nhật trạng thái
       await updateDoc(doc(firestore, "listings", listingId), { status });
       
-      // 2. Lấy thông tin tin đăng để gửi thông báo cho chủ sở hữu
       const listing = await db.getListingById(listingId);
       if (listing) {
-        // [MỚI] Tạo link đẹp chuẩn SEO: /san-pham/ten-san-pham-id
         const slug = db.toSlug(listing.title);
         const prettyLink = `/san-pham/${slug}-${listingId}`;
 
@@ -419,7 +412,6 @@ export const db = {
       let amount = 0;
       let type = "";
 
-      // 1. Thực hiện Transaction logic
       await runTransaction(firestore, async (transaction) => {
         const txRef = doc(firestore, "transactions", txId);
         const txSnap = await transaction.get(txRef);
@@ -428,7 +420,6 @@ export const db = {
         const txData = txSnap.data() as Transaction & { metadata?: any };
         if (txData.status !== 'pending') throw new Error("Transaction already processed");
 
-        // Lưu thông tin ra biến ngoài để gửi thông báo sau
         targetUserId = txData.userId;
         amount = txData.amount;
         type = txData.type;
@@ -449,7 +440,6 @@ export const db = {
         transaction.update(txRef, { status: 'success' });
       });
 
-      // 2. Gửi thông báo nếu thành công
       if (targetUserId) {
          await db.sendNotification({
            userId: targetUserId,
@@ -458,7 +448,7 @@ export const db = {
              ? `Hệ thống đã cộng ${amount.toLocaleString()} VNĐ vào ví của bạn.` 
              : `Gói thành viên của bạn đã được nâng cấp thành công.`,
            type: 'success',
-           link: '/wallet' // Link về ví để xem tiền
+           link: '/wallet'
          });
       }
       
@@ -533,12 +523,13 @@ export const db = {
     }
   },
 
+  // [FIX]: Đảm bảo trả về object có ID
   getCurrentUser: (): Promise<User | null> => {
     return new Promise((resolve) => {
       const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
         if (fbUser) {
           const userDoc = await getDoc(doc(firestore, "users", fbUser.uid));
-          resolve(userDoc.exists() ? (userDoc.data() as User) : null);
+          resolve(userDoc.exists() ? { id: userDoc.id, ...userDoc.data() } as User : null);
         } else {
           resolve(null);
         }
@@ -547,9 +538,10 @@ export const db = {
     });
   },
 
+  // [FIX]: Đảm bảo trả về object có ID
   getUserById: async (id: string): Promise<User | undefined> => {
     const d = await getDoc(doc(firestore, "users", id));
-    return d.exists() ? (d.data() as User) : undefined;
+    return d.exists() ? { id: d.id, ...d.data() } as User : undefined;
   },
 
   updateUserProfile: async (userId: string, updates: Partial<User>): Promise<User> => {
@@ -664,7 +656,6 @@ export const db = {
     }
   },
 
-  // [ĐÃ CẬP NHẬT LINK] Follow -> Link về profile
   followUser: async (followerId: string, followedId: string) => {
     const followDocId = `${followerId}_${followedId}`;
     await setDoc(doc(firestore, "follows", followDocId), {
@@ -680,7 +671,7 @@ export const db = {
       title: 'Có người theo dõi mới',
       message: `${follower?.name || 'Một người dùng'} đã bắt đầu theo dõi bạn.`,
       type: 'follow',
-      link: `/profile/${followerId}` // Link về trang người follow
+      link: `/profile/${followerId}` 
     });
   },
 
@@ -730,13 +721,10 @@ export const db = {
     });
   },
 
-  // [CẬP NHẬT: LINK SEO] Review -> Link về profile hoặc tin đăng chuẩn SEO
   addReview: async (reviewData: Omit<Review, 'id' | 'createdAt'>) => {
     try {
-      // 1. Lưu Review
       const res = await addDoc(collection(firestore, "reviews"), { ...reviewData, createdAt: new Date().toISOString() });
       
-      // 2. Logic Thông báo
       let receiverId = "";
       let notifTitle = "";
       let link = "";
@@ -744,13 +732,12 @@ export const db = {
       if (reviewData.targetType === 'user') {
         receiverId = reviewData.targetId;
         notifTitle = "Bạn nhận được đánh giá mới";
-        link = `/profile/${reviewData.authorId}`; // Xem ai đánh giá mình
+        link = `/profile/${reviewData.authorId}`;
       } else if (reviewData.targetType === 'listing') {
         const listing = await db.getListingById(reviewData.targetId);
         if (listing) {
           receiverId = listing.sellerId;
           notifTitle = `Tin "${listing.title}" có đánh giá mới`;
-          // [MỚI] Link SEO
           const slug = db.toSlug(listing.title);
           link = `/san-pham/${slug}-${reviewData.targetId}`; 
         }
@@ -857,9 +844,13 @@ export const db = {
     await updateDoc(doc(firestore, "chats", id), { seenBy: arrayUnion(userId) });
   },
   
+  // [CẬP NHẬT CHÍNH]: Logic tạo phòng chat thông minh, lưu info 2 bên
   createChatRoom: async (l: any, buyer: User) => {
     try {
-        // Query tìm phòng cũ
+        // [FIX] Kiểm tra an toàn
+        if (!l?.id) throw new Error("Listing ID is missing");
+        if (!buyer?.id) throw new Error("Buyer ID is missing");
+
         const q = query(
             collection(firestore, "chats"), 
             where("listingId", "==", l.id), 
@@ -867,17 +858,17 @@ export const db = {
         );
         
         const s = await getDocs(q);
+        
         if (!s.empty) return s.docs[0].id;
 
-        // Chuẩn bị dữ liệu người tham gia để lưu
-        // Key là UserID, Value là thông tin hiển thị
+        // Lưu thông tin người tham gia để hiển thị
         const participantsData = {
             [buyer.id]: {
                 name: buyer.name,
                 avatar: buyer.avatar
             },
             [l.sellerId]: {
-                name: l.sellerName || "Người bán", // Lấy từ tin đăng
+                name: l.sellerName || "Người bán", 
                 avatar: l.sellerAvatar || "https://placehold.co/100"
             }
         };
@@ -889,7 +880,7 @@ export const db = {
             listingPrice: l.price || 0,
             
             participantIds: [buyer.id, l.sellerId], 
-            participantsData: participantsData, // <--- Cực kỳ quan trọng: Lưu tên để hiển thị
+            participantsData: participantsData, 
             
             messages: [], 
             lastUpdate: new Date().toISOString(), 
@@ -907,17 +898,12 @@ export const db = {
     try {
       console.log("🧹 Đang dọn dẹp dữ liệu rác...");
       
-      // 1. XÓA DỮ LIỆU GIẢ CŨ (User & Listing có ID bắt đầu bằng 'seed_')
-      // Lưu ý: Firestore giới hạn batch 500 ops, nên ta tách ra xử lý từng cụm
-      
-      // A. Lấy danh sách cần xóa
       const allUsers = await getDocs(collection(firestore, "users"));
       const allListings = await getDocs(collection(firestore, "listings"));
 
       const seedUserDocs = allUsers.docs.filter(d => d.id.startsWith("seed_"));
       const seedListingDocs = allListings.docs.filter(d => d.id.startsWith("seed_"));
 
-      // B. Thực hiện xóa (Dùng Batch để xóa nhanh)
       const deleteBatch = writeBatch(firestore);
       let deleteCount = 0;
 
@@ -930,7 +916,6 @@ export const db = {
         deleteCount++;
       });
 
-      // Nếu có dữ liệu cũ thì commit xóa
       if (deleteCount > 0) {
         await deleteBatch.commit();
         console.log(`✅ Đã xóa ${seedUserDocs.length} user giả và ${seedListingDocs.length} tin giả cũ.`);
@@ -939,13 +924,11 @@ export const db = {
       console.log("🌱 Bắt đầu tạo dữ liệu mới...");
       const createBatch = writeBatch(firestore);
 
-      // 2. CHUẨN BỊ DỮ LIỆU MỚI
       const firstNames = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Huỳnh", "Phan", "Vũ", "Võ", "Đặng"];
       const middleNames = ["Văn", "Thị", "Hữu", "Đức", "Ngọc", "Minh", "Quốc", "Thanh", "Mỹ", "Anh"];
       const lastNames = ["An", "Bình", "Cường", "Dũng", "Giang", "Hương", "Khánh", "Lan", "Nam", "Tâm", "Tuấn", "Vy"];
       const cities = ["Hà Nội", "TPHCM", "Đà Nẵng", "Cần Thơ", "Hải Phòng", "Bình Dương", "Đồng Nai"];
       
-      // Nguồn ảnh LoremFlickr (đổi từ khóa để ảnh đa dạng)
       const categories = [
         { id: "xe-co", name: "Xe cộ", keyword: "motorcycle,car", products: [
             { title: "Honda SH 150i 2022 Chính chủ", price: 85000000 },
@@ -973,10 +956,9 @@ export const db = {
       const getRandom = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
       const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 
-      // 3. TẠO 50 USERS GIẢ
       const fakeUsers: User[] = [];
       for (let i = 0; i < 50; i++) {
-        const uid = `seed_user_${i}`; // ID cố định dạng seed_user_0, seed_user_1 để dễ quản lý
+        const uid = `seed_user_${i}`;
         const name = `${getRandom(firstNames)} ${getRandom(middleNames)} ${getRandom(lastNames)}`;
         
         const userRef = doc(firestore, "users", uid);
@@ -1000,9 +982,8 @@ export const db = {
         createBatch.set(userRef, newUser);
       }
 
-      // 4. TẠO 100 LISTINGS GIẢ
       for (let i = 0; i < 100; i++) {
-        const lid = `seed_listing_${i}`; // ID cố định dạng seed_listing_0...
+        const lid = `seed_listing_${i}`;
         const seller = getRandom(fakeUsers);
         const cat = getRandom(categories);
         const prod = getRandom(cat.products);
@@ -1041,7 +1022,6 @@ export const db = {
         createBatch.set(listingRef, newListing);
       }
 
-      // 5. THỰC THI TẠO MỚI
       await createBatch.commit();
       
       return { success: true, message: `Đã Reset: Xóa dữ liệu cũ & Tạo mới ${fakeUsers.length} user, 100 tin đăng!` };

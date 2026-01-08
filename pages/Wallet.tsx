@@ -15,42 +15,66 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  // [NÂNG CẤP] Auto-refresh balance & transactions
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
-    const loadData = async () => {
-      const [s, txs] = await Promise.all([db.getSettings(), db.getTransactions(user.id)]);
-      setSettings(s);
-      setTransactions(txs);
-    };
-    loadData();
-  }, [user, navigate]);
+    
+    let interval: NodeJS.Timeout;
 
-  if (!user || !settings) return null;
+    const loadData = async () => {
+      try {
+        const [s, txs, updatedUser] = await Promise.all([
+            db.getSettings(), 
+            db.getTransactions(user.id),
+            db.getUserById(user.id) // Lấy info mới nhất để cập nhật số dư
+        ]);
+        
+        setSettings(s);
+        setTransactions(txs);
+        if (updatedUser) onUpdateUser(updatedUser); // Cập nhật số dư realtime
+      } catch (error) {
+        console.error("Lỗi tải ví:", error);
+      }
+    };
+
+    loadData();
+
+    // Tự động refresh mỗi 10s để kiểm tra tiền vào chưa
+    interval = setInterval(loadData, 10000);
+
+    return () => clearInterval(interval);
+  }, [user, navigate, onUpdateUser]);
+
+  if (!user) return null;
 
   const handleDepositRequest = async () => {
     setIsProcessing(true);
-    // Tạo transaction pending
-    await db.requestDeposit(user.id, selectedAmount, `NAP ${user.id.slice(-6).toUpperCase()}`);
-    setIsProcessing(false);
-    setShowQRModal(true);
-    
-    // Reload transaction list
-    const txs = await db.getTransactions(user.id);
-    setTransactions(txs);
+    try {
+        // Tạo transaction pending
+        await db.requestDeposit(user.id, selectedAmount, `NAP ${user.id.slice(-6).toUpperCase()}`);
+        
+        // Reload transaction list ngay lập tức
+        const txs = await db.getTransactions(user.id);
+        setTransactions(txs);
+        setShowQRModal(true);
+    } catch (e) {
+        alert("Lỗi tạo yêu cầu nạp tiền");
+    } finally {
+        setIsProcessing(false);
+    }
   };
 
   // --- VIETQR LOGIC ---
   const getVietQRUrl = () => {
-    if (!settings.bankName || !settings.accountNumber) return '';
+    if (!settings?.bankName || !settings?.accountNumber) return '';
     
-    const bankId = settings.bankName; // Lưu ý: Admin cần nhập Mã NH (VD: MB, VCB, TPB)
+    const bankId = settings.bankName; 
     const accountNo = settings.accountNumber;
-    const template = 'compact2'; // compact, compact2, qr_only, print
+    const template = 'compact2'; 
     const amount = selectedAmount;
     const content = `NAP ${user.id.slice(-6).toUpperCase()}`;
-    const accountName = encodeURI(settings.accountName);
+    const accountName = encodeURI(settings.accountName || '');
 
-    // API VietQR public (QuickLink)
     return `https://img.vietqr.io/image/${bankId}-${accountNo}-${template}.png?amount=${amount}&addInfo=${content}&accountName=${accountName}`;
   };
 
@@ -69,7 +93,7 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
         <div className="relative z-10 space-y-6">
           <div>
             <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mb-1 opacity-70">Số dư khả dụng</p>
-            <h2 className="text-4xl font-black tracking-tight">{formatPrice(user.walletBalance)}</h2>
+            <h2 className="text-4xl font-black tracking-tight">{formatPrice(user.walletBalance || 0)}</h2>
           </div>
           <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest opacity-60">
             <span>Mã ví: {user.id.slice(-8).toUpperCase()}</span>
@@ -103,12 +127,12 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
                <div className="flex items-center justify-between px-1">
                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Phương thức thanh toán</span>
                   <span className="text-[10px] font-black text-primary uppercase flex items-center gap-1">
-                    <img src="/v.png" className="h-4" alt="VietQR" /> Quét mã tự động
+                    <img src="https://img.vietqr.io/image/970423-113366668888-compact.jpg?width=20" className="h-4 w-auto object-contain" alt="" /> Quét mã tự động
                   </span>
                </div>
                <button 
                 onClick={handleDepositRequest} 
-                disabled={isProcessing} 
+                disabled={isProcessing || !settings?.bankName} 
                 className="w-full bg-primary text-white font-black py-5 rounded-2xl shadow-xl shadow-primary/20 flex items-center justify-center gap-3 hover:bg-primaryHover active:scale-[0.98] transition-all disabled:opacity-50"
                >
                  {isProcessing ? (
@@ -116,7 +140,7 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
                  ) : (
                    <>
                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v1m6 11h2m-6 0h-2v4h-4v-2h4v-4H6v4H2v-4h4V4h2v2h4v4a2 2 0 002 2h2v4z" strokeWidth={2}/></svg>
-                     Tạo mã VietQR
+                     {settings?.bankName ? 'Tạo mã VietQR' : 'Hệ thống đang bảo trì'}
                    </>
                  )}
                </button>
@@ -159,7 +183,7 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
       </div>
 
       {/* MODAL VIETQR - SMART PAYMENT UI */}
-      {showQRModal && (
+      {showQRModal && settings && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setShowQRModal(false)}></div>
           <div className="bg-white w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl relative animate-fade-in-up flex flex-col max-h-[90vh]">
@@ -192,7 +216,7 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
                             <div className="flex items-center gap-2">
                                 <span className="font-bold text-gray-800">{settings.accountNumber}</span>
                                 <button onClick={() => handleCopy(settings.accountNumber, 'acc')} className="text-primary hover:bg-blue-50 p-1.5 rounded-lg transition-colors" title="Sao chép">
-                                    {copiedField === 'acc' ? '✓' : '❐'}
+                                    {copiedField === 'acc' ? <span className="text-green-600 font-bold text-xs">Đã chép!</span> : '❐'}
                                 </button>
                             </div>
                          </div>
@@ -204,7 +228,7 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
                             <div className="flex items-center gap-2">
                                 <span className="font-black text-red-500">{transferContent}</span>
                                 <button onClick={() => handleCopy(transferContent, 'content')} className="text-primary hover:bg-blue-50 p-1.5 rounded-lg transition-colors" title="Sao chép">
-                                    {copiedField === 'content' ? '✓' : '❐'}
+                                    {copiedField === 'content' ? <span className="text-green-600 font-bold text-xs">Đã chép!</span> : '❐'}
                                 </button>
                             </div>
                          </div>
@@ -227,7 +251,7 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
             
             {/* Footer Note */}
             <div className="bg-gray-50 p-4 text-center border-t border-gray-100">
-                <p className="text-[9px] text-gray-400 font-bold">Hệ thống sẽ xử lý giao dịch trong vài phút.</p>
+                <p className="text-[9px] text-gray-400 font-bold">Hệ thống sẽ tự động cập nhật số dư sau 1-3 phút.</p>
             </div>
           </div>
         </div>

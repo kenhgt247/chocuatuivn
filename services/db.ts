@@ -95,7 +95,7 @@ export const db = {
     }
   },
 
-  // HÀM LẤY DANH SÁCH TIN (HỖ TRỢ SMART SEARCH)
+  // HÀM LẤY DANH SÁCH TIN (HỖ TRỢ SMART SEARCH & FILTERING)
   getListingsPaged: async (options: {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
@@ -103,7 +103,8 @@ export const db = {
     sellerId?: string,
     status?: string,
     search?: string,
-    location?: string
+    location?: string,
+    isVip?: boolean // [MỚI] Thêm tham số lọc VIP
   }) => {
     try {
       const colRef = collection(firestore, "listings");
@@ -118,6 +119,8 @@ export const db = {
 
         if (options.categoryId) constraints.push(where("category", "==", options.categoryId));
         if (options.location) constraints.push(where("location", "==", options.location));
+        // [MỚI] Lọc VIP trong Smart Search
+        if (options.isVip) constraints.push(where("tier", "==", "pro"));
 
         const q = query(colRef, ...constraints);
         const snap = await getDocs(q);
@@ -155,6 +158,11 @@ export const db = {
       if (options.categoryId) constraints.push(where("category", "==", options.categoryId));
       if (options.sellerId) constraints.push(where("sellerId", "==", options.sellerId));
       if (options.location) constraints.push(where("location", "==", options.location));
+      
+      // [MỚI] Logic lọc tin VIP cho phân trang thường
+      if (options.isVip) {
+        constraints.push(where("tier", "==", "pro"));
+      }
 
       constraints.push(orderBy("createdAt", "desc"));
       constraints.push(limit(options.pageSize));
@@ -444,13 +452,13 @@ export const db = {
       // 2. Gửi thông báo nếu thành công
       if (targetUserId) {
          await db.sendNotification({
-            userId: targetUserId,
-            title: type === 'deposit' ? 'Nạp tiền thành công' : 'Gói dịch vụ đã kích hoạt',
-            message: type === 'deposit' 
-              ? `Hệ thống đã cộng ${amount.toLocaleString()} VNĐ vào ví của bạn.` 
-              : `Gói thành viên của bạn đã được nâng cấp thành công.`,
-            type: 'success',
-            link: '/wallet' // Link về ví để xem tiền
+           userId: targetUserId,
+           title: type === 'deposit' ? 'Nạp tiền thành công' : 'Gói dịch vụ đã kích hoạt',
+           message: type === 'deposit' 
+             ? `Hệ thống đã cộng ${amount.toLocaleString()} VNĐ vào ví của bạn.` 
+             : `Gói thành viên của bạn đã được nâng cấp thành công.`,
+           type: 'success',
+           link: '/wallet' // Link về ví để xem tiền
          });
       }
       

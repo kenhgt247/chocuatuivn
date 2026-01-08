@@ -23,6 +23,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
   
   // State Loading & Error
   const [loading, setLoading] = useState(true);
+  const [chatLoading, setChatLoading] = useState(false); // State loading riêng cho nút chat
   const [queryError, setQueryError] = useState<string | null>(null);
   
   // Pagination States
@@ -129,7 +130,6 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
     if (!currentUser) return navigate('/login');
     if (currentUser.id === id) return;
     
-    // Optimistic Update
     const prevStatus = isFollowing;
     const prevCount = followStats.followers;
     
@@ -147,10 +147,40 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
       }
     } catch (err) {
       console.error("Lỗi follow:", err);
-      // Revert lại nếu lỗi
       setIsFollowing(prevStatus);
       setFollowStats(prev => ({ ...prev, followers: prevCount }));
       alert("Có lỗi xảy ra, vui lòng thử lại.");
+    }
+  };
+
+  // --- LOGIC CHAT THÔNG MINH (NEW) ---
+  const handleStartChat = async () => {
+    if (!currentUser) return navigate('/login');
+    if (!seller || currentUser.id === seller.id) return;
+
+    setChatLoading(true);
+    try {
+        // Chiến thuật: Lấy tin đăng mới nhất làm cớ để chat. 
+        // Nếu không có tin nào, tạo "Listing ảo" để làm chủ đề chat profile.
+        const targetListing = listings.length > 0 ? listings[0] : {
+            id: `profile_chat_${seller.id}`, // ID ảo duy nhất cho chat profile với người này
+            title: `Chat với ${seller.name}`,
+            images: [seller.avatar],
+            price: 0,
+            sellerId: seller.id
+        };
+
+        // Gọi hàm db.createChatRoom (đã được nâng cấp để check trùng)
+        const roomId = await db.createChatRoom(targetListing, currentUser.id);
+        
+        // Điều hướng thẳng vào phòng chat
+        navigate(`/chat/${roomId}`);
+
+    } catch (error) {
+        console.error("Start chat error:", error);
+        alert("Không thể khởi tạo cuộc trò chuyện.");
+    } finally {
+        setChatLoading(false);
     }
   };
 
@@ -188,8 +218,6 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
           {/* Info Section */}
           <div className="flex-1 space-y-6 text-center md:text-left w-full">
             <div className="space-y-2">
-              
-              {/* TÊN + TÍCH XANH */}
               <div className="flex items-center justify-center md:justify-start gap-3">
                   <h1 className="text-3xl md:text-5xl font-black text-textMain tracking-tighter">{seller.name}</h1>
                   {seller.verificationStatus === 'verified' && (
@@ -201,8 +229,6 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
               
               <div className="flex flex-col md:flex-row items-center justify-center md:justify-start gap-2">
                   <p className="text-[11px] text-gray-400 font-bold uppercase tracking-[0.2em]">Tham gia: {formatTimeAgo(seller.joinedAt)}</p>
-                  
-                  {/* BADGE UY TÍN */}
                   {seller.verificationStatus === 'verified' && (
                       <>
                         <span className="hidden md:inline text-gray-300">•</span>
@@ -215,12 +241,10 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-6 border-y border-gray-100">
                <div><p className="text-2xl font-black text-textMain">{avgRating} <span className="text-yellow-400 text-lg">★</span></p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Đánh giá TB</p></div>
                <div className="border-x border-gray-100 px-4"><p className="text-2xl font-black text-textMain">{listings.length}</p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Tin đang bán</p></div>
-               
                <div className="border-r border-gray-100 pr-4">
                  <p className="text-2xl font-black text-textMain">{followStats.followers}</p>
                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Theo dõi</p>
                </div>
-               
                <div><p className="text-2xl font-black text-green-600">99%</p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Phản hồi</p></div>
             </div>
 
@@ -231,7 +255,15 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
               >
                 {isFollowing ? 'Đang theo dõi ✓' : '+ Theo dõi'}
               </button>
-              <button onClick={() => navigate('/chat')} className="flex-1 md:flex-none min-w-[160px] px-8 py-4 bg-white border-2 border-primary text-primary rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary/5 transition-all active:scale-95">Nhắn tin</button>
+              
+              {/* NÚT CHAT ĐÃ UPDATE */}
+              <button 
+                onClick={handleStartChat} 
+                disabled={chatLoading}
+                className="flex-1 md:flex-none min-w-[160px] px-8 py-4 bg-white border-2 border-primary text-primary rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary/5 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-wait"
+              >
+                {chatLoading ? 'Đang kết nối...' : 'Nhắn tin'}
+              </button>
             </div>
           </div>
         </div>

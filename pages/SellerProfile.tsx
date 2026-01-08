@@ -23,7 +23,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
   
   // State Loading & Error
   const [loading, setLoading] = useState(true);
-  const [chatLoading, setChatLoading] = useState(false); // State loading riêng cho nút chat
+  const [chatLoading, setChatLoading] = useState(false);
   const [queryError, setQueryError] = useState<string | null>(null);
   
   // Pagination States
@@ -122,7 +122,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
 
   const avgRating = useMemo(() => {
     if (reviews.length === 0) return 0;
-    return (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1);
+    return Number((reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1));
   }, [reviews]);
 
   // --- LOGIC FOLLOW ---
@@ -153,27 +153,24 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
     }
   };
 
-  // --- LOGIC CHAT THÔNG MINH (NEW) ---
+  // --- LOGIC CHAT THÔNG MINH ---
  const handleStartChat = async () => {
     if (!currentUser) return navigate('/login');
     if (!seller || currentUser.id === seller.id) return;
 
     setChatLoading(true);
     try {
-        // Tạo tin giả lập nếu không có tin nào
         const targetListing = listings.length > 0 ? listings[0] : {
             id: `profile_chat_${seller.id}`, 
             title: `Chat với ${seller.name}`,
             images: [seller.avatar],
             price: 0,
             sellerId: seller.id,
-            sellerName: seller.name, // Quan trọng: Đảm bảo có tên người bán
-            sellerAvatar: seller.avatar // Quan trọng: Đảm bảo có avatar người bán
+            sellerName: seller.name, 
+            sellerAvatar: seller.avatar
         };
 
-        // Gọi hàm db.createChatRoom với tham số mới (User Object)
         const roomId = await db.createChatRoom(targetListing, currentUser);
-        
         navigate(`/chat/${roomId}`);
 
     } catch (error) {
@@ -239,13 +236,22 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-6 border-y border-gray-100">
-               {/* FIX: Cập nhật hiển thị Rating trên Header đồng bộ với ReviewSection */}
+               {/* FIX MÀU SẮC TRIỆT ĐỂ: DÙNG SVG THAY VÌ TEXT */}
                <div>
                  <div className="flex items-center justify-center md:justify-start gap-2">
                    <span className="text-2xl font-black text-textMain">{avgRating}</span>
-                   <div className="flex text-[10px] gap-0.5">
-                     <span className="text-yellow-400">{"★".repeat(Math.round(Number(avgRating)))}</span>
-                     <span className="text-gray-300">{"★".repeat(5 - Math.round(Number(avgRating)))}</span>
+                   <div className="flex gap-0.5">
+                     {[1, 2, 3, 4, 5].map((star) => (
+                       <svg 
+                         key={star} 
+                         className={`w-3 h-3 ${star <= Math.round(Number(avgRating)) ? 'text-yellow-400' : 'text-gray-200'}`} 
+                         fill="currentColor" 
+                         viewBox="0 0 20 20"
+                         xmlns="http://www.w3.org/2000/svg"
+                       >
+                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                       </svg>
+                     ))}
                    </div>
                  </div>
                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Đánh giá TB</p>
@@ -267,7 +273,6 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
                 {isFollowing ? 'Đang theo dõi ✓' : '+ Theo dõi'}
               </button>
               
-              {/* NÚT CHAT ĐÃ UPDATE */}
               <button 
                 onClick={handleStartChat} 
                 disabled={chatLoading}
@@ -321,7 +326,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
               </>
             ) : (
               <div className="bg-white border border-borderMain rounded-[3rem] p-8 md:p-12 shadow-soft">
-                {/* Sử dụng component ReviewSection đã được fix ở bước trước */}
+                {/* Lưu ý: Nếu phần danh sách đánh giá bên dưới vẫn chưa đổi màu, hãy kiểm tra file ReviewSection.tsx nhé */}
                 <ReviewSection targetId={seller.id} targetType="user" currentUser={currentUser} />
               </div>
             )}

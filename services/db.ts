@@ -501,8 +501,8 @@ export const db = {
       if (options.search) {
         const s = options.search.toLowerCase();
         finalUsers = users.filter(u => 
-            (u.name && u.name.toLowerCase().includes(s)) ||
-            (u.email && u.email.toLowerCase().includes(s))
+             (u.name && u.name.toLowerCase().includes(s)) ||
+             (u.email && u.email.toLowerCase().includes(s))
         );
       }
 
@@ -702,8 +702,9 @@ export const db = {
      }
   },
 
-  // --- F. CÁC TÍNH NĂNG KHÁC ---
+  // --- F. ĐÁNH GIÁ (REVIEWS) [ĐÃ CẬP NHẬT: THÊM SỬA/XÓA/PHÂN TRANG] ---
 
+  // 1. Lấy danh sách realtime (Dùng cho số lượng ít)
   getReviews: (targetId: string, targetType: 'listing' | 'user', callback: (reviews: Review[]) => void) => {
     const q = query(
       collection(firestore, "reviews"), 
@@ -716,6 +717,45 @@ export const db = {
     });
   },
 
+  // 2. Lấy danh sách phân trang (Dùng cho component ReviewSection mới)
+  getReviewsPaged: async ({ targetId, targetType, pageSize, startAfterDoc }: { 
+      targetId: string, targetType: string, pageSize: number, startAfterDoc?: any 
+  }) => {
+      const colRef = collection(firestore, "reviews");
+      let constraints: any[] = [
+          where("targetId", "==", targetId),
+          where("targetType", "==", targetType),
+          orderBy("createdAt", "desc"),
+          limit(pageSize)
+      ];
+
+      if (startAfterDoc) {
+          constraints.push(startAfter(startAfterDoc));
+      }
+
+      const q = query(colRef, ...constraints);
+      const snapshot = await getDocs(q);
+      
+      return {
+          data: snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Review)),
+          lastDoc: snapshot.docs[snapshot.docs.length - 1],
+          hasMore: snapshot.docs.length === pageSize
+      };
+  },
+
+  // 3. Kiểm tra xem user đã review chưa (tối ưu hiệu năng)
+  checkUserReviewed: async (targetId: string, authorId: string) => {
+      const q = query(
+          collection(firestore, "reviews"),
+          where("targetId", "==", targetId),
+          where("authorId", "==", authorId),
+          limit(1)
+      );
+      const snap = await getDocs(q);
+      return !snap.empty;
+  },
+
+  // 4. Thêm Review Mới
   addReview: async (reviewData: Omit<Review, 'id' | 'createdAt'>) => {
     try {
       const res = await addDoc(collection(firestore, "reviews"), { ...reviewData, createdAt: new Date().toISOString() });
@@ -753,6 +793,22 @@ export const db = {
       console.error("Error adding review:", e);
       throw e;
     }
+  },
+
+  // 5. Cập nhật Review [MỚI]
+  updateReview: async (reviewId: string, data: { rating: number, comment: string }) => {
+      const reviewRef = doc(firestore, 'reviews', reviewId);
+      await updateDoc(reviewRef, {
+          rating: data.rating,
+          comment: data.comment,
+          updatedAt: new Date().toISOString()
+      });
+  },
+
+  // 6. Xóa Review [MỚI]
+  deleteReview: async (reviewId: string) => {
+      const reviewRef = doc(firestore, 'reviews', reviewId);
+      await deleteDoc(reviewRef);
   },
 
   getNotifications: (userId: string, callback: (notifs: Notification[]) => void) => {
@@ -816,6 +872,8 @@ export const db = {
     }
   },
 
+  // --- G. CHAT [ĐÃ CẬP NHẬT: THÊM XÓA TIN NHẮN] ---
+
   getChatRooms: (uId: string, cb: any) => {
     const q = query(collection(firestore, "chats"), where("participantIds", "array-contains", uId));
     return onSnapshot(q, (s) => {
@@ -835,18 +893,33 @@ export const db = {
     await updateDoc(ref, { messages: arrayUnion(msg), lastMessage: m.text, lastUpdate: msg.timestamp, seenBy: [m.senderId] });
   },
 
+  // [MỚI] Hàm xóa tin nhắn trong Chat
+  deleteMessage: async (roomId: string, messageId: string) => {
+    try {
+      const roomRef = doc(firestore, "chats", roomId);
+      const roomSnap = await getDoc(roomRef);
+      if (roomSnap.exists()) {
+        const data = roomSnap.data();
+        if (data.messages) {
+           // Lọc bỏ tin nhắn cần xóa
+           const updatedMessages = data.messages.filter((m: any) => m.id !== messageId);
+           await updateDoc(roomRef, { messages: updatedMessages });
+        }
+      }
+    } catch (e) {
+      console.error("Error deleting message:", e);
+    }
+  },
+
   markRoomAsSeen: async (id: string, userId: string) => {
     await updateDoc(doc(firestore, "chats", id), { seenBy: arrayUnion(userId) });
   },
   
-  // [CẬP NHẬT CHÍNH]: Hỗ trợ cả 2 trường hợp chat
   createChatRoom: async (l: any, buyer: User) => {
     try {
-        // [FIX] Kiểm tra an toàn dữ liệu
         if (!l?.id) throw new Error("Listing ID is missing");
         if (!buyer?.id) throw new Error("Buyer ID is missing");
 
-        // Tìm xem phòng này đã tồn tại chưa
         const q = query(
             collection(firestore, "chats"), 
             where("listingId", "==", l.id), 
@@ -856,11 +929,6 @@ export const db = {
         const s = await getDocs(q);
         if (!s.empty) return s.docs[0].id;
 
-        // Chuẩn bị dữ liệu hiển thị (participantsData)
-        // Trường hợp 1: Chat từ trang sản phẩm (l là Listing thật) -> Có sellerName, sellerAvatar
-        // Trường hợp 2: Chat từ Profile (l là object giả) -> Cũng đã được truyền sellerName, sellerAvatar từ SellerProfile.tsx
-        
-        // Fallback: Nếu thiếu thông tin người bán (hiếm gặp), dùng placeholder
         const sellerName = l.sellerName || "Người bán";
         const sellerAvatar = l.sellerAvatar || "https://placehold.co/100?text=Seller";
 
@@ -882,7 +950,7 @@ export const db = {
             listingPrice: l.price || 0,
             
             participantIds: [buyer.id, l.sellerId], 
-            participantsData: participantsData, // Quan trọng để hiển thị tên người chat
+            participantsData: participantsData, 
             
             messages: [], 
             lastUpdate: new Date().toISOString(), 
@@ -895,7 +963,7 @@ export const db = {
     }
   },
 
-  // --- G. SEED DATA (TẠO DỮ LIỆU MẪU - CÓ XÓA DỮ LIỆU CŨ) ---
+  // --- H. SEED DATA ---
   seedDatabase: async () => {
     try {
       console.log("🧹 Đang dọn dẹp dữ liệu rác...");

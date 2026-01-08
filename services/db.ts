@@ -94,7 +94,6 @@ export const db = {
     }
   },
 
-  // HÀM LẤY DANH SÁCH TIN (HỖ TRỢ SMART SEARCH & FILTERING)
   getListingsPaged: async (options: {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
@@ -108,7 +107,6 @@ export const db = {
     try {
       const colRef = collection(firestore, "listings");
       
-      // === TRƯỜNG HỢP 1: CÓ TỪ KHÓA TÌM KIẾM (SMART SEARCH) ===
       if (options.search && options.search.trim().length > 0) {
         let constraints: any[] = [
            where("status", "==", "approved"),
@@ -125,11 +123,9 @@ export const db = {
         
         let allListings = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
 
-        // Lọc thông minh
         const queryText = options.search.trim();
         let filtered = allListings.filter(l => isSearchMatch(l.title, queryText));
 
-        // Sắp xếp
         filtered.sort((a, b) => {
            const scoreA = calculateRelevanceScore(a.title, queryText);
            const scoreB = calculateRelevanceScore(b.title, queryText);
@@ -144,7 +140,6 @@ export const db = {
         };
       }
 
-      // === TRƯỜNG HỢP 2: KHÔNG TÌM KIẾM (PAGINATION BÌNH THƯỜNG) ===
       let constraints: any[] = [];
 
       if (options.status) {
@@ -523,12 +518,12 @@ export const db = {
     }
   },
 
-  // [FIX]: Đảm bảo trả về object có ID
   getCurrentUser: (): Promise<User | null> => {
     return new Promise((resolve) => {
       const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
         if (fbUser) {
           const userDoc = await getDoc(doc(firestore, "users", fbUser.uid));
+          // [FIX] Trả về object có ID
           resolve(userDoc.exists() ? { id: userDoc.id, ...userDoc.data() } as User : null);
         } else {
           resolve(null);
@@ -538,9 +533,9 @@ export const db = {
     });
   },
 
-  // [FIX]: Đảm bảo trả về object có ID
   getUserById: async (id: string): Promise<User | undefined> => {
     const d = await getDoc(doc(firestore, "users", id));
+    // [FIX] Trả về object có ID
     return d.exists() ? { id: d.id, ...d.data() } as User : undefined;
   },
 
@@ -844,13 +839,14 @@ export const db = {
     await updateDoc(doc(firestore, "chats", id), { seenBy: arrayUnion(userId) });
   },
   
-  // [CẬP NHẬT CHÍNH]: Logic tạo phòng chat thông minh, lưu info 2 bên
+  // [CẬP NHẬT CHÍNH]: Hỗ trợ cả 2 trường hợp chat
   createChatRoom: async (l: any, buyer: User) => {
     try {
-        // [FIX] Kiểm tra an toàn
+        // [FIX] Kiểm tra an toàn dữ liệu
         if (!l?.id) throw new Error("Listing ID is missing");
         if (!buyer?.id) throw new Error("Buyer ID is missing");
 
+        // Tìm xem phòng này đã tồn tại chưa
         const q = query(
             collection(firestore, "chats"), 
             where("listingId", "==", l.id), 
@@ -858,18 +854,24 @@ export const db = {
         );
         
         const s = await getDocs(q);
-        
         if (!s.empty) return s.docs[0].id;
 
-        // Lưu thông tin người tham gia để hiển thị
+        // Chuẩn bị dữ liệu hiển thị (participantsData)
+        // Trường hợp 1: Chat từ trang sản phẩm (l là Listing thật) -> Có sellerName, sellerAvatar
+        // Trường hợp 2: Chat từ Profile (l là object giả) -> Cũng đã được truyền sellerName, sellerAvatar từ SellerProfile.tsx
+        
+        // Fallback: Nếu thiếu thông tin người bán (hiếm gặp), dùng placeholder
+        const sellerName = l.sellerName || "Người bán";
+        const sellerAvatar = l.sellerAvatar || "https://placehold.co/100?text=Seller";
+
         const participantsData = {
             [buyer.id]: {
                 name: buyer.name,
                 avatar: buyer.avatar
             },
             [l.sellerId]: {
-                name: l.sellerName || "Người bán", 
-                avatar: l.sellerAvatar || "https://placehold.co/100"
+                name: sellerName,
+                avatar: sellerAvatar
             }
         };
 
@@ -880,7 +882,7 @@ export const db = {
             listingPrice: l.price || 0,
             
             participantIds: [buyer.id, l.sellerId], 
-            participantsData: participantsData, 
+            participantsData: participantsData, // Quan trọng để hiển thị tên người chat
             
             messages: [], 
             lastUpdate: new Date().toISOString(), 

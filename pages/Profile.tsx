@@ -5,9 +5,9 @@ import { User, Listing } from '../types';
 import ListingCard from '../components/ListingCard';
 import { LOCATIONS, TIER_CONFIG } from '../constants';
 import { formatPrice } from '../utils/format';
-import { getLocationFromCoords } from '../utils/locationHelper'; // Import hàm tiện ích mới
+import { getLocationFromCoords } from '../utils/locationHelper'; 
 
-// --- THÊM: Import Leaflet cho bản đồ ---
+// --- Import Leaflet cho bản đồ ---
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -24,11 +24,10 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// --- Component con: Marker có thể kéo thả để chọn vị trí ---
+// --- Component con: Marker có thể kéo thả ---
 const DraggableMarker = ({ position, onDragEnd }: { position: {lat: number, lng: number}, onDragEnd: (lat: number, lng: number) => void }) => {
     const markerRef = useRef<L.Marker>(null);
     
-    // Sự kiện khi click vào bản đồ cũng di chuyển marker
     useMapEvents({
         click(e) {
             onDragEnd(e.latlng.lat, e.latlng.lng);
@@ -58,7 +57,6 @@ const DraggableMarker = ({ position, onDragEnd }: { position: {lat: number, lng:
     );
 }
 
-// Interface cho Modal xác nhận
 interface ModalState {
   show: boolean;
   title: string;
@@ -94,9 +92,9 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     name: user?.name || '',
     email: user?.email || '',
     phone: user?.phone || '',
-    location: user?.location || 'TPHCM', // Thành phố (dùng để lọc)
-    address: user?.address || '',        // Địa chỉ cụ thể (dùng để hiển thị)
-    lat: user?.lat || 10.762622,         // Mặc định HCM
+    location: user?.location || 'TPHCM',
+    address: user?.address || '',
+    lat: user?.lat || 10.762622,
     lng: user?.lng || 106.660172
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -113,7 +111,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
       const favIds = await db.getFavorites(user.id);
       setMyFavs(all.filter(l => favIds.includes(l.id)));
       
-      // Cập nhật lại form nếu user thay đổi
       setEditForm(prev => ({
         ...prev,
         name: user.name,
@@ -128,16 +125,31 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     loadProfileData();
   }, [user, navigate]);
 
-  const subscriptionInfo = useMemo(() => {
-    if (!user || !user.subscriptionExpires) return null;
+  // --- [FIX LOGIC] TÍNH TOÁN TRẠNG THÁI VIP ---
+  const subscriptionData = useMemo(() => {
+    if (!user) return { isExpired: true, daysRemaining: 0, effectiveTier: 'free', expiryDate: '' };
+
+    // 1. Nếu user là free hoặc không có ngày hết hạn -> coi như free
+    if (user.subscriptionTier === 'free' || !user.subscriptionExpires) {
+        return { isExpired: true, daysRemaining: 0, effectiveTier: 'free', expiryDate: '' };
+    }
+
     const expires = new Date(user.subscriptionExpires);
     const now = new Date();
+    
+    // Tính khoảng cách thời gian
     const diffTime = expires.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Nếu ngày hết hạn ở quá khứ -> Đã hết hạn
+    const isExpired = diffTime <= 0;
+
     return {
       daysRemaining: diffDays > 0 ? diffDays : 0,
-      expiryDate: expires.toLocaleDateString('vi-VN'),
-      isExpired: diffDays <= 0
+      expiryDate: expires.toLocaleDateString('vi-VN'), // Format: dd/mm/yyyy
+      isExpired: isExpired,
+      // [QUAN TRỌNG]: Nếu đã hết hạn thời gian, ép kiểu về 'free' để hiển thị đúng màu sắc
+      effectiveTier: isExpired ? 'free' : user.subscriptionTier
     };
   }, [user]);
 
@@ -291,16 +303,14 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
       navigator.geolocation.getCurrentPosition(async (pos) => {
         const { latitude, longitude } = pos.coords;
         
-        // 1. Cập nhật marker trên bản đồ
         setEditForm(prev => ({ ...prev, lat: latitude, lng: longitude }));
         
-        // 2. Gọi API để lấy tên đường (Reverse Geocoding)
         try {
             const info = await getLocationFromCoords(latitude, longitude);
             setEditForm(prev => ({
                 ...prev,
-                address: info.address, // Tự điền tên đường
-                location: info.city    // Tự điền thành phố
+                address: info.address, 
+                location: info.city    
             }));
         } catch (e) {
             console.error("Lỗi lấy tên đường", e);
@@ -312,10 +322,8 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     }
   };
 
-  // Khi kéo marker xong, tự động cập nhật địa chỉ
   const handleMarkerDragEnd = async (lat: number, lng: number) => {
       setEditForm(prev => ({ ...prev, lat, lng }));
-      // Tự động lấy tên đường mới
       const info = await getLocationFromCoords(lat, lng);
       setEditForm(prev => ({
           ...prev,
@@ -324,7 +332,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
       }));
   };
 
-  // Render Status Badge
   const renderVerificationStatus = () => {
     const status = (user as any).verificationStatus || 'unverified';
     switch (status) {
@@ -402,30 +409,30 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
               <span>{user.phone || 'Chưa cập nhật SĐT'}</span>
             </div>
 
-            {/* VIP Card */}
+            {/* VIP Card - ĐÃ CẬP NHẬT LOGIC HIỂN THỊ */}
             <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-6">
-                <div className={`relative overflow-hidden p-5 rounded-3xl border shadow-lg transition-all min-w-[280px] ${user.subscriptionTier === 'free' ? 'bg-gray-50 border-gray-200' : 'bg-gradient-to-br from-yellow-500 to-orange-600 border-yellow-400 text-white shadow-yellow-200'}`}>
+                <div className={`relative overflow-hidden p-5 rounded-3xl border shadow-lg transition-all min-w-[280px] ${subscriptionData.effectiveTier === 'free' ? 'bg-gray-50 border-gray-200' : 'bg-gradient-to-br from-yellow-500 to-orange-600 border-yellow-400 text-white shadow-yellow-200'}`}>
                   <div className="relative z-10 flex items-start justify-between">
-                     <div className="space-y-1">
-                        <p className={`text-[10px] font-black uppercase tracking-widest ${user.subscriptionTier === 'free' ? 'text-gray-400' : 'text-white/80'}`}>Hạng thành viên</p>
-                        <h4 className="text-xl font-black">{TIER_CONFIG[user.subscriptionTier].name}</h4>
-                     </div>
-                     <span className="text-2xl">{user.subscriptionTier === 'pro' ? '👑' : user.subscriptionTier === 'basic' ? '💎' : '🌱'}</span>
+                      <div className="space-y-1">
+                         <p className={`text-[10px] font-black uppercase tracking-widest ${subscriptionData.effectiveTier === 'free' ? 'text-gray-400' : 'text-white/80'}`}>Hạng thành viên</p>
+                         <h4 className="text-xl font-black">{TIER_CONFIG[subscriptionData.effectiveTier as keyof typeof TIER_CONFIG]?.name || 'Thành viên thường'}</h4>
+                      </div>
+                      <span className="text-2xl">{subscriptionData.effectiveTier === 'pro' ? '👑' : subscriptionData.effectiveTier === 'basic' ? '💎' : '🌱'}</span>
                   </div>
                   <div className="mt-4 flex items-end justify-between">
-                     <div className="space-y-1">
-                        {subscriptionInfo && !subscriptionInfo.isExpired ? (
-                           <>
-                              <p className={`text-[10px] font-bold ${user.subscriptionTier === 'free' ? 'text-gray-400' : 'text-white/70'}`}>Hết hạn: {subscriptionInfo.expiryDate}</p>
-                              <p className="text-sm font-black">Còn {subscriptionInfo.daysRemaining} ngày</p>
-                           </>
-                        ) : (
-                           <p className="text-[10px] font-bold text-gray-400">Chưa có đặc quyền VIP</p>
-                        )}
-                     </div>
-                     <Link to="/upgrade" className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${user.subscriptionTier === 'free' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/20 backdrop-blur-md text-white border border-white/30 hover:bg-white/30'}`}>
-                        {user.subscriptionTier === 'free' ? 'Nâng cấp ngay' : 'Gia hạn gói'}
-                     </Link>
+                      <div className="space-y-1">
+                         {!subscriptionData.isExpired ? (
+                            <>
+                               <p className={`text-[10px] font-bold ${subscriptionData.effectiveTier === 'free' ? 'text-gray-400' : 'text-white/70'}`}>Hết hạn: {subscriptionData.expiryDate}</p>
+                               <p className="text-sm font-black">Còn {subscriptionData.daysRemaining} ngày</p>
+                            </>
+                         ) : (
+                            <p className={`text-[10px] font-bold ${subscriptionData.effectiveTier === 'free' ? 'text-gray-400' : 'text-white/70'}`}>Chưa có đặc quyền VIP</p>
+                         )}
+                      </div>
+                      <Link to="/upgrade" className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${subscriptionData.effectiveTier === 'free' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/20 backdrop-blur-md text-white border border-white/30 hover:bg-white/30'}`}>
+                         {subscriptionData.effectiveTier === 'free' ? 'Nâng cấp ngay' : 'Gia hạn gói'}
+                      </Link>
                   </div>
                </div>
 

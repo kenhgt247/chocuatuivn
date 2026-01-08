@@ -1,7 +1,7 @@
 import { Listing, Category } from '../types';
 
 // ========================================================================
-// 1. FORMATTING UTILS (GIỮ NGUYÊN)
+// 1. FORMATTING UTILS (GIỮ NGUYÊN LOGIC CỦA BẠN)
 // ========================================================================
 
 export const formatPrice = (price: number): string => {
@@ -12,6 +12,7 @@ export const formatPrice = (price: number): string => {
 };
 
 export const formatTimeAgo = (dateString: string): string => {
+  if (!dateString) return '';
   const date = new Date(dateString);
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
@@ -23,25 +24,18 @@ export const formatTimeAgo = (dateString: string): string => {
 };
 
 // ========================================================================
-// 2. TEXT PROCESSING UTILS (LOGIC TÌM KIẾM THÔNG MINH MỚI)
+// 2. TEXT PROCESSING UTILS
 // ========================================================================
 
 /**
  * Hàm xóa dấu tiếng Việt, chuyển về chữ thường, xóa ký tự đặc biệt
- * Input: "Điện Thoại iPhone 15!"
- * Output: "dien thoai iphone 15"
  */
 export const removeVietnameseTones = (str: string): string => {
   if (!str) return '';
   str = str.toLowerCase();
-  str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, 'a');
-  str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, 'e');
-  str = str.replace(/ì|í|ị|ỉ|ĩ/g, 'i');
-  str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, 'o');
-  str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, 'u');
-  str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, 'y');
+  str = str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   str = str.replace(/đ/g, 'd');
-  // Xóa ký tự đặc biệt, giữ lại chữ cái, số và khoảng trắng
+  // Xóa ký tự đặc biệt, chỉ giữ lại chữ cái và số
   str = str.replace(/[^a-z0-9\s]/g, '');
   // Xóa khoảng trắng thừa
   return str.replace(/\s+/g, ' ').trim();
@@ -62,58 +56,129 @@ export const getCategoryUrl = (category: Category): string => {
 };
 
 // ========================================================================
-// 3. SMART SEARCH ENGINE (CỐT LÕI)
+// 3. SMART SEARCH ENGINE (CỐT LÕI TÌM KIẾM THÔNG MINH)
 // ========================================================================
 
 /**
+ * Thuật toán Levenshtein Distance
+ * Tính số bước ít nhất để biến chuỗi a thành chuỗi b
+ * Dùng để phát hiện lỗi chính tả (typo). VD: "evrest" -> "everest"
+ */
+const levenshteinDistance = (a: string, b: string): number => {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  const matrix = [];
+
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // thay thế
+          Math.min(
+            matrix[i][j - 1] + 1,   // chèn
+            matrix[i - 1][j] + 1    // xóa
+          )
+        );
+      }
+    }
+  }
+
+  return matrix[b.length][a.length];
+};
+
+/**
  * Kiểm tra xem một đoạn văn bản (target) có khớp với từ khóa tìm kiếm (query) không.
- * Hỗ trợ: Không dấu, sai hoa thường, đảo trật tự từ.
- * * Ví dụ: 
- * Target: "Bán xe máy Honda Vision màu đỏ"
- * Query: "xe honda do" -> TRUE
+ * Hỗ trợ:
+ * 1. Khớp chính xác.
+ * 2. Khớp từng từ (đảo từ).
+ * 3. Khớp mờ (Fuzzy Match) - Gõ sai chính tả vẫn tìm ra.
  */
 export const isSearchMatch = (targetText: string, searchQuery: string): boolean => {
   if (!searchQuery) return true;
   if (!targetText) return false;
 
-  // 1. Chuẩn hóa cả hai về dạng: 'ban xe may honda vision mau do'
   const cleanTarget = removeVietnameseTones(targetText);
   const cleanQuery = removeVietnameseTones(searchQuery);
 
-  // 2. Kiểm tra khớp tuyệt đối (nhanh nhất)
-  // VD: Query "vision" nằm trọn trong Target
+  // 1. Kiểm tra khớp tuyệt đối (Ưu tiên cao nhất)
   if (cleanTarget.includes(cleanQuery)) return true;
 
-  // 3. Kiểm tra khớp từng từ khóa (Token Matching) - Xử lý "gõ dài gõ ngắn"
-  // VD: Query "honda do" -> Tách thành ["honda", "do"]
+  // 2. Phân tách từ để so sánh (Token Matching)
   const queryTokens = cleanQuery.split(' ');
-  
-  // Kiểm tra xem MỌI từ trong query có xuất hiện trong target không
-  // Nếu user gõ "honda do", thì target phải có chữ "honda" VÀ chữ "do"
-  const isAllTokensFound = queryTokens.every(token => cleanTarget.includes(token));
+  const targetTokens = cleanTarget.split(' ');
 
-  return isAllTokensFound;
+  // Quy tắc: TẤT CẢ các từ trong query phải tìm thấy từ "tương tự" trong target
+  return queryTokens.every(qToken => {
+    return targetTokens.some(tToken => {
+      // a. Khớp chính xác từ
+      if (tToken.includes(qToken)) return true;
+
+      // b. Khớp mờ (Fuzzy) dùng Levenshtein
+      // Chỉ áp dụng cho từ có độ dài > 3 để tránh khớp sai các từ ngắn (vd: xe, la, ma)
+      if (qToken.length > 3 && tToken.length > 3) {
+        const dist = levenshteinDistance(qToken, tToken);
+        
+        // Cho phép sai số tùy theo độ dài từ:
+        // - Từ 4-5 ký tự: cho sai 1 ký tự (vd: "iphone" -> "ipone")
+        // - Từ > 5 ký tự: cho sai 2 ký tự (vd: "everest" -> "evrest")
+        const allowedErrors = qToken.length > 5 ? 2 : 1;
+        
+        // Điều kiện: Khoảng cách edit nhỏ hơn cho phép VÀ độ dài 2 từ không chênh lệch quá nhiều
+        return dist <= allowedErrors && Math.abs(qToken.length - tToken.length) <= allowedErrors;
+      }
+      
+      return false;
+    });
+  });
 };
 
 /**
- * Tính điểm độ phù hợp (Relevance Score) - Dùng để sắp xếp kết quả
- * Điểm càng cao càng hiển thị lên đầu.
+ * Tính điểm độ phù hợp (Relevance Score)
+ * Dùng để sắp xếp: Tin khớp chính xác lên đầu, tin khớp mờ xuống dưới.
  */
 export const calculateRelevanceScore = (targetText: string, searchQuery: string): number => {
   const cleanTarget = removeVietnameseTones(targetText);
   const cleanQuery = removeVietnameseTones(searchQuery);
+  let score = 0;
 
-  if (cleanTarget === cleanQuery) return 100; // Khớp hoàn toàn 100%
-  if (cleanTarget.startsWith(cleanQuery)) return 80; // Bắt đầu bằng từ khóa
-  if (cleanTarget.includes(cleanQuery)) return 60; // Chứa nguyên cụm từ khóa
+  // 1. Khớp chính xác hoàn toàn (+100 điểm)
+  if (cleanTarget === cleanQuery) return 100;
 
-  // Khớp từng từ
+  // 2. Bắt đầu bằng từ khóa (+80 điểm) - VD tìm "iPhone" ra "iPhone 15" đầu tiên
+  if (cleanTarget.startsWith(cleanQuery)) score += 80;
+
+  // 3. Chứa cụm từ liên tục (+60 điểm)
+  else if (cleanTarget.includes(cleanQuery)) score += 60;
+
+  // 4. Tính điểm dựa trên số lượng từ khớp fuzzy
+  const targetTokens = cleanTarget.split(' ');
   const queryTokens = cleanQuery.split(' ');
-  let matchCount = 0;
-  queryTokens.forEach(token => {
-    if (cleanTarget.includes(token)) matchCount++;
+  
+  let matchedWords = 0;
+  queryTokens.forEach(qToken => {
+    if (targetTokens.some(tToken => {
+      if (tToken === qToken) return true; // Khớp chuẩn
+      // Khớp mờ cho từ dài > 3 ký tự
+      if (qToken.length > 3 && levenshteinDistance(qToken, tToken) <= 1) return true; 
+      return false;
+    })) {
+      matchedWords++;
+    }
   });
 
-  // Điểm = Tỷ lệ số từ khớp / Tổng số từ tìm kiếm * 40
-  return (matchCount / queryTokens.length) * 40;
+  // Cộng điểm dựa trên tỷ lệ số từ khớp (Max 40 điểm)
+  score += (matchedWords / queryTokens.length) * 40;
+
+  return score;
 };

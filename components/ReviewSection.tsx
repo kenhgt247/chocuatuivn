@@ -18,7 +18,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
-  // [MỚI] State kiểm tra xem user đã đánh giá chưa
+  // State kiểm tra xem user đã đánh giá chưa
   const [hasReviewed, setHasReviewed] = useState(false);
 
   useEffect(() => {
@@ -27,7 +27,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
       const sorted = loadedReviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setReviews(sorted);
 
-      // [MỚI] Kiểm tra xem user hiện tại đã có trong danh sách review chưa
+      // Kiểm tra xem user hiện tại đã có trong danh sách review chưa
       if (currentUser) {
         const userReview = loadedReviews.find(r => r.authorId === currentUser.id);
         setHasReviewed(!!userReview);
@@ -40,7 +40,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
     e.preventDefault();
     if (!currentUser || !comment.trim()) return;
 
-    // [MỚI] Chặn spam
+    // Chặn spam
     if (hasReviewed) {
         alert("Bạn đã đánh giá sản phẩm này rồi.");
         return;
@@ -48,7 +48,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
 
     setIsSubmitting(true);
     
-    // Lưu lại giá trị hiện tại để dùng cho cả UI và DB (tránh lỗi reset state sớm)
+    // Lưu lại giá trị hiện tại để dùng cho cả UI và DB
     const currentRating = rating;
     const currentComment = comment.trim();
 
@@ -60,14 +60,14 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
         authorId: currentUser.id,
         authorName: currentUser.name,
         authorAvatar: currentUser.avatar,
-        rating: currentRating, // Dùng biến cục bộ
+        rating: currentRating,
         comment: currentComment,
         createdAt: new Date().toISOString()
     };
 
     setReviews(prev => [newReview, ...prev]);
     setShowForm(false);
-    setHasReviewed(true); // Đánh dấu đã review ngay lập tức
+    setHasReviewed(true);
     
     // Reset form
     setComment('');
@@ -81,7 +81,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
         authorId: currentUser.id,
         authorName: currentUser.name,
         authorAvatar: currentUser.avatar,
-        rating: currentRating, // Truyền đúng giá trị
+        rating: currentRating,
         comment: currentComment
       });
     } catch (err) {
@@ -89,7 +89,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
       alert("Lỗi khi gửi đánh giá. Vui lòng thử lại.");
       // Revert lại nếu lỗi
       setReviews(prev => prev.filter(r => r.id !== newReview.id));
-      setHasReviewed(false); // Cho phép thử lại
+      setHasReviewed(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -106,8 +106,14 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
         <div className="flex items-center gap-3">
           <div className="text-3xl font-black text-textMain">{avgRating}</div>
           <div>
-            <div className="flex text-yellow-400 text-sm">
-              {"★".repeat(Math.round(Number(avgRating)))}{"☆".repeat(5 - Math.round(Number(avgRating)))}
+            {/* FIX: Tách sao vàng và sao xám riêng biệt */}
+            <div className="flex items-center gap-0.5 text-sm">
+              <span className="text-yellow-400">
+                {"★".repeat(Math.round(Number(avgRating)))}
+              </span>
+              <span className="text-gray-300">
+                {"★".repeat(5 - Math.round(Number(avgRating)))}
+              </span>
             </div>
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{reviews.length} đánh giá</p>
           </div>
@@ -180,9 +186,17 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
                 <h4 className="text-xs font-black text-textMain truncate">{review.authorName}</h4>
                 <span className="text-[9px] text-gray-300 font-bold uppercase tracking-wide">{formatTimeAgo(review.createdAt)}</span>
               </div>
-              <div className="flex text-yellow-400 text-[10px] mt-0.5 mb-1.5">
-                {"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}
+              
+              {/* FIX: Tách sao vàng và sao xám riêng biệt cho từng review */}
+              <div className="flex text-[10px] mt-0.5 mb-1.5 gap-0.5">
+                <span className="text-yellow-400">
+                  {"★".repeat(review.rating)}
+                </span>
+                <span className="text-gray-300">
+                  {"★".repeat(5 - review.rating)}
+                </span>
               </div>
+
               <p className="text-xs text-gray-600 leading-relaxed font-medium">{review.comment}</p>
             </div>
           </div>

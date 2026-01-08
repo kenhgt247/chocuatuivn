@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Listing, Transaction, Report } from '../types';
 import { formatPrice, getListingUrl } from '../utils/format';
 import { QueryDocumentSnapshot, DocumentData, collection, getDocs, getFirestore } from 'firebase/firestore';
+import { compressAndGetBase64 } from '../utils/imageCompression'; // [MỚI] Import nén ảnh
 
 type AdminTab = 'stats' | 'listings' | 'reports' | 'users' | 'payments' | 'settings';
 
@@ -56,7 +57,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   // Modals
   const [editModal, setEditModal] = useState<EditListingState>({ show: false, listing: null });
   const [verifyModal, setVerifyModal] = useState<VerificationModalState>({ show: false, user: null });
-  
+   
   // Forms
   const [editForm, setEditForm] = useState({ title: '', price: 0, status: '' });
 
@@ -723,17 +724,146 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
              </div>
          )}
 
-         {/* === TAB SETTINGS (UPDATED FOR VIETQR & TOOLS) === */}
+         {/* === TAB SETTINGS (UPDATED FOR BANNER, VIETQR & TOOLS) === */}
          {activeTab === 'settings' && (
              <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft">
                  <form onSubmit={handleSaveSettings} className="space-y-12">
-                   {/* 1. General */}
+                   
+                   {/* 1. General Config */}
                    <div className="space-y-6">
                       <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2"><span className="w-2 h-2 bg-primary rounded-full"></span> Phí & Ưu đãi</h4>
                       <div className="grid md:grid-cols-2 gap-8">
-                         <div className="space-y-3"><label className="text-[11px] font-black text-gray-400 uppercase px-1">Giá đẩy tin (VNĐ)</label><input type="number" value={settings.pushPrice} onChange={e => setSettings({...settings, pushPrice: parseInt(e.target.value)})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
-                         <div className="space-y-3"><label className="text-[11px] font-black text-gray-400 uppercase px-1">Chiết khấu chung (%)</label><input type="number" value={settings.pushDiscount || 0} onChange={e => setSettings({...settings, pushDiscount: parseInt(e.target.value)})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
+                          <div className="space-y-3"><label className="text-[11px] font-black text-gray-400 uppercase px-1">Giá đẩy tin (VNĐ)</label><input type="number" value={settings.pushPrice} onChange={e => setSettings({...settings, pushPrice: parseInt(e.target.value)})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
+                          <div className="space-y-3"><label className="text-[11px] font-black text-gray-400 uppercase px-1">Chiết khấu chung (%)</label><input type="number" value={settings.pushDiscount || 0} onChange={e => setSettings({...settings, pushDiscount: parseInt(e.target.value)})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
                       </div>
+                   </div>
+
+                   {/* --- [MỚI] QUẢN LÝ BANNER --- */}
+                   <div className="space-y-6 pt-6 border-t border-gray-100">
+                       <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                                <span className="w-2 h-2 bg-orange-500 rounded-full"></span> Quản lý Banner
+                            </h4>
+                            <button 
+                                type="button"
+                                onClick={() => {
+                                    const newSlide = { id: Date.now(), type: 'text', title: 'Slide Mới', desc: 'Mô tả...', btnText: 'Xem', btnLink: '/', colorFrom: 'from-blue-500', colorTo: 'to-cyan-500', icon: '✨', isActive: true };
+                                    setSettings({...settings, bannerSlides: [...(settings.bannerSlides || []), newSlide]});
+                                }}
+                                className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase"
+                            >
+                                + Thêm Slide
+                            </button>
+                       </div>
+
+                       <div className="space-y-6">
+                           {(settings.bannerSlides || []).map((slide: any, idx: number) => (
+                               <div key={idx} className={`border p-5 rounded-3xl space-y-4 transition-all ${slide.isActive ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-100 opacity-60'}`}>
+                                   
+                                   {/* HEADER CỦA SLIDE */}
+                                   <div className="flex justify-between items-center pb-4 border-b border-gray-100">
+                                       <div className="flex items-center gap-3">
+                                           <span className="bg-gray-100 text-gray-500 text-[10px] font-black px-2 py-1 rounded">#{idx + 1}</span>
+                                           <select 
+                                               value={slide.type || 'text'}
+                                               onChange={e => {
+                                                   const newSlides = [...(settings.bannerSlides || [])];
+                                                   newSlides[idx].type = e.target.value;
+                                                   setSettings({...settings, bannerSlides: newSlides});
+                                               }}
+                                               className="bg-gray-100 border-none text-xs font-bold rounded-lg py-1 px-2 focus:ring-0 cursor-pointer"
+                                           >
+                                               <option value="text">🅰️ Dạng Chữ & Màu</option>
+                                               <option value="image">🖼️ Dạng Hình Ảnh</option>
+                                           </select>
+                                       </div>
+
+                                       <div className="flex items-center gap-3">
+                                           {/* Toggle Active */}
+                                           <label className="flex items-center cursor-pointer gap-2">
+                                               <span className="text-[10px] font-bold text-gray-400 uppercase">{slide.isActive ? 'Đang hiện' : 'Đang ẩn'}</span>
+                                               <div className="relative">
+                                                   <input type="checkbox" className="sr-only" checked={slide.isActive} 
+                                                       onChange={e => {
+                                                           const newSlides = [...(settings.bannerSlides || [])];
+                                                           newSlides[idx].isActive = e.target.checked;
+                                                           setSettings({...settings, bannerSlides: newSlides});
+                                                       }} 
+                                                   />
+                                                   <div className={`block w-8 h-5 rounded-full transition-colors ${slide.isActive ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                                   <div className={`absolute left-1 top-1 bg-white w-3 h-3 rounded-full transition-transform ${slide.isActive ? 'transform translate-x-3' : ''}`}></div>
+                                               </div>
+                                           </label>
+                                           
+                                           {/* Nút Xóa Slide */}
+                                           <button type="button" onClick={() => {
+                                               if(window.confirm("Xóa banner này?")) {
+                                                   const newSlides = settings.bannerSlides.filter((_:any, i:number) => i !== idx);
+                                                   setSettings({...settings, bannerSlides: newSlides});
+                                               }
+                                           }} className="text-red-400 hover:text-red-600">🗑</button>
+                                       </div>
+                                   </div>
+                                   
+                                   {/* NỘI DUNG TÙY CHỈNH THEO LOẠI */}
+                                   {slide.type === 'image' ? (
+                                       // --- GIAO DIỆN CHỈNH SỬA DẠNG ẢNH ---
+                                       <div className="space-y-3 animate-fade-in-up">
+                                           <div className="flex gap-4 items-start">
+                                               <div className="w-1/3 aspect-[3/1] bg-gray-100 rounded-xl overflow-hidden border border-gray-200 relative group">
+                                                   {slide.imageUrl ? (
+                                                       <img src={slide.imageUrl} className="w-full h-full object-cover" alt="Banner" />
+                                                   ) : (
+                                                       <div className="flex items-center justify-center h-full text-gray-400 text-xs">Chưa có ảnh</div>
+                                                   )}
+                                                   <label className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white text-xs font-bold">
+                                                       Tải ảnh lên
+                                                       <input type="file" className="hidden" accept="image/*" onChange={async (e) => {
+                                                           if(e.target.files?.[0]) {
+                                                               setIsLoading(true);
+                                                               try {
+                                                                   const compressed = await compressAndGetBase64(e.target.files[0]);
+                                                                   const url = await db.uploadImage(compressed, `banners/${Date.now()}`);
+                                                                   const ns = [...settings.bannerSlides];
+                                                                   ns[idx].imageUrl = url;
+                                                                   setSettings({...settings, bannerSlides: ns});
+                                                               } catch(err) { alert("Lỗi tải ảnh"); }
+                                                               setIsLoading(false);
+                                                           }
+                                                       }} />
+                                                   </label>
+                                               </div>
+                                               <div className="flex-1 space-y-3">
+                                                   <input type="text" placeholder="Link khi bấm vào ảnh (VD: /listing/123)" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                                                   <p className="text-[10px] text-gray-400 italic">Khuyên dùng kích thước: 1200x400px hoặc tỷ lệ 3:1.</p>
+                                               </div>
+                                           </div>
+                                       </div>
+                                   ) : (
+                                       // --- GIAO DIỆN CHỈNH SỬA DẠNG TEXT (DEFAULT) ---
+                                       <div className="space-y-3 animate-fade-in-up">
+                                           <div className="grid md:grid-cols-2 gap-3">
+                                               <input type="text" placeholder="Tiêu đề chính" value={slide.title} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].title=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full border border-gray-200 rounded-xl p-3 text-sm font-bold" />
+                                               <input type="text" placeholder="Mô tả ngắn" value={slide.desc} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].desc=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                                           </div>
+                                           <div className="grid grid-cols-3 gap-3">
+                                               <input type="text" placeholder="Tên nút" value={slide.btnText} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnText=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-sm font-bold" />
+                                               <input type="text" placeholder="Link đích" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-sm" />
+                                               <input type="text" placeholder="Icon (🔥)" value={slide.icon} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].icon=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-sm text-center" />
+                                           </div>
+                                           <div className="grid grid-cols-2 gap-3">
+                                               <select value={slide.colorFrom} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorFrom=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
+                                                   <option value="from-blue-600">Xanh Dương</option><option value="from-red-600">Đỏ</option><option value="from-green-600">Xanh Lá</option><option value="from-yellow-500">Vàng</option><option value="from-purple-600">Tím</option><option value="from-gray-800">Đen</option>
+                                               </select>
+                                               <select value={slide.colorTo} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorTo=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
+                                                   <option value="to-blue-400">Xanh Nhạt</option><option value="to-red-400">Đỏ Nhạt</option><option value="to-green-400">Lá Nhạt</option><option value="to-yellow-400">Vàng Nhạt</option><option value="to-purple-400">Tím Nhạt</option>
+                                               </select>
+                                           </div>
+                                       </div>
+                                   )}
+                               </div>
+                           ))}
+                       </div>
                    </div>
                    
                    {/* 2. VIP Config */}
@@ -742,130 +872,51 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                        <div className="grid md:grid-cols-2 gap-6">
                           {/* Basic */}
                           <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 space-y-4">
-                              <h5 className="font-black text-blue-600 text-xs uppercase">Gói Basic</h5>
-                              <input type="number" placeholder="Giá" value={settings.tierConfigs.basic.price} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, basic: {...settings.tierConfigs.basic, price: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
-                              <input type="number" placeholder="Số ảnh" value={settings.tierConfigs.basic.maxImages} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, basic: {...settings.tierConfigs.basic, maxImages: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
+                             <h5 className="font-black text-blue-600 text-xs uppercase">Gói Basic</h5>
+                             <input type="number" placeholder="Giá" value={settings.tierConfigs.basic.price} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, basic: {...settings.tierConfigs.basic, price: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
+                             <input type="number" placeholder="Số ảnh" value={settings.tierConfigs.basic.maxImages} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, basic: {...settings.tierConfigs.basic, maxImages: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
                           </div>
                           {/* Pro */}
                           <div className="bg-yellow-50 p-6 rounded-3xl border border-yellow-100 space-y-4">
-                              <h5 className="font-black text-yellow-600 text-xs uppercase">Gói Pro</h5>
-                              <input type="number" placeholder="Giá" value={settings.tierConfigs.pro.price} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, pro: {...settings.tierConfigs.pro, price: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
-                              <input type="number" placeholder="Số ảnh" value={settings.tierConfigs.pro.maxImages} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, pro: {...settings.tierConfigs.pro, maxImages: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
+                             <h5 className="font-black text-yellow-600 text-xs uppercase">Gói Pro</h5>
+                             <input type="number" placeholder="Giá" value={settings.tierConfigs.pro.price} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, pro: {...settings.tierConfigs.pro, price: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
+                             <input type="number" placeholder="Số ảnh" value={settings.tierConfigs.pro.maxImages} onChange={e => setSettings({...settings, tierConfigs: {...settings.tierConfigs, pro: {...settings.tierConfigs.pro, maxImages: parseInt(e.target.value)}}})} className="w-full bg-white border border-borderMain rounded-xl p-3 text-sm font-bold" />
                           </div>
                        </div>
                    </div>
 
-                   {/* 3. Bank Configuration for VietQR */}
+                   {/* 3. Bank Config */}
                    <div className="space-y-6 pt-6 border-t border-gray-100">
                         <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
                             <span className="w-2 h-2 bg-primary rounded-full"></span> Ngân hàng (VietQR)
                         </h4>
-                        <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 mb-4">
-                            <p className="text-[10px] font-bold text-blue-600">
-                                ℹ️ Lưu ý: Để tạo mã VietQR tự động, vui lòng nhập chính xác "Mã Ngân Hàng" (Bank Code).
-                                <br/>Ví dụ: Vietcombank nhập <b>VCB</b>, MBBank nhập <b>MB</b>, Techcombank nhập <b>TCB</b>...
-                            </p>
-                        </div>
                         <div className="grid md:grid-cols-2 gap-10">
                             <div className="space-y-4">
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-gray-400 pl-1">Mã Ngân Hàng (Bank Code)</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="VD: MB, VCB, TPB, ACB..." 
-                                        value={settings.bankName} 
-                                        onChange={e => setSettings({...settings, bankName: e.target.value.toUpperCase()})} 
-                                        className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold placeholder:font-normal" 
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-gray-400 pl-1">Số Tài Khoản</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Số TK" 
-                                        value={settings.accountNumber} 
-                                        onChange={e => setSettings({...settings, accountNumber: e.target.value})} 
-                                        className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" 
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-gray-400 pl-1">Tên Chủ Tài Khoản</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="NGUYEN VAN A" 
-                                        value={settings.accountName} 
-                                        onChange={e => setSettings({...settings, accountName: e.target.value.toUpperCase()})} 
-                                        className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" 
-                                    />
-                                </div>
+                                <div><label className="text-[10px] font-black uppercase text-gray-400 pl-1">Mã Ngân Hàng</label><input type="text" value={settings.bankName} onChange={e => setSettings({...settings, bankName: e.target.value.toUpperCase()})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
+                                <div><label className="text-[10px] font-black uppercase text-gray-400 pl-1">Số Tài Khoản</label><input type="text" value={settings.accountNumber} onChange={e => setSettings({...settings, accountNumber: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
+                                <div><label className="text-[10px] font-black uppercase text-gray-400 pl-1">Tên Chủ TK</label><input type="text" value={settings.accountName} onChange={e => setSettings({...settings, accountName: e.target.value.toUpperCase()})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
                             </div>
-                            
-                            {/* Preview VietQR trong Admin */}
-                            <div className="space-y-2">
+                            {/* Preview */}
+                            <div>
                                 <label className="text-[10px] font-black uppercase text-gray-400 pl-1">Xem trước QR</label>
                                 <div className="aspect-square bg-white border border-gray-200 rounded-3xl flex items-center justify-center p-4 shadow-sm">
-                                    {settings.bankName && settings.accountNumber ? (
-                                        <img 
-                                            src={`https://img.vietqr.io/image/${settings.bankName}-${settings.accountNumber}-compact.jpg?accountName=${encodeURI(settings.accountName)}`}
-                                            className="w-full h-full object-contain"
-                                            alt="Preview"
-                                        />
-                                    ) : (
-                                        <span className="text-gray-300 text-xs font-bold text-center">Nhập thông tin bên trái<br/>để xem trước</span>
-                                    )}
+                                    {settings.bankName && settings.accountNumber ? <img src={`https://img.vietqr.io/image/${settings.bankName}-${settings.accountNumber}-compact.jpg?accountName=${encodeURI(settings.accountName)}`} className="w-full h-full object-contain" /> : <span className="text-gray-300 text-xs font-bold">Nhập thông tin</span>}
                                 </div>
                             </div>
                         </div>
                    </div>
 
-                   {/* 4. SEED DATA & SEO TOOLS */}
+                   {/* 4. SEO & Tools */}
                    <div className="space-y-6 pt-6 border-t border-gray-100">
-                       <h4 className="text-sm font-black uppercase tracking-widest text-gray-800 flex items-center gap-2">
-                           <span className="w-2 h-2 bg-gray-800 rounded-full"></span> Công cụ Developer & SEO
-                       </h4>
-                       
+                       <h4 className="text-sm font-black uppercase tracking-widest text-gray-800 flex items-center gap-2"><span className="w-2 h-2 bg-gray-800 rounded-full"></span> Công cụ Developer</h4>
                        <div className="grid md:grid-cols-2 gap-6">
-                           {/* SEED TOOL */}
-                           <div className="bg-red-50 p-6 rounded-3xl border border-red-100 flex flex-col justify-between">
-                               <div>
-                                   <h5 className="font-black text-gray-800">Tạo dữ liệu mẫu (Seed)</h5>
-                                   <p className="text-[10px] text-gray-500 mt-1">Reset và tạo mới 100 tin đăng giả để test web.</p>
-                               </div>
-                               <button 
-                                   type="button" 
-                                   onClick={async () => {
-                                       if(window.confirm("Hành động này sẽ xóa dữ liệu cũ. Tiếp tục?")) {
-                                           setIsLoading(true);
-                                           await db.seedDatabase(); 
-                                           setIsLoading(false);
-                                           loadInitialData();
-                                       }
-                                   }}
-                                   className="mt-4 bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-red-600 transition-all"
-                               >
-                                   Khởi tạo ngay
-                               </button>
-                           </div>
-
-                           {/* SITEMAP TOOL */}
-                           <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 flex flex-col justify-between">
-                               <div>
-                                   <h5 className="font-black text-gray-800">Tạo Sitemap SEO</h5>
-                                   <p className="text-[10px] text-gray-500 mt-1">Quét toàn bộ tin đã duyệt và tạo file sitemap.xml tự động.</p>
-                               </div>
-                               <button 
-                                   type="button" 
-                                   onClick={handleDownloadSitemap}
-                                   className="mt-4 bg-blue-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
-                               >
-                                   <span>📥</span> Tải Sitemap.xml
-                               </button>
-                           </div>
+                           <div className="bg-red-50 p-6 rounded-3xl border border-red-100"><h5 className="font-black">Tạo dữ liệu mẫu</h5><button type="button" onClick={async () => {if(window.confirm("Xóa cũ tạo mới?")){setIsLoading(true);await db.seedDatabase();setIsLoading(false);loadInitialData();}}} className="mt-4 bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase">Khởi tạo</button></div>
+                           <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100"><h5 className="font-black">Tạo Sitemap SEO</h5><button type="button" onClick={handleDownloadSitemap} className="mt-4 bg-blue-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase">Tải XML</button></div>
                        </div>
                    </div>
 
                    <button type="submit" disabled={isLoading} className="w-full bg-primary text-white font-black py-5 rounded-3xl shadow-2xl shadow-primary/20 hover:scale-[1.01] active:scale-95 transition-all uppercase tracking-widest text-xs">Lưu cấu hình</button>
-                </form>
+                 </form>
              </div>
          )}
       </div>

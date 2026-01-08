@@ -35,7 +35,11 @@ const ListingCard: React.FC<ListingCardProps> = ({
           src={imgSrc} 
           alt={listing.title} 
           onError={() => setImgSrc(PLACEHOLDER_IMAGE)} // Tự động thay thế nếu ảnh lỗi
-          loading="lazy" // Tăng tốc độ tải trang
+          
+          // [TỐI ƯU HIỆU NĂNG]
+          loading="lazy" // Chỉ tải ảnh khi người dùng cuộn tới
+          decoding="async" // Giải mã ảnh không chặn luồng chính
+          
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
         />
         
@@ -101,10 +105,10 @@ const ListingCard: React.FC<ListingCardProps> = ({
         {/* Footer Card (Địa điểm + Thời gian) */}
         <div className="mt-auto pt-2 flex items-center justify-between text-[10px] text-gray-400 font-bold border-t border-dashed border-gray-100">
           <span className="truncate max-w-[60%] flex items-center gap-1">
-             📍 {listing.location}
+              📍 {listing.location || 'Toàn quốc'}
           </span>
           <span className="opacity-70 whitespace-nowrap">
-             {formatTimeAgo(listing.createdAt)}
+              {formatTimeAgo(listing.createdAt)}
           </span>
         </div>
       </Link>

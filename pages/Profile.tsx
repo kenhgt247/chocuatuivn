@@ -6,6 +6,8 @@ import ListingCard from '../components/ListingCard';
 import { LOCATIONS, TIER_CONFIG } from '../constants';
 import { formatPrice } from '../utils/format';
 import { getLocationFromCoords } from '../utils/locationHelper'; 
+// [MỚI] Import hàm nén ảnh
+import { compressAndGetBase64 } from '../utils/imageCompression';
 
 // --- Import Leaflet cho bản đồ ---
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
@@ -83,6 +85,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   // State Xác thực (KYC)
+  // [CẬP NHẬT] Thay đổi kiểu dữ liệu KYC để lưu File gốc (để hiển thị preview nếu cần)
   const [kycFiles, setKycFiles] = useState<{front: File | null, back: File | null}>({ front: null, back: null });
   const [kycPreviews, setKycPreviews] = useState<{front: string | null, back: string | null}>({ front: null, back: null });
   const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
@@ -125,11 +128,10 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     loadProfileData();
   }, [user, navigate]);
 
-  // --- [FIX LOGIC] TÍNH TOÁN TRẠNG THÁI VIP ---
+  // --- LOGIC TÍNH TOÁN TRẠNG THÁI VIP ---
   const subscriptionData = useMemo(() => {
     if (!user) return { isExpired: true, daysRemaining: 0, effectiveTier: 'free', expiryDate: '' };
 
-    // 1. Nếu user là free hoặc không có ngày hết hạn -> coi như free
     if (user.subscriptionTier === 'free' || !user.subscriptionExpires) {
         return { isExpired: true, daysRemaining: 0, effectiveTier: 'free', expiryDate: '' };
     }
@@ -137,25 +139,22 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     const expires = new Date(user.subscriptionExpires);
     const now = new Date();
     
-    // Tính khoảng cách thời gian
     const diffTime = expires.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    // Nếu ngày hết hạn ở quá khứ -> Đã hết hạn
     const isExpired = diffTime <= 0;
 
     return {
       daysRemaining: diffDays > 0 ? diffDays : 0,
-      expiryDate: expires.toLocaleDateString('vi-VN'), // Format: dd/mm/yyyy
+      expiryDate: expires.toLocaleDateString('vi-VN'),
       isExpired: isExpired,
-      // [QUAN TRỌNG]: Nếu đã hết hạn thời gian, ép kiểu về 'free' để hiển thị đúng màu sắc
       effectiveTier: isExpired ? 'free' : user.subscriptionTier
     };
   }, [user]);
 
   if (!user) return null;
 
-  // --- LOGIC 1: ĐỔI AVATAR ---
+  // --- LOGIC 1: ĐỔI AVATAR (CÓ NÉN ẢNH) ---
   const handleAvatarClick = () => {
     avatarInputRef.current?.click();
   };
@@ -163,37 +162,41 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
         const file = e.target.files[0];
-        if (file.size > 2 * 1024 * 1024) {
-            alert("Vui lòng chọn ảnh nhỏ hơn 2MB");
+        
+        // Không cần check dung lượng 2MB nữa vì sẽ được nén lại rất nhỏ
+        // Nhưng vẫn check loại file cho an toàn
+        if (!file.type.startsWith('image/')) {
+            alert("Vui lòng chọn file ảnh");
             return;
         }
 
         setIsUploadingAvatar(true);
         try {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = async () => {
-                const base64 = reader.result as string;
-                const url = await db.uploadImage(base64, `avatars/${user.id}_${Date.now()}`);
-                const updatedUser = await db.updateUserProfile(user.id, { avatar: url });
-                onUpdateUser(updatedUser);
-                alert("Đổi ảnh đại diện thành công!");
-            };
+            // [MỚI] Nén ảnh và chuyển thành Base64
+            const compressedBase64 = await compressAndGetBase64(file);
+            
+            // Upload Base64 đã nén
+            const url = await db.uploadImage(compressedBase64, `avatars/${user.id}_${Date.now()}`);
+            const updatedUser = await db.updateUserProfile(user.id, { avatar: url });
+            
+            onUpdateUser(updatedUser);
+            alert("Đổi ảnh đại diện thành công!");
         } catch (error) {
-            console.error(error);
-            alert("Lỗi khi tải ảnh lên");
+            console.error("Avatar upload error:", error);
+            alert("Lỗi khi tải ảnh lên. Vui lòng thử lại.");
         } finally {
             setIsUploadingAvatar(false);
         }
     }
   };
 
-  // --- LOGIC 2: XÁC THỰC DANH TÍNH (KYC) ---
+  // --- LOGIC 2: XÁC THỰC DANH TÍNH (KYC) (CÓ NÉN ẢNH) ---
   const handleKycFileChange = (field: 'front' | 'back', e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
         const file = e.target.files[0];
         setKycFiles(prev => ({ ...prev, [field]: file }));
         
+        // Tạo preview nhanh (chưa nén) để người dùng xem ngay lập tức
         const reader = new FileReader();
         reader.onload = (ev) => {
             setKycPreviews(prev => ({ ...prev, [field]: ev.target?.result as string }));
@@ -212,17 +215,11 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
 
     setIsSubmittingKyc(true);
     try {
-        const uploadPromises = [kycFiles.front, kycFiles.back].map(file => {
-             return new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = async () => {
-                    const base64 = reader.result as string;
-                    const url = await db.uploadImage(base64, `kyc/${user.id}_${Date.now()}_${Math.random()}`);
-                    resolve(url);
-                };
-                reader.onerror = reject;
-             });
+        // [MỚI] Nén cả 2 ảnh trước khi upload
+        // Sử dụng Promise.all để nén và upload song song cho nhanh
+        const uploadPromises = [kycFiles.front, kycFiles.back].map(async (file) => {
+             const compressedBase64 = await compressAndGetBase64(file);
+             return await db.uploadImage(compressedBase64, `kyc/${user.id}_${Date.now()}_${Math.random()}`);
         });
 
         const urls = await Promise.all(uploadPromises);
@@ -234,12 +231,14 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
 
         onUpdateUser(updatedUser);
         alert("Đã gửi yêu cầu xác thực! Admin sẽ duyệt trong 24h.");
+        
+        // Reset form
         setKycFiles({ front: null, back: null });
         setKycPreviews({ front: null, back: null });
 
     } catch (error) {
         console.error("KYC Error:", error);
-        alert("Có lỗi xảy ra khi gửi hồ sơ.");
+        alert("Có lỗi xảy ra khi gửi hồ sơ. Vui lòng thử lại.");
     } finally {
         setIsSubmittingKyc(false);
     }
@@ -409,7 +408,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
               <span>{user.phone || 'Chưa cập nhật SĐT'}</span>
             </div>
 
-            {/* VIP Card - ĐÃ CẬP NHẬT LOGIC HIỂN THỊ */}
+            {/* VIP Card */}
             <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-6">
                 <div className={`relative overflow-hidden p-5 rounded-3xl border shadow-lg transition-all min-w-[280px] ${subscriptionData.effectiveTier === 'free' ? 'bg-gray-50 border-gray-200' : 'bg-gradient-to-br from-yellow-500 to-orange-600 border-yellow-400 text-white shadow-yellow-200'}`}>
                   <div className="relative z-10 flex items-start justify-between">
@@ -421,17 +420,17 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                   </div>
                   <div className="mt-4 flex items-end justify-between">
                       <div className="space-y-1">
-                         {!subscriptionData.isExpired ? (
+                          {!subscriptionData.isExpired ? (
                             <>
                                <p className={`text-[10px] font-bold ${subscriptionData.effectiveTier === 'free' ? 'text-gray-400' : 'text-white/70'}`}>Hết hạn: {subscriptionData.expiryDate}</p>
                                <p className="text-sm font-black">Còn {subscriptionData.daysRemaining} ngày</p>
                             </>
-                         ) : (
+                          ) : (
                             <p className={`text-[10px] font-bold ${subscriptionData.effectiveTier === 'free' ? 'text-gray-400' : 'text-white/70'}`}>Chưa có đặc quyền VIP</p>
-                         )}
+                          )}
                       </div>
                       <Link to="/upgrade" className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${subscriptionData.effectiveTier === 'free' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/20 backdrop-blur-md text-white border border-white/30 hover:bg-white/30'}`}>
-                         {subscriptionData.effectiveTier === 'free' ? 'Nâng cấp ngay' : 'Gia hạn gói'}
+                          {subscriptionData.effectiveTier === 'free' ? 'Nâng cấp ngay' : 'Gia hạn gói'}
                       </Link>
                   </div>
                </div>

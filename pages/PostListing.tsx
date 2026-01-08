@@ -4,12 +4,28 @@ import { CATEGORIES, LOCATIONS, TIER_CONFIG } from '../constants';
 import { db } from '../services/db';
 import { User } from '../types';
 import { analyzeListingImages } from '../services/geminiService';
-import { getLocationFromCoords } from '../utils/locationHelper'; // Import hàm định vị
+import { getLocationFromCoords } from '../utils/locationHelper';
+// [MỚI] Import hàm nén ảnh
+import { compressAndGetBase64 } from '../utils/imageCompression';
+
+// Định nghĩa kiểu dữ liệu cho FormData
+interface ListingFormData {
+  title: string;
+  category: string;
+  price: string;
+  description: string;
+  location: string;
+  address: string;
+  condition: 'new' | 'used';
+  images: string[];
+  attributes: Record<string, string>;
+}
 
 const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // --- STATE ---
   const [loading, setLoading] = useState(false);
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [aiSuccess, setAiSuccess] = useState(false);
@@ -20,16 +36,16 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const userTier = user?.subscriptionTier || 'free';
   const tierSettings = TIER_CONFIG[userTier as keyof typeof TIER_CONFIG];
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ListingFormData>({
     title: '',
     category: '',
     price: '',
     description: '',
-    location: user?.location || 'TPHCM', // Thành phố (để lọc)
-    address: user?.address || '',        // Địa chỉ cụ thể (để hiển thị/tìm đường)
-    condition: 'used' as 'new' | 'used',
-    images: [] as string[],
-    attributes: {} as Record<string, string>
+    location: user?.location || 'TPHCM',
+    address: user?.address || '',
+    condition: 'used',
+    images: [],
+    attributes: {}
   });
 
   // --- STYLE CHUNG ---
@@ -44,7 +60,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       return;
     }
 
-    // Tự động lấy vị trí khi mở trang (nếu trình duyệt cho phép)
     const autoDetectLocation = async () => {
         if (navigator.geolocation && !locationDetected) {
              navigator.geolocation.getCurrentPosition(
@@ -53,15 +68,14 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                     setLocationDetected({ lat: latitude, lng: longitude });
                     
                     try {
-                        // Gọi API lấy tên đường
                         const info = await getLocationFromCoords(latitude, longitude);
                         setFormData(prev => ({
                             ...prev,
-                            location: info.city || prev.location, // Ưu tiên thành phố từ GPS
-                            address: info.address // Tự điền địa chỉ cụ thể
+                            location: info.city || prev.location,
+                            address: info.address || prev.address
                         }));
                     } catch (e) {
-                        console.warn("Không lấy được tên đường:", e);
+                        console.warn("Không lấy được tên đường tự động:", e);
                     }
                 },
                 (err) => console.warn("GPS chưa sẵn sàng:", err.message),
@@ -74,7 +88,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, navigate]);
 
-  // Hàm thủ công khi bấm nút "Lấy vị trí"
   const handleManualLocate = () => {
     if (!navigator.geolocation) return alert("Trình duyệt không hỗ trợ GPS");
     
@@ -87,10 +100,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 setFormData(prev => ({
                     ...prev,
                     location: info.city || prev.location,
-                    address: info.address
+                    address: info.address || prev.address
                 }));
             } catch (e) {
                 console.error(e);
+                alert("Không thể lấy tên đường chi tiết.");
             }
         },
         () => alert("Vui lòng bật quyền truy cập vị trí."),
@@ -105,7 +119,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     }));
   };
 
-  // --- HÀM RENDER TRƯỜNG DỮ LIỆU CHI TIẾT ---
   const renderDynamicFields = () => {
     switch (formData.category) {
       case '1': // Bất động sản
@@ -181,30 +194,41 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     }
   };
 
+  // --- [ĐÃ SỬA] HÀM UPLOAD ẢNH CÓ NÉN ---
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
     if (files.length === 0) return;
+    
     if (files.length + formData.images.length > tierSettings.maxImages) {
       return alert(`Gói ${tierSettings.name} chỉ cho phép tối đa ${tierSettings.maxImages} ảnh.`);
     }
-    const readPromises = files.map(file => {
-      return new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
-      });
-    });
-    const results = await Promise.all(readPromises);
-    const updatedImages = [...formData.images, ...results];
-    setFormData(prev => ({ ...prev, images: updatedImages }));
-    if (results.length > 0) runAIAnalysis(updatedImages);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    try {
+        // [MỚI] Sử dụng hàm nén ảnh trước khi lấy Base64
+        // Promise.all giúp xử lý nhiều ảnh song song
+        const compressedResults = await Promise.all(
+            files.map(file => compressAndGetBase64(file))
+        );
+
+        const updatedImages = [...formData.images, ...compressedResults];
+        setFormData(prev => ({ ...prev, images: updatedImages }));
+        
+        // Tự động phân tích AI nếu có ảnh
+        if (compressedResults.length > 0) runAIAnalysis(updatedImages);
+
+    } catch (error) {
+        console.error("Lỗi xử lý ảnh:", error);
+        alert("Có lỗi xảy ra khi nén ảnh. Vui lòng thử lại.");
+    } finally {
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const runAIAnalysis = async (images: string[]) => {
     const imagesToAnalyze = images.slice(0, 3);
     setAiAnalyzing(true);
     setAiSuccess(false);
+    
     try {
       const analysis = await analyzeListingImages(imagesToAnalyze);
       if (!analysis.isProhibited) {
@@ -214,7 +238,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           category: prev.category || analysis.category || '',
           price: prev.price || analysis.suggestedPrice?.toString() || '',
           description: prev.description || analysis.description || '',
-          condition: analysis.condition || prev.condition,
+          condition: (analysis.condition as 'new' | 'used') || prev.condition,
           attributes: { ...prev.attributes, ...(analysis.attributes || {}) }
         }));
         setAiSuccess(true);
@@ -231,20 +255,28 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
+
     if (!formData.title.trim() || !formData.category || !formData.price || formData.images.length === 0) {
-      return alert('Vui lòng điền đủ thông tin bắt buộc!');
+      return alert('Vui lòng điền đủ thông tin bắt buộc (Tiêu đề, Danh mục, Giá, Ảnh)!');
     }
+    
     const priceNumber = parseInt(formData.price.replace(/\D/g, ''));
     if (isNaN(priceNumber) || priceNumber < 0) return alert('Giá bán không hợp lệ!');
+    
     if (!agreedToRules) return alert('Bạn cần đồng ý với quy tắc cộng đồng.');
 
     setLoading(true);
     try {
+      // 1. Upload ảnh lên Firebase Storage
+      // (formData.images lúc này đã là Base64 đã được nén, nên upload rất nhanh)
       const uploadedUrls = await Promise.all(
         formData.images.map((base64, index) => 
-          db.uploadImage(base64, `listings/${user!.id}/${Date.now()}_${index}.jpg`)
+          db.uploadImage(base64, `listings/${user.id}/${Date.now()}_${index}.jpg`)
         )
       );
+
+      // 2. Chuẩn bị dữ liệu Listing
       const listingStatus = userTier === 'free' ? 'pending' : 'approved';
       const listingData: any = {
         title: formData.title.trim(),
@@ -252,33 +284,31 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         price: priceNumber,
         category: formData.category,
         images: uploadedUrls,
-        
-        // --- CẬP NHẬT LOCATION ---
-        location: formData.location, // Thành phố (để lọc)
-        address: formData.address,   // Địa chỉ chi tiết (để hiển thị)
-        
+        location: formData.location, 
+        address: formData.address,
         condition: formData.condition,
         attributes: formData.attributes,
-        sellerId: user!.id,
-        sellerName: user!.name,
-        sellerAvatar: user!.avatar || '',
+        sellerId: user.id,
+        sellerName: user.name,
+        sellerAvatar: user.avatar || '',
         status: listingStatus,
         tier: userTier,
         createdAt: new Date().toISOString()
       };
       
-      // Lưu tọa độ nếu có
       if (locationDetected) {
         listingData.lat = locationDetected.lat;
         listingData.lng = locationDetected.lng;
       }
       
+      // 3. Lưu vào Firestore
       await db.saveListing(listingData);
-      alert(listingStatus === 'approved' ? "🎉 Thành công!" : "📩 Đang chờ duyệt.");
+      
+      alert(listingStatus === 'approved' ? "🎉 Thành công! Tin đã được đăng." : "📩 Tin đăng thành công và đang chờ duyệt.");
       navigate('/manage-ads');
     } catch (error) {
-      console.error("Save error:", error);
-      alert("Đã có lỗi xảy ra.");
+      console.error("Save listing error:", error);
+      alert("Đã có lỗi xảy ra trong quá trình đăng tin. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
@@ -293,6 +323,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="space-y-6">
+          {/* CỘT TRÁI: UPLOAD ẢNH */}
           <div className="bg-white border border-borderMain rounded-[2.5rem] p-6 shadow-soft space-y-4">
             <div className="flex items-center justify-between">
               <label className="text-sm font-black uppercase tracking-tight">Hình ảnh ({formData.images.length}/{tierSettings.maxImages})</label>
@@ -328,6 +359,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           </div>
         </div>
 
+        {/* CỘT PHẢI: FORM NHẬP LIỆU */}
         <div className="lg:col-span-2">
           <form onSubmit={handleSubmit} className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-6">
             <div className="space-y-2">
@@ -349,7 +381,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
               </div>
             </div>
 
-            {/* HIỂN THỊ DỮ LIỆU ĐỘNG */}
+            {/* HIỂN THỊ DỮ LIỆU ĐỘNG THEO DANH MỤC */}
             {renderDynamicFields()}
 
             <div className="grid grid-cols-2 gap-4">
@@ -357,7 +389,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 <label className={labelStyle}>Tình trạng</label>
                 <div className="flex gap-2">
                    {['new', 'used'].map(cond => (
-                     <button key={cond} type="button" onClick={() => setFormData({...formData, condition: cond as any})} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase border-2 transition-all ${formData.condition === cond ? 'bg-primary border-primary text-white shadow-lg' : 'bg-white border-gray-100 text-gray-400'}`}>{cond === 'new' ? 'Mới' : 'Đã dùng'}</button>
+                     <button key={cond} type="button" onClick={() => setFormData({...formData, condition: cond as 'new' | 'used'})} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase border-2 transition-all ${formData.condition === cond ? 'bg-primary border-primary text-white shadow-lg' : 'bg-white border-gray-100 text-gray-400'}`}>{cond === 'new' ? 'Mới' : 'Đã dùng'}</button>
                    ))}
                 </div>
               </div>
@@ -383,10 +415,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                    </button>
                </div>
                <textarea 
-                  value={formData.address} 
-                  onChange={(e) => setFormData({...formData, address: e.target.value})} 
-                  placeholder="Số nhà, Tên đường, Phường/Xã... (Để người mua tìm đường)"
-                  className={`${inputStyle} h-20 resize-none`}
+                 value={formData.address} 
+                 onChange={(e) => setFormData({...formData, address: e.target.value})} 
+                 placeholder="Số nhà, Tên đường, Phường/Xã... (Để người mua tìm đường)"
+                 className={`${inputStyle} h-20 resize-none`}
                />
             </div>
 

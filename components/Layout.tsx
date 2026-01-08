@@ -5,6 +5,8 @@ import { identifyProductForSearch } from '../services/geminiService';
 import { formatTimeAgo } from '../utils/format';
 import { db } from '../services/db';
 import UniversalInstallPrompt from './UniversalInstallPrompt';
+// [MỚI] Import hàm nén ảnh để tối ưu tốc độ tìm kiếm AI
+import { compressAndGetBase64 } from '../utils/imageCompression';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,7 +16,7 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams(); // [MỚI] Để đồng bộ URL với ô input
+  const [searchParams] = useSearchParams(); // Để đồng bộ URL với ô input
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -27,7 +29,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
 
-  // [MỚI] Effect này giúp xóa ô tìm kiếm khi người dùng bấm vào Logo (về trang chủ) hoặc nút Back
+  // Effect này giúp xóa ô tìm kiếm khi người dùng bấm vào Logo (về trang chủ) hoặc nút Back
   useEffect(() => {
     const currentSearch = searchParams.get('search') || '';
     setSearchQuery(currentSearch);
@@ -36,7 +38,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   // --- 1. DATA FETCHING (REAL-TIME) ---
   useEffect(() => {
     if (user?.id) {
-      // Lắng nghe thông báo real-time từ DB mới
+      // Lắng nghe thông báo real-time
       const unsubNotifs = db.getNotifications(user.id, (notifs) => {
         setNotifications(notifs);
       });
@@ -47,7 +49,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
       });
 
       return () => {
-        // Hủy lắng nghe khi unmount hoặc user thay đổi để tránh memory leak
+        // Hủy lắng nghe khi unmount để tránh memory leak
         unsubNotifs();
         unsubChats();
       };
@@ -55,7 +57,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
       setNotifications([]);
       setChatRooms([]);
     }
-  }, [user?.id]); // Chỉ chạy lại khi ID user thay đổi
+  }, [user?.id]);
 
   // --- 2. CLICK OUTSIDE TO CLOSE NOTIFS ---
   useEffect(() => {
@@ -77,7 +79,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     const cleanQuery = searchQuery.trim();
     if (cleanQuery) {
       // Khi tìm kiếm mới, ta reset về trang chủ với tham số search
-      // Điều này sẽ tự động xóa các bộ lọc cũ (như type=vip, location=...) để tránh nhầm lẫn
       navigate(`/?search=${encodeURIComponent(cleanQuery)}`);
     } else {
       navigate(`/`);
@@ -88,26 +89,29 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     fileInputRef.current?.click();
   };
 
+  // [ĐÃ NÂNG CẤP] Xử lý tìm kiếm ảnh với tính năng NÉN ẢNH
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsSearchingImage(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = reader.result as string;
-      try {
-        const keywords = await identifyProductForSearch(base64);
+    
+    try {
+        // 1. Nén ảnh trước khi gửi đi (Giúp AI xử lý nhanh hơn và tiết kiệm băng thông)
+        const compressedBase64 = await compressAndGetBase64(file);
+        
+        // 2. Gửi chuỗi Base64 đã nén cho Gemini AI
+        const keywords = await identifyProductForSearch(compressedBase64);
+        
         setSearchQuery(keywords);
         navigate(`/?search=${encodeURIComponent(keywords.trim())}&visual=true`);
-      } catch (err) {
-        alert("Không thể nhận diện hình ảnh.");
-      } finally {
+    } catch (err) {
+        console.error("Lỗi tìm kiếm hình ảnh:", err);
+        alert("Không thể nhận diện hình ảnh. Vui lòng thử lại với ảnh rõ nét hơn.");
+    } finally {
         setIsSearchingImage(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   // --- 4. NOTIFICATION HANDLERS ---
@@ -199,8 +203,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             placeholder={window.innerWidth < 768 ? "Tìm kiếm..." : "Tìm gì cũng có..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-gray-100/60 border border-transparent rounded-xl md:rounded-[1.25rem] py-2.5 md:py-3 pl-9 md:pl-12 pr-9 md:pr-12 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary/30 focus:bg-white transition-all text-xs md:text-sm font-medium"
+            className="w-full bg-gray-100/60 border border-transparent rounded-xl md:rounded-[1.25rem] py-2.5 md:py-3 pl-9 md:pl-12 pr-10 md:pr-14 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary/30 focus:bg-white transition-all text-xs md:text-sm font-medium"
           />
+          {/* [ĐÃ THAY ĐỔI ICON] Icon Camera mới, đẹp hơn */}
           <button 
             type="button"
             onClick={handleImageSearchClick}
@@ -208,8 +213,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             className={`absolute right-2 md:right-3 top-1/2 -translate-y-1/2 p-1.5 md:p-2 rounded-lg md:rounded-xl hover:bg-gray-100 text-gray-400 transition-all ${isSearchingImage ? 'animate-pulse text-primary' : 'hover:text-primary'}`}
             title="Tìm bằng AI"
           >
-            <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            {/* Icon Camera Lens/Scan mới */}
+            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </button>
           <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />

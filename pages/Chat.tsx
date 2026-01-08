@@ -1,39 +1,52 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../services/db';
-import { ChatRoom, User, Listing } from '../types';
-import { formatPrice, formatTimeAgo, getListingUrl, slugify } from '../utils/format';
+import { ChatRoom, User } from '../types';
+import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
 
 const Chat: React.FC<{ user: User | null }> = ({ user }) => {
-  const { roomId } = useParams();
+  const { roomId } = useParams(); // Lấy roomId từ URL /chat/:roomId
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
   const [message, setMessage] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // 1. Load danh sách phòng chat
   useEffect(() => {
     if (user) {
       const unsubscribe = db.getChatRooms(user.id, (loadedRooms) => {
         setRooms(loadedRooms);
       });
-
-      const loadActiveRoom = async () => {
-        if (roomId) {
-          const room = await db.getChatRoom(roomId);
-          if (room) {
-            setActiveRoom(room);
-            await db.markRoomAsSeen(roomId, user.id);
-          }
-        } else {
-          setActiveRoom(null);
-        }
-      };
-      loadActiveRoom();
-
       return () => unsubscribe();
     }
-  }, [user, roomId]);
+  }, [user]);
 
+  // 2. Xử lý khi chọn phòng (hoặc URL thay đổi)
+  useEffect(() => {
+    const loadActiveRoom = async () => {
+      if (user && roomId) {
+        // Tìm trong state hiện tại trước cho nhanh (Optimistic UI)
+        const existingRoom = rooms.find(r => r.id === roomId);
+        if (existingRoom) {
+          setActiveRoom(existingRoom);
+        } else {
+          // Nếu chưa load kịp hoặc vào thẳng link, gọi API
+          const room = await db.getChatRoom(roomId);
+          if (room) setActiveRoom(room);
+        }
+        
+        // Đánh dấu đã xem
+        if (user) {
+            db.markRoomAsSeen(roomId, user.id);
+        }
+      } else {
+        setActiveRoom(null);
+      }
+    };
+    loadActiveRoom();
+  }, [roomId, user, rooms]); // Thêm rooms vào dependency để cập nhật khi có tin nhắn mới
+
+  // Auto scroll xuống cuối
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [activeRoom?.messages]);
@@ -42,15 +55,15 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     e.preventDefault();
     if (!message.trim() || !activeRoom || !user) return;
 
+    const textToSend = message;
+    setMessage(''); // Clear input ngay lập tức
+
     await db.addMessage(activeRoom.id, {
       senderId: user.id,
-      text: message
+      text: textToSend
     });
 
-    setMessage('');
-    const updatedRoom = await db.getChatRoom(activeRoom.id);
-    if (updatedRoom) setActiveRoom(updatedRoom);
-    
+    // Scroll nhẹ xuống
     setTimeout(() => {
         scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
@@ -59,9 +72,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   if (!user) return <div className="p-10 text-center">Vui lòng đăng nhập để chat</div>;
 
   return (
-    // --- SỬA LỖI QUAN TRỌNG TẠI ĐÂY ---
-    // Mobile: h-[calc(100dvh-13rem)] -> Trừ khoảng 200px (Header + Padding + Bottom Nav) để khung chat nằm gọn phía trên thanh điều hướng.
-    // Desktop: md:h-[calc(100vh-140px)] -> Giữ nguyên logic cũ cho desktop.
     <div className="bg-white border border-borderMain rounded-2xl h-[calc(100dvh-13rem)] md:h-[calc(100vh-140px)] flex overflow-hidden shadow-soft">
       
       {/* Sidebar - Rooms List */}
@@ -73,11 +83,13 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
           {rooms.length > 0 ? (
             rooms.map(room => {
               const isUnread = room.messages.length > 0 && !room.seenBy?.includes(user.id);
+              // Xác định tên người chat cùng (không phải mình)
+              // Logic hiển thị tiêu đề chat nên là Tên Tin Đăng
               return (
                 <Link 
                   to={`/chat/${room.id}`} 
                   key={room.id}
-                  className={`flex gap-3 p-4 hover:bg-bgMain transition-colors border-b border-gray-50 relative ${activeRoom?.id === room.id ? 'bg-primary/5 border-l-4 border-l-primary' : ''}`}
+                  className={`flex gap-3 p-4 hover:bg-bgMain transition-colors border-b border-gray-50 relative ${roomId === room.id ? 'bg-primary/5 border-l-4 border-l-primary' : ''}`}
                 >
                   <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
                     <img src={room.listingImage} alt="" className="w-full h-full object-cover" />
@@ -122,12 +134,15 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
               </div>
               
-              <Link 
-                to={getListingUrl({ id: activeRoom.listingId, title: activeRoom.listingTitle } as any)}
-                className="text-[10px] md:text-xs font-bold text-primary hover:underline bg-primary/5 px-3 py-1.5 rounded-lg whitespace-nowrap"
-              >
-                Xem tin
-              </Link>
+              {/* Nút xem tin gốc - Chỉ hiện nếu không phải tin ảo profile */}
+              {!activeRoom.listingId.startsWith('profile_') && (
+                  <Link 
+                    to={getListingUrl({ id: activeRoom.listingId, title: activeRoom.listingTitle } as any)}
+                    className="text-[10px] md:text-xs font-bold text-primary hover:underline bg-primary/5 px-3 py-1.5 rounded-lg whitespace-nowrap"
+                  >
+                    Xem tin
+                  </Link>
+              )}
             </div>
 
             {/* Messages */}
@@ -152,7 +167,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                   <p className="text-sm font-bold uppercase tracking-widest">Hãy gửi tin nhắn đầu tiên!</p>
                 </div>
               )}
-              {/* Thêm khoảng trống dưới cùng để dễ nhìn tin nhắn cuối */}
               <div ref={scrollRef} className="h-4" />
             </div>
 

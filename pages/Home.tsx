@@ -22,7 +22,10 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const { slug } = useParams<{ slug: string }>();
   const categoryRef = useRef<HTMLDivElement>(null);
 
+  // Lấy các tham số từ URL
   const search = searchParams.get('search') || '';
+  const typeParam = searchParams.get('type'); // ví dụ: ?type=vip
+  const locationParam = searchParams.get('location'); // ví dụ: ?location=Hà Nội
 
   const currentCategory = slug 
     ? CATEGORIES.find(c => c.slug === slug || c.slug === slug.split('-')[0]) 
@@ -34,7 +37,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [nearbyListings, setNearbyListings] = useState<Listing[]>([]);
   const [latestListings, setLatestListings] = useState<Listing[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
-  
+   
   const [isLoading, setIsLoading] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
@@ -103,7 +106,10 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
               }).catch(console.error);
             }
 
-            loadSpecialSections(locationInfo.city);
+            // Load lại section nearby nếu đang ở trang chủ thuần túy
+            if (!search && !activeCategoryId && !typeParam && !locationParam) {
+                loadSpecialSections(locationInfo.city);
+            }
 
         } catch (err) {
             console.error("Lỗi lấy địa chỉ:", err);
@@ -120,7 +126,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
-  }, [user, loadSpecialSections]);
+  }, [user, loadSpecialSections, search, activeCategoryId, typeParam, locationParam]);
 
   useEffect(() => {
     if (!detectedLocation && !user?.location) {
@@ -138,14 +144,17 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     setIndexErrors([]);
 
     try {
-      if (!search && !activeCategoryId) {
+      // Chỉ load section VIP/Nearby nếu đang ở trang chủ thuần túy (không search/filter)
+      if (!search && !activeCategoryId && !typeParam && !locationParam) {
         await loadSpecialSections(detectedLocation);
       }
 
       const result = await db.getListingsPaged({
         pageSize: PAGE_SIZE,
         categoryId: activeCategoryId || undefined,
-        search: search || undefined
+        search: search || undefined,
+        location: locationParam || undefined, // Truyền tham số lọc địa điểm
+        isVip: typeParam === 'vip' // Truyền tham số lọc VIP
       });
       
       if (result.error) {
@@ -169,7 +178,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [activeCategoryId, search, user, loadSpecialSections, detectedLocation]);
+  }, [activeCategoryId, search, typeParam, locationParam, user, loadSpecialSections, detectedLocation]);
 
   useEffect(() => {
     fetchInitialData();
@@ -186,8 +195,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   }, []);
 
   const handleLoadMore = async () => {
-    // Nếu đang search thông minh thì hasMore sẽ tự động là false (do db.ts set),
-    // nên nút load more sẽ ẩn đi, logic này an toàn.
     if (isFetchingMore || !hasMore || (search && !lastDoc)) return;
     
     setIsFetchingMore(true);
@@ -196,7 +203,9 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         pageSize: PAGE_SIZE,
         lastDoc,
         categoryId: activeCategoryId || undefined,
-        search: search || undefined
+        search: search || undefined,
+        location: locationParam || undefined,
+        isVip: typeParam === 'vip'
       });
       if (!result.error) {
         setLatestListings(prev => [...prev, ...result.listings]);
@@ -355,14 +364,15 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 3. TIN PRO VIP */}
-      {!search && !activeCategoryId && indexErrors.every(e => !e.msg.includes('VIP')) && vipListings.length > 0 && (
+      {/* 3. TIN PRO VIP - Chỉ hiện khi không lọc gì */}
+      {!search && !activeCategoryId && !typeParam && !locationParam && indexErrors.every(e => !e.msg.includes('VIP')) && vipListings.length > 0 && (
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
               <span className="text-yellow-400 text-xl">★</span> Tin đăng tài trợ
             </h2>
-            <Link to="/search?type=vip" className="text-[10px] font-black text-primary uppercase hover:underline">Xem tất cả ({vipListings.length}+)</Link>
+            {/* CẬP NHẬT LINK CHÍNH XÁC */}
+            <Link to="/?type=vip" className="text-[10px] font-black text-primary uppercase hover:underline">Xem tất cả</Link>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
             {vipListings.map(l => (
@@ -378,8 +388,8 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 4. TIN QUANH ĐÂY */}
-      {!search && !activeCategoryId && detectedLocation && nearbyListings.length > 0 && (
+      {/* 4. TIN QUANH ĐÂY - Chỉ hiện khi không lọc gì */}
+      {!search && !activeCategoryId && !typeParam && !locationParam && detectedLocation && nearbyListings.length > 0 && (
         <section className="space-y-4 animate-fade-in-up">
           <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-2">
@@ -388,7 +398,8 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
               </div>
               <div className="flex gap-4 items-center">
                  <button onClick={handleDetectLocation} className="text-[10px] font-black text-gray-400 uppercase underline hover:text-primary">Làm mới</button>
-                 <Link to={`/search?location=${detectedLocation}`} className="text-[10px] font-black text-primary uppercase hover:underline">Xem thêm &gt;</Link>
+                 {/* CẬP NHẬT LINK CHÍNH XÁC */}
+                 <Link to={`/?location=${encodeURIComponent(detectedLocation)}`} className="text-[10px] font-black text-primary uppercase hover:underline">Xem thêm &gt;</Link>
               </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
@@ -405,11 +416,15 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 5. TIN MỚI NHẤT */}
+      {/* 5. TIN MỚI NHẤT (HOẶC KẾT QUẢ TÌM KIẾM/FILTER) */}
       <section className="space-y-4">
         <div className="flex items-center justify-between px-2">
            <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight">
-             {search ? `Kết quả: "${search}"` : currentCategory ? `Danh mục: ${currentCategory.name}` : 'Tin mới đăng'}
+             {search ? `Kết quả: "${search}"` 
+              : typeParam === 'vip' ? 'Tất cả tin Tài Trợ (VIP)'
+              : locationParam ? `Tin đăng tại ${locationParam}`
+              : currentCategory ? `Danh mục: ${currentCategory.name}` 
+              : 'Tin mới đăng'}
            </h2>
         </div>
 
@@ -463,7 +478,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             <div className="text-[10px] text-gray-400 font-medium text-center border-t border-gray-100 pt-8">© 2024 ChoCuaTui.vn - Nền tảng rao vặt ứng dụng AI. All rights reserved.</div>
          </div>
       </footer>
-        
+       
     </div>
   );
 };

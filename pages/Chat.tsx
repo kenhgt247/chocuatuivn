@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom'; // Thêm useNavigate
 import { db } from '../services/db';
 import { ChatRoom, User } from '../types';
 import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
@@ -8,7 +8,8 @@ import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
 const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=random&color=fff&name=User";
 
 const Chat: React.FC<{ user: User | null }> = ({ user }) => {
-  const { roomId } = useParams(); 
+  const { roomId } = useParams();
+  const navigate = useNavigate(); // Hook để chuyển trang
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
   const [message, setMessage] = useState('');
@@ -100,15 +101,36 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     }, 100);
   };
 
-  // [MỚI] Hàm xử lý xóa tin nhắn
+  // Hàm xử lý xóa tin nhắn (Message)
   const handleDeleteMessage = async (messageId: string) => {
     if (!activeRoom || !window.confirm("Bạn có chắc muốn thu hồi tin nhắn này không?")) return;
     
     try {
         await db.deleteMessage(activeRoom.id, messageId);
-        // UI sẽ tự cập nhật nhờ realtime listener của rooms
     } catch (error) {
         alert("Có lỗi xảy ra khi xóa tin nhắn.");
+    }
+  };
+
+  // [MỚI] Hàm xử lý xóa phòng chat (Conversation)
+  const handleDeleteRoom = async (e: React.MouseEvent, idToDelete: string) => {
+    e.preventDefault(); // Ngăn Link kích hoạt chuyển trang
+    e.stopPropagation(); // Ngăn sự kiện lan truyền
+
+    if (!window.confirm("Bạn có chắc chắn muốn xóa cuộc trò chuyện này? Hành động này không thể hoàn tác.")) return;
+
+    try {
+        // Gọi hàm xóa từ db (Bạn cần đảm bảo hàm này có trong services/db.ts)
+        await db.deleteChatRoom(idToDelete);
+        
+        // Nếu đang xem phòng vừa xóa, hãy quay về trang chủ chat
+        if (roomId === idToDelete) {
+            setActiveRoom(null);
+            navigate('/chat');
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Không thể xóa cuộc trò chuyện. Vui lòng thử lại.");
     }
   };
 
@@ -164,7 +186,8 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                 <Link 
                   to={`/chat/${room.id}`} 
                   key={room.id}
-                  className={`flex gap-3 p-4 hover:bg-bgMain transition-colors border-b border-gray-50 relative ${roomId === room.id ? 'bg-primary/5 border-l-4 border-l-primary' : ''}`}
+                  // [MỚI] Thêm 'group' để xử lý hover cho nút xóa
+                  className={`flex gap-3 p-4 hover:bg-bgMain transition-colors border-b border-gray-50 relative group ${roomId === room.id ? 'bg-primary/5 border-l-4 border-l-primary' : ''}`}
                 >
                   <div className={`w-12 h-12 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200 ${partner.isProductAvatar ? 'rounded-lg' : ''}`}>
                     <img 
@@ -174,21 +197,31 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                         onError={(e) => handleImageError(e, DEFAULT_AVATAR)}
                     />
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 pr-6"> {/* Thêm padding phải để tránh chữ đè lên nút xóa */}
                     <div className="flex items-center justify-between gap-2">
                         <h3 className={`text-sm truncate ${isUnread ? 'font-black text-textMain' : 'font-bold text-gray-700'}`}>{partner.name}</h3>
                         <span className="text-[10px] text-gray-300 whitespace-nowrap">{formatTimeAgo(room.lastUpdate)}</span>
                     </div>
                     <p className="text-[10px] text-gray-500 truncate font-medium bg-gray-100 px-1.5 py-0.5 rounded w-fit max-w-full mt-0.5">
-                       {room.listingTitle}
+                        {room.listingTitle}
                     </p>
                     <p className={`text-xs truncate mt-1 ${isUnread ? 'font-black text-primary' : 'text-gray-400'}`}>
                       {room.lastMessage || 'Bắt đầu cuộc trò chuyện'}
                     </p>
                   </div>
+                  
                   {isUnread && (
-                    <div className="absolute top-1/2 -translate-y-1/2 right-2 w-2.5 h-2.5 bg-primary rounded-full shadow-sm"></div>
+                    <div className="absolute top-1/2 -translate-y-1/2 right-2 w-2.5 h-2.5 bg-primary rounded-full shadow-sm group-hover:opacity-0 transition-opacity"></div>
                   )}
+
+                  {/* [MỚI] NÚT XÓA PHÒNG CHAT */}
+                  <button
+                    onClick={(e) => handleDeleteRoom(e, room.id)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-white border border-gray-200 text-gray-400 hover:text-red-500 hover:bg-red-50 hover:border-red-200 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-all z-20"
+                    title="Xóa cuộc trò chuyện"
+                  >
+                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
                 </Link>
               );
             })
@@ -198,7 +231,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       </aside>
 
-      {/* Main Chat Area */}
+      {/* Main Chat Area - Phần này giữ nguyên như cũ */}
       <main className={`flex-1 flex flex-col min-w-0 ${!roomId ? 'hidden md:flex' : 'flex'}`}>
         {activeRoom && activePartner ? (
           <>
@@ -242,7 +275,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                    const showAvatar = !isMe && (index === 0 || activeRoom.messages[index - 1].senderId !== msg.senderId);
                    
                    return (
-                      // Thêm class 'group' để xử lý hover cho nút xóa
                       <div key={msg.id} className={`flex gap-2 group items-center ${isMe ? 'justify-end' : 'justify-start'}`}>
                         {!isMe && (
                             <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 self-end mb-1 border border-gray-200 bg-white">
@@ -257,7 +289,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                             </div>
                         )}
 
-                        {/* NÚT XÓA TIN NHẮN (Chỉ hiện cho tin của mình) */}
                         {isMe && (
                             <button 
                                 onClick={() => handleDeleteMessage(msg.id)}

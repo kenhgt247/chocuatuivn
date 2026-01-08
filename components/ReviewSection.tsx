@@ -18,22 +18,41 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
+  // [MỚI] State kiểm tra xem user đã đánh giá chưa
+  const [hasReviewed, setHasReviewed] = useState(false);
+
   useEffect(() => {
     const unsub = db.getReviews(targetId, targetType, (loadedReviews) => {
       // Sắp xếp mới nhất lên đầu
       const sorted = loadedReviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setReviews(sorted);
+
+      // [MỚI] Kiểm tra xem user hiện tại đã có trong danh sách review chưa
+      if (currentUser) {
+        const userReview = loadedReviews.find(r => r.authorId === currentUser.id);
+        setHasReviewed(!!userReview);
+      }
     });
     return () => unsub();
-  }, [targetId, targetType]);
+  }, [targetId, targetType, currentUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !comment.trim()) return;
 
+    // [MỚI] Chặn spam
+    if (hasReviewed) {
+        alert("Bạn đã đánh giá sản phẩm này rồi.");
+        return;
+    }
+
     setIsSubmitting(true);
     
-    // Tạo object review tạm thời để hiện ngay (Optimistic UI)
+    // Lưu lại giá trị hiện tại để dùng cho cả UI và DB (tránh lỗi reset state sớm)
+    const currentRating = rating;
+    const currentComment = comment.trim();
+
+    // 1. Optimistic UI: Hiện ngay lập tức
     const newReview: Review = {
         id: 'temp_' + Date.now(),
         targetId,
@@ -41,17 +60,20 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
         authorId: currentUser.id,
         authorName: currentUser.name,
         authorAvatar: currentUser.avatar,
-        rating,
-        comment: comment.trim(),
+        rating: currentRating, // Dùng biến cục bộ
+        comment: currentComment,
         createdAt: new Date().toISOString()
     };
 
-    // Hiện ngay lập tức
     setReviews(prev => [newReview, ...prev]);
     setShowForm(false);
+    setHasReviewed(true); // Đánh dấu đã review ngay lập tức
+    
+    // Reset form
     setComment('');
     setRating(5);
 
+    // 2. Gửi lên Server
     try {
       await db.addReview({
         targetId,
@@ -59,15 +81,15 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
         authorId: currentUser.id,
         authorName: currentUser.name,
         authorAvatar: currentUser.avatar,
-        rating,
-        comment: newReview.comment
+        rating: currentRating, // Truyền đúng giá trị
+        comment: currentComment
       });
-      // Không cần reload vì onSnapshot trong useEffect sẽ tự cập nhật khi server có data mới
     } catch (err) {
       console.error(err);
       alert("Lỗi khi gửi đánh giá. Vui lòng thử lại.");
       // Revert lại nếu lỗi
       setReviews(prev => prev.filter(r => r.id !== newReview.id));
+      setHasReviewed(false); // Cho phép thử lại
     } finally {
       setIsSubmitting(false);
     }
@@ -79,6 +101,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
 
   return (
     <div className="space-y-4">
+      {/* Header Thống kê */}
       <div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-4">
         <div className="flex items-center gap-3">
           <div className="text-3xl font-black text-textMain">{avgRating}</div>
@@ -90,7 +113,8 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
           </div>
         </div>
         
-        {currentUser && (
+        {/* Chỉ hiện nút Viết đánh giá nếu chưa đánh giá */}
+        {currentUser && !hasReviewed && (
           <button 
             onClick={() => setShowForm(!showForm)}
             className="px-4 py-2 bg-primary/5 text-primary text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-primary hover:text-white transition-all shadow-sm"
@@ -98,9 +122,16 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
             {showForm ? 'Đóng' : 'Viết đánh giá'}
           </button>
         )}
+
+        {currentUser && hasReviewed && (
+            <span className="text-[10px] text-green-600 font-bold bg-green-50 px-3 py-1.5 rounded-lg">
+                ✓ Bạn đã đánh giá
+            </span>
+        )}
       </div>
 
-      {showForm && (
+      {/* Form đánh giá */}
+      {showForm && !hasReviewed && (
         <form onSubmit={handleSubmit} className="bg-bgMain p-5 rounded-2xl space-y-4 animate-fade-in-up border border-gray-100 shadow-inner">
           <div className="flex justify-between items-center">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Chất lượng</label>
@@ -134,6 +165,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
         </form>
       )}
 
+      {/* Danh sách đánh giá */}
       <div className="space-y-3">
         {reviews.length > 0 ? reviews.map(review => (
           <div key={review.id} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all flex gap-3 animate-fade-in">

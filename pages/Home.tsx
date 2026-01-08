@@ -52,7 +52,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [isLocating, setIsLocating] = useState(false);
   const [indexErrors, setIndexErrors] = useState<{msg: string, link: string | null}[]>([]);
 
-  const LIMIT_VIP = 10;
+  const LIMIT_VIP = 12;
   const LIMIT_NEARBY = 12;
   const PAGE_SIZE = 12;
 

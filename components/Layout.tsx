@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { User, Notification, ChatRoom } from '../types'; 
 import { identifyProductForSearch } from '../services/geminiService';
 import { formatTimeAgo } from '../utils/format';
@@ -14,15 +14,24 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams(); // [MỚI] Để đồng bộ URL với ô input
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   
-  const [searchQuery, setSearchQuery] = useState('');
+  // Khởi tạo giá trị ban đầu từ URL để khi F5 không bị mất từ khóa
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [isSearchingImage, setIsSearchingImage] = useState(false);
   
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
+
+  // [MỚI] Effect này giúp xóa ô tìm kiếm khi người dùng bấm vào Logo (về trang chủ) hoặc nút Back
+  useEffect(() => {
+    const currentSearch = searchParams.get('search') || '';
+    setSearchQuery(currentSearch);
+  }, [searchParams]);
 
   // --- 1. DATA FETCHING (REAL-TIME) ---
   useEffect(() => {
@@ -67,6 +76,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     e.preventDefault();
     const cleanQuery = searchQuery.trim();
     if (cleanQuery) {
+      // Khi tìm kiếm mới, ta reset về trang chủ với tham số search
+      // Điều này sẽ tự động xóa các bộ lọc cũ (như type=vip, location=...) để tránh nhầm lẫn
       navigate(`/?search=${encodeURIComponent(cleanQuery)}`);
     } else {
       navigate(`/`);
@@ -122,7 +133,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   };
 
   // Helper: Lấy màu sắc và icon dựa trên loại thông báo
-  // Đã cập nhật đầy đủ các case từ db.ts mới (system, warning, info...)
   const getNotificationStyle = (type: string) => {
     switch (type) {
       case 'review':
@@ -251,15 +261,15 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
                     const style = getNotificationStyle(notif.type);
                     return (
                       <button key={notif.id} onClick={() => handleMarkAsRead(notif)} className={`w-full text-left p-4 hover:bg-bgMain transition-colors flex gap-4 border-b border-gray-50 last:border-0 ${!notif.read ? 'bg-primary/5' : ''}`}>
-                         <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-xl ${style.bg} ${style.text}`}>
-                           {style.icon}
-                         </div>
-                         <div className="min-w-0 flex-1">
-                           <p className={`text-xs font-black truncate ${!notif.read ? 'text-primary' : 'text-textMain'}`}>{notif.title}</p>
-                           <p className="text-[10px] text-gray-500 line-clamp-2 font-medium mt-0.5">{notif.message}</p>
-                           <p className="text-[8px] text-gray-300 font-bold uppercase mt-1.5">{formatTimeAgo(notif.createdAt)}</p>
-                         </div>
-                         {!notif.read && <div className="w-2 h-2 bg-primary rounded-full mt-2"></div>}
+                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-xl ${style.bg} ${style.text}`}>
+                            {style.icon}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-xs font-black truncate ${!notif.read ? 'text-primary' : 'text-textMain'}`}>{notif.title}</p>
+                            <p className="text-[10px] text-gray-500 line-clamp-2 font-medium mt-0.5">{notif.message}</p>
+                            <p className="text-[8px] text-gray-300 font-bold uppercase mt-1.5">{formatTimeAgo(notif.createdAt)}</p>
+                          </div>
+                          {!notif.read && <div className="w-2 h-2 bg-primary rounded-full mt-2"></div>}
                       </button>
                     )
                   }) : (

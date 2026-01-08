@@ -13,7 +13,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
   const [message, setMessage] = useState('');
   
-  // [MỚI] State để lưu thông tin người dùng được fetch bù cho các phòng chat cũ
+  // State để lưu thông tin người dùng được fetch bù cho các phòng chat cũ
   const [fetchedPartners, setFetchedPartners] = useState<Record<string, { name: string, avatar: string }>>({});
   
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -34,18 +34,15 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     }
   }, [user]);
 
-  // 2. [QUAN TRỌNG] Tự động lấy thông tin người chat cho các phòng cũ (Legacy Rooms)
+  // 2. Tự động lấy thông tin người chat cho các phòng cũ (Legacy Rooms)
   useEffect(() => {
     if (!user || rooms.length === 0) return;
 
     rooms.forEach(async (room) => {
-        // Tìm ID người kia (không phải mình)
         const partnerId = room.participantIds.find(id => id !== user.id);
         
-        // Nếu phòng này CHƯA có participantsData (dữ liệu cũ) VÀ chưa được fetch
         if (partnerId && (!room.participantsData || !room.participantsData[partnerId]) && !fetchedPartners[partnerId]) {
             try {
-                // Gọi API lấy thông tin người dùng đó
                 const partnerUser = await db.getUserById(partnerId);
                 if (partnerUser) {
                     setFetchedPartners(prev => ({
@@ -67,10 +64,12 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   useEffect(() => {
     const loadActiveRoom = async () => {
       if (user && roomId) {
+        // Ưu tiên lấy từ state rooms (vì nó là realtime)
         const existingRoom = rooms.find(r => r.id === roomId);
         if (existingRoom) {
           setActiveRoom(existingRoom);
         } else {
+          // Fallback nếu chưa load kịp list
           const room = await db.getChatRoom(roomId);
           if (room) setActiveRoom(room);
         }
@@ -101,12 +100,22 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     }, 100);
   };
 
-  // --- HÀM HELPER ĐÃ NÂNG CẤP ---
-  // Ưu tiên: Dữ liệu có sẵn trong phòng -> Dữ liệu fetch bù -> Dữ liệu Listing (Cũ)
+  // [MỚI] Hàm xử lý xóa tin nhắn
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!activeRoom || !window.confirm("Bạn có chắc muốn thu hồi tin nhắn này không?")) return;
+    
+    try {
+        await db.deleteMessage(activeRoom.id, messageId);
+        // UI sẽ tự cập nhật nhờ realtime listener của rooms
+    } catch (error) {
+        alert("Có lỗi xảy ra khi xóa tin nhắn.");
+    }
+  };
+
+  // --- HÀM HELPER ---
   const getPartnerInfo = (room: any, currentUserId: string) => {
     const partnerId = room.participantIds.find((id: string) => id !== currentUserId) || '';
     
-    // CASE 1: Phòng mới (Có lưu sẵn info)
     if (room.participantsData && room.participantsData[partnerId]) {
         return {
             name: room.participantsData[partnerId].name,
@@ -116,7 +125,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
         };
     }
 
-    // CASE 2: Phòng cũ nhưng đã Fetch được info bù
     if (fetchedPartners[partnerId]) {
         return {
             name: fetchedPartners[partnerId].name,
@@ -126,12 +134,11 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
         };
     }
 
-    // CASE 3: Fallback (Dữ liệu cũ chưa xử lý kịp) - Hiển thị tạm Listing
     return {
-        name: room.listingTitle, // Tạm thời hiện tên sản phẩm nếu chưa load được tên người
+        name: room.listingTitle,
         avatar: room.listingImage,
         subtitle: formatPrice(room.listingPrice),
-        isProductAvatar: true // Đánh dấu đây là ảnh sản phẩm
+        isProductAvatar: true
     };
   };
 
@@ -172,7 +179,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                         <h3 className={`text-sm truncate ${isUnread ? 'font-black text-textMain' : 'font-bold text-gray-700'}`}>{partner.name}</h3>
                         <span className="text-[10px] text-gray-300 whitespace-nowrap">{formatTimeAgo(room.lastUpdate)}</span>
                     </div>
-                    {/* Luôn hiển thị tên sản phẩm ở dòng 2 */}
                     <p className="text-[10px] text-gray-500 truncate font-medium bg-gray-100 px-1.5 py-0.5 rounded w-fit max-w-full mt-0.5">
                        {room.listingTitle}
                     </p>
@@ -236,7 +242,8 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                    const showAvatar = !isMe && (index === 0 || activeRoom.messages[index - 1].senderId !== msg.senderId);
                    
                    return (
-                      <div key={msg.id} className={`flex gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      // Thêm class 'group' để xử lý hover cho nút xóa
+                      <div key={msg.id} className={`flex gap-2 group items-center ${isMe ? 'justify-end' : 'justify-start'}`}>
                         {!isMe && (
                             <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 self-end mb-1 border border-gray-200 bg-white">
                                 {showAvatar ? (
@@ -249,6 +256,18 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                                 ) : <div className="w-8"></div>}
                             </div>
                         )}
+
+                        {/* NÚT XÓA TIN NHẮN (Chỉ hiện cho tin của mình) */}
+                        {isMe && (
+                            <button 
+                                onClick={() => handleDeleteMessage(msg.id)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full"
+                                title="Thu hồi tin nhắn"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        )}
+
                         <div className={`max-w-[75%] px-4 py-2 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm'}`}>
                           {msg.text}
                           <p className={`text-[9px] mt-1 text-right ${isMe ? 'text-white/60' : 'text-gray-300'}`}>

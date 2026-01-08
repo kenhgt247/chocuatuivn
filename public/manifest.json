@@ -1,6 +1,6 @@
 {
   "name": "Chợ của tui - Rao vặt thông minh",
-  "short_name": "ChợTui",
+  "short_name": "Chợ Của Tui",
   "description": "Nền tảng rao vặt AI thế hệ mới, mua bán thông minh và an toàn.",
   "id": "/",
   "start_url": "/",
@@ -8,7 +8,7 @@
   "background_color": "#f8f9fa",
   "theme_color": "#1677ff",
   "orientation": "portrait",
- "icons": [
+  "icons": [
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
@@ -25,22 +25,30 @@
   "categories": ["shopping", "business"],
   "shortcuts": [
     {
-      "name": "Đăng tin mới",
+      "name": "Đăng tin ngay",
+      "short_name": "Đăng tin",
+      "description": "Đăng bán sản phẩm mới nhanh chóng",
       "url": "/post",
-      "icons": [{ 
-        "src": "https://api.dicebear.com/9.x/shapes/png?seed=post", 
-        "sizes": "192x192",
-        "type": "image/png"
-      }]
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     },
     {
-      "name": "Tin nhắn",
+      "name": "Tin nhắn của tôi",
+      "short_name": "Chat",
+      "description": "Xem tin nhắn trao đổi mua bán",
       "url": "/chat",
-      "icons": [{ 
-        "src": "https://api.dicebear.com/9.x/shapes/png?seed=chat", 
-        "sizes": "192x192",
-        "type": "image/png"
-      }]
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

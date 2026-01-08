@@ -87,7 +87,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const [reportReason, setReportReason] = useState("");
   const [reportDetails, setReportDetails] = useState("");
   const [isPhoneVisible, setIsPhoneVisible] = useState(false);
-  const [isChatLoading, setIsChatLoading] = useState(false); // Thêm state loading cho chat
+  const [isChatLoading, setIsChatLoading] = useState(false);
 
   const id = useMemo(() => {
     if (!slugWithId) return null;
@@ -98,7 +98,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   useEffect(() => {
     if (!id) return;
     const loadListing = async () => {
-      // Logic tải dữ liệu tương thích cả 2 version DB
       if (db.getListingById) {
          const l = await db.getListingById(id);
          if (l) {
@@ -123,27 +122,22 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     window.scrollTo(0, 0);
   }, [id, user]);
 
-  // --- NÂNG CẤP: Logic gợi ý sản phẩm thông minh ---
   const similarListings = useMemo(() => {
     if (!listing || allListings.length === 0) return [];
     
-    // Ưu tiên vị trí: Nếu user đăng nhập thì lấy vị trí user, không thì lấy vị trí món hàng
     const targetLocation = user?.location || listing.location;
 
     return allListings
       .filter(l => l.id !== listing.id && l.category === listing.category)
       .sort((a, b) => {
-        // 1. Ưu tiên Tin VIP
         const aVip = a.tier === 'pro' || a.tier === 'basic' ? 1 : 0;
         const bVip = b.tier === 'pro' || b.tier === 'basic' ? 1 : 0;
         if (aVip !== bVip) return bVip - aVip;
 
-        // 2. Ưu tiên CÙNG VỊ TRÍ
         const aNear = a.location === targetLocation ? 1 : 0;
         const bNear = b.location === targetLocation ? 1 : 0;
         if (aNear !== bNear) return bNear - aNear;
 
-        // 3. Thời gian đăng mới nhất
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       })
       .slice(0, 12); 
@@ -153,15 +147,12 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
   const currentCategory = CATEGORIES.find(c => c.id === listing.category);
 
-  // [CẬP NHẬT QUAN TRỌNG]: Logic chat mới
   const handleStartChat = async () => {
     if (!user) return navigate('/login');
-    if (user.id === listing.sellerId) return; // Không chat với chính mình
+    if (user.id === listing.sellerId) return;
 
     setIsChatLoading(true);
     try {
-        // Gọi hàm createChatRoom với tham số thứ 2 là OBJECT user (để lưu tên + avatar)
-        // Chứ không phải chỉ user.id như cũ
         const roomId = await db.createChatRoom(listing, user);
         navigate(`/chat/${roomId}`);
     } catch (error) {
@@ -187,7 +178,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     setShowReportModal(false);
   };
 
-  // --- HÀM RENDER TÍCH XANH ---
   const renderVerificationBadge = () => {
       if (seller?.verificationStatus === 'verified') {
           return (
@@ -309,24 +299,27 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               </div>
             </div>
 
-            {/* MINI MAP */}
+            {/* --- [ĐÃ SỬA] MAP CONTAINER --- */}
             {listing.lat && listing.lng && (
                 <div className="h-44 w-full rounded-2xl overflow-hidden border border-gray-200 shadow-inner relative z-0 group">
                     <MapContainer 
                         center={[listing.lat, listing.lng]} 
                         zoom={14} 
                         scrollWheelZoom={false}
-                        dragging={false}       
+                        dragging={false}        
                         zoomControl={false}     
                         style={{ height: '100%', width: '100%' }}
                     >
-                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                        <TileLayer 
+                            attribution='&copy; OpenStreetMap'
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
+                        />
                         <Marker position={[listing.lat, listing.lng]} />
                     </MapContainer>
                     
                     {/* Overlay mở Google Maps */}
                     <a 
-                        href={`http://maps.google.com/maps?q=${listing.lat},${listing.lng}`} 
+                        href={`https://www.google.com/maps/search/?api=1&query=${listing.lat},${listing.lng}`} 
                         target="_blank" 
                         rel="noreferrer"
                         className="absolute inset-0 bg-black/5 group-hover:bg-black/20 transition-colors flex items-center justify-center z-[500]"

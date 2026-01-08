@@ -154,26 +154,26 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
   };
 
   // --- LOGIC CHAT THÔNG MINH (NEW) ---
-  const handleStartChat = async () => {
+ const handleStartChat = async () => {
     if (!currentUser) return navigate('/login');
     if (!seller || currentUser.id === seller.id) return;
 
     setChatLoading(true);
     try {
-        // Chiến thuật: Lấy tin đăng mới nhất làm cớ để chat. 
-        // Nếu không có tin nào, tạo "Listing ảo" để làm chủ đề chat profile.
+        // Tạo tin giả lập nếu không có tin nào
         const targetListing = listings.length > 0 ? listings[0] : {
-            id: `profile_chat_${seller.id}`, // ID ảo duy nhất cho chat profile với người này
+            id: `profile_chat_${seller.id}`, 
             title: `Chat với ${seller.name}`,
             images: [seller.avatar],
             price: 0,
-            sellerId: seller.id
+            sellerId: seller.id,
+            sellerName: seller.name, // Quan trọng: Đảm bảo có tên người bán
+            sellerAvatar: seller.avatar // Quan trọng: Đảm bảo có avatar người bán
         };
 
-        // Gọi hàm db.createChatRoom (đã được nâng cấp để check trùng)
-        const roomId = await db.createChatRoom(targetListing, currentUser.id);
+        // Gọi hàm db.createChatRoom với tham số mới (User Object)
+        const roomId = await db.createChatRoom(targetListing, currentUser);
         
-        // Điều hướng thẳng vào phòng chat
         navigate(`/chat/${roomId}`);
 
     } catch (error) {

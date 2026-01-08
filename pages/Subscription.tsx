@@ -37,7 +37,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
   }
 
   const handleUpgradeClick = (tier: SubscriptionTier) => {
-    if (tier === user.subscriptionTier) return;
+    // Cho phép click nếu khác tier hiện tại HOẶC tier hiện tại đã/sắp hết hạn
     const config = settings.tierConfigs[tier];
     if (!config) return;
     const actualPrice = config.price * (1 - settings.tierDiscount / 100);
@@ -52,7 +52,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
       return;
     }
 
-    // Bắt đầu hiệu ứng loading
     setProcessingMethod('wallet');
     setLoading(showPayModal.tier);
 
@@ -70,7 +69,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
     } catch (error) {
       showToast("Lỗi hệ thống", "error");
     } finally {
-      // Kết thúc loading
       setLoading(null);
       setProcessingMethod(null);
     }
@@ -93,6 +91,29 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
       setLoading(null);
       setProcessingMethod(null);
     }
+  };
+
+  // --- [LOGIC MỚI] KIỂM TRA HẠN DÙNG ---
+  const checkSubscriptionStatus = (tier: SubscriptionTier) => {
+      // 1. Nếu user không phải tier này -> Không phải current
+      if (user.subscriptionTier !== tier) return { isCurrent: false, isExpired: false, daysLeft: 0 };
+
+      // 2. Nếu là gói Free -> Luôn là current, không bao giờ hết hạn
+      if (tier === 'free') return { isCurrent: true, isExpired: false, daysLeft: 9999 };
+
+      // 3. Kiểm tra ngày hết hạn
+      if (!user.subscriptionExpires) return { isCurrent: true, isExpired: false, daysLeft: 0 };
+
+      const expires = new Date(user.subscriptionExpires);
+      const now = new Date();
+      const diffTime = expires.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      return {
+          isCurrent: true,
+          isExpired: diffDays <= 0,
+          daysLeft: diffDays
+      };
   };
 
   const tiers: SubscriptionTier[] = ['free', 'basic', 'pro'];
@@ -120,14 +141,19 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
       <div className="grid md:grid-cols-3 gap-6 md:gap-8">
         {tiers.map((tier) => {
           const config = settings.tierConfigs[tier];
-          const isCurrent = user.subscriptionTier === tier;
+          const status = checkSubscriptionStatus(tier);
           const isPro = tier === 'pro';
           const tierName = tier === 'free' ? 'Miễn Phí' : tier === 'basic' ? 'Gói Basic' : 'Gói Pro VIP';
           
           let displayPrice = tier === 'free' ? '0đ' : formatPrice(config.price * (1 - settings.tierDiscount / 100));
 
+          // Logic nút bấm: Disable nếu đang dùng VÀ chưa hết hạn
+          const isButtonDisabled = status.isCurrent && !status.isExpired && tier !== 'free'; 
+          // Cho phép gia hạn nếu sắp hết hạn (ví dụ < 5 ngày) hoặc đã hết hạn
+          const showRenew = status.isCurrent && (status.isExpired || status.daysLeft < 5) && tier !== 'free';
+
           return (
-            <div key={tier} className={`relative bg-white border-2 rounded-[2rem] p-6 md:p-8 flex flex-col transition-all hover:border-primary/50 hover:shadow-xl ${isPro ? 'border-yellow-400 shadow-lg shadow-yellow-100' : 'border-gray-100'} ${isCurrent ? 'bg-gray-50 opacity-80' : ''}`}>
+            <div key={tier} className={`relative bg-white border-2 rounded-[2rem] p-6 md:p-8 flex flex-col transition-all hover:border-primary/50 hover:shadow-xl ${isPro ? 'border-yellow-400 shadow-lg shadow-yellow-100' : 'border-gray-100'} ${status.isCurrent && !status.isExpired ? 'bg-gray-50' : ''}`}>
               {isPro && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg uppercase tracking-widest whitespace-nowrap">Phổ biến nhất</div>}
               
               <div className="mb-6 md:mb-8">
@@ -147,26 +173,43 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                 ))}
               </ul>
 
-              <button 
-                disabled={isCurrent || loading !== null} 
-                onClick={() => handleUpgradeClick(tier)} 
-                className={`w-full py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-all active:scale-95 ${isCurrent ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : isPro ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg shadow-orange-200' : 'bg-primary text-white shadow-lg shadow-primary/20'}`}
-              >
-                {isCurrent ? 'Đang sử dụng' : 'Nâng cấp ngay'}
-              </button>
+              <div className="space-y-2">
+                  <button 
+                    disabled={isButtonDisabled && !showRenew} 
+                    onClick={() => handleUpgradeClick(tier)} 
+                    className={`w-full py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-all active:scale-95 
+                        ${isButtonDisabled && !showRenew 
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                            : isPro 
+                                ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg shadow-orange-200 hover:shadow-xl' 
+                                : 'bg-primary text-white shadow-lg shadow-primary/20 hover:bg-primaryHover'
+                        }`}
+                  >
+                    {showRenew ? 'Gia hạn ngay' : status.isCurrent ? 'Đang sử dụng' : 'Nâng cấp ngay'}
+                  </button>
+                  
+                  {/* Hiển thị ngày hết hạn nếu đang dùng */}
+                  {status.isCurrent && tier !== 'free' && (
+                      <p className={`text-[10px] text-center font-bold ${status.daysLeft < 3 ? 'text-red-500' : 'text-gray-400'}`}>
+                          {status.isExpired 
+                              ? 'Đã hết hạn' 
+                              : `Hết hạn sau ${status.daysLeft} ngày`
+                          }
+                      </p>
+                  )}
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* --- PHẦN MODAL THANH TOÁN (ĐÃ TỐI ƯU CHO MOBILE & DESKTOP) --- */}
+      {/* --- PHẦN MODAL THANH TOÁN (GIỮ NGUYÊN UI) --- */}
       {showPayModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !loading && setShowPayModal(null)}></div>
           
           <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-6 md:p-8 shadow-2xl relative space-y-6 animate-fade-in-up border border-gray-100">
             
-            {/* Modal Header */}
             <div className="text-center">
                 <h3 className="text-xl font-black text-gray-800">Thanh toán</h3>
                 <p className="text-sm text-gray-500 mt-2 font-medium bg-gray-50 py-2 px-4 rounded-xl inline-block">
@@ -176,9 +219,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                 </p>
             </div>
             
-            {/* Payment Buttons Options */}
             <div className="space-y-3">
-              {/* 1. NÚT VÍ */}
               <button 
                 onClick={payWithWallet}
                 disabled={loading !== null}
@@ -194,7 +235,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                   </div>
                 </div>
                 
-                {/* Spinner Logic */}
                 {processingMethod === 'wallet' ? (
                    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
                 ) : (
@@ -204,7 +244,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                 )}
               </button>
 
-              {/* 2. NÚT CHUYỂN KHOẢN */}
               <button 
                 onClick={payWithTransfer}
                 disabled={loading !== null}
@@ -220,7 +259,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                   </div>
                 </div>
                 
-                {/* Spinner Logic */}
                 {processingMethod === 'transfer' ? (
                    <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
                 ) : (
@@ -231,7 +269,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
               </button>
             </div>
 
-            {/* Cancel Button */}
             <button 
                 onClick={() => !loading && setShowPayModal(null)} 
                 disabled={loading !== null}

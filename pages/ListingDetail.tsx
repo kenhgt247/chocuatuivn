@@ -205,16 +205,27 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         
         {/* LEFT COLUMN */}
         <div className="lg:col-span-8 space-y-6">
-          {/* Gallery */}
-          <div className="relative bg-black aspect-square md:aspect-video md:rounded-3xl overflow-hidden group">
-            <img src={listing.images[activeImage]} className="w-full h-full object-contain" alt={listing.title} />
+          
+          {/* Gallery - ĐÃ THÊM WATERMARK TẠI ĐÂY */}
+          <div className="relative bg-black aspect-square md:aspect-video md:rounded-3xl overflow-hidden group select-none">
+            {/* Ảnh gốc */}
+            <img src={listing.images[activeImage]} className="w-full h-full object-contain relative z-0" alt={listing.title} />
+            
+            {/* --- WATERMARK OVERLAY --- */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden">
+               <span className="text-white/20 text-4xl md:text-6xl font-black uppercase tracking-widest -rotate-45 whitespace-nowrap drop-shadow-md">
+                  CHỢ CỦA TUI
+               </span>
+            </div>
+            {/* ------------------------- */}
+
             {listing.images.length > 1 && (
               <>
-                <button onClick={() => setActiveImage(prev => prev > 0 ? prev - 1 : listing.images.length - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"><svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg></button>
-                <button onClick={() => setActiveImage(prev => prev < listing.images.length - 1 ? prev + 1 : 0)} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"><svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg></button>
+                <button onClick={() => setActiveImage(prev => prev > 0 ? prev - 1 : listing.images.length - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-white"><svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg></button>
+                <button onClick={() => setActiveImage(prev => prev < listing.images.length - 1 ? prev + 1 : 0)} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-white"><svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg></button>
               </>
             )}
-            <div className="absolute bottom-4 right-4 bg-black/50 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-xs font-bold border border-white/20">{activeImage + 1} / {listing.images.length}</div>
+            <div className="absolute bottom-4 right-4 bg-black/50 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-xs font-bold border border-white/20 z-20">{activeImage + 1} / {listing.images.length}</div>
           </div>
 
           {/* Thumbnails */}
@@ -311,7 +322,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                         style={{ height: '100%', width: '100%' }}
                     >
                         <TileLayer 
-                            attribution='&copy; OpenStreetMap'
+                            attribution='© OpenStreetMap'
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
                         />
                         <Marker position={[listing.lat, listing.lng]} />

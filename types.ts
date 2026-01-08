@@ -149,3 +149,46 @@ export interface Notification {
   // [QUAN TRỌNG] Link để điều hướng khi bấm vào thông báo
   link?: string;
 }
+
+// ==========================================
+// [MỚI] CÁC INTERFACE CHO CẤU HÌNH HỆ THỐNG
+// ==========================================
+
+export interface BannerSlide {
+  id: number;
+  isActive: boolean;        // Bật/Tắt
+  type: 'text' | 'image';   // Loại banner
+  
+  // Dùng cho loại Text
+  title?: string;
+  desc?: string;
+  btnText?: string;
+  btnLink?: string;
+  colorFrom?: string;
+  colorTo?: string;
+  icon?: string;
+
+  // Dùng cho loại Image
+  imageUrl?: string; 
+}
+
+export interface SystemSettings {
+  pushPrice: number;
+  pushDiscount?: number;
+  tierDiscount: number;
+  
+  tierConfigs: {
+    free: { price: number; maxImages: number; features: string[] };
+    basic: { price: number; maxImages: number; features: string[] };
+    pro: { price: number; maxImages: number; features: string[] };
+  };
+  
+  // Cấu hình Ngân hàng (VietQR)
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  beneficiaryQR?: string;
+
+  // [MỚI] Cấu hình Banner
+  bannerSlides?: BannerSlide[];
+}

@@ -857,32 +857,43 @@ export const db = {
     await updateDoc(doc(firestore, "chats", id), { seenBy: arrayUnion(userId) });
   },
   
-  createChatRoom: async (l: any, bId: string) => {
+  createChatRoom: async (l: any, buyer: User) => {
     try {
-        // Query: Tìm phòng chat của Listing này mà có chứa Buyer ID này
-        // Điều này đảm bảo mỗi người mua có 1 phòng riêng với người bán cho món hàng đó
+        // Query tìm phòng cũ
         const q = query(
             collection(firestore, "chats"), 
             where("listingId", "==", l.id), 
-            where("participantIds", "array-contains", bId)
+            where("participantIds", "array-contains", buyer.id)
         );
         
         const s = await getDocs(q);
-        
-        // Nếu đã tồn tại -> Trả về ID cũ
         if (!s.empty) return s.docs[0].id;
 
-        // Nếu chưa -> Tạo mới
+        // Chuẩn bị dữ liệu người tham gia để lưu
+        // Key là UserID, Value là thông tin hiển thị
+        const participantsData = {
+            [buyer.id]: {
+                name: buyer.name,
+                avatar: buyer.avatar
+            },
+            [l.sellerId]: {
+                name: l.sellerName || "Người bán", // Lấy từ tin đăng
+                avatar: l.sellerAvatar || "https://placehold.co/100"
+            }
+        };
+
         const res = await addDoc(collection(firestore, "chats"), {
             listingId: l.id, 
             listingTitle: l.title, 
-            // Handle trường hợp ảnh bị thiếu (chat profile)
             listingImage: l.images && l.images.length > 0 ? l.images[0] : 'https://placehold.co/100x100?text=Chat', 
             listingPrice: l.price || 0,
-            participantIds: [bId, l.sellerId], 
+            
+            participantIds: [buyer.id, l.sellerId], 
+            participantsData: participantsData, // <--- Cực kỳ quan trọng: Lưu tên để hiển thị
+            
             messages: [], 
             lastUpdate: new Date().toISOString(), 
-            seenBy: [bId]
+            seenBy: [buyer.id]
         });
         return res.id;
     } catch (e) {

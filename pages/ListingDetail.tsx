@@ -87,6 +87,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const [reportReason, setReportReason] = useState("");
   const [reportDetails, setReportDetails] = useState("");
   const [isPhoneVisible, setIsPhoneVisible] = useState(false);
+  const [isChatLoading, setIsChatLoading] = useState(false); // Thêm state loading cho chat
 
   const id = useMemo(() => {
     if (!slugWithId) return null;
@@ -97,7 +98,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   useEffect(() => {
     if (!id) return;
     const loadListing = async () => {
-      // Logic tải dữ liệu tương thích cả 2 version DB (nếu bạn đang trong quá trình chuyển đổi)
+      // Logic tải dữ liệu tương thích cả 2 version DB
       if (db.getListingById) {
          const l = await db.getListingById(id);
          if (l) {
@@ -137,7 +138,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         const bVip = b.tier === 'pro' || b.tier === 'basic' ? 1 : 0;
         if (aVip !== bVip) return bVip - aVip;
 
-        // 2. Ưu tiên CÙNG VỊ TRÍ (Mới thêm)
+        // 2. Ưu tiên CÙNG VỊ TRÍ
         const aNear = a.location === targetLocation ? 1 : 0;
         const bNear = b.location === targetLocation ? 1 : 0;
         if (aNear !== bNear) return bNear - aNear;
@@ -152,11 +153,23 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
   const currentCategory = CATEGORIES.find(c => c.id === listing.category);
 
+  // [CẬP NHẬT QUAN TRỌNG]: Logic chat mới
   const handleStartChat = async () => {
     if (!user) return navigate('/login');
-    if (user.id === listing.sellerId) return;
-    const roomId = await db.createChatRoom(listing, user.id);
-    navigate(`/chat/${roomId}`);
+    if (user.id === listing.sellerId) return; // Không chat với chính mình
+
+    setIsChatLoading(true);
+    try {
+        // Gọi hàm createChatRoom với tham số thứ 2 là OBJECT user (để lưu tên + avatar)
+        // Chứ không phải chỉ user.id như cũ
+        const roomId = await db.createChatRoom(listing, user);
+        navigate(`/chat/${roomId}`);
+    } catch (error) {
+        console.error("Lỗi khi tạo phòng chat:", error);
+        alert("Không thể kết nối trò chuyện lúc này.");
+    } finally {
+        setIsChatLoading(false);
+    }
   };
 
   const handleToggleFav = async () => {
@@ -282,7 +295,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               <p className="text-4xl font-black text-primary tracking-tighter">{formatPrice(listing.price)}</p>
               <h1 className="text-2xl font-black text-textMain leading-tight">{listing.title}</h1>
               
-              {/* ĐỊA CHỈ & THỜI GIAN (Ưu tiên hiển thị địa chỉ cụ thể) */}
+              {/* ĐỊA CHỈ & THỜI GIAN */}
               <div className="flex flex-col gap-1 text-[10px] text-gray-400 font-black uppercase tracking-widest pt-2">
                 <div className="flex items-start gap-2">
                     <span className="text-lg">📍</span>
@@ -296,24 +309,24 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               </div>
             </div>
 
-            {/* MINI MAP (HIỂN THỊ NẾU CÓ TỌA ĐỘ) */}
+            {/* MINI MAP */}
             {listing.lat && listing.lng && (
                 <div className="h-44 w-full rounded-2xl overflow-hidden border border-gray-200 shadow-inner relative z-0 group">
                     <MapContainer 
                         center={[listing.lat, listing.lng]} 
                         zoom={14} 
-                        scrollWheelZoom={false} // Tắt cuộn chuột để không gây khó chịu
-                        dragging={false}        // Tắt kéo
-                        zoomControl={false}     // Tắt nút zoom
+                        scrollWheelZoom={false}
+                        dragging={false}       
+                        zoomControl={false}     
                         style={{ height: '100%', width: '100%' }}
                     >
                         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                         <Marker position={[listing.lat, listing.lng]} />
                     </MapContainer>
                     
-                    {/* Overlay mở Google Maps khi click */}
+                    {/* Overlay mở Google Maps */}
                     <a 
-                        href={`https://www.google.com/maps/search/?api=1&query=${listing.lat},${listing.lng}`} 
+                        href={`http://maps.google.com/maps?q=${listing.lat},${listing.lng}`} 
                         target="_blank" 
                         rel="noreferrer"
                         className="absolute inset-0 bg-black/5 group-hover:bg-black/20 transition-colors flex items-center justify-center z-[500]"
@@ -327,7 +340,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             )}
 
             <div className="pt-8 border-t border-gray-100 space-y-6">
-              {/* THẺ NGƯỜI BÁN (ĐÃ CẬP NHẬT TÍCH XANH) */}
+              {/* THẺ NGƯỜI BÁN */}
               <Link to={`/seller/${listing.sellerId}`} className="flex items-center gap-4 p-4 bg-bgMain rounded-3xl border border-gray-100 hover:shadow-md transition-all group">
                 <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white shadow-sm flex-shrink-0 group-hover:rotate-3 transition-transform">
                   <img src={listing.sellerAvatar} className="w-full h-full object-cover" alt={listing.sellerName} />
@@ -338,7 +351,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                       {renderVerificationBadge()}
                   </div>
                   
-                  {/* Hiển thị trạng thái dựa trên KYC */}
                   {seller?.verificationStatus === 'verified' ? (
                       <p className="text-[9px] font-black text-blue-500 uppercase mt-1 flex items-center gap-1.5">
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg> 
@@ -356,10 +368,17 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               <div className="flex flex-col gap-3">
                 <button 
                   onClick={handleStartChat} 
-                  className="w-full bg-primary hover:bg-primaryHover text-white py-4 rounded-2xl font-bold text-sm shadow-xl shadow-primary/30 active:scale-95 transition-all flex items-center justify-center gap-3 group"
+                  disabled={isChatLoading}
+                  className="w-full bg-primary hover:bg-primaryHover text-white py-4 rounded-2xl font-bold text-sm shadow-xl shadow-primary/30 active:scale-95 transition-all flex items-center justify-center gap-3 group disabled:opacity-70 disabled:cursor-wait"
                 >
-                  <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                  <span>CHAT VỚI NGƯỜI BÁN</span>
+                  {isChatLoading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                      <>
+                        <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                        <span>CHAT VỚI NGƯỜI BÁN</span>
+                      </>
+                  )}
                 </button>
 
                 {seller?.phone && (

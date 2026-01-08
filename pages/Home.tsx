@@ -316,7 +316,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                         <div className="flex items-center gap-3 border-l border-gray-100 pl-3">
                              <button onClick={handleDetectLocation} disabled={isLocating} className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all text-[10px] font-black uppercase ${detectedLocation ? 'border-green-200 bg-green-50 text-green-600' : 'border-gray-100 text-gray-400 hover:border-primary/30 hover:text-primary'}`}>
                                 {isLocating ? <div className="w-3 h-3 border-2 border-current border-t-transparent animate-spin rounded-full"></div> : '📍'}
-                                <span>{detectedLocation || 'Định vị'}</span>
+                                <span>{detectedLocation || 'Quanh đây'}</span>
                              </button>
                              <button onClick={() => setIsExpanded(true)} className="flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase bg-gray-100 text-gray-600 hover:bg-primary hover:text-white transition-all shadow-sm flex-shrink-0 group">
                                 <span>Xem tất cả</span>

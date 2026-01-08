@@ -369,7 +369,12 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
-              <span className="text-yellow-400 text-xl">★</span> Tin đăng tài trợ
+              <div className="flex items-center gap-2">
+  <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-md shadow-orange-200 flex items-center gap-1 uppercase tracking-wider transform hover:scale-105 transition-transform">
+    <span className="animate-pulse">👑</span> VIP
+  </span>
+  <span className="font-bold text-gray-800">Tin được tài trợ</span>
+</div>
             </h2>
             {/* CẬP NHẬT LINK CHÍNH XÁC */}
             <Link to="/?type=vip" className="text-[10px] font-black text-primary uppercase hover:underline">Xem tất cả</Link>

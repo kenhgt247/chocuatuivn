@@ -872,7 +872,7 @@ export const db = {
     }
   },
 
-  // --- G. CHAT [ĐÃ CẬP NHẬT: THÊM XÓA TIN NHẮN] ---
+  // --- G. CHAT [ĐÃ CẬP NHẬT: THÊM XÓA TIN NHẮN & XÓA PHÒNG] ---
 
   getChatRooms: (uId: string, cb: any) => {
     const q = query(collection(firestore, "chats"), where("participantIds", "array-contains", uId));
@@ -886,6 +886,17 @@ export const db = {
     const d = await getDoc(doc(firestore, "chats", id));
     return d.exists() ? ({...d.data(), id: d.id} as ChatRoom) : undefined;
   },
+
+  // [MỚI] Hàm xóa phòng chat (Xóa hoàn toàn)
+  deleteChatRoom: async (roomId: string) => {
+    try {
+      await deleteDoc(doc(firestore, "chats", roomId));
+      return { success: true };
+    } catch (e: any) {
+      console.error("Error deleting chat room:", e);
+      throw e;
+    }
+  },
   
   addMessage: async (id: string, m: any) => {
     const ref = doc(firestore, "chats", id);
@@ -893,7 +904,7 @@ export const db = {
     await updateDoc(ref, { messages: arrayUnion(msg), lastMessage: m.text, lastUpdate: msg.timestamp, seenBy: [m.senderId] });
   },
 
-  // [MỚI] Hàm xóa tin nhắn trong Chat
+  // Hàm xóa tin nhắn trong Chat
   deleteMessage: async (roomId: string, messageId: string) => {
     try {
       const roomRef = doc(firestore, "chats", roomId);

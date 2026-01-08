@@ -109,6 +109,7 @@ const App: React.FC = () => {
           <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
           <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
           
+          {/* Route Chat (Cả danh sách và chi tiết phòng chat) */}
           <Route path="/chat" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
           <Route path="/chat/:roomId" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
           
@@ -124,6 +125,9 @@ const App: React.FC = () => {
           <Route path="/login" element={<Auth onLogin={handleLogin} />} />
           <Route path="/register" element={<Register onLogin={handleLogin} />} />
           <Route path="/page/:slug" element={<StaticPage />} />
+
+          {/* Route 404 - Trang không tồn tại */}
+          <Route path="*" element={<div className="h-[50vh] flex items-center justify-center font-bold text-gray-400">404 - Trang không tồn tại</div>} />
 
         </Routes>
       </Layout>

@@ -419,12 +419,23 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       {/* 5. TIN MỚI NHẤT (HOẶC KẾT QUẢ TÌM KIẾM/FILTER) */}
       <section className="space-y-4">
         <div className="flex items-center justify-between px-2">
-           <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight">
+           <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight flex items-center">
              {search ? `Kết quả: "${search}"` 
               : typeParam === 'vip' ? 'Tất cả tin Tài Trợ (VIP)'
               : locationParam ? `Tin đăng tại ${locationParam}`
               : currentCategory ? `Danh mục: ${currentCategory.name}` 
-              : 'Tin mới đăng'}
+              : (
+                 /* --- BẮT ĐẦU PHẦN THAY THẾ --- */
+                 <span className="flex items-center gap-2">
+                   <span className="relative flex h-3 w-3">
+                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                     <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span>
+                   </span>
+                   <span className="text-yellow-500 text-2xl">✨</span>
+                   <span>Tin mới đăng</span>
+                 </span>
+                 /* --- KẾT THÚC PHẦN THAY THẾ --- */
+              )}
            </h2>
         </div>
 
@@ -447,11 +458,11 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4 px-1 md:px-0">
               {latestListings.map(l => (
                 <ListingCard 
-                    key={l.id} 
-                    listing={l} 
-                    isFavorite={favorites.includes(l.id)} 
-                    onToggleFavorite={toggleFav} 
-                    onPushListing={user && user.id === l.sellerId ? handlePushListing : undefined}
+                   key={l.id} 
+                   listing={l} 
+                   isFavorite={favorites.includes(l.id)} 
+                   onToggleFavorite={toggleFav} 
+                   onPushListing={user && user.id === l.sellerId ? handlePushListing : undefined}
                 />
               ))}
             </div>

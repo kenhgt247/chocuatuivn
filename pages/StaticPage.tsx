@@ -11,7 +11,7 @@ interface PageContent {
 const STATIC_DATA: Record<string, PageContent> = {
   'gioi-thieu': {
     title: 'Giới thiệu công ty',
-    subtitle: 'Nền tảng rao vặt AI hàng đầu Việt Nam - Đây chỉ là sản phẩm beta vì vậy các bạn không cần chuyển khoản để nâng cấp víp . chir cần nạp tiền vào ví và admin sẽ chủ động phê duyệt ',
+    subtitle: 'Nền tảng rao vặt AI hàng đầu Việt Nam - Chúng tôi đang co khuyến mãi đặc biệt vì vậy các bạn không cần chuyển khoản để nâng cấp víp . chir cần nạp tiền vào ví và admin sẽ chủ động phê duyệt ',
     icon: '🚀',
     content: (
       <div className="space-y-6">

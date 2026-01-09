@@ -3,10 +3,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Listing } from '../types';
 import ListingCard from '../components/ListingCard';
-import { LOCATIONS, TIER_CONFIG } from '../constants';
+import { LOCATIONS } from '../constants';
 import { formatPrice } from '../utils/format';
 import { getLocationFromCoords } from '../utils/locationHelper'; 
-// [MỚI] Import hàm nén ảnh
 import { compressAndGetBase64 } from '../utils/imageCompression';
 
 // --- Import Leaflet cho bản đồ ---
@@ -14,7 +13,6 @@ import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-// Fix icon lỗi mặc định của Leaflet trong React
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
@@ -26,18 +24,12 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// --- Component con: Marker có thể kéo thả ---
 const DraggableMarker = ({ position, onDragEnd }: { position: {lat: number, lng: number}, onDragEnd: (lat: number, lng: number) => void }) => {
     const markerRef = useRef<L.Marker>(null);
-    
     useMapEvents({
-        click(e) {
-            onDragEnd(e.latlng.lat, e.latlng.lng);
-        },
+        click(e) { onDragEnd(e.latlng.lat, e.latlng.lng); },
     });
-
-    const eventHandlers = useMemo(
-      () => ({
+    const eventHandlers = useMemo(() => ({
         dragend() {
           const marker = markerRef.current;
           if (marker != null) {
@@ -45,612 +37,423 @@ const DraggableMarker = ({ position, onDragEnd }: { position: {lat: number, lng:
             onDragEnd(lat, lng);
           }
         },
-      }),
-      [onDragEnd],
-    );
+    }), [onDragEnd]);
   
-    return (
-      <Marker
-        draggable={true}
-        eventHandlers={eventHandlers}
-        position={position}
-        ref={markerRef}
-      />
-    );
+    return <Marker draggable={true} eventHandlers={eventHandlers} position={position} ref={markerRef} />;
 }
 
 interface ModalState {
-  show: boolean;
-  title: string;
-  message: string;
-  onConfirm: () => void;
-  type: 'push' | 'delete' | 'alert';
+    show: boolean; title: string; message: string; onConfirm: () => void; type: 'push' | 'delete' | 'alert';
 }
 
 const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser: (u: User) => void }> = ({ user, onLogout, onUpdateUser }) => {
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'listings' | 'favorites' | 'settings'>('listings');
-  const [myListings, setMyListings] = useState<Listing[]>([]);
-  const [myFavs, setMyFavs] = useState<Listing[]>([]);
-  
-  // State quản lý tin
-  const [settings, setSettings] = useState<SystemSettings | null>(null);
-  const [isPushing, setIsPushing] = useState<string | null>(null);
-  const [modal, setModal] = useState<ModalState>({
-    show: false, title: '', message: '', type: 'alert', onConfirm: () => {}
-  });
+    const navigate = useNavigate();
+    const [activeTab, setActiveTab] = useState<'listings' | 'favorites' | 'settings'>('listings');
+    const [myListings, setMyListings] = useState<Listing[]>([]);
+    const [myFavs, setMyFavs] = useState<Listing[]>([]);
+    const [settings, setSettings] = useState<SystemSettings | null>(null);
+    const [isPushing, setIsPushing] = useState<string | null>(null);
+    const [modal, setModal] = useState<ModalState>({ show: false, title: '', message: '', type: 'alert', onConfirm: () => {} });
 
-  // State Upload Avatar
-  const avatarInputRef = useRef<HTMLInputElement>(null);
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const avatarInputRef = useRef<HTMLInputElement>(null);
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const [kycFiles, setKycFiles] = useState<{front: File | null, back: File | null}>({ front: null, back: null });
+    const [kycPreviews, setKycPreviews] = useState<{front: string | null, back: string | null}>({ front: null, back: null });
+    const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
 
-  // State Xác thực (KYC)
-  // [CẬP NHẬT] Thay đổi kiểu dữ liệu KYC để lưu File gốc (để hiển thị preview nếu cần)
-  const [kycFiles, setKycFiles] = useState<{front: File | null, back: File | null}>({ front: null, back: null });
-  const [kycPreviews, setKycPreviews] = useState<{front: string | null, back: string | null}>({ front: null, back: null });
-  const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
+    const [editForm, setEditForm] = useState({
+        name: user?.name || '',
+        email: user?.email || '',
+        phone: user?.phone || '',
+        location: user?.location || 'TPHCM',
+        address: user?.address || '',
+        lat: user?.lat || 10.762622,
+        lng: user?.lng || 106.660172
+    });
+    const [isSaving, setIsSaving] = useState(false);
 
-  // Settings Form State
-  const [editForm, setEditForm] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    phone: user?.phone || '',
-    location: user?.location || 'TPHCM',
-    address: user?.address || '',
-    lat: user?.lat || 10.762622,
-    lng: user?.lng || 106.660172
-  });
-  const [isSaving, setIsSaving] = useState(false);
+    useEffect(() => {
+        if (!user) { navigate('/login'); return; }
+        const loadProfileData = async () => {
+            const [all, s] = await Promise.all([db.getListings(true), db.getSettings()]);
+            setMyListings(all.filter(l => l.sellerId === user.id));
+            setSettings(s);
+            const favIds = await db.getFavorites(user.id);
+            setMyFavs(all.filter(l => favIds.includes(l.id)));
+            setEditForm(prev => ({
+                ...prev, name: user.name, email: user.email, phone: user.phone || '',
+                location: user.location || 'TPHCM', address: user.address || '',
+                lat: user.lat || 10.762622, lng: user.lng || 106.660172
+            }));
+        };
+        loadProfileData();
+    }, [user, navigate]);
 
-  useEffect(() => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    const loadProfileData = async () => {
-      const [all, s] = await Promise.all([db.getListings(true), db.getSettings()]);
-      setMyListings(all.filter(l => l.sellerId === user.id));
-      setSettings(s);
-      const favIds = await db.getFavorites(user.id);
-      setMyFavs(all.filter(l => favIds.includes(l.id)));
-      
-      setEditForm(prev => ({
-        ...prev,
-        name: user.name,
-        email: user.email,
-        phone: user.phone || '',
-        location: user.location || 'TPHCM',
-        address: user.address || '',
-        lat: user.lat || 10.762622,
-        lng: user.lng || 106.660172
-      }));
+    const subscriptionData = useMemo(() => {
+        if (!user || user.subscriptionTier === 'free' || !user.subscriptionExpires) 
+            return { isExpired: true, daysRemaining: 0, effectiveTier: 'free', expiryDate: '' };
+        const expires = new Date(user.subscriptionExpires);
+        const now = new Date();
+        const diffTime = expires.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const isExpired = diffTime <= 0;
+        return {
+            daysRemaining: diffDays > 0 ? diffDays : 0,
+            expiryDate: expires.toLocaleDateString('vi-VN'),
+            isExpired, effectiveTier: isExpired ? 'free' : user.subscriptionTier
+        };
+    }, [user]);
+
+    if (!user) return null;
+
+    // --- AVATAR LOGIC ---
+    const handleAvatarClick = () => avatarInputRef.current?.click();
+    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            if (!file.type.startsWith('image/')) return alert("Vui lòng chọn file ảnh");
+            setIsUploadingAvatar(true);
+            try {
+                const compressedBase64 = await compressAndGetBase64(file);
+                const url = await db.uploadImage(compressedBase64, `avatars/${user.id}_${Date.now()}`);
+                const updatedUser = await db.updateUserProfile(user.id, { avatar: url });
+                onUpdateUser(updatedUser);
+                alert("Đổi ảnh đại diện thành công!");
+            } catch (error) { alert("Lỗi khi tải ảnh lên."); } 
+            finally { setIsUploadingAvatar(false); }
+        }
     };
-    loadProfileData();
-  }, [user, navigate]);
 
-  // --- LOGIC TÍNH TOÁN TRẠNG THÁI VIP ---
-  const subscriptionData = useMemo(() => {
-    if (!user) return { isExpired: true, daysRemaining: 0, effectiveTier: 'free', expiryDate: '' };
-
-    if (user.subscriptionTier === 'free' || !user.subscriptionExpires) {
-        return { isExpired: true, daysRemaining: 0, effectiveTier: 'free', expiryDate: '' };
-    }
-
-    const expires = new Date(user.subscriptionExpires);
-    const now = new Date();
-    
-    const diffTime = expires.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    const isExpired = diffTime <= 0;
-
-    return {
-      daysRemaining: diffDays > 0 ? diffDays : 0,
-      expiryDate: expires.toLocaleDateString('vi-VN'),
-      isExpired: isExpired,
-      effectiveTier: isExpired ? 'free' : user.subscriptionTier
+    // --- KYC LOGIC ---
+    const handleKycFileChange = (field: 'front' | 'back', e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setKycFiles(prev => ({ ...prev, [field]: file }));
+            const reader = new FileReader();
+            reader.onload = (ev) => setKycPreviews(prev => ({ ...prev, [field]: ev.target?.result as string }));
+            reader.readAsDataURL(file);
+        }
     };
-  }, [user]);
 
-  if (!user) return null;
+    const handleSubmitKyc = async () => {
+        if (!kycFiles.front || !kycFiles.back) return alert("Vui lòng tải đủ 2 mặt giấy tờ");
+        if (!window.confirm("Xác nhận thông tin chính xác?")) return;
+        setIsSubmittingKyc(true);
+        try {
+            const uploadPromises = [kycFiles.front, kycFiles.back].map(async (file) => {
+                 const base64 = await compressAndGetBase64(file);
+                 return await db.uploadImage(base64, `kyc/${user.id}_${Date.now()}_${Math.random()}`);
+            });
+            const urls = await Promise.all(uploadPromises);
+            const updatedUser = await db.updateUserProfile(user.id, { 
+                verificationStatus: 'pending', verificationDocuments: urls 
+            } as any);
+            onUpdateUser(updatedUser);
+            alert("Đã gửi hồ sơ xác thực!");
+            setKycFiles({ front: null, back: null }); setKycPreviews({ front: null, back: null });
+        } catch (error) { alert("Lỗi gửi hồ sơ."); } 
+        finally { setIsSubmittingKyc(false); }
+    };
 
-  // --- LOGIC 1: ĐỔI AVATAR (CÓ NÉN ẢNH) ---
-  const handleAvatarClick = () => {
-    avatarInputRef.current?.click();
-  };
+    // --- ĐẨY TIN LOGIC (Đã cập nhật chiết khấu) ---
+    const handlePushListing = (listingId: string, title: string) => {
+        if (!user || !settings) return;
+        const originalPrice = settings.pushPrice;
+        const discount = settings.pushDiscount || 0;
+        const finalPrice = originalPrice * (1 - discount / 100);
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-        const file = e.target.files[0];
-        
-        // Không cần check dung lượng 2MB nữa vì sẽ được nén lại rất nhỏ
-        // Nhưng vẫn check loại file cho an toàn
-        if (!file.type.startsWith('image/')) {
-            alert("Vui lòng chọn file ảnh");
+        if (user.walletBalance < finalPrice) {
+            setModal({
+                show: true, title: "Số dư không đủ",
+                message: `Ví không đủ ${formatPrice(finalPrice)}. Nạp thêm ngay?`,
+                type: 'alert', onConfirm: () => { setModal(prev => ({ ...prev, show: false })); navigate('/wallet'); }
+            });
             return;
         }
-
-        setIsUploadingAvatar(true);
-        try {
-            // [MỚI] Nén ảnh và chuyển thành Base64
-            const compressedBase64 = await compressAndGetBase64(file);
-            
-            // Upload Base64 đã nén
-            const url = await db.uploadImage(compressedBase64, `avatars/${user.id}_${Date.now()}`);
-            const updatedUser = await db.updateUserProfile(user.id, { avatar: url });
-            
-            onUpdateUser(updatedUser);
-            alert("Đổi ảnh đại diện thành công!");
-        } catch (error) {
-            console.error("Avatar upload error:", error);
-            alert("Lỗi khi tải ảnh lên. Vui lòng thử lại.");
-        } finally {
-            setIsUploadingAvatar(false);
-        }
-    }
-  };
-
-  // --- LOGIC 2: XÁC THỰC DANH TÍNH (KYC) (CÓ NÉN ẢNH) ---
-  const handleKycFileChange = (field: 'front' | 'back', e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-        const file = e.target.files[0];
-        setKycFiles(prev => ({ ...prev, [field]: file }));
-        
-        // Tạo preview nhanh (chưa nén) để người dùng xem ngay lập tức
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            setKycPreviews(prev => ({ ...prev, [field]: ev.target?.result as string }));
-        };
-        reader.readAsDataURL(file);
-    }
-  };
-
-  const handleSubmitKyc = async () => {
-    if (!kycFiles.front || !kycFiles.back) {
-        alert("Vui lòng tải lên đủ 2 mặt giấy tờ (CCCD/GPKD)");
-        return;
-    }
-
-    if (!window.confirm("Bạn cam kết thông tin cung cấp là chính xác?")) return;
-
-    setIsSubmittingKyc(true);
-    try {
-        // [MỚI] Nén cả 2 ảnh trước khi upload
-        // Sử dụng Promise.all để nén và upload song song cho nhanh
-        const uploadPromises = [kycFiles.front, kycFiles.back].map(async (file) => {
-             const compressedBase64 = await compressAndGetBase64(file);
-             return await db.uploadImage(compressedBase64, `kyc/${user.id}_${Date.now()}_${Math.random()}`);
+        setModal({
+            show: true, title: "Xác nhận đẩy tin",
+            message: discount > 0 
+                ? `Đẩy tin "${title}" với giá ưu đãi ${formatPrice(finalPrice)} (Giảm ${discount}% từ ${formatPrice(originalPrice)})?`
+                : `Đẩy tin "${title}" với phí ${formatPrice(finalPrice)}?`,
+            type: 'push',
+            onConfirm: async () => {
+                setModal(prev => ({ ...prev, show: false })); setIsPushing(listingId);
+                try {
+                    const res = await db.pushListing(listingId, user.id);
+                    if (res.success) {
+                        const all = await db.getListings(true); setMyListings(all.filter(l => l.sellerId === user.id));
+                        const updated = await db.getCurrentUser(); if (updated) onUpdateUser(updated);
+                        alert("Đẩy tin thành công!");
+                    }
+                } catch (err) { alert("Lỗi đẩy tin."); } finally { setIsPushing(null); }
+            }
         });
+    };
 
-        const urls = await Promise.all(uploadPromises);
+    const handleDelete = (id: string) => {
+        setModal({
+            show: true, title: "Xóa tin đăng", message: "Hành động này không thể hoàn tác.", type: 'delete',
+            onConfirm: async () => {
+                setModal(prev => ({ ...prev, show: false }));
+                try { await db.deleteListing(id); setMyListings(prev => prev.filter(l => l.id !== id)); } catch (e) { alert("Lỗi xóa tin"); }
+            }
+        });
+    };
 
-        const updatedUser = await db.updateUserProfile(user.id, { 
-            verificationStatus: 'pending',
-            verificationDocuments: urls
-        } as any);
-
-        onUpdateUser(updatedUser);
-        alert("Đã gửi yêu cầu xác thực! Admin sẽ duyệt trong 24h.");
-        
-        // Reset form
-        setKycFiles({ front: null, back: null });
-        setKycPreviews({ front: null, back: null });
-
-    } catch (error) {
-        console.error("KYC Error:", error);
-        alert("Có lỗi xảy ra khi gửi hồ sơ. Vui lòng thử lại.");
-    } finally {
-        setIsSubmittingKyc(false);
-    }
-  };
-
-  // --- LOGIC CŨ (Đẩy tin, Xóa tin) ---
-  const handlePushListing = (listingId: string, title: string) => {
-    if (!user || !settings) return;
-    const pushPrice = settings.pushPrice * (1 - (settings.pushDiscount || 0) / 100);
-    if (user.walletBalance < pushPrice) {
-      setModal({
-        show: true,
-        title: "Số dư không đủ",
-        message: `Ví của bạn không đủ tiền (${formatPrice(pushPrice)}). Bạn có muốn nạp thêm không?`,
-        type: 'alert',
-        onConfirm: () => { setModal(prev => ({ ...prev, show: false })); navigate('/wallet'); }
-      });
-      return;
-    }
-    setModal({
-      show: true, title: "Xác nhận đẩy tin", message: `Đẩy tin "${title}" với phí ${formatPrice(pushPrice)}?`, type: 'push',
-      onConfirm: async () => {
-        setModal(prev => ({ ...prev, show: false })); setIsPushing(listingId);
+    const handleLogout = async () => { await db.logout(); onLogout(); navigate('/'); };
+    const handleSaveSettings = async (e: React.FormEvent) => {
+        e.preventDefault(); setIsSaving(true);
         try {
-          const res = await db.pushListing(listingId, user.id);
-          if (res.success) {
-            const all = await db.getListings(true); setMyListings(all.filter(l => l.sellerId === user.id));
-            const updatedUser = await db.getCurrentUser(); if (updatedUser) onUpdateUser(updatedUser);
-            alert("Đẩy tin thành công!");
-          }
-        } catch (err) { alert("Lỗi khi đẩy tin"); } finally { setIsPushing(null); }
-      }
-    });
-  };
+            const updated = await db.updateUserProfile(user.id, editForm);
+            onUpdateUser(updated); alert('Cập nhật thành công!');
+        } catch (err) { alert("Lỗi cập nhật."); } finally { setIsSaving(false); }
+    };
 
-  const handleDelete = (id: string) => {
-    setModal({
-      show: true, title: "Xóa tin đăng", message: "Hành động này không thể hoàn tác.", type: 'delete',
-      onConfirm: async () => {
-        setModal(prev => ({ ...prev, show: false }));
-        try { await db.deleteListing(id); setMyListings(prev => prev.filter(l => l.id !== id)); } catch (e) { alert("Lỗi xóa tin"); }
-      }
-    });
-  };
+    const pickCurrentLocation = () => {
+        if (!navigator.geolocation) return alert("Không hỗ trợ GPS");
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            const { latitude, longitude } = pos.coords;
+            setEditForm(prev => ({ ...prev, lat: latitude, lng: longitude }));
+            try {
+                const info = await getLocationFromCoords(latitude, longitude);
+                setEditForm(prev => ({ ...prev, address: info.address, location: info.city }));
+            } catch (e) { console.error(e); }
+        }, () => alert("Vui lòng bật định vị."));
+    };
 
-  const handleLogout = async () => { await db.logout(); onLogout(); navigate('/'); };
-  
-  const handleSaveSettings = (e: React.FormEvent) => {
-    e.preventDefault(); setIsSaving(true);
-    const cleanUpdates: any = {};
-    Object.keys(editForm).forEach(key => { const val = (editForm as any)[key]; if (val !== undefined) cleanUpdates[key] = val; });
-    setTimeout(async () => {
-      try { const updated = await db.updateUserProfile(user.id, cleanUpdates); onUpdateUser(updated); alert('Cập nhật thành công!'); } 
-      catch (err) { alert("Lỗi cập nhật."); } finally { setIsSaving(false); }
-    }, 800);
-  };
+    const handleMarkerDragEnd = async (lat: number, lng: number) => {
+        setEditForm(prev => ({ ...prev, lat, lng }));
+        const info = await getLocationFromCoords(lat, lng);
+        setEditForm(prev => ({ ...prev, address: info.address, location: info.city }));
+    };
 
-  // --- LOGIC ĐỊNH VỊ MỚI: Dùng GPS thật ---
-  const pickCurrentLocation = () => {
-     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        
-        setEditForm(prev => ({ ...prev, lat: latitude, lng: longitude }));
-        
-        try {
-            const info = await getLocationFromCoords(latitude, longitude);
-            setEditForm(prev => ({
-                ...prev,
-                address: info.address, 
-                location: info.city    
-            }));
-        } catch (e) {
-            console.error("Lỗi lấy tên đường", e);
-        }
+    const renderVerificationStatus = () => {
+        const s = (user as any).verificationStatus || 'unverified';
+        if (s === 'verified') return <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1">✅ Xác thực</span>;
+        if (s === 'pending') return <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1">⏳ Chờ duyệt</span>;
+        return <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-[10px] font-black uppercase">Chưa xác thực</span>;
+    };
 
-      }, () => alert("Không thể lấy vị trí. Vui lòng kiểm tra quyền truy cập GPS."));
-    } else {
-        alert("Trình duyệt không hỗ trợ định vị.");
-    }
-  };
-
-  const handleMarkerDragEnd = async (lat: number, lng: number) => {
-      setEditForm(prev => ({ ...prev, lat, lng }));
-      const info = await getLocationFromCoords(lat, lng);
-      setEditForm(prev => ({
-          ...prev,
-          address: info.address,
-          location: info.city
-      }));
-  };
-
-  const renderVerificationStatus = () => {
-    const status = (user as any).verificationStatus || 'unverified';
-    switch (status) {
-        case 'verified': return <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1">✅ Đã xác thực</span>;
-        case 'pending': return <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1">🕒 Đang chờ duyệt</span>;
-        case 'rejected': return <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1">❌ Bị từ chối</span>;
-        default: return <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-[10px] font-black uppercase">Chưa xác thực</span>;
-    }
-  };
-
-  return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-20 px-4 md:px-0 relative">
-      {/* Modal Overlay */}
-      {modal.show && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModal(prev => ({ ...prev, show: false }))}></div>
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl relative animate-fade-in-up border border-borderMain">
-            <h3 className="text-xl font-black text-textMain mb-2">{modal.title}</h3>
-            <p className="text-gray-500 text-sm font-medium mb-8 leading-relaxed">{modal.message}</p>
-            <div className="flex gap-3">
-               <button onClick={() => setModal(prev => ({ ...prev, show: false }))} className="flex-1 py-3.5 rounded-2xl font-black text-[11px] uppercase bg-gray-100 text-gray-500 hover:bg-gray-200">Hủy</button>
-               <button onClick={modal.onConfirm} className={`flex-1 py-3.5 rounded-2xl font-black text-[11px] uppercase text-white shadow-lg ${modal.type === 'delete' ? 'bg-red-500' : 'bg-primary'}`}>Xác nhận</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Profile Header */}
-      <div className="bg-white border border-borderMain rounded-[2.5rem] p-6 md:p-10 shadow-soft overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-        <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
-          
-          {/* AVATAR CLICKABLE */}
-          <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
-            <input 
-                type="file" 
-                ref={avatarInputRef} 
-                className="hidden" 
-                accept="image/*"
-                onChange={handleAvatarChange}
-            />
-            <img src={user.avatar} alt={user.name} className="w-24 h-24 md:w-32 md:h-32 rounded-[2rem] border-4 border-white shadow-xl object-cover transition-filter group-hover:brightness-75" />
-            
-            {/* Loading Indicator for Avatar */}
-            {isUploadingAvatar ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-[2rem]">
-                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                </div>
-            ) : (
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+    return (
+        <div className="max-w-6xl mx-auto space-y-6 pb-20 px-4 md:px-0 relative font-sans animate-fade-in">
+            {/* Modal */}
+            {modal.show && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+                    <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl relative animate-fade-in-up border border-white">
+                        <h3 className="text-2xl font-black text-slate-900 mb-2">{modal.title}</h3>
+                        <p className="text-slate-500 text-sm font-medium mb-8 leading-relaxed">{modal.message}</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setModal(prev => ({ ...prev, show: false }))} className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-slate-100 text-slate-500">Hủy</button>
+                            <button onClick={modal.onConfirm} className={`flex-1 py-4 rounded-2xl font-black text-xs uppercase text-white shadow-lg ${modal.type === 'delete' ? 'bg-red-500' : 'bg-primary'}`}>Đồng ý</button>
+                        </div>
+                    </div>
                 </div>
             )}
-            
-            {/* Edit Icon Badge */}
-            <div className="absolute -bottom-2 -right-2 bg-primary text-white p-2.5 rounded-2xl shadow-lg border-4 border-white">
-               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-            </div>
-          </div>
-          
-          <div className="flex-1 space-y-3 text-center md:text-left">
-            <div className="flex items-center justify-center md:justify-start gap-4">
-              <h1 className="text-2xl md:text-4xl font-black text-textMain tracking-tight">{user.name}</h1>
-              {renderVerificationStatus()}
-              {user.role === 'admin' && (
-                <Link to="/admin" className="bg-red-500 text-white text-[10px] font-black px-4 py-1.5 rounded-xl uppercase tracking-widest shadow-lg shadow-red-100 hover:scale-105 transition-all">
-                  Admin
-                </Link>
-              )}
-            </div>
-            
-            <div className="flex flex-wrap justify-center md:justify-start items-center gap-4 text-gray-400 text-xs font-bold uppercase tracking-widest">
-              <span>{user.email}</span>
-              <span className="hidden md:inline">•</span>
-              <span>{user.phone || 'Chưa cập nhật SĐT'}</span>
-            </div>
 
-            {/* VIP Card */}
-            <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-6">
-                <div className={`relative overflow-hidden p-5 rounded-3xl border shadow-lg transition-all min-w-[280px] ${subscriptionData.effectiveTier === 'free' ? 'bg-gray-50 border-gray-200' : 'bg-gradient-to-br from-yellow-500 to-orange-600 border-yellow-400 text-white shadow-yellow-200'}`}>
-                  <div className="relative z-10 flex items-start justify-between">
-                      <div className="space-y-1">
-                         <p className={`text-[10px] font-black uppercase tracking-widest ${subscriptionData.effectiveTier === 'free' ? 'text-gray-400' : 'text-white/80'}`}>Hạng thành viên</p>
-                         <h4 className="text-xl font-black">{TIER_CONFIG[subscriptionData.effectiveTier as keyof typeof TIER_CONFIG]?.name || 'Thành viên thường'}</h4>
-                      </div>
-                      <span className="text-2xl">{subscriptionData.effectiveTier === 'pro' ? '👑' : subscriptionData.effectiveTier === 'basic' ? '💎' : '🌱'}</span>
-                  </div>
-                  <div className="mt-4 flex items-end justify-between">
-                      <div className="space-y-1">
-                          {!subscriptionData.isExpired ? (
-                            <>
-                               <p className={`text-[10px] font-bold ${subscriptionData.effectiveTier === 'free' ? 'text-gray-400' : 'text-white/70'}`}>Hết hạn: {subscriptionData.expiryDate}</p>
-                               <p className="text-sm font-black">Còn {subscriptionData.daysRemaining} ngày</p>
-                            </>
-                          ) : (
-                            <p className={`text-[10px] font-bold ${subscriptionData.effectiveTier === 'free' ? 'text-gray-400' : 'text-white/70'}`}>Chưa có đặc quyền VIP</p>
-                          )}
-                      </div>
-                      <Link to="/upgrade" className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${subscriptionData.effectiveTier === 'free' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/20 backdrop-blur-md text-white border border-white/30 hover:bg-white/30'}`}>
-                          {subscriptionData.effectiveTier === 'free' ? 'Nâng cấp ngay' : 'Gia hạn gói'}
-                      </Link>
-                  </div>
-               </div>
-
-               <div className="bg-white border border-borderMain p-5 rounded-3xl shadow-soft min-w-[200px] flex flex-col justify-center gap-1">
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Số dư ví</p>
-                  <p className="text-2xl font-black text-primary">{formatPrice(user.walletBalance)}</p>
-                  <Link to="/wallet" className="text-[10px] font-black text-primary/60 hover:text-primary mt-1 uppercase">Nạp thêm tiền →</Link>
-               </div>
-            </div>
-          </div>
-          
-          <div className="flex flex-col gap-2 w-full md:w-auto self-start">
-            <button onClick={handleLogout} className="text-red-500 font-black px-8 py-2 text-xs hover:bg-red-50 rounded-2xl transition-all uppercase tracking-widest">Đăng xuất</button>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 p-1.5 bg-gray-200/50 rounded-3xl w-full max-w-xl mx-auto md:mx-0">
-        {[
-          { id: 'listings', label: 'Quản lý tin', icon: '📦' },
-          { id: 'favorites', label: 'Tin đã lưu', icon: '❤️' },
-          { id: 'settings', label: 'Cài đặt', icon: '⚙️' }
-        ].map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-1 flex items-center justify-center gap-3 py-3.5 rounded-2xl text-[11px] font-black transition-all uppercase tracking-tighter ${activeTab === tab.id ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-            <span className="text-lg">{tab.icon}</span> <span className="hidden sm:inline">{tab.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      <div className="mt-8">
-        {/* TAB 1: LISTINGS */}
-        {activeTab === 'listings' && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-            {myListings.map(listing => (
-                <div key={listing.id} className="flex flex-col gap-3 group">
-                    <div className="relative">
-                        <ListingCard listing={listing} />
-                        {listing.status !== 'approved' && (
-                            <div className="absolute top-2 right-2 bg-gray-800 text-white text-[9px] font-black px-2 py-1 rounded uppercase z-20">
-                                {listing.status === 'pending' ? 'Đang duyệt' : 'Từ chối'}
-                            </div>
+            {/* Profile Header */}
+            <div className="bg-white border border-slate-100 rounded-[3rem] p-8 md:p-12 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+                <div className="flex flex-col md:flex-row items-center gap-10 relative z-10">
+                    <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
+                        <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
+                        <img src={user.avatar} className="w-28 h-28 md:w-40 md:h-40 rounded-[2.5rem] border-4 border-white shadow-2xl object-cover transition-all group-hover:brightness-90" />
+                        {isUploadingAvatar ? (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-[2.5rem]"><div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div></div>
+                        ) : (
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-[2.5rem]"><span className="text-white text-3xl">📷</span></div>
                         )}
+                        <div className="absolute -bottom-2 -right-2 bg-primary text-white p-3 rounded-2xl shadow-xl border-4 border-white"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <button onClick={() => handlePushListing(listing.id, listing.title)} disabled={isPushing !== null || listing.status !== 'approved'} className="bg-green-50 text-green-600 hover:bg-green-500 hover:text-white py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-1 disabled:opacity-50 disabled:grayscale">
-                             {isPushing === listing.id ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></div> : <>⚡ Đẩy tin</>}
-                        </button>
-                        <button onClick={() => handleDelete(listing.id)} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white py-2 rounded-xl text-[10px] font-black uppercase transition-all">🗑 Xóa</button>
-                    </div>
-                </div>
-            ))}
-            {myListings.length === 0 && <div className="col-span-full py-32 text-center bg-white border border-borderMain rounded-[3rem] shadow-soft text-gray-400 font-bold">Bạn chưa đăng tin nào.</div>}
-          </div>
-        )}
-
-        {/* TAB 2: FAVORITES */}
-        {activeTab === 'favorites' && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                {myFavs.map(listing => <ListingCard key={listing.id} listing={listing} isFavorite={true} />)}
-                {myFavs.length === 0 && <div className="col-span-full py-32 text-center bg-white border border-borderMain rounded-[3rem] shadow-soft text-gray-400 font-bold">Chưa lưu tin nào.</div>}
-            </div>
-        )}
-
-        {/* TAB 3: SETTINGS */}
-        {activeTab === 'settings' && (
-          <div className="bg-white border border-borderMain rounded-[3rem] p-6 md:p-12 shadow-soft space-y-12">
-            
-            {/* 1. FORM THÔNG TIN CƠ BẢN */}
-            <form onSubmit={handleSaveSettings} className="space-y-12">
-              <div className="grid lg:grid-cols-2 gap-12">
-                
-                {/* Cột trái: Thông tin cá nhân */}
-                <div className="space-y-8">
-                  <h3 className="text-xl font-black text-textMain flex items-center gap-3"><span className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">👤</span> Thông tin liên hệ</h3>
-                  <div className="space-y-6">
-                    <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Tên hiển thị</label><input type="text" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm focus:border-primary outline-none transition-colors" /></div>
-                    <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Email</label><input type="email" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm focus:border-primary outline-none transition-colors" /></div>
-                    <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Số điện thoại</label><input type="tel" value={editForm.phone} onChange={e => setEditForm({...editForm, phone: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm focus:border-primary outline-none transition-colors" /></div>
                     
-                    {/* Thêm trường địa chỉ cụ thể */}
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Địa chỉ chi tiết (Hiện trên bản đồ)</label>
-                        <textarea 
-                            value={editForm.address} 
-                            onChange={e => setEditForm({...editForm, address: e.target.value})} 
-                            className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm focus:border-primary outline-none transition-colors h-24 resize-none" 
-                            placeholder="Số nhà, Tên đường, Phường/Xã..."
-                        />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Cột phải: Vị trí bán hàng (Bản đồ) */}
-                <div className="space-y-8">
-                  <h3 className="text-xl font-black text-textMain flex items-center gap-3"><span className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center">📍</span> Vị trí cửa hàng</h3>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                        <div className="flex-1 mr-4">
-                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Thành phố (Lọc)</label>
-                             <select value={editForm.location} onChange={e => setEditForm({...editForm, location: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm outline-none">{LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}</select>
+                    <div className="flex-1 text-center md:text-left space-y-4">
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
+                            <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter">{user.name}</h1>
+                            {renderVerificationStatus()}
                         </div>
-                        <button type="button" onClick={pickCurrentLocation} className="text-[10px] font-black text-white bg-primary hover:bg-primaryHover px-4 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-primary/30 active:scale-95 transition-all mt-6">
-                            <span>📍</span> Lấy vị trí hiện tại
-                        </button>
-                    </div>
-
-                    {/* BẢN ĐỒ LEAFLET */}
-                    <div className="relative aspect-video rounded-3xl overflow-hidden border-2 border-gray-100 shadow-inner bg-gray-50 z-0">
-                         <MapContainer 
-                            key={`${editForm.lat}-${editForm.lng}`} // Key thay đổi để re-render khi lấy vị trí mới
-                            center={[editForm.lat, editForm.lng]} 
-                            zoom={15} 
-                            scrollWheelZoom={false}
-                            style={{ height: '100%', width: '100%' }}
-                         >
-                            <TileLayer
-                                attribution='&copy; OpenStreetMap'
-                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                            />
-                            {/* Marker có thể kéo thả */}
-                            <DraggableMarker 
-                                position={{ lat: editForm.lat, lng: editForm.lng }} 
-                                onDragEnd={handleMarkerDragEnd}
-                            />
-                         </MapContainer>
-                         <div className="absolute bottom-2 left-2 right-2 bg-white/90 backdrop-blur-sm p-2 rounded-xl text-[10px] text-center font-bold text-gray-500 shadow-sm z-[400]">
-                             Kéo ghim đỏ để chọn chính xác vị trí nhà bạn
-                         </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="pt-6 border-t border-gray-100 flex justify-end"><button type="submit" disabled={isSaving} className="px-12 py-4 bg-primary text-white font-black rounded-2xl shadow-lg hover:shadow-xl hover:scale-105 transition-all">{isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}</button></div>
-            </form>
-
-            {/* 2. FORM XÁC THỰC DANH TÍNH */}
-            <div className="pt-6 border-t-4 border-dashed border-gray-100 space-y-8">
-                <h3 className="text-xl font-black text-textMain flex items-center gap-3">
-                    <span className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">🛡️</span> 
-                    Xác thực người bán (KYC)
-                </h3>
-                
-                {(user as any).verificationStatus === 'verified' ? (
-                    <div className="bg-green-50 border border-green-200 rounded-3xl p-8 text-center animate-fade-in-up">
-                        <div className="text-5xl mb-4">🎉</div>
-                        <h4 className="text-lg font-black text-green-700">Tài khoản đã được xác thực!</h4>
-                        <p className="text-sm text-green-600 mt-2">Bạn đã có tích xanh uy tín và được ưu tiên hiển thị.</p>
-                    </div>
-                ) : (user as any).verificationStatus === 'pending' ? (
-                     <div className="bg-yellow-50 border border-yellow-200 rounded-3xl p-8 text-center animate-fade-in-up">
-                        <div className="text-5xl mb-4">⏳</div>
-                        <h4 className="text-lg font-black text-yellow-700">Hồ sơ đang chờ duyệt</h4>
-                        <p className="text-sm text-yellow-600 mt-2">Admin đang kiểm tra thông tin của bạn. Vui lòng quay lại sau.</p>
-                    </div>
-                ) : (
-                    <div className="space-y-6 animate-fade-in-up">
-                        <p className="text-sm text-gray-500 font-medium">Vui lòng tải lên ảnh 2 mặt CCCD hoặc Giấy phép kinh doanh để được cấp tích xanh uy tín.</p>
+                        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">{user.email} • {user.phone || 'Chưa có SĐT'}</p>
                         
-                        {(user as any).verificationStatus === 'rejected' && (
-                             <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-sm font-bold border border-red-200 flex items-center gap-2">
-                                ❌ Hồ sơ trước đó bị từ chối. Vui lòng kiểm tra lại ảnh chụp rõ nét hơn.
-                             </div>
-                        )}
-
-                        <div className="grid md:grid-cols-2 gap-6">
-                            {/* Mặt trước */}
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Mặt trước CCCD / GPKD</label>
-                                <div className="relative aspect-video bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl overflow-hidden hover:border-primary/50 transition-colors group cursor-pointer flex items-center justify-center">
-                                    <input type="file" className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={(e) => handleKycFileChange('front', e)} accept="image/*" />
-                                    {kycPreviews.front ? (
-                                        <img src={kycPreviews.front} className="w-full h-full object-cover" alt="Front" />
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center text-gray-400 group-hover:text-primary transition-colors">
-                                            <span className="text-4xl mb-2">📷</span>
-                                            <span className="text-xs font-bold uppercase tracking-widest">Tải ảnh lên</span>
-                                        </div>
-                                    )}
+                        <div className="flex flex-wrap justify-center md:justify-start gap-4 pt-4">
+                            <div className={`p-6 rounded-[2rem] border-2 shadow-lg min-w-[260px] ${subscriptionData.effectiveTier === 'free' ? 'bg-slate-50 border-slate-100' : 'bg-gradient-to-br from-yellow-500 to-orange-600 border-yellow-400 text-white shadow-yellow-100'}`}>
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase opacity-70 tracking-widest">Hạng thành viên</p>
+                                        <h4 className="text-2xl font-black uppercase">{(settings?.tierConfigs as any)?.[subscriptionData.effectiveTier]?.name || 'Cơ bản'}</h4>
+                                    </div>
+                                    <span className="text-3xl">{subscriptionData.effectiveTier === 'pro' ? '👑' : '💎'}</span>
+                                </div>
+                                <div className="mt-6 flex items-center justify-between">
+                                    <div>
+                                        {!subscriptionData.isExpired ? <p className="text-xs font-bold opacity-80">Còn {subscriptionData.daysRemaining} ngày</p> : <p className="text-xs font-bold opacity-80">Trải nghiệm VIP ngay</p>}
+                                    </div>
+                                    <Link to="/upgrade" className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${subscriptionData.effectiveTier === 'free' ? 'bg-primary text-white shadow-lg' : 'bg-white/20 border border-white/30 text-white hover:bg-white/30'}`}>Nâng cấp</Link>
                                 </div>
                             </div>
 
-                            {/* Mặt sau */}
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Mặt sau CCCD / GPKD</label>
-                                <div className="relative aspect-video bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl overflow-hidden hover:border-primary/50 transition-colors group cursor-pointer flex items-center justify-center">
-                                    <input type="file" className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={(e) => handleKycFileChange('back', e)} accept="image/*" />
-                                    {kycPreviews.back ? (
-                                        <img src={kycPreviews.back} className="w-full h-full object-cover" alt="Back" />
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center text-gray-400 group-hover:text-primary transition-colors">
-                                            <span className="text-4xl mb-2">📷</span>
-                                            <span className="text-xs font-bold uppercase tracking-widest">Tải ảnh lên</span>
-                                        </div>
-                                    )}
-                                </div>
+                            <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-xl min-w-[200px] flex flex-col justify-center">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Số dư ví</p>
+                                <p className="text-3xl font-black text-primary tracking-tighter">{formatPrice(user.walletBalance)}</p>
+                                <Link to="/wallet" className="text-[10px] font-black text-primary/60 hover:text-primary mt-3 uppercase">Nạp thêm tiền →</Link>
                             </div>
                         </div>
+                    </div>
+                    <button onClick={handleLogout} className="md:self-start text-slate-400 font-black px-6 py-2 text-[10px] uppercase tracking-[0.2em] hover:text-red-500 transition-colors">Đăng xuất</button>
+                </div>
+            </div>
 
-                        <div className="flex justify-end pt-4">
-                            <button 
-                                type="button" 
-                                onClick={handleSubmitKyc}
-                                disabled={isSubmittingKyc || !kycFiles.front || !kycFiles.back}
-                                className="px-12 py-4 bg-purple-600 text-white font-black rounded-2xl shadow-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all uppercase tracking-widest text-xs"
-                            >
-                                {isSubmittingKyc ? 'Đang gửi hồ sơ...' : 'Gửi hồ sơ xác thực'}
-                            </button>
+            {/* Tabs */}
+            <div className="flex p-1.5 bg-slate-100 rounded-[2rem] max-w-md mx-auto md:mx-0">
+                {[{id:'listings',label:'Tin đăng',icon:'📦'},{id:'favorites',label:'Đã lưu',icon:'❤️'},{id:'settings',label:'Cài đặt',icon:'⚙️'}].map(tab=>(
+                    <button key={tab.id} onClick={()=>setActiveTab(tab.id as any)} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase transition-all ${activeTab===tab.id?'bg-white text-primary shadow-md':'text-slate-400 hover:text-slate-600'}`}>
+                        <span className="text-lg">{tab.icon}</span> <span>{tab.label}</span>
+                    </button>
+                ))}
+            </div>
+
+            {/* Content Area */}
+            <div className="mt-8">
+                {activeTab === 'listings' && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                        {myListings.map(listing => {
+                            // LOGIC TÍNH GIÁ ĐẨY TIN ĐỂ HIỂN THỊ
+                            const originalPush = settings?.pushPrice || 0;
+                            const discPush = settings?.pushDiscount || 0;
+                            const finalPush = originalPush * (1 - discPush/100);
+
+                            return (
+                                <div key={listing.id} className="flex flex-col gap-3 group animate-fade-in-up">
+                                    <div className="relative">
+                                        <ListingCard listing={listing} />
+                                        {listing.status !== 'approved' && (
+                                            <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center rounded-[2rem] z-20 backdrop-blur-[2px]">
+                                                <span className="bg-white text-slate-900 text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl">
+                                                    {listing.status === 'pending' ? '⏳ Chờ duyệt' : '❌ Từ chối'}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        {/* NÚT ĐẨY TIN CHUYÊN NGHIỆP CÓ GIẢM GIÁ */}
+                                        <button 
+                                            onClick={() => handlePushListing(listing.id, listing.title)} 
+                                            disabled={isPushing !== null || listing.status !== 'approved'} 
+                                            className={`relative overflow-hidden py-3 rounded-2xl text-[10px] font-black uppercase transition-all flex flex-col items-center justify-center gap-0.5 border-2 shadow-sm
+                                                ${listing.status === 'approved' ? 'bg-white border-green-100 text-green-600 hover:border-green-500 hover:bg-green-50' : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'}
+                                            `}
+                                        >
+                                            {isPushing === listing.id ? (
+                                                <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                                            ) : (
+                                                <>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span>⚡ Đẩy tin</span>
+                                                        {discPush > 0 && listing.status === 'approved' && (
+                                                            <span className="bg-red-500 text-white text-[7px] px-1.5 py-0.5 rounded-md animate-pulse">-{discPush}%</span>
+                                                        )}
+                                                    </div>
+                                                    {listing.status === 'approved' && (
+                                                        <div className="flex items-center gap-1 opacity-70">
+                                                            {discPush > 0 && <span className="text-[8px] line-through">{formatPrice(originalPush)}</span>}
+                                                            <span className="text-[9px] font-bold">{formatPrice(finalPush)}</span>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                        </button>
+                                        <button onClick={() => handleDelete(listing.id)} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white py-3 rounded-2xl text-[10px] font-black uppercase transition-all shadow-sm">🗑 Xóa tin</button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {myListings.length === 0 && <div className="col-span-full py-40 text-center bg-white rounded-[3.5rem] border border-slate-100 text-slate-300 font-black uppercase tracking-widest text-sm shadow-inner">Trống trải quá, đăng tin ngay!</div>}
+                    </div>
+                )}
+
+                {activeTab === 'favorites' && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                        {myFavs.map(l => <ListingCard key={l.id} listing={l} isFavorite={true} />)}
+                        {myFavs.length === 0 && <div className="col-span-full py-40 text-center bg-white rounded-[3.5rem] border border-slate-100 text-slate-300 font-black uppercase tracking-widest text-sm shadow-inner">Chưa lưu tin nào cả ❤️</div>}
+                    </div>
+                )}
+
+                {activeTab === 'settings' && (
+                    <div className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-16 shadow-2xl space-y-16 animate-fade-in-up">
+                        <form onSubmit={handleSaveSettings} className="space-y-16">
+                            <div className="grid lg:grid-cols-2 gap-16">
+                                <div className="space-y-10">
+                                    <h3 className="text-2xl font-black text-slate-900 flex items-center gap-4"><span className="w-12 h-12 bg-blue-50 text-blue-500 rounded-[1.2rem] flex items-center justify-center text-xl">👤</span> Hồ sơ cá nhân</h3>
+                                    <div className="space-y-6">
+                                        <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Họ và tên</label><input type="text" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full bg-slate-50 border-none rounded-[1.2rem] p-4 font-bold text-sm focus:ring-2 ring-primary/20" /></div>
+                                        <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Email</label><input type="email" value={editForm.email} className="w-full bg-slate-50 border-none rounded-[1.2rem] p-4 font-bold text-sm opacity-50 cursor-not-allowed" disabled /></div>
+                                        <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Số điện thoại</label><input type="tel" value={editForm.phone} onChange={e => setEditForm({...editForm, phone: e.target.value})} className="w-full bg-slate-50 border-none rounded-[1.2rem] p-4 font-bold text-sm focus:ring-2 ring-primary/20" /></div>
+                                        <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Địa chỉ cụ thể</label><textarea value={editForm.address} onChange={e => setEditForm({...editForm, address: e.target.value})} className="w-full bg-slate-50 border-none rounded-[1.2rem] p-4 font-bold text-sm h-32 resize-none focus:ring-2 ring-primary/20" /></div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-10">
+                                    <h3 className="text-2xl font-black text-slate-900 flex items-center gap-4"><span className="w-12 h-12 bg-red-50 text-red-500 rounded-[1.2rem] flex items-center justify-center text-xl">📍</span> Vị trí hiển thị</h3>
+                                    <div className="space-y-6">
+                                        <div className="flex gap-4">
+                                            <div className="flex-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Khu vực</label><select value={editForm.location} onChange={e => setEditForm({...editForm, location: e.target.value})} className="w-full bg-slate-50 border-none rounded-[1.2rem] p-4 font-bold text-sm mt-2">{LOCATIONS.map(l=><option key={l} value={l}>{l}</option>)}</select></div>
+                                            <button type="button" onClick={pickCurrentLocation} className="mt-8 bg-slate-900 text-white p-4 rounded-[1.2rem] hover:bg-primary transition-all shadow-lg active:scale-95 text-xl">📍</button>
+                                        </div>
+                                        <div className="relative aspect-video rounded-[2.5rem] overflow-hidden border-4 border-slate-50 shadow-inner z-0">
+                                            <MapContainer key={`${editForm.lat}-${editForm.lng}`} center={[editForm.lat, editForm.lng]} zoom={15} scrollWheelZoom={false} style={{height:'100%',width:'100%'}}>
+                                                <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                                                <DraggableMarker position={{ lat: editForm.lat, lng: editForm.lng }} onDragEnd={handleMarkerDragEnd} />
+                                            </MapContainer>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex justify-end"><button type="submit" disabled={isSaving} className="px-16 py-5 bg-primary text-white font-black rounded-[1.5rem] shadow-2xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all uppercase tracking-widest text-xs">{isSaving ? 'Đang cập nhật...' : 'Lưu tất cả thay đổi'}</button></div>
+                        </form>
+
+                        {/* KYC SECTION */}
+                        <div className="pt-16 border-t-4 border-dashed border-slate-50 space-y-10">
+                            <h3 className="text-2xl font-black text-slate-900 flex items-center gap-4"><span className="w-12 h-12 bg-purple-50 text-purple-500 rounded-[1.2rem] flex items-center justify-center text-xl">🛡️</span> Xác thực danh tính</h3>
+                            {((user as any).verificationStatus === 'verified') ? (
+                                <div className="bg-green-50 rounded-[2.5rem] p-10 text-center border border-green-100 shadow-inner">
+                                    <div className="text-6xl mb-4">🏆</div>
+                                    <h4 className="text-xl font-black text-green-700 uppercase tracking-widest">Tài khoản chính chủ</h4>
+                                    <p className="text-sm text-green-600/80 font-bold mt-2">Bạn đã có tích xanh uy tín và quyền lợi ưu tiên hiển thị.</p>
+                                </div>
+                            ) : ((user as any).verificationStatus === 'pending') ? (
+                                <div className="bg-yellow-50 rounded-[2.5rem] p-10 text-center border border-yellow-100 shadow-inner animate-pulse">
+                                    <div className="text-6xl mb-4">⏳</div>
+                                    <h4 className="text-xl font-black text-yellow-700 uppercase tracking-widest">Đang kiểm duyệt</h4>
+                                    <p className="text-sm text-yellow-600/80 font-bold mt-2">Hồ sơ của bạn đang được Admin xác minh.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-8">
+                                    <p className="text-slate-500 font-bold px-4">Tải lên ảnh CCCD để nhận dấu tích xanh uy tín và tăng tỉ lệ chốt đơn.</p>
+                                    <div className="grid md:grid-cols-2 gap-8">
+                                        {['front', 'back'].map((side) => (
+                                            <div key={side} className="space-y-3">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">{side === 'front' ? 'Mặt trước' : 'Mặt sau'}</label>
+                                                <div className="relative aspect-video bg-slate-50 border-4 border-dashed border-slate-100 rounded-[2.5rem] overflow-hidden group cursor-pointer">
+                                                    <input type="file" className="absolute inset-0 opacity-0 z-10 cursor-pointer" onChange={(e) => handleKycFileChange(side as any, e)} accept="image/*" />
+                                                    {(kycPreviews as any)[side] ? (
+                                                        <img src={(kycPreviews as any)[side]} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="flex flex-col items-center justify-center h-full text-slate-300 group-hover:text-primary transition-colors"><span className="text-5xl mb-2">📸</span><span className="text-[10px] font-black uppercase tracking-widest">Chọn ảnh</span></div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex justify-end pt-4">
+                                        <button onClick={handleSubmitKyc} disabled={isSubmittingKyc || !kycFiles.front || !kycFiles.back} className="px-12 py-5 bg-purple-600 text-white font-black rounded-[1.5rem] shadow-2xl shadow-purple-200 hover:bg-purple-700 active:scale-95 disabled:opacity-50 transition-all uppercase tracking-widest text-xs">
+                                            {isSubmittingKyc ? 'Đang xử lý...' : 'Gửi hồ sơ xác thực'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
             </div>
-
-          </div>
-        )}
-      </div>
-    </div>
-  );
+        </div>
+    );
 };
 
 export default Profile;

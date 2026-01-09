@@ -29,13 +29,35 @@ import { isSearchMatch, calculateRelevanceScore } from '../utils/format';
 const ADMIN_EMAIL = "buivanbac@gmail.com"; 
 
 export interface SystemSettings {
-  pushPrice: number;
-  pushDiscount?: number;
-  tierDiscount: number;
+  pushPrice: number;    // Giá gốc 1 lần đẩy tin
+  pushDiscount: number; // % Giảm giá riêng cho đẩy tin (Ví dụ: 10)
+  tierDiscount: number; // % Giảm giá chung cho các gói VIP (Ví dụ: 20)
+  bannerSlides?: any[]; // Danh sách quản lý banner
   tierConfigs: {
-    free: { price: number; maxImages: number; features: string[] };
-    basic: { price: number; maxImages: number; features: string[] };
-    pro: { price: number; maxImages: number; features: string[] };
+    free: { 
+      name: string; 
+      price: number; 
+      maxImages: number; 
+      postsPerDay: number;   // Giới hạn tin đăng mỗi ngày
+      autoApprove: boolean;  // Tự động duyệt hay phải chờ Admin
+      features: string[] 
+    };
+    basic: { 
+      name: string; 
+      price: number;         // Giá gốc của gói (Để hiển thị gạch ngang)
+      maxImages: number; 
+      postsPerDay: number; 
+      autoApprove: boolean; 
+      features: string[] 
+    };
+    pro: { 
+      name: string; 
+      price: number;         // Giá gốc của gói (Để hiển thị gạch ngang)
+      maxImages: number; 
+      postsPerDay: number; 
+      autoApprove: boolean; 
+      features: string[] 
+    };
   };
   bankName: string;
   accountNumber: string;

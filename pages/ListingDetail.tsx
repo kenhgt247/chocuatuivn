@@ -122,30 +122,66 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     window.scrollTo(0, 0);
   }, [id, user]);
 
+  // --- LOGIC GỢI Ý SẢN PHẨM (ĐÃ CẬP NHẬT) ---
   const similarListings = useMemo(() => {
+    // 1. Kiểm tra dữ liệu đầu vào
     if (!listing || allListings.length === 0) return [];
     
+    // 2. Xác định "Quanh đây" là ở đâu?
+    // Ưu tiên lấy vị trí của User đang xem, nếu không có thì lấy vị trí của sản phẩm đang xem
     const targetLocation = user?.location || listing.location;
 
+    // 3. Thực hiện Lọc và Sắp xếp
     return allListings
-      .filter(l => l.id !== listing.id && l.category === listing.category)
+      .filter(l => l.id !== listing.id && l.category === listing.category) // Chỉ lấy cùng danh mục, khác ID
       .sort((a, b) => {
-        const aVip = a.tier === 'pro' || a.tier === 'basic' ? 1 : 0;
-        const bVip = b.tier === 'pro' || b.tier === 'basic' ? 1 : 0;
-        if (aVip !== bVip) return bVip - aVip;
+        // --- TIÊU CHÍ 1: Ưu tiên VIP (tier) ---
+        // Giả sử: 'pro' > 'basic' > 'free' (hoặc undefined)
+        const getVipScore = (tier?: string) => {
+            if (tier === 'pro') return 2;
+            if (tier === 'basic') return 1;
+            return 0;
+        };
+        
+        const scoreA = getVipScore(a.tier);
+        const scoreB = getVipScore(b.tier);
+        
+        // Nếu điểm VIP khác nhau, đưa VIP cao hơn lên trước
+        if (scoreA !== scoreB) {
+            return scoreB - scoreA;
+        }
 
-        const aNear = a.location === targetLocation ? 1 : 0;
-        const bNear = b.location === targetLocation ? 1 : 0;
-        if (aNear !== bNear) return bNear - aNear;
+        // --- TIÊU CHÍ 2: Ưu tiên "Quanh đây" (Location) ---
+        // So sánh chuỗi địa điểm
+        const isNearA = a.location === targetLocation ? 1 : 0;
+        const isNearB = b.location === targetLocation ? 1 : 0;
 
+        // Nếu một tin ở gần, một tin ở xa -> Đưa tin ở gần lên trước
+        if (isNearA !== isNearB) {
+            return isNearB - isNearA;
+        }
+
+        // --- TIÊU CHÍ 3: Mới nhất (Fallback) ---
+        // Nếu cùng cấp độ VIP và cùng khu vực (hoặc cùng không trùng khu vực) -> Tin mới hơn lên trước
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       })
-      .slice(0, 12); 
+      .slice(0, 12); // Chỉ lấy 12 tin đầu tiên
   }, [allListings, listing, user]);
 
   if (!listing) return null;
 
   const currentCategory = CATEGORIES.find(c => c.id === listing.category);
+
+  // --- LOGIC XỬ LÝ NÚT BẤM SỐ ĐIỆN THOẠI ---
+  const handleShowPhone = () => {
+    if (!user) {
+        // Chưa đăng nhập -> Chuyển sang trang Login
+        navigate('/login');
+    } else {
+        // Đã đăng nhập -> Hiện số điện thoại
+        setIsPhoneVisible(true);
+    }
+  };
 
   const handleStartChat = async () => {
     if (!user) return navigate('/login');
@@ -206,7 +242,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         {/* LEFT COLUMN */}
         <div className="lg:col-span-8 space-y-6">
           
-          {/* Gallery - ĐÃ THÊM WATERMARK TẠI ĐÂY */}
+          {/* Gallery - WATERMARK */}
           <div className="relative bg-black aspect-square md:aspect-video md:rounded-3xl overflow-hidden group select-none">
             {/* Ảnh gốc */}
             <img src={listing.images[activeImage]} className="w-full h-full object-contain relative z-0" alt={listing.title} />
@@ -217,7 +253,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                   CHỢ CỦA TUI
                </span>
             </div>
-            {/* ------------------------- */}
 
             {listing.images.length > 1 && (
               <>
@@ -242,7 +277,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             <div className="bg-white md:rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-soft animate-fade-in-up">
               <div className="flex items-center gap-3 mb-8">
                 <div className="w-1.5 h-6 bg-primary rounded-full"></div>
-                <h2 className="text-sm font-black text-textMain uppercase tracking-[0.2em]">Thông số kỹ thuật</h2>
+                <h2 className="text-sm font-black text-textMain uppercase tracking-[0.2em]">Thông tin chi tiết</h2>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-y-8 gap-x-6">
                 {Object.entries(listing.attributes).map(([key, value]) => {
@@ -310,7 +345,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               </div>
             </div>
 
-            {/* --- [ĐÃ SỬA] MAP CONTAINER --- */}
+            {/* MAP CONTAINER */}
             {listing.lat && listing.lng && (
                 <div className="h-44 w-full rounded-2xl overflow-hidden border border-gray-200 shadow-inner relative z-0 group">
                     <MapContainer 
@@ -318,7 +353,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                         zoom={14} 
                         scrollWheelZoom={false}
                         dragging={false}        
-                        zoomControl={false}     
+                        zoomControl={false}      
                         style={{ height: '100%', width: '100%' }}
                     >
                         <TileLayer 
@@ -396,7 +431,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                     </a>
                   ) : (
                     <button 
-                      onClick={() => setIsPhoneVisible(true)} 
+                      onClick={handleShowPhone} 
                       className="w-full bg-white border-2 border-green-500 text-green-600 hover:bg-green-50 py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-3 group"
                     >
                       <svg className="w-6 h-6 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
@@ -426,10 +461,10 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       </div>
 
-      {/* SIMILAR LISTINGS */}
+      {/* SIMILAR LISTINGS - Có thể bạn thích */}
       <div className="px-4 md:px-0 pt-10">
         <div className="flex items-center justify-between mb-8 px-2">
-          <h2 className="text-xl font-black text-textMain tracking-tighter uppercase">Sản phẩm tương tự</h2>
+          <h2 className="text-xl font-black text-textMain tracking-tighter uppercase">Có thể bạn thích</h2>
           <Link to={`/?category=${listing.category}`} className="text-xs font-black text-primary hover:underline">Xem tất cả →</Link>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-5">

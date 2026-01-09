@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate, useParams, Link } from 'react-router-dom';
 import { CATEGORIES } from '../constants';
-import { db, SystemSettings } from '../services/db'; // Thêm SystemSettings
+import { db, SystemSettings } from '../services/db'; 
 import { Listing, User, Category } from '../types';
 import ListingCard from '../components/ListingCard';
 import HomeBanner from '../components/HomeBanner'; 
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
-import { getCategoryUrl, formatPrice } from '../utils/format'; // Thêm formatPrice
+import { getCategoryUrl, formatPrice } from '../utils/format'; 
 import { getLocationFromCoords } from '../utils/locationHelper'; 
 
 const STATIC_LINKS = [
@@ -37,7 +37,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [nearbyListings, setNearbyListings] = useState<Listing[]>([]);
   const [latestListings, setLatestListings] = useState<Listing[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [settings, setSettings] = useState<SystemSettings | null>(null); // Thêm state settings
+  const [settings, setSettings] = useState<SystemSettings | null>(null); 
     
   const [isLoading, setIsLoading] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
@@ -55,7 +55,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const LIMIT_NEARBY = 12;
   const PAGE_SIZE = 12;
 
-  // Load Settings hệ thống
   useEffect(() => {
     const loadSettings = async () => {
       const s = await db.getSettings();
@@ -194,7 +193,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     setFavorites(updatedFavs);
   };
 
-  // --- LOGIC ĐẨY TIN CẬP NHẬT CHIẾT KHẤU ---
+  // --- LOGIC ĐẨY TIN ---
   const handlePushListing = async (listingId: string) => {
     if (!user) {
         if(window.confirm("Bạn cần đăng nhập để thực hiện chức năng này.")) { navigate('/login'); }
@@ -203,7 +202,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
 
     if (!settings) return;
 
-    // Tính giá thực tế từ settings Admin
     const originalPrice = settings.pushPrice;
     const discount = settings.pushDiscount || 0;
     const finalPrice = originalPrice * (1 - discount / 100);
@@ -243,8 +241,8 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     <div className="space-y-6 pb-28 md:pb-24 px-2 md:px-4 max-w-[1400px] mx-auto relative font-sans animate-fade-in">
       
       {/* 1. CATEGORY STRIP */}
-      <div ref={categoryRef} className="sticky top-20 z-40 bg-bgMain/95 backdrop-blur-lg py-2 -mx-2 px-2 md:mx-0 md:px-0">
-         <section className="flex md:hidden bg-white border border-borderMain p-2 overflow-x-auto no-scrollbar gap-2 shadow-sm rounded-2xl items-center">
+      <div ref={categoryRef} className="sticky top-20 z-40 bg-white/95 backdrop-blur-lg py-2 -mx-2 px-2 md:mx-0 md:px-0 border-b border-gray-100 shadow-sm">
+         <section className="flex md:hidden bg-white p-2 overflow-x-auto no-scrollbar gap-2 items-center">
             <button onClick={() => selectCategory(null)} className={`px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all flex-shrink-0 ${!activeCategoryId ? 'bg-primary text-white shadow-lg' : 'bg-gray-100 text-gray-500'}`}>Khám phá</button>
             {CATEGORIES.map(cat => (
                 <button key={cat.id} onClick={() => selectCategory(cat)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all flex-shrink-0 ${activeCategoryId === cat.id ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-white border border-gray-100 text-gray-500'}`}>
@@ -254,7 +252,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
 
         <section className="hidden md:block">
-            <div className={`bg-white border border-borderMain rounded-[2.5rem] p-3 shadow-soft transition-all duration-500 ${isExpanded ? 'ring-4 ring-primary/5' : ''}`}>
+            <div className={`bg-white border border-gray-200 rounded-[2.5rem] p-3 shadow-sm transition-all duration-500 ${isExpanded ? 'ring-4 ring-primary/5' : ''}`}>
                 {!isExpanded ? (
                     <div className="flex items-center justify-between gap-2">
                          <div className="flex items-center gap-2 overflow-hidden">
@@ -283,11 +281,11 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                             <button onClick={() => setIsExpanded(false)} className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7"/></svg> Thu gọn</button>
                         </div>
                         <div className="grid grid-cols-4 lg:grid-cols-7 gap-4 px-3 pb-4">
-                            <button onClick={() => selectCategory(null)} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] transition-all border-2 ${!activeCategoryId ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-bgMain border-transparent hover:border-primary/30 text-gray-500 hover:text-primary'}`}>
+                            <button onClick={() => selectCategory(null)} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] transition-all border-2 ${!activeCategoryId ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-white border-transparent hover:border-primary/30 text-gray-500 hover:text-primary'}`}>
                                 <span className="text-3xl">⚡</span><span className="text-[10px] font-black uppercase text-center leading-tight">Chợ Của Tui</span>
                             </button>
                             {CATEGORIES.map(cat => (
-                                <button key={cat.id} onClick={() => selectCategory(cat)} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] transition-all border-2 ${activeCategoryId === cat.id ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-bgMain border-transparent hover:border-primary/30 text-gray-500 hover:text-primary'}`}>
+                                <button key={cat.id} onClick={() => selectCategory(cat)} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] transition-all border-2 ${activeCategoryId === cat.id ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-white border-transparent hover:border-primary/30 text-gray-500 hover:text-primary'}`}>
                                 <span className="text-3xl">{cat.icon}</span><span className="text-[10px] font-black uppercase text-center leading-tight">{cat.name}</span>
                                 </button>
                             ))}
@@ -355,7 +353,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             {[...Array(12)].map((_, i) => <div key={i} className="bg-white rounded-[2rem] p-4 space-y-4 animate-pulse border border-slate-100"><div className="aspect-square bg-slate-100 rounded-2xl"></div><div className="h-4 bg-slate-100 rounded-full w-3/4"></div></div>)}
           </div>
         ) : latestListings.length === 0 ? (
-          <div className="py-24 text-center bg-white border border-borderMain rounded-[3rem] shadow-soft"><div className="text-6xl mb-4 grayscale opacity-20">🌵</div><p className="text-gray-400 font-black uppercase text-[10px] tracking-widest">Không tìm thấy tin đăng nào</p></div>
+          <div className="py-24 text-center bg-white border border-gray-200 rounded-[3rem] shadow-sm"><div className="text-6xl mb-4 grayscale opacity-20">🌵</div><p className="text-gray-400 font-black uppercase text-[10px] tracking-widest">Không tìm thấy tin đăng nào</p></div>
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -365,7 +363,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
             {hasMore && !search && (
               <div className="pt-12 flex justify-center">
-                <button onClick={handleLoadMore} disabled={isFetchingMore} className="px-12 py-4 bg-slate-900 text-white font-black rounded-full text-[11px] uppercase tracking-widest hover:bg-primary transition-all shadow-xl active:scale-95">
+                <button onClick={handleLoadMore} disabled={isFetchingMore} className="px-12 py-4 bg-white border-2 border-primary text-primary font-black rounded-full text-[11px] uppercase tracking-widest hover:bg-primary hover:text-white transition-all shadow-md active:scale-95">
                   {isFetchingMore ? 'Đang tải...' : 'Khám phá thêm tin đăng'}
                 </button>
               </div>
@@ -376,9 +374,9 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
 
       {/* 6. FOOTER */}
       <footer className="hidden md:block pt-16 border-t border-dashed border-gray-200 mt-20">
-         <div className="bg-white border border-borderMain rounded-[3rem] p-10 shadow-soft">
+         <div className="bg-white border border-gray-200 rounded-[3rem] p-10 shadow-sm">
             <div className="flex items-center justify-between mb-8">
-               <h4 className="text-xl font-black text-textMain flex items-center gap-2"><span className="text-2xl">⚡</span> Chợ Của Tui</h4>
+               <h4 className="text-xl font-black text-slate-900 flex items-center gap-2"><span className="text-2xl">⚡</span> Chợ Của Tui</h4>
                <div className="flex gap-4">
                   {STATIC_LINKS.map(link => <Link key={link.slug} to={`/page/${link.slug}`} className="text-xs font-bold text-gray-400 hover:text-primary transition-colors uppercase">{link.title}</Link>)}
                </div>

@@ -2,7 +2,7 @@ export type UserRole = 'user' | 'admin';
 export type SubscriptionTier = 'free' | 'basic' | 'pro';
 export type UserStatus = 'active' | 'banned';
 
-// --- MỚI: Trạng thái xác thực (KYC) ---
+// --- Trạng thái xác thực (KYC) ---
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
 export interface User {
@@ -18,8 +18,8 @@ export interface User {
   // --- THÔNG TIN VỊ TRÍ ---
   location?: string; 
   address?: string; 
-  lat?: number;      
-  lng?: number;      
+  lat?: number;       
+  lng?: number;       
 
   subscriptionTier: SubscriptionTier;
   subscriptionExpires?: string;
@@ -27,7 +27,7 @@ export interface User {
   followers?: string[];
   following?: string[];
   
-  // --- MỚI: Các trường cho tính năng xác thực ---
+  // --- Các trường cho tính năng xác thực ---
   verificationStatus?: VerificationStatus; 
   verificationDocuments?: string[]; 
 }
@@ -42,7 +42,10 @@ export interface Transaction {
   status: 'success' | 'pending' | 'failed';
   createdAt: string;
   
-  // [BỔ SUNG CHO CHUẨN] Dùng để lưu thông tin gói VIP khi mua
+  // [BỔ SUNG] Để biết giao dịch này mua dịch vụ cho tin đăng nào (nếu có)
+  listingId?: string; 
+
+  // Dùng để lưu thông tin gói VIP khi mua
   metadata?: any; 
 }
 
@@ -61,22 +64,31 @@ export interface Listing {
   category: string;
   images: string[];
   
+  // [BỔ SUNG] Slug để làm URL đẹp (SEO friendly)
+  // Ví dụ: ban-iphone-15-pro-max
+  slug?: string; 
+
+  // [BỔ SUNG] Thống kê lượt xem để sắp xếp "Phổ biến nhất"
+  viewCount?: number; 
+
   // --- THÔNG TIN VỊ TRÍ ---
   location: string; 
   address?: string; 
-  lat?: number;     
-  lng?: number;     
+  lat?: number;      
+  lng?: number;      
 
   sellerId: string;
   sellerName: string;
   sellerAvatar: string;
   createdAt: string;
-  status: 'pending' | 'approved' | 'rejected';
+  updatedAt?: string; // [BỔ SUNG] Thời gian cập nhật lần cuối (ví dụ khi đẩy tin)
+  
+  status: 'pending' | 'approved' | 'rejected' | 'sold' | 'hidden'; // [BỔ SUNG] Thêm trạng thái đã bán/ẩn
   condition: 'new' | 'used';
   tier: SubscriptionTier;
   isFavorite?: boolean;
   
-  // --- MỚI: Các trường thông tin cứng (Attributes) ---
+  // --- Attributes ---
   attributes?: {
     battery?: string;  
     mileage?: string;  
@@ -116,6 +128,7 @@ export interface Message {
   text: string;
   timestamp: string;
   image?: string; 
+  isRead?: boolean; // [BỔ SUNG] Trạng thái đã xem tin nhắn cụ thể
 }
 
 export interface ChatRoom {
@@ -141,25 +154,24 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  // UPDATE: Thêm các loại thông báo mới
   type: 'info' | 'success' | 'warning' | 'error' | 'review' | 'message' | 'approval' | 'follow' | 'system';
   read: boolean;
   createdAt: string;
-  
-  // [QUAN TRỌNG] Link để điều hướng khi bấm vào thông báo
   link?: string;
+  
+  // [BỔ SUNG] Ảnh thumbnail cho thông báo (ví dụ ảnh sản phẩm)
+  image?: string; 
 }
 
 // ==========================================
-// [MỚI] CÁC INTERFACE CHO CẤU HÌNH HỆ THỐNG
+// CÁC INTERFACE CHO CẤU HÌNH HỆ THỐNG
 // ==========================================
 
 export interface BannerSlide {
   id: number;
-  isActive: boolean;        // Bật/Tắt
-  type: 'text' | 'image';   // Loại banner
+  isActive: boolean;        
+  type: 'text' | 'image';   
   
-  // Dùng cho loại Text
   title?: string;
   desc?: string;
   btnText?: string;
@@ -168,7 +180,6 @@ export interface BannerSlide {
   colorTo?: string;
   icon?: string;
 
-  // Dùng cho loại Image
   imageUrl?: string; 
 }
 
@@ -183,12 +194,10 @@ export interface SystemSettings {
     pro: { price: number; maxImages: number; features: string[] };
   };
   
-  // Cấu hình Ngân hàng (VietQR)
   bankName: string;
   accountNumber: string;
   accountName: string;
   beneficiaryQR?: string;
 
-  // [MỚI] Cấu hình Banner
   bannerSlides?: BannerSlide[];
 }

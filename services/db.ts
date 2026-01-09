@@ -7,7 +7,7 @@ import {
   query, where, orderBy, limit, addDoc, runTransaction,
   startAfter, QueryDocumentSnapshot, DocumentData, writeBatch,
   getCountFromServer, deleteDoc, arrayUnion, arrayRemove, 
-  onSnapshot
+  onSnapshot, increment // [MỚI] Import hàm increment để tăng view
 } from "firebase/firestore";
 import { 
   getAuth, 
@@ -20,7 +20,7 @@ import {
   signInWithCredential
 } from "firebase/auth";
 import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
-import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review } from '../types';
+import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus } from '../types';
 
 // IMPORT LOGIC TÌM KIẾM THÔNG MINH
 import { isSearchMatch, calculateRelevanceScore } from '../utils/format';
@@ -28,19 +28,19 @@ import { isSearchMatch, calculateRelevanceScore } from '../utils/format';
 // 2. CẤU HÌNH ADMIN EMAIL
 const ADMIN_EMAIL = "buivanbac@gmail.com"; 
 
-// [CẬP NHẬT] Interface chuẩn đầy đủ cho Admin Settings
+// Interface chuẩn đầy đủ cho Admin Settings
 export interface SystemSettings {
-  pushPrice: number;    // Giá gốc 1 lần đẩy tin
-  pushDiscount: number; // % Giảm giá riêng cho đẩy tin
-  tierDiscount: number; // % Giảm giá chung cho các gói VIP
-  bannerSlides?: any[]; // Danh sách quản lý banner
+  pushPrice: number;    
+  pushDiscount: number; 
+  tierDiscount: number; 
+  bannerSlides?: any[]; 
   tierConfigs: {
     free: { 
       name: string; 
       price: number; 
       maxImages: number; 
-      postsPerDay: number;   // [QUAN TRỌNG] Giới hạn tin đăng mỗi ngày
-      autoApprove: boolean;  // [QUAN TRỌNG] Tự động duyệt hay không
+      postsPerDay: number;   
+      autoApprove: boolean;  
       features: string[] 
     };
     basic: { 
@@ -98,28 +98,36 @@ export const db = {
 
   // --- A. QUẢN LÝ TIN ĐĂNG (LISTINGS) ---
 
-  // [QUAN TRỌNG] Hàm đếm số tin đăng trong ngày của User
   countUserListingsToday: async (userId: string) => {
     try {
-      // Lấy thời điểm bắt đầu ngày hôm nay (00:00:00)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todayISO = today.toISOString();
 
       const colRef = collection(firestore, "listings");
-      // Truy vấn tin của người bán đăng từ đầu ngày đến giờ
       const q = query(
         colRef, 
         where("sellerId", "==", userId),
         where("createdAt", ">=", todayISO)
       );
       
-      // Lấy số lượng tin
       const snap = await getCountFromServer(q);
       return snap.data().count;
     } catch (e) {
       console.error("Lỗi đếm tin trong ngày:", e);
-      return 0; // Trả về 0 để không chặn nhầm nếu lỗi mạng
+      return 0;
+    }
+  },
+
+  // [MỚI] Tăng lượt xem cho tin đăng
+  incrementListingView: async (listingId: string) => {
+    try {
+        const ref = doc(firestore, "listings", listingId);
+        await updateDoc(ref, {
+            viewCount: increment(1)
+        });
+    } catch (e) {
+        console.error("Lỗi tăng view:", e);
     }
   },
 
@@ -204,6 +212,7 @@ export const db = {
         constraints.push(where("tier", "==", "pro"));
       }
 
+      // [QUAN TRỌNG] Ưu tiên sắp xếp theo updatedAt (cho tính năng Đẩy tin)
       constraints.push(orderBy("createdAt", "desc"));
       constraints.push(limit(options.pageSize));
 
@@ -255,10 +264,13 @@ export const db = {
 
   saveListing: async (listingData: any) => {
     try {
+      // [CẬP NHẬT] Tự động tạo slug và init viewCount
       const dataToSave = {
         ...listingData,
+        slug: db.toSlug(listingData.title),
+        viewCount: 0, 
         createdAt: new Date().toISOString(),
-        // Status sẽ được quyết định ở Frontend dựa trên AutoApprove từ Admin
+        updatedAt: new Date().toISOString(),
         status: listingData.status || 'pending', 
         attributes: listingData.attributes || {} 
       };
@@ -287,13 +299,17 @@ export const db = {
     }
   },
 
-  updateListingStatus: async (listingId: string, status: 'approved' | 'rejected') => {
+  // [CẬP NHẬT] Hỗ trợ thêm trạng thái 'sold' và 'hidden'
+  updateListingStatus: async (listingId: string, status: 'approved' | 'rejected' | 'sold' | 'hidden') => {
     try {
       await updateDoc(doc(firestore, "listings", listingId), { status });
       
       const listing = await db.getListingById(listingId);
       if (listing) {
-        const slug = db.toSlug(listing.title);
+        // Không gửi thông báo nếu là chủ sở hữu tự ẩn tin
+        if (status === 'sold' || status === 'hidden') return;
+
+        const slug = listing.slug || db.toSlug(listing.title);
         const prettyLink = `/san-pham/${slug}-${listingId}`;
 
         await db.sendNotification({
@@ -314,7 +330,10 @@ export const db = {
 
   updateListingContent: async (listingId: string, data: Partial<Listing>) => {
     try {
-      await updateDoc(doc(firestore, "listings", listingId), data);
+      await updateDoc(doc(firestore, "listings", listingId), {
+          ...data,
+          updatedAt: new Date().toISOString()
+      });
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e.message };
@@ -348,6 +367,7 @@ export const db = {
     if (!user || (user.walletBalance || 0) < price) return { success: false, message: "Ví không đủ tiền." };
     
     await updateDoc(doc(firestore, "users", userId), { walletBalance: (user.walletBalance || 0) - price });
+    // [QUAN TRỌNG] Đẩy tin = Cập nhật lại createdAt hoặc updatedAt để lên đầu
     await updateDoc(doc(firestore, "listings", listingId), { createdAt: new Date().toISOString() });
 
     await addDoc(collection(firestore, "mail"), {
@@ -593,6 +613,35 @@ export const db = {
     await updateDoc(userRef, updates);
     const d = await getDoc(userRef);
     return d.data() as User;
+  },
+
+  // [MỚI] Duyệt xác minh danh tính (KYC)
+  updateUserVerification: async (userId: string, status: VerificationStatus) => {
+    try {
+        await updateDoc(doc(firestore, "users", userId), { verificationStatus: status });
+        
+        // Gửi thông báo cho user
+        let message = "";
+        let type: 'success' | 'error' = 'success';
+        if (status === 'verified') {
+            message = "Chúc mừng! Tài khoản của bạn đã được xác minh danh tính.";
+        } else if (status === 'rejected') {
+            message = "Yêu cầu xác minh của bạn đã bị từ chối. Vui lòng kiểm tra lại thông tin.";
+            type = 'error';
+        }
+
+        if (message) {
+            await db.sendNotification({
+                userId,
+                title: "Cập nhật xác minh danh tính",
+                message,
+                type,
+                link: "/profile"
+            });
+        }
+    } catch (e) {
+        console.error("Lỗi cập nhật xác minh:", e);
+    }
   },
 
   getAllUsers: async (): Promise<User[]> => {
@@ -1160,6 +1209,8 @@ export const db = {
         const newListing: Listing = {
           id: lid,
           title: prod.title,
+          slug: db.toSlug(prod.title), // [MỚI] Thêm slug cho dữ liệu mẫu
+          viewCount: randomInt(0, 500), // [MỚI] Random view cho sinh động
           description: `Cần bán ${prod.title}. Hàng còn mới, sử dụng kỹ. Bao test thoải mái. Liên hệ ${seller.name} để ép giá. Giao dịch trực tiếp tại ${seller.location}.`,
           price: finalPrice > 0 ? finalPrice : 1000000,
           category: cat.id,

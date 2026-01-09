@@ -1,9 +1,27 @@
+// types.ts
+
+// ==========================================
+// 1. CÁC ĐỊNH NGHĨA TYPE (ENUMS/UNIONS)
+// ==========================================
+
 export type UserRole = 'user' | 'admin';
 export type SubscriptionTier = 'free' | 'basic' | 'pro';
 export type UserStatus = 'active' | 'banned';
 
-// --- Trạng thái xác thực (KYC) ---
+// Trạng thái xác thực danh tính (KYC)
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
+
+// Trạng thái tin đăng (Đã bổ sung 'sold' và 'hidden')
+export type ListingStatus = 'pending' | 'approved' | 'rejected' | 'sold' | 'hidden';
+
+// Loại thông báo
+export type NotificationType = 
+  | 'info' | 'success' | 'warning' | 'error' 
+  | 'review' | 'message' | 'approval' | 'follow' | 'system';
+
+// ==========================================
+// 2. CÁC INTERFACE CHÍNH (CORE)
+// ==========================================
 
 export interface User {
   id: string;
@@ -21,39 +39,19 @@ export interface User {
   lat?: number;       
   lng?: number;       
 
+  // --- VÍ & GÓI CƯỚC ---
   subscriptionTier: SubscriptionTier;
   subscriptionExpires?: string;
-  walletBalance: number;
+  walletBalance?: number; // Cho phép undefined để tránh lỗi khi user cũ chưa có field này
+  
+  // --- SOCIAL ---
   followers?: string[];
   following?: string[];
   
-  // --- Các trường cho tính năng xác thực ---
+  // --- XÁC THỰC (KYC) ---
   verificationStatus?: VerificationStatus; 
-  verificationDocuments?: string[]; 
-}
-
-export interface Transaction {
-  id: string;
-  userId: string;
-  amount: number;
-  type: 'deposit' | 'payment';
-  method?: string;
-  description: string;
-  status: 'success' | 'pending' | 'failed';
-  createdAt: string;
-  
-  // [BỔ SUNG] Để biết giao dịch này mua dịch vụ cho tin đăng nào (nếu có)
-  listingId?: string; 
-
-  // Dùng để lưu thông tin gói VIP khi mua
-  metadata?: any; 
-}
-
-export interface Category {
-  id: string;
-  name: string;
-  icon: string;
-  slug: string;
+  idCardFront?: string; // Ảnh CMND mặt trước
+  idCardBack?: string;  // Ảnh CMND mặt sau
 }
 
 export interface Listing {
@@ -64,12 +62,10 @@ export interface Listing {
   category: string;
   images: string[];
   
-  // [BỔ SUNG] Slug để làm URL đẹp (SEO friendly)
-  // Ví dụ: ban-iphone-15-pro-max
-  slug?: string; 
-
-  // [BỔ SUNG] Thống kê lượt xem để sắp xếp "Phổ biến nhất"
-  viewCount?: number; 
+  // --- SEO & TÌM KIẾM (QUAN TRỌNG) ---
+  slug?: string;         // URL SEO (vd: ban-iphone-15-pro)
+  keywords?: string[];   // [MỚI] Mảng từ khóa hỗ trợ thuật toán tìm kiếm Hybrid
+  viewCount?: number;    // [MỚI] Đếm lượt xem
 
   // --- THÔNG TIN VỊ TRÍ ---
   location: string; 
@@ -77,50 +73,44 @@ export interface Listing {
   lat?: number;      
   lng?: number;      
 
+  // --- NGƯỜI BÁN ---
   sellerId: string;
   sellerName: string;
   sellerAvatar: string;
+  
+  // --- METADATA ---
   createdAt: string;
-  updatedAt?: string; // [BỔ SUNG] Thời gian cập nhật lần cuối (ví dụ khi đẩy tin)
+  updatedAt?: string;    // Thời gian cập nhật (khi sửa hoặc đẩy tin)
   
-  status: 'pending' | 'approved' | 'rejected' | 'sold' | 'hidden'; // [BỔ SUNG] Thêm trạng thái đã bán/ẩn
+  status: ListingStatus;
   condition: 'new' | 'used';
-  tier: SubscriptionTier;
-  isFavorite?: boolean;
+  tier: SubscriptionTier; // Gói tin (VIP/Thường)
   
-  // --- Attributes ---
+  // --- THÔNG SỐ KỸ THUẬT (LINH HOẠT) ---
   attributes?: {
+    brand?: string;
+    color?: string;
+    warranty?: string;
     battery?: string;  
     mileage?: string;  
     area?: string;     
     year?: string;     
     storage?: string;  
-    [key: string]: any; 
+    [key: string]: any; // Cho phép thêm các trường động khác
   };
 }
 
-export interface Review {
+export interface Category {
   id: string;
-  targetId: string; 
-  targetType: 'listing' | 'user';
-  authorId: string;
-  authorName: string;
-  authorAvatar: string;
-  rating: number;
-  comment: string;
-  createdAt: string;
-  updatedAt?: string; 
+  name: string;
+  icon: string;
+  slug: string;
+  subcategories?: string[];
 }
 
-export interface Report {
-  id: string;
-  listingId: string;
-  userId: string;
-  reason: string;
-  details?: string;
-  createdAt: string;
-  status: 'pending' | 'resolved';
-}
+// ==========================================
+// 3. TƯƠNG TÁC (CHAT, REVIEW, NOTIF)
+// ==========================================
 
 export interface Message {
   id: string;
@@ -128,25 +118,37 @@ export interface Message {
   text: string;
   timestamp: string;
   image?: string; 
-  isRead?: boolean; // [BỔ SUNG] Trạng thái đã xem tin nhắn cụ thể
 }
 
 export interface ChatRoom {
   id: string;
+  // Thông tin tóm tắt sản phẩm để hiển thị trên header chat
   listingId: string;
   listingTitle: string;
   listingImage: string;
   listingPrice: number;
+  
   participantIds: string[];
+  
+  // [QUAN TRỌNG] Cache thông tin user để không phải query lại
+  participantsData?: Record<string, { name: string; avatar: string }>; 
+  
   messages: Message[];
   lastMessage?: string;
   lastUpdate: string;
-  seenBy: string[];
+  seenBy?: string[]; // Mảng ID của những người đã xem tin nhắn cuối
 }
 
-export interface Favorite {
-  userId: string;
-  listingId: string;
+export interface Review {
+  id: string;
+  targetId: string;      // ID người được đánh giá hoặc ID sản phẩm
+  targetType: 'listing' | 'user';
+  authorId: string;
+  authorName: string;
+  authorAvatar: string;
+  rating: number;        // 1-5 sao
+  comment: string;
+  createdAt: string;
 }
 
 export interface Notification {
@@ -154,18 +156,45 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error' | 'review' | 'message' | 'approval' | 'follow' | 'system';
+  type: NotificationType;
   read: boolean;
   createdAt: string;
-  link?: string;
-  
-  // [BỔ SUNG] Ảnh thumbnail cho thông báo (ví dụ ảnh sản phẩm)
-  image?: string; 
+  link?: string;         // Đường dẫn khi click vào (vd: /listings/slug-id)
+  image?: string;        // Thumbnail (nếu có)
+}
+
+export interface Report {
+  id: string;
+  listingId?: string;
+  targetUserId?: string; // Có thể báo cáo người dùng thay vì tin đăng
+  userId: string;        // Người báo cáo
+  reason: string;
+  details?: string;
+  createdAt: string;
+  status: 'pending' | 'resolved' | 'dismissed';
 }
 
 // ==========================================
-// CÁC INTERFACE CHO CẤU HÌNH HỆ THỐNG
+// 4. TÀI CHÍNH & HỆ THỐNG
 // ==========================================
+
+export interface Transaction {
+  id: string;
+  userId: string;
+  amount: number;
+  type: 'deposit' | 'payment' | 'refund';
+  method?: string;       // Banking, Momo, Wallet...
+  description: string;
+  status: 'success' | 'pending' | 'failed';
+  createdAt: string;
+  
+  // Metadata dùng để lưu thông tin mở rộng (vd: mua gói VIP nào)
+  metadata?: {
+    targetTier?: SubscriptionTier;
+    listingId?: string;
+    [key: string]: any;
+  }; 
+}
 
 export interface BannerSlide {
   id: number;
@@ -179,19 +208,18 @@ export interface BannerSlide {
   colorFrom?: string;
   colorTo?: string;
   icon?: string;
-
   imageUrl?: string; 
 }
 
 export interface SystemSettings {
   pushPrice: number;
-  pushDiscount?: number;
+  pushDiscount: number;
   tierDiscount: number;
   
   tierConfigs: {
-    free: { price: number; maxImages: number; features: string[] };
-    basic: { price: number; maxImages: number; features: string[] };
-    pro: { price: number; maxImages: number; features: string[] };
+    free: { name: string; price: number; maxImages: number; postsPerDay: number; autoApprove: boolean; features: string[] };
+    basic: { name: string; price: number; maxImages: number; postsPerDay: number; autoApprove: boolean; features: string[] };
+    pro: { name: string; price: number; maxImages: number; postsPerDay: number; autoApprove: boolean; features: string[] };
   };
   
   bankName: string;

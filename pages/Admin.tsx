@@ -289,7 +289,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       )}
 
-      {/* KYC Modal & Edit Modal */}
+      {/* KYC Modal & Edit Modal (Giữ nguyên) */}
       {verifyModal.show && verifyModal.user && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <div className="bg-white w-full max-w-3xl rounded-[2rem] p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
@@ -472,15 +472,8 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                        </div>
                                    ) : (
                                        <div className="space-y-3">
-                                           <div className="grid md:grid-cols-2 gap-3">
-                                               <input type="text" placeholder="Tiêu đề chính" value={slide.title} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].title=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black" />
-                                               <input type="text" placeholder="Mô tả" value={slide.desc} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].desc=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
-                                           </div>
-                                           <div className="grid grid-cols-3 gap-3">
-                                               <input type="text" placeholder="Chữ trên nút" value={slide.btnText} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnText=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black text-center" />
-                                               <input type="text" placeholder="Link đích" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
-                                               <input type="text" placeholder="Icon (VD: 🚀)" value={slide.icon} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].icon=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-center" />
-                                           </div>
+                                           <div className="grid md:grid-cols-2 gap-3"><input type="text" placeholder="Tiêu đề chính" value={slide.title} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].title=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black" /><input type="text" placeholder="Mô tả" value={slide.desc} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].desc=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" /></div>
+                                           <div className="grid grid-cols-3 gap-3"><input type="text" placeholder="Chữ trên nút" value={slide.btnText} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnText=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black text-center" /><input type="text" placeholder="Link đích" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" /><input type="text" placeholder="Icon (VD: 🚀)" value={slide.icon} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].icon=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-center" /></div>
                                        </div>
                                    )}
                                </div>

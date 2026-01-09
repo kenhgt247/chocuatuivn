@@ -1,7 +1,7 @@
 import { Listing, Category } from '../types';
 
 // ========================================================================
-// 1. FORMATTING UTILS (GIỮ NGUYÊN LOGIC CỦA BẠN)
+// 1. FORMATTING UTILS (GIỮ NGUYÊN)
 // ========================================================================
 
 export const formatPrice = (price: number): string => {
@@ -45,8 +45,10 @@ export const slugify = (text: string): string => {
   return removeVietnameseTones(text).replace(/\s+/g, '-');
 };
 
+// [CẬP NHẬT QUAN TRỌNG]
+// Sử dụng slug từ DB nếu có (chuẩn SEO), nếu tin cũ chưa có slug thì tự tạo
 export const getListingUrl = (listing: Listing): string => {
-  const slug = slugify(listing.title);
+  const slug = listing.slug || slugify(listing.title);
   return `/san-pham/${slug}-${listing.id}`;
 };
 
@@ -56,13 +58,12 @@ export const getCategoryUrl = (category: Category): string => {
 };
 
 // ========================================================================
-// 3. SMART SEARCH ENGINE (CỐT LÕI TÌM KIẾM THÔNG MINH)
+// 3. SMART SEARCH ENGINE (GIỮ NGUYÊN - LOGIC NÀY RẤT TỐT)
 // ========================================================================
 
 /**
  * Thuật toán Levenshtein Distance
  * Tính số bước ít nhất để biến chuỗi a thành chuỗi b
- * Dùng để phát hiện lỗi chính tả (typo). VD: "evrest" -> "everest"
  */
 const levenshteinDistance = (a: string, b: string): number => {
   if (a.length === 0) return b.length;
@@ -99,10 +100,6 @@ const levenshteinDistance = (a: string, b: string): number => {
 
 /**
  * Kiểm tra xem một đoạn văn bản (target) có khớp với từ khóa tìm kiếm (query) không.
- * Hỗ trợ:
- * 1. Khớp chính xác.
- * 2. Khớp từng từ (đảo từ).
- * 3. Khớp mờ (Fuzzy Match) - Gõ sai chính tả vẫn tìm ra.
  */
 export const isSearchMatch = (targetText: string, searchQuery: string): boolean => {
   if (!searchQuery) return true;
@@ -125,16 +122,9 @@ export const isSearchMatch = (targetText: string, searchQuery: string): boolean 
       if (tToken.includes(qToken)) return true;
 
       // b. Khớp mờ (Fuzzy) dùng Levenshtein
-      // Chỉ áp dụng cho từ có độ dài > 3 để tránh khớp sai các từ ngắn (vd: xe, la, ma)
       if (qToken.length > 3 && tToken.length > 3) {
         const dist = levenshteinDistance(qToken, tToken);
-        
-        // Cho phép sai số tùy theo độ dài từ:
-        // - Từ 4-5 ký tự: cho sai 1 ký tự (vd: "iphone" -> "ipone")
-        // - Từ > 5 ký tự: cho sai 2 ký tự (vd: "everest" -> "evrest")
         const allowedErrors = qToken.length > 5 ? 2 : 1;
-        
-        // Điều kiện: Khoảng cách edit nhỏ hơn cho phép VÀ độ dài 2 từ không chênh lệch quá nhiều
         return dist <= allowedErrors && Math.abs(qToken.length - tToken.length) <= allowedErrors;
       }
       
@@ -145,7 +135,6 @@ export const isSearchMatch = (targetText: string, searchQuery: string): boolean 
 
 /**
  * Tính điểm độ phù hợp (Relevance Score)
- * Dùng để sắp xếp: Tin khớp chính xác lên đầu, tin khớp mờ xuống dưới.
  */
 export const calculateRelevanceScore = (targetText: string, searchQuery: string): number => {
   const cleanTarget = removeVietnameseTones(targetText);
@@ -155,7 +144,7 @@ export const calculateRelevanceScore = (targetText: string, searchQuery: string)
   // 1. Khớp chính xác hoàn toàn (+100 điểm)
   if (cleanTarget === cleanQuery) return 100;
 
-  // 2. Bắt đầu bằng từ khóa (+80 điểm) - VD tìm "iPhone" ra "iPhone 15" đầu tiên
+  // 2. Bắt đầu bằng từ khóa (+80 điểm)
   if (cleanTarget.startsWith(cleanQuery)) score += 80;
 
   // 3. Chứa cụm từ liên tục (+60 điểm)
@@ -169,7 +158,6 @@ export const calculateRelevanceScore = (targetText: string, searchQuery: string)
   queryTokens.forEach(qToken => {
     if (targetTokens.some(tToken => {
       if (tToken === qToken) return true; // Khớp chuẩn
-      // Khớp mờ cho từ dài > 3 ký tự
       if (qToken.length > 3 && levenshteinDistance(qToken, tToken) <= 1) return true; 
       return false;
     })) {
@@ -177,7 +165,6 @@ export const calculateRelevanceScore = (targetText: string, searchQuery: string)
     }
   });
 
-  // Cộng điểm dựa trên tỷ lệ số từ khớp (Max 40 điểm)
   score += (matchedWords / queryTokens.length) * 40;
 
   return score;

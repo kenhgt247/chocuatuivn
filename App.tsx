@@ -28,7 +28,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
 
-  // Khởi tạo: Kiểm tra user đang đăng nhập
+  // Khởi tạo: Kiểm tra user đang đăng nhập từ Firebase
   useEffect(() => {
     const initialize = async () => {
       try {
@@ -81,23 +81,21 @@ const App: React.FC = () => {
           {/* 2. CHI TIẾT SẢN PHẨM & ROUTES HỖ TRỢ THÔNG BÁO */}
           {/* ========================================================= */}
           
-          {/* Route SEO chuẩn (hiển thị trên web) */}
+          {/* Route chuẩn SEO */}
           <Route path="/san-pham/:slugWithId" element={<ListingDetail user={user} />} />
           
-          {/* [QUAN TRỌNG] Route Cầu nối cho Thông báo (Fallback) */}
-          {/* Hỗ trợ các link cũ hoặc link từ thông báo hệ thống */}
+          {/* Route cầu nối (fallback) cho thông báo hệ thống */}
           <Route path="/listings/:slugWithId" element={<ListingDetail user={user} />} />
           <Route path="/listing/:slugWithId" element={<ListingDetail user={user} />} />
-
 
           {/* ========================================================= */}
           {/* 3. USER & SELLER (PROFILE) */}
           {/* ========================================================= */}
           
-          {/* [TINH CHỈNH] Đưa Route Profile cá nhân lên TRƯỚC để tránh nhầm lẫn */}
+          {/* [QUAN TRỌNG] Đặt Route Profile cá nhân LÊN TRƯỚC để tránh nhầm lẫn với :id */}
           <Route path="/profile" element={<Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} />} />
 
-          {/* Sau đó mới đến Route xem Profile người khác (có ID) */}
+          {/* Sau đó mới đến Route xem Profile người khác */}
           <Route path="/profile/:id" element={<SellerProfile currentUser={user} />} />
           <Route path="/seller/:id" element={<SellerProfile currentUser={user} />} />
           
@@ -107,22 +105,32 @@ const App: React.FC = () => {
           <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
           <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
           
-          {/* Route Chat */}
+          {/* Chat System */}
           <Route path="/chat" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
           <Route path="/chat/:roomId" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
           
-          {/* Ví & Gói cước */}
+          {/* Wallet & Subscription */}
           <Route path="/upgrade" element={<Subscription user={user} onUpdateUser={handleUpdateUser} />} />
           <Route path="/wallet" element={user ? <Wallet user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
           
-          {/* Admin Route */}
+          {/* Admin */}
           <Route path="/admin" element={<Admin user={user} />} />
 
           {/* ========================================================= */}
-          {/* 5. AUTH & STATIC PAGES */}
+          {/* 5. AUTH & STATIC PAGES (ĐÃ SỬA AUTO REDIRECT) */}
           {/* ========================================================= */}
-          <Route path="/login" element={<Auth onLogin={handleLogin} />} />
-          <Route path="/register" element={<Register onLogin={handleLogin} />} />
+          
+          {/* Nếu chưa có user -> Hiện form Login. Nếu đã có user -> Chuyển về Home ngay lập tức */}
+          <Route 
+            path="/login" 
+            element={!user ? <Auth onLogin={handleLogin} /> : <Navigate to="/" replace />} 
+          />
+          
+          <Route 
+            path="/register" 
+            element={!user ? <Register onLogin={handleLogin} /> : <Navigate to="/" replace />} 
+          />
+          
           <Route path="/page/:slug" element={<StaticPage />} />
 
           {/* Route 404 */}

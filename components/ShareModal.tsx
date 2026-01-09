@@ -21,25 +21,25 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, url, title }) 
     setTimeout(() => setCopySuccess(false), 2000);
   };
 
+  // Cập nhật lại Icon chuẩn Official và bỏ phần background màu
   const shareLinks = [
     {
       name: 'Facebook',
+      // Icon tròn xanh chuẩn của Facebook
       icon: 'https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg',
       link: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fullUrl)}`,
-      color: 'bg-[#1877F2]'
     },
     {
-      name: 'X',
-      // Sử dụng logo X mới nhất (SVG)
-      icon: 'https://upload.wikimedia.org/wikipedia/commons/5/53/X_logo_2023_original.svg',
+      name: 'X (Twitter)',
+      // Logo X màu đen chuẩn
+      icon: 'https://upload.wikimedia.org/wikipedia/commons/c/ce/X_logo_2023.svg',
       link: `https://x.com/intent/tweet?url=${encodeURIComponent(fullUrl)}&text=${encodeURIComponent(title)}`,
-      color: 'bg-black'
     },
     {
       name: 'Zalo',
+      // Icon Zalo xanh chuẩn (có chữ Zalo)
       icon: 'https://upload.wikimedia.org/wikipedia/commons/9/91/Icon_of_Zalo.svg',
       link: `https://sp.zalo.me/share/base?url=${encodeURIComponent(fullUrl)}`,
-      color: 'bg-[#0068FF]'
     }
   ];
 
@@ -58,7 +58,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, url, title }) 
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Lan tỏa sản phẩm của bạn</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -73,7 +73,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, url, title }) 
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Quét mã để xem trên điện thoại</p>
           </div>
 
-          {/* Social Links */}
+          {/* Social Links - ĐÃ SỬA GIAO DIỆN */}
           <div className="grid grid-cols-3 gap-4">
             {shareLinks.map((social) => (
               <a
@@ -81,16 +81,20 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, url, title }) 
                 href={social.link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex flex-col items-center gap-2 group"
+                className="flex flex-col items-center gap-3 group"
               >
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1 ${social.color}`}>
+                {/* Container nút: Nền xám nhạt, hover lên trắng và có bóng đổ */}
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 shadow-sm transition-all duration-300 group-hover:bg-white group-hover:scale-110 group-hover:shadow-lg group-hover:-translate-y-1">
+                  {/* Icon gốc: Không dùng filter màu nữa */}
                   <img 
                     src={social.icon} 
                     alt={social.name} 
-                    className={`w-7 h-7 object-contain brightness-0 invert ${social.name === 'X' ? 'p-0.5' : ''}`} 
+                    className="w-10 h-10 object-contain" 
                   />
                 </div>
-                <span className="text-[10px] font-black text-gray-500 uppercase">{social.name}</span>
+                <span className="text-[10px] font-black text-gray-500 uppercase group-hover:text-primary transition-colors">
+                  {social.name}
+                </span>
               </a>
             ))}
           </div>
@@ -98,14 +102,14 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, url, title }) 
           {/* Copy Link Section */}
           <div className="pt-4 border-t border-gray-100">
             <div className="flex gap-2">
-              <div className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-[10px] font-bold text-gray-400 truncate flex items-center">
+              <div className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-[10px] font-bold text-gray-400 truncate flex items-center select-all">
                 {fullUrl}
               </div>
               <button
                 onClick={handleCopy}
                 className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
                   copySuccess 
-                    ? 'bg-green-500 text-white' 
+                    ? 'bg-green-500 text-white shadow-lg shadow-green-200' 
                     : 'bg-black text-white shadow-lg hover:bg-gray-800 active:scale-95'
                 }`}
               >

@@ -472,8 +472,37 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                        </div>
                                    ) : (
                                        <div className="space-y-3">
-                                           <div className="grid md:grid-cols-2 gap-3"><input type="text" placeholder="Tiêu đề chính" value={slide.title} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].title=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black" /><input type="text" placeholder="Mô tả" value={slide.desc} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].desc=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" /></div>
-                                           <div className="grid grid-cols-3 gap-3"><input type="text" placeholder="Chữ trên nút" value={slide.btnText} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnText=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black text-center" /><input type="text" placeholder="Link đích" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" /><input type="text" placeholder="Icon (VD: 🚀)" value={slide.icon} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].icon=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-center" /></div>
+                                           <div className="grid md:grid-cols-2 gap-3">
+                                                <input type="text" placeholder="Tiêu đề chính" value={slide.title} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].title=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black" />
+                                                <input type="text" placeholder="Mô tả" value={slide.desc} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].desc=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
+                                           </div>
+                                           <div className="grid grid-cols-3 gap-3">
+                                                <input type="text" placeholder="Chữ trên nút" value={slide.btnText} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnText=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black text-center" />
+                                                <input type="text" placeholder="Link đích" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
+                                                <input type="text" placeholder="Icon (VD: 🚀)" value={slide.icon} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].icon=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-center" />
+                                           </div>
+                                           <div className="grid grid-cols-2 gap-3">
+                                                <select value={slide.colorFrom} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorFrom=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
+                                                    <option value="from-blue-600">Xanh Dương (Đậm)</option>
+                                                    <option value="from-red-600">Đỏ (Đậm)</option>
+                                                    <option value="from-green-600">Xanh Lá (Đậm)</option>
+                                                    <option value="from-yellow-500">Vàng (Đậm)</option>
+                                                    <option value="from-purple-600">Tím (Đậm)</option>
+                                                    <option value="from-orange-500">Cam (Đậm)</option>
+                                                    <option value="from-pink-500">Hồng (Đậm)</option>
+                                                    <option value="from-gray-800">Đen</option>
+                                                </select>
+                                                <select value={slide.colorTo} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorTo=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
+                                                    <option value="to-indigo-600">Indigo</option>
+                                                    <option value="to-blue-400">Xanh Nhạt</option>
+                                                    <option value="to-red-400">Đỏ Nhạt</option>
+                                                    <option value="to-green-400">Lá Nhạt</option>
+                                                    <option value="to-yellow-400">Vàng Nhạt</option>
+                                                    <option value="to-purple-400">Tím Nhạt</option>
+                                                    <option value="to-pink-400">Hồng Nhạt</option>
+                                                    <option value="to-orange-400">Cam Nhạt</option>
+                                                </select>
+                                           </div>
                                        </div>
                                    )}
                                </div>

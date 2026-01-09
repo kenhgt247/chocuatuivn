@@ -8,8 +8,12 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
   const navigate = useNavigate();
   const [loading, setLoading] = useState<SubscriptionTier | null>(null);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
+  
+  // State quản lý luồng thanh toán
   const [showPayModal, setShowPayModal] = useState<{ tier: SubscriptionTier, price: number } | null>(null);
+  const [paymentStep, setPaymentStep] = useState<'method' | 'qr'>('method'); // [MỚI] Quản lý bước thanh toán
   const [processingMethod, setProcessingMethod] = useState<'wallet' | 'transfer' | null>(null);
+  
   const [toast, setToast] = useState<{ show: boolean, message: string, type: 'success' | 'error' }>({ show: false, message: '', type: 'success' });
 
   useEffect(() => {
@@ -33,8 +37,10 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
   const handleUpgradeClick = (tier: SubscriptionTier) => {
     const config = (settings.tierConfigs as any)[tier];
     if (!config) return;
-    // Tính giá thực tế dựa trên chiết khấu Admin đã tách riêng
     const actualPrice = config.price * (1 - settings.tierDiscount / 100);
+    
+    // Reset trạng thái modal
+    setPaymentStep('method'); 
     setShowPayModal({ tier, price: actualPrice });
   };
 
@@ -66,9 +72,15 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
     }
   };
 
-  const payWithTransfer = async () => {
+  // [MỚI] Chuyển sang bước hiển thị QR
+  const handleSelectTransfer = () => {
+      setProcessingMethod('transfer');
+      setPaymentStep('qr');
+  };
+
+  // [MỚI] Xác nhận đã chuyển khoản
+  const confirmTransfer = async () => {
     if (!showPayModal) return;
-    setProcessingMethod('transfer');
     setLoading(showPayModal.tier);
     try {
       await db.requestSubscriptionTransfer(user.id, showPayModal.tier, showPayModal.price);
@@ -96,6 +108,11 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
 
   const tiers: SubscriptionTier[] = ['free', 'basic', 'pro'];
 
+  // Tạo nội dung chuyển khoản tự động
+  const transferContent = `MUA GOI ${showPayModal?.tier.toUpperCase()} ${user.phone || user.id.slice(0, 5)}`;
+  // Link VietQR
+  const qrLink = showPayModal ? `https://img.vietqr.io/image/${settings.bankName}-${settings.accountNumber}-compact.jpg?amount=${showPayModal.price}&addInfo=${encodeURI(transferContent)}&accountName=${encodeURI(settings.accountName)}` : '';
+
   return (
     <div className="max-w-6xl mx-auto py-16 px-4 relative pb-24 font-sans animate-fade-in">
       {/* Toast Notification */}
@@ -122,7 +139,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
           const status = checkSubscriptionStatus(tier);
           const isPro = tier === 'pro';
           
-          // Logic Giá và Khuyến mãi
           const originalPrice = config.price;
           const discountPercent = settings.tierDiscount || 0;
           const discountedPrice = originalPrice * (1 - discountPercent / 100);
@@ -149,30 +165,21 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                   {config.name}
                 </h3>
 
-                {/* LOGIC HIỂN THỊ GIÁ GẠCH NGANG */}
                 <div className="flex flex-col items-center justify-center min-h-[90px]">
                   {hasDiscount ? (
                     <>
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-slate-400 line-through text-sm font-bold">
-                          {formatPrice(originalPrice)}
-                        </span>
-                        <span className="bg-red-500 text-white text-[10px] font-black px-2.5 py-1 rounded-lg uppercase shadow-sm">
-                          -{discountPercent}%
-                        </span>
+                        <span className="text-slate-400 line-through text-sm font-bold">{formatPrice(originalPrice)}</span>
+                        <span className="bg-red-500 text-white text-[10px] font-black px-2.5 py-1 rounded-lg uppercase shadow-sm">-{discountPercent}%</span>
                       </div>
                       <div className="flex items-baseline gap-1">
-                        <span className="text-4xl font-black tracking-tighter text-slate-900">
-                          {formatPrice(discountedPrice)}
-                        </span>
+                        <span className="text-4xl font-black tracking-tighter text-slate-900">{formatPrice(discountedPrice)}</span>
                         <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">/tháng</span>
                       </div>
                     </>
                   ) : (
                     <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-black tracking-tighter text-slate-900">
-                        {tier === 'free' ? '0đ' : formatPrice(originalPrice)}
-                      </span>
+                      <span className="text-4xl font-black tracking-tighter text-slate-900">{tier === 'free' ? '0đ' : formatPrice(originalPrice)}</span>
                       {tier !== 'free' && <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">/tháng</span>}
                     </div>
                   )}
@@ -180,7 +187,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
               </div>
 
               <div className="space-y-4 mb-10 flex-1">
-                {/* Hạn mức Tin đăng */}
                 <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-white transition-colors">
                   <span className="text-2xl">🚀</span>
                   <div>
@@ -189,7 +195,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                   </div>
                 </div>
 
-                {/* Chế độ Duyệt tin */}
                 <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-white transition-colors">
                   <span className="text-2xl">{config.autoApprove ? '✅' : '⏳'}</span>
                   <div>
@@ -200,7 +205,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
 
                 <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent my-6"></div>
 
-                {/* Danh sách đặc quyền chi tiết */}
                 <ul className="space-y-4 px-2">
                   {config.features.map((f: string, i: number) => (
                     <li key={i} className="flex items-start gap-3 text-sm">
@@ -243,42 +247,70 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
       {showPayModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-fade-in">
           <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl relative space-y-8 animate-fade-in-up border border-white">
+            
+            {/* Header Modal */}
             <div className="text-center">
-                <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Xác nhận thanh toán</p>
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">
+                    {paymentStep === 'method' ? 'Bước 1: Chọn thanh toán' : 'Bước 2: Quét mã QR'}
+                </p>
                 <h3 className="text-2xl font-black text-slate-900">{(settings.tierConfigs as any)[showPayModal.tier]?.name}</h3>
                 <div className="mt-4 flex flex-col items-center">
                    <span className="text-3xl font-black text-primary">{formatPrice(showPayModal.price)}</span>
-                   {settings.tierDiscount > 0 && (
-                     <span className="text-[10px] font-bold text-green-500 uppercase mt-1">Đã áp dụng giảm giá {settings.tierDiscount}%</span>
-                   )}
                 </div>
             </div>
             
-            <div className="space-y-4">
-              <button onClick={payWithWallet} disabled={loading !== null} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 ${processingMethod === 'wallet' ? 'border-primary bg-primary/5' : 'border-slate-100 hover:border-primary hover:shadow-md'}`}>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">💳</div>
-                  <div className="text-left">
-                    <p className="text-[10px] font-black uppercase text-slate-400">Thanh toán qua</p>
-                    <p className="text-xs font-black text-slate-800">Ví Chợ Của Tui</p>
-                  </div>
-                </div>
-                {processingMethod === 'wallet' ? <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div> : <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"></div>}
-              </button>
+            {/* BƯỚC 1: CHỌN PHƯƠNG THỨC */}
+            {paymentStep === 'method' && (
+                <div className="space-y-4">
+                  <button onClick={payWithWallet} disabled={loading !== null} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 ${processingMethod === 'wallet' ? 'border-primary bg-primary/5' : 'border-slate-100 hover:border-primary hover:shadow-md'}`}>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">💳</div>
+                      <div className="text-left">
+                        <p className="text-[10px] font-black uppercase text-slate-400">Thanh toán qua</p>
+                        <p className="text-xs font-black text-slate-800">Ví Chợ Của Tui</p>
+                      </div>
+                    </div>
+                    {processingMethod === 'wallet' ? <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div> : <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"></div>}
+                  </button>
 
-              <button onClick={payWithTransfer} disabled={loading !== null} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 ${processingMethod === 'transfer' ? 'border-primary bg-primary/5' : 'border-slate-100 hover:border-primary hover:shadow-md'}`}>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">🏦</div>
-                  <div className="text-left">
-                    <p className="text-[10px] font-black uppercase text-slate-400">Thanh toán qua</p>
-                    <p className="text-xs font-black text-slate-800">Chuyển khoản</p>
-                  </div>
+                  <button onClick={handleSelectTransfer} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 border-slate-100 hover:border-primary hover:shadow-md`}>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">🏦</div>
+                      <div className="text-left">
+                        <p className="text-[10px] font-black uppercase text-slate-400">Thanh toán qua</p>
+                        <p className="text-xs font-black text-slate-800">Chuyển khoản</p>
+                      </div>
+                    </div>
+                    <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"></div>
+                  </button>
                 </div>
-                {processingMethod === 'transfer' ? <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div> : <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"></div>}
-              </button>
-            </div>
+            )}
 
-            <button onClick={() => !loading && setShowPayModal(null)} disabled={loading !== null} className="w-full py-4 rounded-xl font-black text-xs text-slate-400 uppercase hover:bg-slate-50 transition-all tracking-widest">Hủy giao dịch</button>
+            {/* BƯỚC 2: QUÉT MÃ QR */}
+            {paymentStep === 'qr' && (
+                <div className="space-y-6 animate-fade-in-up">
+                    <div className="bg-slate-50 p-4 rounded-[2rem] border border-slate-100 flex flex-col items-center text-center space-y-4">
+                        <div className="p-2 bg-white rounded-2xl shadow-sm">
+                            <img src={qrLink} alt="VietQR" className="w-48 h-48 object-contain" />
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-black text-slate-400 uppercase">Nội dung chuyển khoản</p>
+                            <p className="text-xs font-black bg-yellow-100 text-yellow-800 px-3 py-1.5 rounded-lg select-all">{transferContent}</p>
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-medium px-4">
+                            Vui lòng nhập đúng nội dung để hệ thống tự động xử lý nhanh hơn.
+                        </div>
+                    </div>
+                    
+                    <button onClick={confirmTransfer} disabled={loading !== null} className="w-full bg-green-500 text-white font-black py-4 rounded-[1.5rem] hover:bg-green-600 transition-all shadow-lg active:scale-95 uppercase text-xs tracking-widest flex items-center justify-center gap-2">
+                        {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <span>✅ Tôi đã chuyển khoản</span>}
+                    </button>
+                </div>
+            )}
+
+            <button onClick={() => { if(paymentStep === 'qr') setPaymentStep('method'); else setShowPayModal(null); }} disabled={loading !== null} className="w-full py-4 rounded-xl font-black text-xs text-slate-400 uppercase hover:bg-slate-50 transition-all tracking-widest">
+                {paymentStep === 'qr' ? 'Quay lại' : 'Hủy giao dịch'}
+            </button>
           </div>
         </div>
       )}

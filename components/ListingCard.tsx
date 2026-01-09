@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState } from 'react'; // [SỬA LỖI] Chữ i thường
 import { Link } from 'react-router-dom';
 import { Listing } from '../types';
 import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
 
-// Ảnh mặc định nếu tin đăng không có ảnh hoặc ảnh lỗi
+// Ảnh mặc định
 const PLACEHOLDER_IMAGE = "https://placehold.co/400x400?text=No+Image";
 
 interface ListingCardProps {
@@ -21,30 +21,36 @@ const ListingCard: React.FC<ListingCardProps> = ({
 }) => {
   const detailUrl = getListingUrl(listing);
   
-  // State để xử lý khi ảnh bị lỗi (404)
   const [imgSrc, setImgSrc] = useState(
     listing.images && listing.images.length > 0 ? listing.images[0] : PLACEHOLDER_IMAGE
   );
 
+  // [MỚI] Kiểm tra tin đã bán chưa
+  const isSold = listing.status === 'sold';
+
   return (
-    <div className="flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group relative border border-gray-100">
+    <div className={`flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group relative border border-gray-100 ${isSold ? 'opacity-70 grayscale' : ''}`}>
       
       {/* PHẦN HÌNH ẢNH */}
       <Link to={detailUrl} className="block relative aspect-square overflow-hidden bg-gray-100">
         <img 
           src={imgSrc} 
           alt={listing.title} 
-          onError={() => setImgSrc(PLACEHOLDER_IMAGE)} // Tự động thay thế nếu ảnh lỗi
-          
-          // [TỐI ƯU HIỆU NĂNG]
-          loading="lazy" // Chỉ tải ảnh khi người dùng cuộn tới
-          decoding="async" // Giải mã ảnh không chặn luồng chính
-          
+          onError={() => setImgSrc(PLACEHOLDER_IMAGE)}
+          loading="lazy" 
+          decoding="async"
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
         />
         
-        {/* Huy hiệu VIP */}
-        {listing.tier && listing.tier !== 'free' && (
+        {/* [MỚI] Overlay ĐÃ BÁN */}
+        {isSold && (
+            <div className="absolute inset-0 bg-black/40 z-30 flex items-center justify-center">
+                <span className="text-white font-black text-xs border-2 border-white px-3 py-1 -rotate-12 rounded-md uppercase tracking-widest">Đã bán</span>
+            </div>
+        )}
+
+        {/* Huy hiệu VIP (Chỉ hiện nếu chưa bán) */}
+        {!isSold && listing.tier && listing.tier !== 'free' && (
           <div className={`absolute top-2 left-2 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-md z-10 backdrop-blur-md border border-white/20 ${
             listing.tier === 'pro' 
               ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white' 
@@ -54,9 +60,8 @@ const ListingCard: React.FC<ListingCardProps> = ({
           </div>
         )}
 
-        {/* Khu vực nút hành động */}
+        {/* Nút hành động */}
         <div className="absolute top-2 right-2 flex flex-col gap-2 z-20">
-            {/* Nút yêu thích */}
             <button 
               onClick={(e) => {
                 e.preventDefault();
@@ -71,8 +76,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
               </svg>
             </button>
 
-            {/* Nút Đẩy tin */}
-            {onPushListing && (
+            {onPushListing && !isSold && (
               <button 
                 onClick={(e) => {
                   e.preventDefault(); 
@@ -92,24 +96,29 @@ const ListingCard: React.FC<ListingCardProps> = ({
 
       {/* PHẦN THÔNG TIN */}
       <Link to={detailUrl} className="p-3 space-y-1.5 flex flex-col flex-1">
-        {/* Giá tiền */}
         <p className="text-primary font-black text-lg leading-none tracking-tight">
           {formatPrice(listing.price)}
         </p>
         
-        {/* Tiêu đề */}
         <h3 className="text-xs md:text-sm text-gray-800 font-bold line-clamp-2 leading-snug min-h-[2.5em] group-hover:text-primary transition-colors">
           {listing.title}
         </h3>
         
-        {/* Footer Card (Địa điểm + Thời gian) */}
+        {/* Footer Card */}
         <div className="mt-auto pt-2 flex items-center justify-between text-[10px] text-gray-400 font-bold border-t border-dashed border-gray-100">
-          <span className="truncate max-w-[60%] flex items-center gap-1">
+          <span className="truncate max-w-[50%] flex items-center gap-1">
               📍 {listing.location || 'Toàn quốc'}
           </span>
-          <span className="opacity-70 whitespace-nowrap">
-              {formatTimeAgo(listing.createdAt)}
-          </span>
+          
+          {/* [MỚI] Hiển thị Lượt xem + Thời gian */}
+          <div className="flex items-center gap-2 opacity-70">
+             {listing.viewCount !== undefined && listing.viewCount > 0 && (
+                 <span className="flex items-center gap-0.5" title="Lượt xem">
+                    👀 {listing.viewCount}
+                 </span>
+             )}
+             <span>{formatTimeAgo(listing.createdAt)}</span>
+          </div>
         </div>
       </Link>
     </div>

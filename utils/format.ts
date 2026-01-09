@@ -1,7 +1,7 @@
 import { Listing, Category } from '../types';
 
 // ========================================================================
-// 1. FORMATTING UTILS (GIỮ NGUYÊN)
+// 1. FORMATTING UTILS
 // ========================================================================
 
 export const formatPrice = (price: number): string => {
@@ -45,7 +45,42 @@ export const slugify = (text: string): string => {
   return removeVietnameseTones(text).replace(/\s+/g, '-');
 };
 
-// [CẬP NHẬT QUAN TRỌNG]
+/**
+ * [QUAN TRỌNG] Hàm tạo từ khóa tìm kiếm (Full-Text Search Support)
+ * Dùng để tạo mảng 'keywords' lưu vào Firestore.
+ * Hỗ trợ tìm kiếm theo tiền tố (Prefix Search).
+ * VD: "Xe Vios" -> ["xe", "vi", "vio", "vios"] => Gõ "vio" cũng tìm ra.
+ */
+export const generateKeywords = (title: string): string[] => {
+  if (!title) return [];
+  
+  const cleanTitle = removeVietnameseTones(title);
+  const words = cleanTitle.split(" ").filter(w => w.length > 0);
+  
+  let keywords: string[] = [];
+
+  words.forEach(word => {
+    // 1. Lưu từ gốc
+    keywords.push(word);
+
+    // 2. Lưu các tiền tố (Prefix) cho các từ quan trọng (dài hơn 2 ký tự)
+    // Giúp tìm "iph" -> ra "iphone", "maz" -> ra "mazda"
+    if (word.length > 2) {
+       let currentPrefix = "";
+       for (let i = 0; i < word.length; i++) {
+          currentPrefix += word[i];
+          // Chỉ lưu từ có độ dài >= 2 ký tự để tiết kiệm dung lượng
+          if (currentPrefix.length >= 2) { 
+             keywords.push(currentPrefix);
+          }
+       }
+    }
+  });
+
+  // Loại bỏ từ trùng lặp
+  return Array.from(new Set(keywords));
+};
+
 // Sử dụng slug từ DB nếu có (chuẩn SEO), nếu tin cũ chưa có slug thì tự tạo
 export const getListingUrl = (listing: Listing): string => {
   const slug = listing.slug || slugify(listing.title);
@@ -58,7 +93,7 @@ export const getCategoryUrl = (category: Category): string => {
 };
 
 // ========================================================================
-// 3. SMART SEARCH ENGINE (GIỮ NGUYÊN - LOGIC NÀY RẤT TỐT)
+// 3. SMART SEARCH ENGINE (CLIENT SIDE REFINEMENT)
 // ========================================================================
 
 /**
@@ -100,6 +135,7 @@ const levenshteinDistance = (a: string, b: string): number => {
 
 /**
  * Kiểm tra xem một đoạn văn bản (target) có khớp với từ khóa tìm kiếm (query) không.
+ * Hỗ trợ: Khớp chính xác, đảo từ, và khớp mờ (Fuzzy).
  */
 export const isSearchMatch = (targetText: string, searchQuery: string): boolean => {
   if (!searchQuery) return true;
@@ -135,6 +171,7 @@ export const isSearchMatch = (targetText: string, searchQuery: string): boolean 
 
 /**
  * Tính điểm độ phù hợp (Relevance Score)
+ * Dùng để sắp xếp lại kết quả sau khi lọc.
  */
 export const calculateRelevanceScore = (targetText: string, searchQuery: string): number => {
   const cleanTarget = removeVietnameseTones(targetText);

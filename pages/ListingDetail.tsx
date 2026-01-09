@@ -112,7 +112,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             setAllListings(all);
          }
       } else {
-         // Logic fallback cho code cũ (nếu cần giữ)
          const data = await db.getListings();
          setAllListings(data);
          const l = data.find(x => x.id === id);
@@ -126,21 +125,14 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     loadListing();
     window.scrollTo(0, 0);
   }, [id, user]);
-  // --- LOGIC GỢI Ý SẢN PHẨM (ĐÃ CẬP NHẬT) ---
+
   const similarListings = useMemo(() => {
-    // 1. Kiểm tra dữ liệu đầu vào
     if (!listing || allListings.length === 0) return [];
-    
-    // 2. Xác định "Quanh đây" là ở đâu?
-    // Ưu tiên lấy vị trí của User đang xem, nếu không có thì lấy vị trí của sản phẩm đang xem
     const targetLocation = user?.location || listing.location;
 
-    // 3. Thực hiện Lọc và Sắp xếp
     return allListings
-      .filter(l => l.id !== listing.id && l.category === listing.category) // Chỉ lấy cùng danh mục, khác ID
+      .filter(l => l.id !== listing.id && l.category === listing.category)
       .sort((a, b) => {
-        // --- TIÊU CHÍ 1: Ưu tiên VIP (tier) ---
-        // Giả sử: 'pro' > 'basic' > 'free' (hoặc undefined)
         const getVipScore = (tier?: string) => {
             if (tier === 'pro') return 2;
             if (tier === 'basic') return 1;
@@ -150,41 +142,25 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         const scoreA = getVipScore(a.tier);
         const scoreB = getVipScore(b.tier);
         
-        // Nếu điểm VIP khác nhau, đưa VIP cao hơn lên trước
-        if (scoreA !== scoreB) {
-            return scoreB - scoreA;
-        }
+        if (scoreA !== scoreB) return scoreB - scoreA;
 
-        // --- TIÊU CHÍ 2: Ưu tiên "Quanh đây" (Location) ---
-        // So sánh chuỗi địa điểm
         const isNearA = a.location === targetLocation ? 1 : 0;
         const isNearB = b.location === targetLocation ? 1 : 0;
 
-        // Nếu một tin ở gần, một tin ở xa -> Đưa tin ở gần lên trước
-        if (isNearA !== isNearB) {
-            return isNearB - isNearA;
-        }
+        if (isNearA !== isNearB) return isNearB - isNearA;
 
-        // --- TIÊU CHÍ 3: Mới nhất (Fallback) ---
-        // Nếu cùng cấp độ VIP và cùng khu vực (hoặc cùng không trùng khu vực) -> Tin mới hơn lên trước
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       })
-      .slice(0, 12); // Chỉ lấy 12 tin đầu tiên
+      .slice(0, 12);
   }, [allListings, listing, user]);
 
   if (!listing) return null;
 
   const currentCategory = CATEGORIES.find(c => c.id === listing.category);
 
-  // --- LOGIC XỬ LÝ NÚT BẤM SỐ ĐIỆN THOẠI ---
   const handleShowPhone = () => {
-    if (!user) {
-        // Chưa đăng nhập -> Chuyển sang trang Login
-        navigate('/login');
-    } else {
-        // Đã đăng nhập -> Hiện số điện thoại
-        setIsPhoneVisible(true);
-    }
+    if (!user) navigate('/login');
+    else setIsPhoneVisible(true);
   };
 
   const handleStartChat = async () => {
@@ -248,10 +224,8 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           
           {/* Gallery - WATERMARK */}
           <div className="relative bg-black aspect-square md:aspect-video md:rounded-3xl overflow-hidden group select-none">
-            {/* Ảnh gốc */}
             <img src={listing.images[activeImage]} className="w-full h-full object-contain relative z-0" alt={listing.title} />
             
-            {/* --- WATERMARK OVERLAY --- */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden">
                <span className="text-white/20 text-4xl md:text-6xl font-black uppercase tracking-widest -rotate-45 whitespace-nowrap drop-shadow-md">
                   CHỢ CỦA TUI
@@ -335,7 +309,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               <p className="text-4xl font-black text-primary tracking-tighter">{formatPrice(listing.price)}</p>
               <h1 className="text-2xl font-black text-textMain leading-tight">{listing.title}</h1>
               
-              {/* ĐỊA CHỈ & THỜI GIAN */}
+              {/* ĐỊA CHỈ & THỜI GIAN & VIEW COUNT */}
               <div className="flex flex-col gap-1 text-[10px] text-gray-400 font-black uppercase tracking-widest pt-2">
                 <div className="flex items-start gap-2">
                     <span className="text-lg">📍</span>
@@ -343,8 +317,18 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                         {listing.address || listing.location}
                     </span>
                 </div>
-                <div className="flex items-center gap-2 pl-1">
-                    <span>🕒 {formatTimeAgo(listing.createdAt)}</span>
+                
+                {/* [MỚI] Hiển thị View Count và Thời gian */}
+                <div className="flex items-center gap-4 pl-1 mt-1">
+                    <span className="flex items-center gap-1">
+                      🕒 {formatTimeAgo(listing.createdAt)}
+                    </span>
+                    
+                    {listing.viewCount !== undefined && listing.viewCount > 0 && (
+                      <span className="flex items-center gap-1 text-gray-500" title="Lượt xem">
+                        👀 {listing.viewCount} lượt xem
+                      </span>
+                    )}
                 </div>
               </div>
             </div>
@@ -367,7 +351,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                         <Marker position={[listing.lat, listing.lng]} />
                     </MapContainer>
                     
-                    {/* Overlay mở Google Maps */}
                     <a 
                         href={`https://www.google.com/maps/search/?api=1&query=${listing.lat},${listing.lng}`} 
                         target="_blank" 
@@ -465,7 +448,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       </div>
 
-      {/* SIMILAR LISTINGS - Có thể bạn thích */}
+      {/* SIMILAR LISTINGS */}
       <div className="px-4 md:px-0 pt-10">
         <div className="flex items-center justify-between mb-8 px-2">
           <h2 className="text-xl font-black text-textMain tracking-tighter uppercase">Có thể bạn thích</h2>

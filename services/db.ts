@@ -1251,50 +1251,5 @@ export const db = {
       return { success: false, message: e.message };
     }
   },
-  // --- HÀM NÂNG CẤP DỮ LIỆU CŨ (CHẠY 1 LẦN) ---
-  fixOldData: async () => {
-    try {
-      console.log("🛠 Đang bắt đầu sửa dữ liệu cũ...");
-      const snap = await getDocs(collection(firestore, "listings"));
-      const batch = writeBatch(firestore);
-      let count = 0;
-
-      snap.docs.forEach(d => {
-        const data = d.data();
-        
-        // Chỉ sửa những tin chưa có keywords
-        if (!data.keywords) {
-           const title = data.title || "";
-           // 1. Tạo keywords
-           // @ts-ignore
-           const kw = generateKeywords(title);
-           // 2. Tạo slug (nếu chưa có)
-           const slug = data.slug || db.toSlug(title);
-           // 3. Init viewCount (nếu chưa có)
-           const views = data.viewCount || 0;
-
-           batch.update(d.ref, { 
-             keywords: kw,
-             slug: slug,
-             viewCount: views,
-             updatedAt: new Date().toISOString() // Đánh dấu là mới cập nhật
-           });
-           count++;
-        }
-      });
-
-      if (count > 0) {
-        await batch.commit();
-        alert(`✅ Đã nâng cấp thành công ${count} tin đăng cũ! Giờ bạn có thể tìm kiếm chúng.`);
-      } else {
-        alert("👍 Tất cả dữ liệu đã chuẩn, không cần sửa gì thêm.");
-      }
-      
-    } catch (e) {
-      console.error("Lỗi fix data:", e);
-      alert("Có lỗi xảy ra khi sửa dữ liệu.");
-    }
-  },
-
   init: () => {}
 };

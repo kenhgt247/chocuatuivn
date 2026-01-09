@@ -97,6 +97,10 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
   useEffect(() => {
     if (!id) return;
+
+    // [THÊM MỚI] Tăng lượt xem ngay khi có ID
+    db.incrementListingView(id);
+
     const loadListing = async () => {
       if (db.getListingById) {
          const l = await db.getListingById(id);
@@ -108,6 +112,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             setAllListings(all);
          }
       } else {
+         // Logic fallback cho code cũ (nếu cần giữ)
          const data = await db.getListings();
          setAllListings(data);
          const l = data.find(x => x.id === id);
@@ -121,7 +126,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     loadListing();
     window.scrollTo(0, 0);
   }, [id, user]);
-
   // --- LOGIC GỢI Ý SẢN PHẨM (ĐÃ CẬP NHẬT) ---
   const similarListings = useMemo(() => {
     // 1. Kiểm tra dữ liệu đầu vào

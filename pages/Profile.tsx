@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Listing } from '../types';
 import ListingCard from '../components/ListingCard';
-import { LOCATIONS } from '../constants';
+import { LOCATIONS, TIER_CONFIG } from '../constants';
 import { formatPrice } from '../utils/format';
 import { getLocationFromCoords } from '../utils/locationHelper'; 
 import { compressAndGetBase64 } from '../utils/imageCompression';
@@ -269,6 +269,13 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
                             <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter">{user.name}</h1>
                             {renderVerificationStatus()}
+                            
+                            {/* [ĐÃ THÊM LẠI] NÚT ADMIN DASHBOARD */}
+                            {user.role === 'admin' && (
+                                <Link to="/admin" className="bg-red-500 text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest shadow-lg shadow-red-200 hover:scale-105 transition-transform flex items-center gap-2">
+                                    <span>⚡</span> Admin Panel
+                                </Link>
+                            )}
                         </div>
                         <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">{user.email} • {user.phone || 'Chưa có SĐT'}</p>
                         

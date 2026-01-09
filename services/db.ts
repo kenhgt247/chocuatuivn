@@ -7,7 +7,7 @@ import {
   query, where, orderBy, limit, addDoc, runTransaction,
   startAfter, QueryDocumentSnapshot, DocumentData, writeBatch,
   getCountFromServer, deleteDoc, arrayUnion, arrayRemove, 
-  onSnapshot, increment // [MỚI] Import hàm increment để tăng view
+  onSnapshot, increment 
 } from "firebase/firestore";
 import { 
   getAuth, 
@@ -22,8 +22,9 @@ import {
 import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
 import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus } from '../types';
 
-// IMPORT LOGIC TÌM KIẾM THÔNG MINH
-import { isSearchMatch, calculateRelevanceScore } from '../utils/format';
+// [QUAN TRỌNG] IMPORT LOGIC TÌM KIẾM & FORMAT
+// Đảm bảo file utils/format.ts đã có hàm generateKeywords
+import { isSearchMatch, calculateRelevanceScore, generateKeywords } from '../utils/format';
 
 // 2. CẤU HÌNH ADMIN EMAIL
 const ADMIN_EMAIL = "buivanbac@gmail.com"; 
@@ -119,7 +120,7 @@ export const db = {
     }
   },
 
-  // [MỚI] Tăng lượt xem cho tin đăng
+  // Tăng lượt xem cho tin đăng
   incrementListingView: async (listingId: string) => {
     try {
         const ref = doc(firestore, "listings", listingId);
@@ -150,6 +151,7 @@ export const db = {
     }
   },
 
+  // [NÂNG CẤP TÌM KIẾM]
   getListingsPaged: async (options: {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
@@ -162,68 +164,68 @@ export const db = {
   }) => {
     try {
       const colRef = collection(firestore, "listings");
-      
-      if (options.search && options.search.trim().length > 0) {
-        let constraints: any[] = [
-           where("status", "==", "approved"),
-           orderBy("createdAt", "desc"),
-           limit(500)
-        ];
-
-        if (options.categoryId) constraints.push(where("category", "==", options.categoryId));
-        if (options.location) constraints.push(where("location", "==", options.location));
-        if (options.isVip) constraints.push(where("tier", "==", "pro"));
-
-        const q = query(colRef, ...constraints);
-        const snap = await getDocs(q);
-        
-        let allListings = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
-
-        const queryText = options.search.trim();
-        let filtered = allListings.filter(l => isSearchMatch(l.title, queryText));
-
-        filtered.sort((a, b) => {
-           const scoreA = calculateRelevanceScore(a.title, queryText);
-           const scoreB = calculateRelevanceScore(b.title, queryText);
-           return scoreB - scoreA;
-        });
-
-        return {
-          listings: filtered,
-          lastDoc: null,
-          hasMore: false,
-          error: null
-        };
-      }
-
       let constraints: any[] = [];
 
+      // 1. LOGIC TÌM KIẾM HYBRID (Server + Client)
+      // Nếu có từ khóa tìm kiếm, ta dùng array-contains để lọc thô trước
+      if (options.search && options.search.trim().length > 0) {
+         const searchKeywords = generateKeywords(options.search);
+         if (searchKeywords.length > 0) {
+             // Lấy từ khóa đầu tiên để lọc (Firestore giới hạn 1 array-contains)
+             // VD: "Xe máy" -> lọc tất cả tin có chữ "xe" trước
+             const primaryKeyword = searchKeywords[0];
+             constraints.push(where("keywords", "array-contains", primaryKeyword));
+         }
+      }
+
+      // 2. CÁC ĐIỀU KIỆN LỌC KHÁC
       if (options.status) {
           constraints.push(where("status", "==", options.status));
       } else if (!options.sellerId) {
+          // Mặc định chỉ lấy tin đã duyệt nếu không phải xem profile
           constraints.push(where("status", "==", "approved"));
       }
 
       if (options.categoryId) constraints.push(where("category", "==", options.categoryId));
       if (options.sellerId) constraints.push(where("sellerId", "==", options.sellerId));
       if (options.location) constraints.push(where("location", "==", options.location));
-      
-      if (options.isVip) {
-        constraints.push(where("tier", "==", "pro"));
+      if (options.isVip) constraints.push(where("tier", "==", "pro"));
+
+      // 3. SẮP XẾP
+      // Lưu ý: Nếu có Search (filter keywords), ta không thể sort theo createdAt ngay 
+      // trừ khi tạo Composite Index. Để đơn giản & miễn phí, ta tạm bỏ sort khi search.
+      if (!options.search) {
+          constraints.push(orderBy("createdAt", "desc"));
       }
 
-      // [QUAN TRỌNG] Ưu tiên sắp xếp theo updatedAt (cho tính năng Đẩy tin)
-      constraints.push(orderBy("createdAt", "desc"));
+      // 4. PHÂN TRANG
       constraints.push(limit(options.pageSize));
-
       if (options.lastDoc) {
         constraints.push(startAfter(options.lastDoc));
       }
 
+      // 5. THỰC THI
       const q = query(colRef, ...constraints);
       const snap = await getDocs(q);
       
-      const results = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
+      let results = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
+
+      // 6. LỌC TINH (CLIENT-SIDE REFINEMENT)
+      // Nếu đang tìm kiếm, ta dùng thuật toán Levenshtein để sắp xếp lại kết quả cho chính xác nhất
+      if (options.search && options.search.trim().length > 0) {
+          const queryText = options.search.trim();
+          
+          // Lọc lại lần nữa để loại bỏ các tin chứa từ khóa "primary" nhưng không khớp các từ còn lại
+          results = results.filter(l => isSearchMatch(l.title, queryText));
+          
+          // Sắp xếp theo độ phù hợp
+          results.sort((a, b) => {
+             const scoreA = calculateRelevanceScore(a.title, queryText);
+             const scoreB = calculateRelevanceScore(b.title, queryText);
+             return scoreB - scoreA;
+          });
+      }
+
       const lastVisible = snap.docs[snap.docs.length - 1] || null;
 
       return {
@@ -264,10 +266,12 @@ export const db = {
 
   saveListing: async (listingData: any) => {
     try {
-      // [CẬP NHẬT] Tự động tạo slug và init viewCount
+      // [CẬP NHẬT] Tạo keywords cho tìm kiếm
       const dataToSave = {
         ...listingData,
         slug: db.toSlug(listingData.title),
+        keywords: generateKeywords(listingData.title), // Tạo mảng từ khóa
+        
         viewCount: 0, 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -299,14 +303,12 @@ export const db = {
     }
   },
 
-  // [CẬP NHẬT] Hỗ trợ thêm trạng thái 'sold' và 'hidden'
   updateListingStatus: async (listingId: string, status: 'approved' | 'rejected' | 'sold' | 'hidden') => {
     try {
       await updateDoc(doc(firestore, "listings", listingId), { status });
       
       const listing = await db.getListingById(listingId);
       if (listing) {
-        // Không gửi thông báo nếu là chủ sở hữu tự ẩn tin
         if (status === 'sold' || status === 'hidden') return;
 
         const slug = listing.slug || db.toSlug(listing.title);
@@ -330,10 +332,18 @@ export const db = {
 
   updateListingContent: async (listingId: string, data: Partial<Listing>) => {
     try {
-      await updateDoc(doc(firestore, "listings", listingId), {
-          ...data,
-          updatedAt: new Date().toISOString()
-      });
+      // Nếu có sửa tiêu đề, phải tạo lại keywords và slug
+      let updates = { ...data, updatedAt: new Date().toISOString() };
+      if (data.title) {
+          updates = {
+              ...updates,
+              slug: db.toSlug(data.title),
+              // @ts-ignore
+              keywords: generateKeywords(data.title)
+          };
+      }
+
+      await updateDoc(doc(firestore, "listings", listingId), updates);
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e.message };
@@ -354,20 +364,17 @@ export const db = {
     }
   },
 
-  // Đẩy tin - Sử dụng pushDiscount từ Settings
   pushListing: async (listingId: string, userId: string) => {
     const settings: any = await db.getSettings();
     const user = await db.getUserById(userId);
     
-    // Logic tính giá đã được cập nhật
     const rawPrice = settings?.pushPrice || 20000;
-    const discount = settings?.pushDiscount || 0; // Lấy discount từ Admin
+    const discount = settings?.pushDiscount || 0; 
     const price = rawPrice * (1 - discount / 100);
 
     if (!user || (user.walletBalance || 0) < price) return { success: false, message: "Ví không đủ tiền." };
     
     await updateDoc(doc(firestore, "users", userId), { walletBalance: (user.walletBalance || 0) - price });
-    // [QUAN TRỌNG] Đẩy tin = Cập nhật lại createdAt hoặc updatedAt để lên đầu
     await updateDoc(doc(firestore, "listings", listingId), { createdAt: new Date().toISOString() });
 
     await addDoc(collection(firestore, "mail"), {
@@ -615,12 +622,10 @@ export const db = {
     return d.data() as User;
   },
 
-  // [MỚI] Duyệt xác minh danh tính (KYC)
   updateUserVerification: async (userId: string, status: VerificationStatus) => {
     try {
         await updateDoc(doc(firestore, "users", userId), { verificationStatus: status });
         
-        // Gửi thông báo cho user
         let message = "";
         let type: 'success' | 'error' = 'success';
         if (status === 'verified') {
@@ -1206,11 +1211,14 @@ export const db = {
         const subImage = `https://picsum.photos/seed/${i}/800/600`;
 
         const listingRef = doc(firestore, "listings", lid);
+        // [CẬP NHẬT] Tạo keywords cho dữ liệu mẫu
         const newListing: Listing = {
           id: lid,
           title: prod.title,
-          slug: db.toSlug(prod.title), // [MỚI] Thêm slug cho dữ liệu mẫu
-          viewCount: randomInt(0, 500), // [MỚI] Random view cho sinh động
+          slug: db.toSlug(prod.title), 
+          // @ts-ignore
+          keywords: generateKeywords(prod.title), // Tạo keywords
+          viewCount: randomInt(0, 500), 
           description: `Cần bán ${prod.title}. Hàng còn mới, sử dụng kỹ. Bao test thoải mái. Liên hệ ${seller.name} để ép giá. Giao dịch trực tiếp tại ${seller.location}.`,
           price: finalPrice > 0 ? finalPrice : 1000000,
           category: cat.id,

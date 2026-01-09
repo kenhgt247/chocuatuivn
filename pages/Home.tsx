@@ -27,6 +27,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const typeParam = searchParams.get('type');
   const locationParam = searchParams.get('location');
 
+  // Xác định Category hiện tại dựa trên Slug URL
   const currentCategory = slug 
     ? CATEGORIES.find(c => c.slug === slug || c.slug === slug.split('-')[0]) 
     : null;
@@ -47,14 +48,15 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const DISPLAY_COUNT = 7;
 
-  const [detectedLocation, setDetectedLocation] = useState<string | null>(user?.location || null);
+  // Ưu tiên lấy location từ URL > User Profile > State local
+  const [detectedLocation, setDetectedLocation] = useState<string | null>(locationParam || user?.location || null);
   const [isLocating, setIsLocating] = useState(false);
-  const [indexErrors, setIndexErrors] = useState<{msg: string, link: string | null}[]>([]);
 
   const LIMIT_VIP = 12;
   const LIMIT_NEARBY = 12;
   const PAGE_SIZE = 12;
 
+  // 1. Load Settings hệ thống
   useEffect(() => {
     const loadSettings = async () => {
       const s = await db.getSettings();
@@ -63,17 +65,18 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     loadSettings();
   }, []);
 
-  const extractIndexLink = (error: string) => {
-    const match = error.match(/https:\/\/console\.firebase\.google\.com[^\s]*/);
-    return match ? match[0] : null;
-  };
-
+  // 2. Load các section đặc biệt (VIP, Nearby)
   const loadSpecialSections = useCallback(async (locationToUse: string | null) => {
+    // Chỉ load khi ở trang chủ (không search/filter)
+    if (search || activeCategoryId || typeParam) return;
+
+    // Load VIP
     const vipRes = await db.getVIPListings(LIMIT_VIP);
     if (!vipRes.error) {
       setVipListings(vipRes.listings);
     }
 
+    // Load Nearby
     const targetLoc = locationToUse || user?.location;
     if (targetLoc) {
       const nearbyRes = await db.getListingsPaged({
@@ -84,8 +87,9 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         setNearbyListings(nearbyRes.listings);
       }
     }
-  }, [user]);
+  }, [user, search, activeCategoryId, typeParam]);
 
+  // 3. Xử lý định vị
   const handleDetectLocation = useCallback(() => {
     if (!navigator.geolocation) {
         alert("Trình duyệt của bạn không hỗ trợ định vị.");
@@ -99,6 +103,8 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             const locationInfo = await getLocationFromCoords(latitude, longitude);
             setDetectedLocation(locationInfo.city);
             setIsLocating(false);
+            
+            // Cập nhật User Profile nếu đã đăng nhập
             if (user) {
               db.updateUserProfile(user.id, { 
                   location: locationInfo.city, 
@@ -107,13 +113,15 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                   lng: longitude 
               }).catch(console.error);
             }
-            if (!search && !activeCategoryId && !typeParam && !locationParam) {
+
+            // Reload lại dữ liệu Nearby theo vị trí mới
+            if (!search && !activeCategoryId) {
                 loadSpecialSections(locationInfo.city);
             }
         } catch (err) {
             console.error("Lỗi lấy địa chỉ:", err);
             setIsLocating(false);
-            setDetectedLocation(latitude > 16 ? "TP Hà Nội" : "TPHCM");
+            setDetectedLocation(latitude > 16 ? "TP Hà Nội" : "TPHCM"); // Fallback cơ bản
         }
       },
       (error) => {
@@ -122,18 +130,21 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
-  }, [user, loadSpecialSections, search, activeCategoryId, typeParam, locationParam]);
+  }, [user, loadSpecialSections, search, activeCategoryId]);
 
+  // 4. Fetch Dữ liệu chính (Tin mới nhất/Search/Filter)
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true);
     setLatestListings([]);
     setLastDoc(null);
     setHasMore(true);
-    setIndexErrors([]);
+    
     try {
+      // Load VIP/Nearby song song nếu ở trang chủ
       if (!search && !activeCategoryId && !typeParam && !locationParam) {
-        await loadSpecialSections(detectedLocation);
+        loadSpecialSections(detectedLocation);
       }
+
       const result = await db.getListingsPaged({
         pageSize: PAGE_SIZE,
         categoryId: activeCategoryId || undefined,
@@ -141,14 +152,14 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         location: locationParam || undefined,
         isVip: typeParam === 'vip'
       });
-      if (result.error) {
-        const link = extractIndexLink(result.error);
-        setIndexErrors(prev => link ? [...prev, { msg: "Lỗi truy vấn dữ liệu", link }] : prev);
-      } else {
+
+      if (!result.error) {
         setLatestListings(result.listings);
         setLastDoc(result.lastDoc);
         setHasMore(result.hasMore);
       }
+
+      // Load Favorites nếu user đã đăng nhập
       if (user) {
         const favs = await db.getFavorites(user.id);
         setFavorites(favs);
@@ -160,10 +171,12 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     }
   }, [activeCategoryId, search, typeParam, locationParam, user, loadSpecialSections, detectedLocation]);
 
+  // Trigger fetch khi params thay đổi
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);
 
+  // 5. Load More (Infinite Scroll)
   const handleLoadMore = async () => {
     if (isFetchingMore || !hasMore || (search && !lastDoc)) return;
     setIsFetchingMore(true);
@@ -186,6 +199,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     }
   };
 
+  // 6. Các hành động User (Fav, Push)
   const toggleFav = async (id: string) => {
     if (!user) return navigate('/login');
     await db.toggleFavorite(user.id, id);
@@ -193,7 +207,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     setFavorites(updatedFavs);
   };
 
-  // --- LOGIC ĐẨY TIN ---
   const handlePushListing = async (listingId: string) => {
     if (!user) {
         if(window.confirm("Bạn cần đăng nhập để thực hiện chức năng này.")) { navigate('/login'); }
@@ -217,7 +230,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         const result = await db.pushListing(listingId, user.id);
         if (result.success) {
             alert("🚀 Đẩy tin thành công! Tin của bạn đã lên đầu trang chủ.");
-            fetchInitialData();
+            fetchInitialData(); // Reload lại list để thấy sự thay đổi
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
             alert("Lỗi: " + result.message);
@@ -237,11 +250,13 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // --- RENDER ---
   return (
     <div className="space-y-6 pb-28 md:pb-24 px-2 md:px-4 max-w-[1400px] mx-auto relative font-sans animate-fade-in">
       
       {/* 1. CATEGORY STRIP */}
       <div ref={categoryRef} className="sticky top-20 z-40 bg-white/95 backdrop-blur-lg py-2 -mx-2 px-2 md:mx-0 md:px-0 border-b border-gray-100 shadow-sm">
+         {/* Mobile View */}
          <section className="flex md:hidden bg-white p-2 overflow-x-auto no-scrollbar gap-2 items-center">
             <button onClick={() => selectCategory(null)} className={`px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all flex-shrink-0 ${!activeCategoryId ? 'bg-primary text-white shadow-lg' : 'bg-gray-100 text-gray-500'}`}>Khám phá</button>
             {CATEGORIES.map(cat => (
@@ -251,6 +266,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             ))}
         </section>
 
+        {/* Desktop View */}
         <section className="hidden md:block">
             <div className={`bg-white border border-gray-200 rounded-[2.5rem] p-3 shadow-sm transition-all duration-500 ${isExpanded ? 'ring-4 ring-primary/5' : ''}`}>
                 {!isExpanded ? (

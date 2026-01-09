@@ -84,24 +84,22 @@ const App: React.FC = () => {
           {/* Route SEO chuẩn (hiển thị trên web) */}
           <Route path="/san-pham/:slugWithId" element={<ListingDetail user={user} />} />
           
-          {/* [QUAN TRỌNG] Route Cầu nối cho Thông báo (Do db.ts gửi link dạng này) */}
-          {/* Khi bấm thông báo "Tin được duyệt", nó chạy vào đây và vẫn hiển thị ListingDetail */}
+          {/* [QUAN TRỌNG] Route Cầu nối cho Thông báo (Fallback) */}
+          {/* Hỗ trợ các link cũ hoặc link từ thông báo hệ thống */}
           <Route path="/listings/:slugWithId" element={<ListingDetail user={user} />} />
+          <Route path="/listing/:slugWithId" element={<ListingDetail user={user} />} />
 
 
           {/* ========================================================= */}
-          {/* 3. USER & SELLER */}
+          {/* 3. USER & SELLER (PROFILE) */}
           {/* ========================================================= */}
           
-          {/* Route xem Profile người khác */}
-          <Route path="/seller/:id" element={<SellerProfile currentUser={user} />} />
-          
-          {/* [QUAN TRỌNG] Route Cầu nối cho Thông báo Follow */}
-          {/* Khi bấm thông báo "Có người theo dõi", nó chạy vào đây */}
-          <Route path="/profile/:id" element={<SellerProfile currentUser={user} />} />
-
-          {/* Trang cá nhân của MÌNH */}
+          {/* [TINH CHỈNH] Đưa Route Profile cá nhân lên TRƯỚC để tránh nhầm lẫn */}
           <Route path="/profile" element={<Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} />} />
+
+          {/* Sau đó mới đến Route xem Profile người khác (có ID) */}
+          <Route path="/profile/:id" element={<SellerProfile currentUser={user} />} />
+          <Route path="/seller/:id" element={<SellerProfile currentUser={user} />} />
           
           {/* ========================================================= */}
           {/* 4. CÁC ROUTE CẦN ĐĂNG NHẬP (PROTECTED ROUTES) */}
@@ -109,10 +107,11 @@ const App: React.FC = () => {
           <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
           <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
           
-          {/* Route Chat (Cả danh sách và chi tiết phòng chat) */}
+          {/* Route Chat */}
           <Route path="/chat" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
           <Route path="/chat/:roomId" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
           
+          {/* Ví & Gói cước */}
           <Route path="/upgrade" element={<Subscription user={user} onUpdateUser={handleUpdateUser} />} />
           <Route path="/wallet" element={user ? <Wallet user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
           
@@ -126,7 +125,7 @@ const App: React.FC = () => {
           <Route path="/register" element={<Register onLogin={handleLogin} />} />
           <Route path="/page/:slug" element={<StaticPage />} />
 
-          {/* Route 404 - Trang không tồn tại */}
+          {/* Route 404 */}
           <Route path="*" element={<div className="h-[50vh] flex items-center justify-center font-bold text-gray-400">404 - Trang không tồn tại</div>} />
 
         </Routes>

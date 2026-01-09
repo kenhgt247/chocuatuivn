@@ -28,23 +28,24 @@ import { isSearchMatch, calculateRelevanceScore } from '../utils/format';
 // 2. CẤU HÌNH ADMIN EMAIL
 const ADMIN_EMAIL = "buivanbac@gmail.com"; 
 
+// [CẬP NHẬT] Interface chuẩn đầy đủ cho Admin Settings
 export interface SystemSettings {
   pushPrice: number;    // Giá gốc 1 lần đẩy tin
-  pushDiscount: number; // % Giảm giá riêng cho đẩy tin (Ví dụ: 10)
-  tierDiscount: number; // % Giảm giá chung cho các gói VIP (Ví dụ: 20)
+  pushDiscount: number; // % Giảm giá riêng cho đẩy tin
+  tierDiscount: number; // % Giảm giá chung cho các gói VIP
   bannerSlides?: any[]; // Danh sách quản lý banner
   tierConfigs: {
     free: { 
       name: string; 
       price: number; 
       maxImages: number; 
-      postsPerDay: number;   // Giới hạn tin đăng mỗi ngày
-      autoApprove: boolean;  // Tự động duyệt hay phải chờ Admin
+      postsPerDay: number;   // [QUAN TRỌNG] Giới hạn tin đăng mỗi ngày
+      autoApprove: boolean;  // [QUAN TRỌNG] Tự động duyệt hay không
       features: string[] 
     };
     basic: { 
       name: string; 
-      price: number;         // Giá gốc của gói (Để hiển thị gạch ngang)
+      price: number; 
       maxImages: number; 
       postsPerDay: number; 
       autoApprove: boolean; 
@@ -52,7 +53,7 @@ export interface SystemSettings {
     };
     pro: { 
       name: string; 
-      price: number;         // Giá gốc của gói (Để hiển thị gạch ngang)
+      price: number; 
       maxImages: number; 
       postsPerDay: number; 
       autoApprove: boolean; 
@@ -96,6 +97,31 @@ export const db = {
   },
 
   // --- A. QUẢN LÝ TIN ĐĂNG (LISTINGS) ---
+
+  // [QUAN TRỌNG] Hàm đếm số tin đăng trong ngày của User
+  countUserListingsToday: async (userId: string) => {
+    try {
+      // Lấy thời điểm bắt đầu ngày hôm nay (00:00:00)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+
+      const colRef = collection(firestore, "listings");
+      // Truy vấn tin của người bán đăng từ đầu ngày đến giờ
+      const q = query(
+        colRef, 
+        where("sellerId", "==", userId),
+        where("createdAt", ">=", todayISO)
+      );
+      
+      // Lấy số lượng tin
+      const snap = await getCountFromServer(q);
+      return snap.data().count;
+    } catch (e) {
+      console.error("Lỗi đếm tin trong ngày:", e);
+      return 0; // Trả về 0 để không chặn nhầm nếu lỗi mạng
+    }
+  },
 
   getVIPListings: async (max = 10) => {
     try {
@@ -232,7 +258,8 @@ export const db = {
       const dataToSave = {
         ...listingData,
         createdAt: new Date().toISOString(),
-        status: listingData.status || 'pending',
+        // Status sẽ được quyết định ở Frontend dựa trên AutoApprove từ Admin
+        status: listingData.status || 'pending', 
         attributes: listingData.attributes || {} 
       };
 
@@ -308,12 +335,14 @@ export const db = {
     }
   },
 
+  // Đẩy tin - Sử dụng pushDiscount từ Settings
   pushListing: async (listingId: string, userId: string) => {
     const settings: any = await db.getSettings();
     const user = await db.getUserById(userId);
     
+    // Logic tính giá đã được cập nhật
     const rawPrice = settings?.pushPrice || 20000;
-    const discount = settings?.pushDiscount || 0;
+    const discount = settings?.pushDiscount || 0; // Lấy discount từ Admin
     const price = rawPrice * (1 - discount / 100);
 
     if (!user || (user.walletBalance || 0) < price) return { success: false, message: "Ví không đủ tiền." };
@@ -545,7 +574,6 @@ export const db = {
       const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
         if (fbUser) {
           const userDoc = await getDoc(doc(firestore, "users", fbUser.uid));
-          // [FIX] Trả về object có ID
           resolve(userDoc.exists() ? { id: userDoc.id, ...userDoc.data() } as User : null);
         } else {
           resolve(null);
@@ -557,7 +585,6 @@ export const db = {
 
   getUserById: async (id: string): Promise<User | undefined> => {
     const d = await getDoc(doc(firestore, "users", id));
-    // [FIX] Trả về object có ID
     return d.exists() ? { id: d.id, ...d.data() } as User : undefined;
   },
 
@@ -724,9 +751,8 @@ export const db = {
      }
   },
 
-  // --- F. ĐÁNH GIÁ (REVIEWS) [ĐÃ CẬP NHẬT: THÊM SỬA/XÓA/PHÂN TRANG] ---
+  // --- F. ĐÁNH GIÁ (REVIEWS) ---
 
-  // 1. Lấy danh sách realtime (Dùng cho số lượng ít)
   getReviews: (targetId: string, targetType: 'listing' | 'user', callback: (reviews: Review[]) => void) => {
     const q = query(
       collection(firestore, "reviews"), 
@@ -739,7 +765,6 @@ export const db = {
     });
   },
 
-  // 2. Lấy danh sách phân trang (Dùng cho component ReviewSection mới)
   getReviewsPaged: async ({ targetId, targetType, pageSize, startAfterDoc }: { 
       targetId: string, targetType: string, pageSize: number, startAfterDoc?: any 
   }) => {
@@ -765,7 +790,6 @@ export const db = {
       };
   },
 
-  // 3. Kiểm tra xem user đã review chưa (tối ưu hiệu năng)
   checkUserReviewed: async (targetId: string, authorId: string) => {
       const q = query(
           collection(firestore, "reviews"),
@@ -777,7 +801,6 @@ export const db = {
       return !snap.empty;
   },
 
-  // 4. Thêm Review Mới
   addReview: async (reviewData: Omit<Review, 'id' | 'createdAt'>) => {
     try {
       const res = await addDoc(collection(firestore, "reviews"), { ...reviewData, createdAt: new Date().toISOString() });
@@ -817,7 +840,6 @@ export const db = {
     }
   },
 
-  // 5. Cập nhật Review [MỚI]
   updateReview: async (reviewId: string, data: { rating: number, comment: string }) => {
       const reviewRef = doc(firestore, 'reviews', reviewId);
       await updateDoc(reviewRef, {
@@ -827,7 +849,6 @@ export const db = {
       });
   },
 
-  // 6. Xóa Review [MỚI]
   deleteReview: async (reviewId: string) => {
       const reviewRef = doc(firestore, 'reviews', reviewId);
       await deleteDoc(reviewRef);
@@ -894,7 +915,7 @@ export const db = {
     }
   },
 
-  // --- G. CHAT [ĐÃ CẬP NHẬT: THÊM XÓA TIN NHẮN & XÓA PHÒNG] ---
+  // --- G. CHAT ---
 
   getChatRooms: (uId: string, cb: any) => {
     const q = query(collection(firestore, "chats"), where("participantIds", "array-contains", uId));
@@ -909,7 +930,6 @@ export const db = {
     return d.exists() ? ({...d.data(), id: d.id} as ChatRoom) : undefined;
   },
 
-  // [MỚI] Hàm xóa phòng chat (Xóa hoàn toàn)
   deleteChatRoom: async (roomId: string) => {
     try {
       await deleteDoc(doc(firestore, "chats", roomId));
@@ -926,7 +946,6 @@ export const db = {
     await updateDoc(ref, { messages: arrayUnion(msg), lastMessage: m.text, lastUpdate: msg.timestamp, seenBy: [m.senderId] });
   },
 
-  // Hàm xóa tin nhắn trong Chat
   deleteMessage: async (roomId: string, messageId: string) => {
     try {
       const roomRef = doc(firestore, "chats", roomId);
@@ -934,7 +953,6 @@ export const db = {
       if (roomSnap.exists()) {
         const data = roomSnap.data();
         if (data.messages) {
-           // Lọc bỏ tin nhắn cần xóa
            const updatedMessages = data.messages.filter((m: any) => m.id !== messageId);
            await updateDoc(roomRef, { messages: updatedMessages });
         }
@@ -1026,6 +1044,46 @@ export const db = {
 
       console.log("🌱 Bắt đầu tạo dữ liệu mới...");
       const createBatch = writeBatch(firestore);
+
+      // [QUAN TRỌNG] Tạo Settings mặc định nếu chưa có
+      const settingsRef = doc(firestore, "system", "settings");
+      const defaultSettings: SystemSettings = {
+        pushPrice: 20000,
+        pushDiscount: 0,
+        tierDiscount: 0,
+        bannerSlides: [],
+        tierConfigs: {
+          free: { 
+            name: "Miễn Phí", 
+            price: 0, 
+            maxImages: 3, 
+            postsPerDay: 5, 
+            autoApprove: false, 
+            features: ["Đăng tối đa 5 tin/ngày", "Tối đa 3 ảnh/tin", "Tin chờ duyệt", "Hiển thị tiêu chuẩn"] 
+          },
+          basic: { 
+            name: "Gói Basic", 
+            price: 50000, 
+            maxImages: 6, 
+            postsPerDay: 15, 
+            autoApprove: true, 
+            features: ["Đăng tối đa 15 tin/ngày", "Tối đa 6 ảnh/tin", "Duyệt tin tự động", "Huy hiệu Bạc"] 
+          },
+          pro: { 
+            name: "Gói Pro VIP", 
+            price: 150000, 
+            maxImages: 10, 
+            postsPerDay: 999, 
+            autoApprove: true, 
+            features: ["Không giới hạn tin đăng", "Tối đa 10 ảnh/tin", "Duyệt tin tự động", "Huy hiệu Vàng", "Ưu tiên hiển thị"] 
+          }
+        },
+        bankName: "MBBANK",
+        accountNumber: "123456789",
+        accountName: "NGUYEN VAN A"
+      };
+      // Dùng setDoc với merge: true để không ghi đè nếu settings đã tồn tại
+      await setDoc(settingsRef, defaultSettings, { merge: true });
 
       const firstNames = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Huỳnh", "Phan", "Vũ", "Võ", "Đặng"];
       const middleNames = ["Văn", "Thị", "Hữu", "Đức", "Ngọc", "Minh", "Quốc", "Thanh", "Mỹ", "Anh"];

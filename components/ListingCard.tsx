@@ -1,4 +1,4 @@
-import React, { useState } from 'react'; // [SỬA LỖI] Chữ i thường
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Listing } from '../types';
 import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
@@ -11,13 +11,18 @@ interface ListingCardProps {
   isFavorite?: boolean;
   onToggleFavorite?: (id: string) => void;
   onPushListing?: (id: string) => void;
+  
+  // [MỚI] Thêm dòng này để nhận lệnh ẩn lượt xem
+  hideViews?: boolean; 
 }
 
 const ListingCard: React.FC<ListingCardProps> = ({ 
   listing, 
   isFavorite, 
   onToggleFavorite,
-  onPushListing 
+  onPushListing,
+  // [MỚI] Lấy biến này ra để sử dụng
+  hideViews = false 
 }) => {
   const detailUrl = getListingUrl(listing);
   
@@ -25,7 +30,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
     listing.images && listing.images.length > 0 ? listing.images[0] : PLACEHOLDER_IMAGE
   );
 
-  // [MỚI] Kiểm tra tin đã bán chưa
+  // Kiểm tra tin đã bán chưa
   const isSold = listing.status === 'sold';
 
   return (
@@ -42,7 +47,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
         />
         
-        {/* [MỚI] Overlay ĐÃ BÁN */}
+        {/* Overlay ĐÃ BÁN */}
         {isSold && (
             <div className="absolute inset-0 bg-black/40 z-30 flex items-center justify-center">
                 <span className="text-white font-black text-xs border-2 border-white px-3 py-1 -rotate-12 rounded-md uppercase tracking-widest">Đã bán</span>
@@ -112,7 +117,8 @@ const ListingCard: React.FC<ListingCardProps> = ({
           
           {/* [MỚI] Hiển thị Lượt xem + Thời gian */}
           <div className="flex items-center gap-2 opacity-70">
-             {listing.viewCount !== undefined && listing.viewCount > 0 && (
+             {/* Logic: Nếu không có lệnh ẩn (hideViews) VÀ có lượt xem > 0 thì mới hiện */}
+             {!hideViews && listing.viewCount !== undefined && listing.viewCount > 0 && (
                  <span className="flex items-center gap-0.5" title="Lượt xem">
                     👀 {listing.viewCount}
                  </span>

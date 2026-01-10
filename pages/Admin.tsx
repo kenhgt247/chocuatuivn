@@ -220,8 +220,8 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
     setVerifyModal({ show: false, user: null }); 
     setUsers(prev => prev.map(usr => usr.id === u.id ? { ...usr, verificationStatus: status } : usr));
     db.updateUserProfile(u.id, { verificationStatus: status })
-       .then(() => { showToast(status === 'verified' ? `Đã xác thực ${u.name}` : `Đã từ chối ${u.name}`); })
-       .catch(() => { showToast("Lỗi xử lý KYC", "error"); loadUsers(null); });
+        .then(() => { showToast(status === 'verified' ? `Đã xác thực ${u.name}` : `Đã từ chối ${u.name}`); })
+        .catch(() => { showToast("Lỗi xử lý KYC", "error"); loadUsers(null); });
   };
 
   const toggleUserStatus = (u: User) => {
@@ -352,289 +352,393 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
          )}
 
          {activeTab === 'listings' && (
-             <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-6"><div className="flex flex-col md:flex-row justify-between items-center gap-4"><div><h3 className="text-xl font-black">Quản lý tin đăng</h3><div className="flex gap-2 mt-2"><button onClick={() => setListingStatusFilter('pending')} className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border ${listingStatusFilter === 'pending' ? 'bg-yellow-500 text-white border-yellow-500 shadow-md' : 'bg-white border-gray-200 text-gray-500'}`}>Chờ duyệt</button><button onClick={() => setListingStatusFilter('all')} className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border ${listingStatusFilter === 'all' ? 'bg-primary text-white border-primary shadow-md' : 'bg-white border-gray-200 text-gray-500'}`}>Tất cả</button></div></div><div className="flex items-center gap-2 w-full md:w-auto"><form onSubmit={handleSearchListings} className="relative flex-1 md:w-64"><input type="text" placeholder="Tìm ID, Tên..." value={listingSearch} onChange={e => setListingSearch(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-4 py-2 text-xs font-bold focus:outline-none focus:border-primary" /><span className="absolute left-3 top-2.5 text-gray-400">🔍</span></form>{selectedListings.size > 0 && <button onClick={handleBatchDelete} className="bg-red-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase animate-pulse">Xóa ({selectedListings.size})</button>}</div></div><div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100"><th className="pb-4 w-10"><input type="checkbox" onChange={toggleSelectAll} checked={selectedListings.size === listings.length && listings.length > 0} className="rounded text-primary focus:ring-primary" /></th><th className="pb-4">Tin đăng</th><th className="pb-4">Người đăng</th><th className="pb-4">Trạng thái</th><th className="pb-4 text-right">Thao tác</th></tr></thead><tbody className="divide-y divide-gray-50">{listings.map(l => (<tr key={l.id} className="group hover:bg-gray-50 transition-colors"><td className="py-4"><input type="checkbox" checked={selectedListings.has(l.id)} onChange={() => toggleSelectListing(l.id)} className="rounded text-primary focus:ring-primary" /></td><td className="py-4"><div className="flex items-center gap-3"><img src={l.images[0]} className="w-10 h-10 rounded-lg object-cover bg-gray-100" /><div className="min-w-0 max-w-[200px]"><Link to={getListingUrl(l)} target="_blank" className="text-xs font-black truncate block hover:text-primary">{l.title}</Link><p className="text-[10px] text-primary font-bold">{formatPrice(l.price)}</p></div></div></td><td className="py-4"><div className="flex items-center gap-2"><img src={l.sellerAvatar} className="w-6 h-6 rounded-full" /><span className="text-[10px] font-bold">{l.sellerName}</span></div></td><td className="py-4"><span className={`text-[9px] px-2 py-1 rounded font-black uppercase ${l.status === 'approved' ? 'bg-green-100 text-green-600' : l.status === 'pending' ? 'bg-yellow-100 text-yellow-600' : 'bg-red-100 text-red-600'}`}>{l.status}</span></td><td className="py-4 text-right"><div className="flex justify-end gap-2">{l.status === 'pending' && (<><button onClick={() => handleApproveListing(l.id)} className="bg-green-500 text-white p-2 rounded-lg hover:shadow-lg">✅</button><button onClick={() => handleRejectListing(l.id)} className="bg-red-100 text-red-500 p-2 rounded-lg hover:bg-red-200">⛔</button></>)}<button onClick={() => openEditModal(l)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg">✏️</button><button onClick={() => { setSelectedListings(new Set([l.id])); handleBatchDelete(); }} className="text-red-500 hover:bg-red-50 p-2 rounded-lg">🗑</button></div></td></tr>))}</tbody></table>{listings.length === 0 && <div className="text-center py-10 text-gray-400 font-bold text-xs uppercase">Không tìm thấy tin nào.</div>}</div><div className="flex justify-between items-center pt-4 border-t border-gray-100"><p className="text-[10px] font-bold text-gray-400 uppercase">Trang {listingPage}</p><div className="flex gap-2"><button onClick={handlePrevListingPage} disabled={listingPage === 1 || isLoading} className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-bold uppercase hover:bg-gray-50 disabled:opacity-50">Trước</button><button onClick={handleNextListingPage} disabled={!hasMoreListings || isLoading} className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold uppercase hover:bg-primaryHover disabled:opacity-50">Sau</button></div></div></div>
-         )}
+             <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-6">
+                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                     <div>
+                         <h3 className="text-xl font-black">Quản lý tin đăng</h3>
+                         <div className="flex gap-2 mt-2">
+                             <button onClick={() => setListingStatusFilter('pending')} className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border ${listingStatusFilter === 'pending' ? 'bg-yellow-500 text-white border-yellow-500 shadow-md' : 'bg-white border-gray-200 text-gray-500'}`}>Chờ duyệt</button>
+                             <button onClick={() => setListingStatusFilter('all')} className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border ${listingStatusFilter === 'all' ? 'bg-primary text-white border-primary shadow-md' : 'bg-white border-gray-200 text-gray-500'}`}>Tất cả</button>
+                         </div>
+                     </div>
+                     <div className="flex items-center gap-2 w-full md:w-auto">
+                         <form onSubmit={handleSearchListings} className="relative flex-1 md:w-64">
+                             <input type="text" placeholder="Tìm ID, Tên..." value={listingSearch} onChange={e => setListingSearch(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-4 py-2 text-xs font-bold focus:outline-none focus:border-primary" />
+                             <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+                         </form>
+                         {selectedListings.size > 0 && <button onClick={handleBatchDelete} className="bg-red-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase animate-pulse">Xóa ({selectedListings.size})</button>}
+                     </div>
+                 </div>
+                 
+                 <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                                <th className="pb-4 w-10">
+                                    <input type="checkbox" onChange={toggleSelectAll} checked={selectedListings.size === listings.length && listings.length > 0} className="rounded text-primary focus:ring-primary" />
+                                </th>
+                                <th className="pb-4">Tin đăng</th>
+                                <th className="pb-4">Loại tin</th>
+                                <th className="pb-4">Người đăng</th>
+                                <th className="pb-4">Trạng thái</th>
+                                <th className="pb-4 text-right">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {listings.map(l => (
+                                <tr key={l.id} className="group hover:bg-gray-50 transition-colors">
+                                    <td className="py-4">
+                                        <input type="checkbox" checked={selectedListings.has(l.id)} onChange={() => toggleSelectListing(l.id)} className="rounded text-primary focus:ring-primary" />
+                                    </td>
+                                    <td className="py-4">
+                                        <div className="flex items-center gap-3">
+                                            <img src={l.images[0]} className="w-10 h-10 rounded-lg object-cover bg-gray-100" />
+                                            <div className="min-w-0 max-w-[200px]">
+                                                <Link to={getListingUrl(l)} target="_blank" className="text-xs font-black truncate block hover:text-primary">
+                                                    {l.title}
+                                                </Link>
+                                                <p className="text-[10px] text-primary font-bold">{formatPrice(l.price)}</p>
+                                                {/* Hiển thị link gốc nếu là Affiliate */}
+                                                {l.affiliateLink && (
+                                                    <a href={l.affiliateLink} target="_blank" rel="noreferrer" className="text-[9px] text-blue-500 hover:underline flex items-center gap-1 mt-0.5">
+                                                        <span>🔗 Link Gốc</span>
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    {/* Cột Loại tin mới */}
+                                    <td className="py-4">
+                                        {l.affiliateLink ? (
+                                            <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-[9px] font-black uppercase border border-orange-200">
+                                                Affiliate 💰
+                                            </span>
+                                        ) : (
+                                            <span className="bg-gray-100 text-gray-500 px-2 py-1 rounded text-[9px] font-black uppercase border border-gray-200">
+                                                Bán thường 📦
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td className="py-4">
+                                        <div className="flex items-center gap-2">
+                                            <img src={l.sellerAvatar} className="w-6 h-6 rounded-full" />
+                                            <span className="text-[10px] font-bold">{l.sellerName}</span>
+                                        </div>
+                                    </td>
+                                    <td className="py-4">
+                                        <span className={`text-[9px] px-2 py-1 rounded font-black uppercase ${l.status === 'approved' ? 'bg-green-100 text-green-600' : l.status === 'pending' ? 'bg-yellow-100 text-yellow-600' : 'bg-red-100 text-red-600'}`}>
+                                            {l.status}
+                                        </span>
+                                    </td>
+                                    <td className="py-4 text-right">
+                                        <div className="flex justify-end gap-2">
+                                            {l.status === 'pending' && (
+                                                <>
+                                                    <button onClick={() => handleApproveListing(l.id)} className="bg-green-500 text-white p-2 rounded-lg hover:shadow-lg">✅</button>
+                                                    <button onClick={() => handleRejectListing(l.id)} className="bg-red-100 text-red-500 p-2 rounded-lg hover:bg-red-200">⛔</button>
+                                                </>
+                                            )}
+                                            <button onClick={() => openEditModal(l)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg">✏️</button>
+                                            <button onClick={() => { setSelectedListings(new Set([l.id])); handleBatchDelete(); }} className="text-red-500 hover:bg-red-50 p-2 rounded-lg">🗑</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    {listings.length === 0 && <div className="text-center py-10 text-gray-400 font-bold text-xs uppercase">Không tìm thấy tin nào.</div>}
+                 </div>
+                 
+                 <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+                     <p className="text-[10px] font-bold text-gray-400 uppercase">Trang {listingPage}</p>
+                     <div className="flex gap-2">
+                         <button onClick={handlePrevListingPage} disabled={listingPage === 1 || isLoading} className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-bold uppercase hover:bg-gray-50 disabled:opacity-50">Trước</button>
+                         <button onClick={handleNextListingPage} disabled={!hasMoreListings || isLoading} className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold uppercase hover:bg-primaryHover disabled:opacity-50">Sau</button>
+                     </div>
+                 </div>
+             </div>
+         )}
 
-         {activeTab === 'users' && (
-             <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-8">{pendingVerifications.length > 0 && (<div className="bg-yellow-50 border border-yellow-100 rounded-3xl p-6"><h3 className="text-lg font-black text-yellow-800 mb-4 flex items-center gap-2"><span className="animate-pulse">⚠️</span> Yêu cầu xác thực (Trang này)</h3><div className="grid md:grid-cols-2 gap-4">{pendingVerifications.map(u => (<div key={u.id} className="bg-white p-4 rounded-2xl flex items-center justify-between shadow-sm"><div className="flex items-center gap-3"><img src={u.avatar} className="w-10 h-10 rounded-full" /><div><p className="text-xs font-black">{u.name}</p><p className="text-[9px] text-gray-400">{u.email}</p></div></div><button onClick={() => setVerifyModal({ show: true, user: u })} className="bg-primary text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase hover:scale-105 transition-transform">Xem hồ sơ</button></div>))}</div></div>)}<div className="flex justify-between items-center"><h3 className="text-xl font-black">Danh sách thành viên</h3>{isUserLoading && <span className="text-xs font-bold text-primary animate-pulse">Đang tải...</span>}</div><div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100"><th className="pb-4">User</th><th className="pb-4">Xác thực</th><th className="pb-4">Ví</th><th className="pb-4">Thao tác</th></tr></thead><tbody className="divide-y divide-gray-50">{users.map(u => (<tr key={u.id} className={u.status === 'banned' ? 'opacity-50 grayscale' : ''}><td className="py-4"><div className="flex items-center gap-3"><img src={u.avatar} className="w-10 h-10 rounded-xl" /><div><p className="text-xs font-black">{u.name}</p><p className="text-[9px] text-gray-400">{u.email}</p></div></div></td><td className="py-4"><div className="flex items-center gap-2">{u.verificationStatus === 'verified' ? <span className="text-green-500 text-lg">✅</span> : u.verificationStatus === 'pending' ? <span className="text-yellow-500 text-lg animate-pulse">🕒</span> : <span className="text-gray-300 text-lg">⚪</span>}<button onClick={() => setVerifyModal({ show: true, user: u })} className={`text-[9px] font-black px-3 py-1.5 rounded-lg border ${u.verificationStatus === 'pending' ? 'bg-primary text-white' : 'bg-white text-gray-500'}`}>{u.verificationStatus === 'pending' ? 'DUYỆT' : 'HỒ SƠ'}</button></div></td><td className="py-4 text-xs font-black">{formatPrice(u.walletBalance || 0)}</td><td className="py-4"><button onClick={() => toggleUserStatus(u)} className={`text-[10px] font-black uppercase px-4 py-2 rounded-xl transition-all ${u.status === 'active' ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-600'}`}>{u.status === 'active' ? 'Khóa' : 'Mở'}</button></td></tr>))}</tbody></table>{users.length === 0 && !isUserLoading && <div className="text-center py-10 text-gray-400 font-bold text-xs uppercase">Không tìm thấy thành viên nào.</div>}</div><div className="flex justify-between items-center pt-4 border-t border-gray-100"><p className="text-[10px] font-bold text-gray-400 uppercase">Trang {userPage}</p><div className="flex gap-2"><button onClick={handlePrevUserPage} disabled={userPage === 1 || isUserLoading} className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-bold uppercase hover:bg-gray-50 disabled:opacity-50">Trước</button><button onClick={handleNextUserPage} disabled={!hasMoreUsers || isUserLoading} className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold uppercase hover:bg-primaryHover disabled:opacity-50">Sau</button></div></div></div>
-         )}
+         {activeTab === 'users' && (
+             <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-8">{pendingVerifications.length > 0 && (<div className="bg-yellow-50 border border-yellow-100 rounded-3xl p-6"><h3 className="text-lg font-black text-yellow-800 mb-4 flex items-center gap-2"><span className="animate-pulse">⚠️</span> Yêu cầu xác thực (Trang này)</h3><div className="grid md:grid-cols-2 gap-4">{pendingVerifications.map(u => (<div key={u.id} className="bg-white p-4 rounded-2xl flex items-center justify-between shadow-sm"><div className="flex items-center gap-3"><img src={u.avatar} className="w-10 h-10 rounded-full" /><div><p className="text-xs font-black">{u.name}</p><p className="text-[9px] text-gray-400">{u.email}</p></div></div><button onClick={() => setVerifyModal({ show: true, user: u })} className="bg-primary text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase hover:scale-105 transition-transform">Xem hồ sơ</button></div>))}</div></div>)}<div className="flex justify-between items-center"><h3 className="text-xl font-black">Danh sách thành viên</h3>{isUserLoading && <span className="text-xs font-bold text-primary animate-pulse">Đang tải...</span>}</div><div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100"><th className="pb-4">User</th><th className="pb-4">Xác thực</th><th className="pb-4">Ví</th><th className="pb-4">Thao tác</th></tr></thead><tbody className="divide-y divide-gray-50">{users.map(u => (<tr key={u.id} className={u.status === 'banned' ? 'opacity-50 grayscale' : ''}><td className="py-4"><div className="flex items-center gap-3"><img src={u.avatar} className="w-10 h-10 rounded-xl" /><div><p className="text-xs font-black">{u.name}</p><p className="text-[9px] text-gray-400">{u.email}</p></div></div></td><td className="py-4"><div className="flex items-center gap-2">{u.verificationStatus === 'verified' ? <span className="text-green-500 text-lg">✅</span> : u.verificationStatus === 'pending' ? <span className="text-yellow-500 text-lg animate-pulse">🕒</span> : <span className="text-gray-300 text-lg">⚪</span>}<button onClick={() => setVerifyModal({ show: true, user: u })} className={`text-[9px] font-black px-3 py-1.5 rounded-lg border ${u.verificationStatus === 'pending' ? 'bg-primary text-white' : 'bg-white text-gray-500'}`}>{u.verificationStatus === 'pending' ? 'DUYỆT' : 'HỒ SƠ'}</button></div></td><td className="py-4 text-xs font-black">{formatPrice(u.walletBalance || 0)}</td><td className="py-4"><button onClick={() => toggleUserStatus(u)} className={`text-[10px] font-black uppercase px-4 py-2 rounded-xl transition-all ${u.status === 'active' ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-600'}`}>{u.status === 'active' ? 'Khóa' : 'Mở'}</button></td></tr>))}</tbody></table>{users.length === 0 && !isUserLoading && <div className="text-center py-10 text-gray-400 font-bold text-xs uppercase">Không tìm thấy thành viên nào.</div>}</div><div className="flex justify-between items-center pt-4 border-t border-gray-100"><p className="text-[10px] font-bold text-gray-400 uppercase">Trang {userPage}</p><div className="flex gap-2"><button onClick={handlePrevUserPage} disabled={userPage === 1 || isUserLoading} className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-bold uppercase hover:bg-gray-50 disabled:opacity-50">Trước</button><button onClick={handleNextUserPage} disabled={!hasMoreUsers || isUserLoading} className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold uppercase hover:bg-primaryHover disabled:opacity-50">Sau</button></div></div></div>
+         )}
 
-         {activeTab === 'reports' && (
-             <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft"><h3 className="text-xl font-black mb-8">Báo cáo vi phạm ({activeReports.length})</h3><div className="space-y-4">{activeReports.map(r => (<div key={r.id} className="border-2 border-red-50 bg-red-50/10 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6"><div className="flex-1 space-y-2"><div className="flex items-center gap-3"><span className="bg-red-500 text-white text-[9px] font-black px-2 py-1 rounded uppercase">VI PHẠM</span><h4 className="text-sm font-black text-textMain">{r.reason}</h4></div><p className="text-xs text-gray-600">{r.details}</p><p className="text-[10px] text-gray-400 font-bold uppercase">ID Tin: {r.listingId}</p></div><div className="flex gap-2"><button onClick={() => handleResolveReport(r.id)} className="bg-green-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:scale-105 transition-transform">Đánh dấu xử lý</button><button onClick={() => handleDeleteListingFromReport(r.id, r.listingId)} className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:scale-105 transition-transform">Xóa tin</button></div></div>))}{activeReports.length === 0 && <div className="text-center py-20 text-gray-400 font-bold bg-bgMain rounded-3xl uppercase text-[10px] tracking-widest">Không có báo cáo.</div>}</div></div>
-         )}
+         {activeTab === 'reports' && (
+             <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft"><h3 className="text-xl font-black mb-8">Báo cáo vi phạm ({activeReports.length})</h3><div className="space-y-4">{activeReports.map(r => (<div key={r.id} className="border-2 border-red-50 bg-red-50/10 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6"><div className="flex-1 space-y-2"><div className="flex items-center gap-3"><span className="bg-red-500 text-white text-[9px] font-black px-2 py-1 rounded uppercase">VI PHẠM</span><h4 className="text-sm font-black text-textMain">{r.reason}</h4></div><p className="text-xs text-gray-600">{r.details}</p><p className="text-[10px] text-gray-400 font-bold uppercase">ID Tin: {r.listingId}</p></div><div className="flex gap-2"><button onClick={() => handleResolveReport(r.id)} className="bg-green-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:scale-105 transition-transform">Đánh dấu xử lý</button><button onClick={() => handleDeleteListingFromReport(r.id, r.listingId)} className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:scale-105 transition-transform">Xóa tin</button></div></div>))}{activeReports.length === 0 && <div className="text-center py-20 text-gray-400 font-bold bg-bgMain rounded-3xl uppercase text-[10px] tracking-widest">Không có báo cáo.</div>}</div></div>
+         )}
 
-         {/* === TAB SETTINGS (QUẢN LÝ TẤT CẢ CẤU HÌNH HỆ THỐNG) === */}
-          {activeTab === 'settings' && settings && (
-              <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft">
-                  <form onSubmit={handleSaveSettings} className="space-y-12">
-                    
-                    {/* 1. Cấu hình Phí & Ưu đãi */}
+         {/* === TAB SETTINGS (QUẢN LÝ TẤT CẢ CẤU HÌNH HỆ THỐNG) === */}
+          {activeTab === 'settings' && settings && (
+              <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft">
+                  <form onSubmit={handleSaveSettings} className="space-y-12">
+                    
+                    {/* 1. Cấu hình Phí & Ưu đãi */}
 <div className="space-y-6">
-   <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-       <span className="w-2 h-2 bg-primary rounded-full"></span> Quản lý Chiết khấu & Giá
-   </h4>
-   <div className="grid md:grid-cols-3 gap-6 bg-gray-50 p-6 rounded-[2rem]">
-       <div className="space-y-2">
-           <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giá Đẩy Tin (đ)</label>
-           <input type="number" value={settings.pushPrice} onChange={e => setSettings({...settings, pushPrice: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold" />
-       </div>
-       <div className="space-y-2">
-           <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giảm giá Đẩy Tin (%)</label>
-           <input type="number" value={settings.pushDiscount} onChange={e => setSettings({...settings, pushDiscount: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-red-500" />
-       </div>
-       <div className="space-y-2">
-           <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giảm giá Gói VIP (%)</label>
-           <input type="number" value={settings.tierDiscount} onChange={e => setSettings({...settings, tierDiscount: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-red-500" />
-       </div>
-   </div>
+   <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+       <span className="w-2 h-2 bg-primary rounded-full"></span> Quản lý Chiết khấu & Giá
+   </h4>
+   <div className="grid md:grid-cols-3 gap-6 bg-gray-50 p-6 rounded-[2rem]">
+       <div className="space-y-2">
+           <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giá Đẩy Tin (đ)</label>
+           <input type="number" value={settings.pushPrice} onChange={e => setSettings({...settings, pushPrice: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold" />
+       </div>
+       <div className="space-y-2">
+           <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giảm giá Đẩy Tin (%)</label>
+           <input type="number" value={settings.pushDiscount} onChange={e => setSettings({...settings, pushDiscount: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-red-500" />
+       </div>
+       <div className="space-y-2">
+           <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giảm giá Gói VIP (%)</label>
+           <input type="number" value={settings.tierDiscount} onChange={e => setSettings({...settings, tierDiscount: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-red-500" />
+       </div>
+   </div>
 </div>
 
-                    {/* 2. Quản lý Banner (Giữ nguyên logic cũ) */}
-                    <div className="space-y-6 pt-6 border-t border-gray-100">
-                        <div className="flex items-center justify-between">
-                             <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                                 <span className="w-2 h-2 bg-orange-500 rounded-full"></span> Quản lý Banner Slide
-                             </h4>
-                             <button 
-                                 type="button"
-                                 onClick={() => {
-                                     const newSlide = { id: Date.now(), type: 'text', title: 'Slide Mới', desc: 'Mô tả...', btnText: 'Xem', btnLink: '/', colorFrom: 'from-blue-600', colorTo: 'to-indigo-600', icon: '⚡', isActive: true };
-                                     setSettings({...settings, bannerSlides: [...(settings.bannerSlides || []), newSlide]});
-                                 }}
-                                 className="bg-primary/10 text-primary px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-primary/20 transition-colors"
-                             >
-                                 + Thêm Slide
-                             </button>
-                        </div>
+                    {/* 2. Quản lý Banner (Giữ nguyên logic cũ) */}
+                    <div className="space-y-6 pt-6 border-t border-gray-100">
+                        <div className="flex items-center justify-between">
+                             <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                                 <span className="w-2 h-2 bg-orange-500 rounded-full"></span> Quản lý Banner Slide
+                             </h4>
+                             <button 
+                                 type="button"
+                                 onClick={() => {
+                                     const newSlide = { id: Date.now(), type: 'text', title: 'Slide Mới', desc: 'Mô tả...', btnText: 'Xem', btnLink: '/', colorFrom: 'from-blue-600', colorTo: 'to-indigo-600', icon: '⚡', isActive: true };
+                                     setSettings({...settings, bannerSlides: [...(settings.bannerSlides || []), newSlide]});
+                                 }}
+                                 className="bg-primary/10 text-primary px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-primary/20 transition-colors"
+                             >
+                                 + Thêm Slide
+                             </button>
+                        </div>
 
-                        <div className="space-y-6">
-                            {(settings.bannerSlides || []).map((slide: any, idx: number) => (
-                               <div key={idx} className={`border p-6 rounded-[2rem] space-y-4 transition-all ${slide.isActive ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-100 opacity-60'}`}>
-                                   <div className="flex justify-between items-center pb-4 border-b border-gray-100">
-                                       <div className="flex items-center gap-3">
-                                           <span className="bg-gray-100 text-gray-500 text-[10px] font-black px-2 py-1 rounded">#{idx + 1}</span>
-                                           <div className="flex items-center bg-gray-50 rounded-lg p-0.5 border border-gray-100">
-                                                <button type="button" disabled={idx === 0} onClick={() => {
-                                                        const slides = [...(settings.bannerSlides || [])];
-                                                        [slides[idx], slides[idx - 1]] = [slides[idx - 1], slides[idx]];
-                                                        setSettings({...settings, bannerSlides: slides});
-                                                    }} className={`p-1.5 rounded ${idx === 0 ? 'text-gray-300' : 'text-gray-600 hover:bg-white shadow-sm'}`}>⬆️</button>
-                                                <button type="button" disabled={idx === (settings.bannerSlides?.length || 0) - 1} onClick={() => {
-                                                        const slides = [...(settings.bannerSlides || [])];
-                                                        [slides[idx], slides[idx + 1]] = [slides[idx + 1], slides[idx]];
-                                                        setSettings({...settings, bannerSlides: slides});
-                                                    }} className={`p-1.5 rounded ${idx === (settings.bannerSlides?.length || 0) - 1 ? 'text-gray-300' : 'text-gray-600 hover:bg-white shadow-sm'}`}>⬇️</button>
-                                           </div>
-                                           <select value={slide.type || 'text'} onChange={e => {
-                                                   const newSlides = [...(settings.bannerSlides || [])];
-                                                   newSlides[idx].type = e.target.value;
-                                                   setSettings({...settings, bannerSlides: newSlides});
-                                               }} className="bg-gray-50 border-none text-[10px] font-black rounded-lg py-1 px-2 focus:ring-0">
-                                               <option value="text">Dạng Chữ</option>
-                                               <option value="image">Dạng Ảnh</option>
-                                           </select>
-                                       </div>
-                                       <div className="flex items-center gap-3">
-                                           <label className="flex items-center cursor-pointer gap-2">
-                                               <span className="text-[9px] font-black text-gray-400 uppercase">{slide.isActive ? 'Hiển thị' : 'Ẩn'}</span>
-                                               <input type="checkbox" className="hidden" checked={slide.isActive} onChange={e => {
-                                                   const newSlides = [...(settings.bannerSlides || [])];
-                                                   newSlides[idx].isActive = e.target.checked;
-                                                   setSettings({...settings, bannerSlides: newSlides});
-                                               }} />
-                                               <div className={`w-8 h-4 rounded-full relative transition-colors ${slide.isActive ? 'bg-green-500' : 'bg-gray-300'}`}>
-                                                   <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${slide.isActive ? 'translate-x-4' : ''}`}></div>
-                                               </div>
-                                           </label>
-                                           <button type="button" onClick={() => {if(window.confirm("Xóa slide này?")){const ns = settings.bannerSlides.filter((_:any, i:number) => i !== idx); setSettings({...settings, bannerSlides: ns});}}} className="text-red-400 hover:text-red-600 bg-red-50 p-1.5 rounded-lg">🗑</button>
-                                       </div>
-                                   </div>
+                        <div className="space-y-6">
+                            {(settings.bannerSlides || []).map((slide: any, idx: number) => (
+                               <div key={idx} className={`border p-6 rounded-[2rem] space-y-4 transition-all ${slide.isActive ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-100 opacity-60'}`}>
+                                   <div className="flex justify-between items-center pb-4 border-b border-gray-100">
+                                        <div className="flex items-center gap-3">
+                                            <span className="bg-gray-100 text-gray-500 text-[10px] font-black px-2 py-1 rounded">#{idx + 1}</span>
+                                            <div className="flex items-center bg-gray-50 rounded-lg p-0.5 border border-gray-100">
+                                                 <button type="button" disabled={idx === 0} onClick={() => {
+                                                     const slides = [...(settings.bannerSlides || [])];
+                                                     [slides[idx], slides[idx - 1]] = [slides[idx - 1], slides[idx]];
+                                                     setSettings({...settings, bannerSlides: slides});
+                                                 }} className={`p-1.5 rounded ${idx === 0 ? 'text-gray-300' : 'text-gray-600 hover:bg-white shadow-sm'}`}>⬆️</button>
+                                                 <button type="button" disabled={idx === (settings.bannerSlides?.length || 0) - 1} onClick={() => {
+                                                     const slides = [...(settings.bannerSlides || [])];
+                                                     [slides[idx], slides[idx + 1]] = [slides[idx + 1], slides[idx]];
+                                                     setSettings({...settings, bannerSlides: slides});
+                                                 }} className={`p-1.5 rounded ${idx === (settings.bannerSlides?.length || 0) - 1 ? 'text-gray-300' : 'text-gray-600 hover:bg-white shadow-sm'}`}>⬇️</button>
+                                            </div>
+                                            <select value={slide.type || 'text'} onChange={e => {
+                                                 const newSlides = [...(settings.bannerSlides || [])];
+                                                 newSlides[idx].type = e.target.value;
+                                                 setSettings({...settings, bannerSlides: newSlides});
+                                             }} className="bg-gray-50 border-none text-[10px] font-black rounded-lg py-1 px-2 focus:ring-0">
+                                                 <option value="text">Dạng Chữ</option>
+                                                 <option value="image">Dạng Ảnh</option>
+                                             </select>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <label className="flex items-center cursor-pointer gap-2">
+                                                <span className="text-[9px] font-black text-gray-400 uppercase">{slide.isActive ? 'Hiển thị' : 'Ẩn'}</span>
+                                                <input type="checkbox" className="hidden" checked={slide.isActive} onChange={e => {
+                                                     const newSlides = [...(settings.bannerSlides || [])];
+                                                     newSlides[idx].isActive = e.target.checked;
+                                                     setSettings({...settings, bannerSlides: newSlides});
+                                                }} />
+                                                <div className={`w-8 h-4 rounded-full relative transition-colors ${slide.isActive ? 'bg-green-500' : 'bg-gray-300'}`}>
+                                                     <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${slide.isActive ? 'translate-x-4' : ''}`}></div>
+                                                </div>
+                                            </label>
+                                            <button type="button" onClick={() => {if(window.confirm("Xóa slide này?")){const ns = settings.bannerSlides.filter((_:any, i:number) => i !== idx); setSettings({...settings, bannerSlides: ns});}}} className="text-red-400 hover:text-red-600 bg-red-50 p-1.5 rounded-lg">🗑</button>
+                                        </div>
+                                   </div>
 
-                                   {slide.type === 'image' ? (
-                                       <div className="flex gap-4 items-start">
-                                           <div className="w-1/3 aspect-[3/1] bg-gray-100 rounded-2xl overflow-hidden border border-gray-200 relative group">
-                                               {slide.imageUrl ? <img src={slide.imageUrl} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full text-[10px] text-gray-400 font-bold uppercase">Chưa có ảnh</div>}
-                                               <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity text-white text-[10px] font-black">TẢI ẢNH<input type="file" className="hidden" accept="image/*" onChange={async (e) => {
-                                                   if(e.target.files?.[0]) {
-                                                       setIsLoading(true);
-                                                       try {
-                                                           const compressed = await compressAndGetBase64(e.target.files[0]);
-                                                           const url = await db.uploadImage(compressed, `banners/${Date.now()}.jpg`);
-                                                           const ns = [...settings.bannerSlides];
-                                                           ns[idx].imageUrl = url;
-                                                           setSettings({...settings, bannerSlides: ns});
-                                                       } catch (err) { alert("Lỗi tải ảnh"); }
-                                                       setIsLoading(false);
-                                                   }
-                                               }} /></label>
-                                           </div>
-                                           <input type="text" placeholder="Link (Ví dụ: /post)" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="flex-1 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
-                                       </div>
-                                   ) : (
-                                       <div className="space-y-3">
-                                           <div className="grid md:grid-cols-2 gap-3">
-                                                <input type="text" placeholder="Tiêu đề chính" value={slide.title} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].title=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black" />
-                                                <input type="text" placeholder="Mô tả" value={slide.desc} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].desc=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
-                                           </div>
-                                           <div className="grid grid-cols-3 gap-3">
-                                                <input type="text" placeholder="Chữ trên nút" value={slide.btnText} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnText=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black text-center" />
-                                                <input type="text" placeholder="Link đích" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
-                                                <input type="text" placeholder="Icon (VD: 🚀)" value={slide.icon} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].icon=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-center" />
-                                           </div>
-                                           <div className="grid grid-cols-2 gap-3">
-                                                <select value={slide.colorFrom} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorFrom=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
-                                                    <option value="from-blue-600">Xanh Dương (Đậm)</option>
-                                                    <option value="from-red-600">Đỏ (Đậm)</option>
-                                                    <option value="from-green-600">Xanh Lá (Đậm)</option>
-                                                    <option value="from-yellow-500">Vàng (Đậm)</option>
-                                                    <option value="from-purple-600">Tím (Đậm)</option>
-                                                    <option value="from-orange-500">Cam (Đậm)</option>
-                                                    <option value="from-pink-500">Hồng (Đậm)</option>
-                                                    <option value="from-gray-800">Đen</option>
-                                                </select>
-                                                <select value={slide.colorTo} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorTo=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
-                                                    <option value="to-indigo-600">Indigo</option>
-                                                    <option value="to-blue-400">Xanh Nhạt</option>
-                                                    <option value="to-red-400">Đỏ Nhạt</option>
-                                                    <option value="to-green-400">Lá Nhạt</option>
-                                                    <option value="to-yellow-400">Vàng Nhạt</option>
-                                                    <option value="to-purple-400">Tím Nhạt</option>
-                                                    <option value="to-pink-400">Hồng Nhạt</option>
-                                                    <option value="to-orange-400">Cam Nhạt</option>
-                                                </select>
-                                           </div>
-                                       </div>
-                                   )}
-                               </div>
-                            ))}
-                        </div>
-                    </div>
+                                   {slide.type === 'image' ? (
+                                       <div className="flex gap-4 items-start">
+                                            <div className="w-1/3 aspect-[3/1] bg-gray-100 rounded-2xl overflow-hidden border border-gray-200 relative group">
+                                                 {slide.imageUrl ? <img src={slide.imageUrl} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full text-[10px] text-gray-400 font-bold uppercase">Chưa có ảnh</div>}
+                                                 <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity text-white text-[10px] font-black">TẢI ẢNH<input type="file" className="hidden" accept="image/*" onChange={async (e) => {
+                                                     if(e.target.files?.[0]) {
+                                                         setIsLoading(true);
+                                                         try {
+                                                             const compressed = await compressAndGetBase64(e.target.files[0]);
+                                                             const url = await db.uploadImage(compressed, `banners/${Date.now()}.jpg`);
+                                                             const ns = [...settings.bannerSlides];
+                                                             ns[idx].imageUrl = url;
+                                                             setSettings({...settings, bannerSlides: ns});
+                                                         } catch (err) { alert("Lỗi tải ảnh"); }
+                                                         setIsLoading(false);
+                                                     }
+                                                 }} /></label>
+                                            </div>
+                                            <input type="text" placeholder="Link (Ví dụ: /post)" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="flex-1 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
+                                       </div>
+                                   ) : (
+                                       <div className="space-y-3">
+                                            <div className="grid md:grid-cols-2 gap-3">
+                                                 <input type="text" placeholder="Tiêu đề chính" value={slide.title} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].title=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black" />
+                                                 <input type="text" placeholder="Mô tả" value={slide.desc} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].desc=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-3">
+                                                 <input type="text" placeholder="Chữ trên nút" value={slide.btnText} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnText=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black text-center" />
+                                                 <input type="text" placeholder="Link đích" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
+                                                 <input type="text" placeholder="Icon (VD: 🚀)" value={slide.icon} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].icon=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-center" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                 <select value={slide.colorFrom} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorFrom=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
+                                                     <option value="from-blue-600">Xanh Dương (Đậm)</option>
+                                                     <option value="from-red-600">Đỏ (Đậm)</option>
+                                                     <option value="from-green-600">Xanh Lá (Đậm)</option>
+                                                     <option value="from-yellow-500">Vàng (Đậm)</option>
+                                                     <option value="from-purple-600">Tím (Đậm)</option>
+                                                     <option value="from-orange-500">Cam (Đậm)</option>
+                                                     <option value="from-pink-500">Hồng (Đậm)</option>
+                                                     <option value="from-gray-800">Đen</option>
+                                                 </select>
+                                                 <select value={slide.colorTo} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorTo=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
+                                                     <option value="to-indigo-600">Indigo</option>
+                                                     <option value="to-blue-400">Xanh Nhạt</option>
+                                                     <option value="to-red-400">Đỏ Nhạt</option>
+                                                     <option value="to-green-400">Lá Nhạt</option>
+                                                     <option value="to-yellow-400">Vàng Nhạt</option>
+                                                     <option value="to-purple-400">Tím Nhạt</option>
+                                                     <option value="to-pink-400">Hồng Nhạt</option>
+                                                     <option value="to-orange-400">Cam Nhạt</option>
+                                                 </select>
+                                            </div>
+                                       </div>
+                                   )}
+                               </div>
+                            ))}
+                        </div>
+                    </div>
 
-                    {/* 3. Cấu hình các Gói Thành Viên (ĐÃ CẬP NHẬT ĐẦY ĐỦ) */}
-                    <div className="space-y-6 pt-6 border-t border-gray-100">
-                        <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                            <span className="w-2 h-2 bg-primary rounded-full"></span> Đặc quyền & Hạn mức Gói
-                        </h4>
-                        <div className="grid lg:grid-cols-3 gap-6">
-                            {['free', 'basic', 'pro'].map((tierKey) => (
-                                <div key={tierKey} className={`p-6 rounded-[2.5rem] border-2 space-y-5 transition-all ${tierKey === 'pro' ? 'border-yellow-400 bg-yellow-50/20' : tierKey === 'basic' ? 'border-blue-200 bg-blue-50/10' : 'border-gray-100 bg-gray-50/30'}`}>
-                                    <div className="space-y-1">
-                                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tên gói hiển thị</label>
-                                        <input type="text" value={(settings.tierConfigs as any)[tierKey].name} onChange={e => {
-                                            const newConfigs = { ...settings.tierConfigs };
-                                            (newConfigs as any)[tierKey].name = e.target.value;
-                                            setSettings({...settings, tierConfigs: newConfigs});
-                                        }} className="w-full bg-white border border-gray-100 rounded-xl p-3 text-xs font-black uppercase" />
-                                    </div>
+                    {/* 3. Cấu hình các Gói Thành Viên (ĐÃ CẬP NHẬT ĐẦY ĐỦ) */}
+                    <div className="space-y-6 pt-6 border-t border-gray-100">
+                        <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                            <span className="w-2 h-2 bg-primary rounded-full"></span> Đặc quyền & Hạn mức Gói
+                        </h4>
+                        <div className="grid lg:grid-cols-3 gap-6">
+                            {['free', 'basic', 'pro'].map((tierKey) => (
+                                <div key={tierKey} className={`p-6 rounded-[2.5rem] border-2 space-y-5 transition-all ${tierKey === 'pro' ? 'border-yellow-400 bg-yellow-50/20' : tierKey === 'basic' ? 'border-blue-200 bg-blue-50/10' : 'border-gray-100 bg-gray-50/30'}`}>
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tên gói hiển thị</label>
+                                        <input type="text" value={(settings.tierConfigs as any)[tierKey].name} onChange={e => {
+                                            const newConfigs = { ...settings.tierConfigs };
+                                            (newConfigs as any)[tierKey].name = e.target.value;
+                                            setSettings({...settings, tierConfigs: newConfigs});
+                                        }} className="w-full bg-white border border-gray-100 rounded-xl p-3 text-xs font-black uppercase" />
+                                    </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Giá (VNĐ)</label>
-                                            <input type="number" value={(settings.tierConfigs as any)[tierKey].price} onChange={e => {
-                                                const newConfigs = { ...settings.tierConfigs };
-                                                (newConfigs as any)[tierKey].price = parseInt(e.target.value);
-                                                setSettings({...settings, tierConfigs: newConfigs});
-                                            }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Ảnh tối đa/tin</label>
-                                            <input type="number" value={(settings.tierConfigs as any)[tierKey].maxImages} onChange={e => {
-                                                const newConfigs = { ...settings.tierConfigs };
-                                                (newConfigs as any)[tierKey].maxImages = parseInt(e.target.value);
-                                                setSettings({...settings, tierConfigs: newConfigs});
-                                            }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black" />
-                                        </div>
-                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Giá (VNĐ)</label>
+                                            <input type="number" value={(settings.tierConfigs as any)[tierKey].price} onChange={e => {
+                                                const newConfigs = { ...settings.tierConfigs };
+                                                (newConfigs as any)[tierKey].price = parseInt(e.target.value);
+                                                setSettings({...settings, tierConfigs: newConfigs});
+                                            }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Ảnh tối đa/tin</label>
+                                            <input type="number" value={(settings.tierConfigs as any)[tierKey].maxImages} onChange={e => {
+                                                const newConfigs = { ...settings.tierConfigs };
+                                                (newConfigs as any)[tierKey].maxImages = parseInt(e.target.value);
+                                                setSettings({...settings, tierConfigs: newConfigs});
+                                            }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black" />
+                                        </div>
+                                    </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tin đăng/ngày</label>
-                                            <input type="number" value={(settings.tierConfigs as any)[tierKey].postsPerDay || 0} onChange={e => {
-                                                const newConfigs = { ...settings.tierConfigs };
-                                                (newConfigs as any)[tierKey].postsPerDay = parseInt(e.target.value);
-                                                setSettings({...settings, tierConfigs: newConfigs});
-                                            }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black text-primary" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Chế độ duyệt</label>
-                                            <select 
-                                                value={(settings.tierConfigs as any)[tierKey].autoApprove ? "true" : "false"}
-                                                onChange={e => {
-                                                    const newConfigs = { ...settings.tierConfigs };
-                                                    (newConfigs as any)[tierKey].autoApprove = e.target.value === "true";
-                                                    setSettings({...settings, tierConfigs: newConfigs});
-                                                }}
-                                                className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-[10px] font-black uppercase"
-                                            >
-                                                <option value="false">⏳ Phải duyệt</option>
-                                                <option value="true">✅ Hiện ngay</option>
-                                            </select>
-                                        </div>
-                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tin đăng/ngày</label>
+                                            <input type="number" value={(settings.tierConfigs as any)[tierKey].postsPerDay || 0} onChange={e => {
+                                                const newConfigs = { ...settings.tierConfigs };
+                                                (newConfigs as any)[tierKey].postsPerDay = parseInt(e.target.value);
+                                                setSettings({...settings, tierConfigs: newConfigs});
+                                            }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black text-primary" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Chế độ duyệt</label>
+                                            <select 
+                                                value={(settings.tierConfigs as any)[tierKey].autoApprove ? "true" : "false"}
+                                                onChange={e => {
+                                                    const newConfigs = { ...settings.tierConfigs };
+                                                    (newConfigs as any)[tierKey].autoApprove = e.target.value === "true";
+                                                    setSettings({...settings, tierConfigs: newConfigs});
+                                                }}
+                                                className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-[10px] font-black uppercase"
+                                            >
+                                                <option value="false">⏳ Phải duyệt</option>
+                                                <option value="true">✅ Hiện ngay</option>
+                                            </select>
+                                        </div>
+                                    </div>
 
-                                    <div className="space-y-1">
-                                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tính năng (Mỗi dòng 1 ý)</label>
-                                        <textarea rows={4} value={(settings.tierConfigs as any)[tierKey].features.join('\n')} onChange={e => {
-                                            const newConfigs = { ...settings.tierConfigs };
-                                            (newConfigs as any)[tierKey].features = e.target.value.split('\n');
-                                            setSettings({...settings, tierConfigs: newConfigs});
-                                        }} className="w-full bg-white border border-gray-100 rounded-xl p-3 text-[11px] font-medium leading-relaxed" />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tính năng (Mỗi dòng 1 ý)</label>
+                                        <textarea rows={4} value={(settings.tierConfigs as any)[tierKey].features.join('\n')} onChange={e => {
+                                            const newConfigs = { ...settings.tierConfigs };
+                                            (newConfigs as any)[tierKey].features = e.target.value.split('\n');
+                                            setSettings({...settings, tierConfigs: newConfigs});
+                                        }} className="w-full bg-white border border-gray-100 rounded-xl p-3 text-[11px] font-medium leading-relaxed" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
 
-                    {/* 4. Cấu hình Ngân hàng */}
-                    <div className="space-y-6 pt-6 border-t border-gray-100">
-                        <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                            <span className="w-2 h-2 bg-primary rounded-full"></span> Ngân hàng VietQR
-                        </h4>
-                        <div className="grid md:grid-cols-2 gap-10">
-                            <div className="space-y-4">
-                                <div><label className="text-[10px] font-black uppercase text-gray-400 pl-1">Mã Ngân Hàng (VD: MB, VCB...)</label><input type="text" value={settings.bankName} onChange={e => setSettings({...settings, bankName: e.target.value.toUpperCase()})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
-                                <div><label className="text-[10px] font-black uppercase text-gray-400 pl-1">Số Tài Khoản</label><input type="text" value={settings.accountNumber} onChange={e => setSettings({...settings, accountNumber: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
-                                <div><label className="text-[10px] font-black uppercase text-gray-400 pl-1">Tên Chủ Tài Khoản</label><input type="text" value={settings.accountName} onChange={e => setSettings({...settings, accountName: e.target.value.toUpperCase()})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
-                            </div>
-                            <div className="flex flex-col items-center justify-center bg-gray-50 rounded-[2.5rem] p-6 border border-dashed border-gray-200">
-                                <p className="text-[10px] font-black uppercase text-gray-400 mb-4">Xem trước mã QR nạp tiền</p>
-                                {settings.bankName && settings.accountNumber ? (
-                                    <img src={`https://img.vietqr.io/image/${settings.bankName}-${settings.accountNumber}-compact.jpg?accountName=${encodeURI(settings.accountName)}`} className="w-48 h-48 object-contain rounded-2xl shadow-lg border-4 border-white" />
-                                ) : (
-                                    <div className="w-48 h-48 bg-white rounded-2xl flex items-center justify-center text-[10px] text-gray-300 font-bold uppercase p-4 text-center">Vui lòng nhập đủ thông tin ngân hàng</div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                    {/* 4. Cấu hình Ngân hàng */}
+                    <div className="space-y-6 pt-6 border-t border-gray-100">
+                        <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                            <span className="w-2 h-2 bg-primary rounded-full"></span> Ngân hàng VietQR
+                        </h4>
+                        <div className="grid md:grid-cols-2 gap-10">
+                            <div className="space-y-4">
+                                <div><label className="text-[10px] font-black uppercase text-gray-400 pl-1">Mã Ngân Hàng (VD: MB, VCB...)</label><input type="text" value={settings.bankName} onChange={e => setSettings({...settings, bankName: e.target.value.toUpperCase()})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
+                                <div><label className="text-[10px] font-black uppercase text-gray-400 pl-1">Số Tài Khoản</label><input type="text" value={settings.accountNumber} onChange={e => setSettings({...settings, accountNumber: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
+                                <div><label className="text-[10px] font-black uppercase text-gray-400 pl-1">Tên Chủ Tài Khoản</label><input type="text" value={settings.accountName} onChange={e => setSettings({...settings, accountName: e.target.value.toUpperCase()})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
+                            </div>
+                            <div className="flex flex-col items-center justify-center bg-gray-50 rounded-[2.5rem] p-6 border border-dashed border-gray-200">
+                                <p className="text-[10px] font-black uppercase text-gray-400 mb-4">Xem trước mã QR nạp tiền</p>
+                                {settings.bankName && settings.accountNumber ? (
+                                    <img src={`https://img.vietqr.io/image/${settings.bankName}-${settings.accountNumber}-compact.jpg?accountName=${encodeURI(settings.accountName)}`} className="w-48 h-48 object-contain rounded-2xl shadow-lg border-4 border-white" />
+                                ) : (
+                                    <div className="w-48 h-48 bg-white rounded-2xl flex items-center justify-center text-[10px] text-gray-300 font-bold uppercase p-4 text-center">Vui lòng nhập đủ thông tin ngân hàng</div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
 
-                    {/* 5. SEO & Công cụ (Giữ nguyên) */}
-                    <div className="space-y-6 pt-6 border-t border-gray-100">
-                        <h4 className="text-sm font-black uppercase tracking-widest text-gray-800 flex items-center gap-2">
-                            <span className="w-2 h-2 bg-gray-800 rounded-full"></span> Công cụ Developer
-                        </h4>
-                        <div className="grid md:grid-cols-2 gap-6">
-                            <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
-                                <h5 className="font-black text-sm text-red-700">Khởi tạo dữ liệu</h5>
-                                <p className="text-[11px] text-red-600/70 mb-4 font-medium">Xóa toàn bộ tin/user ảo và tạo mới 100 tin mẫu.</p>
-                                <button type="button" onClick={async () => {if(window.confirm("CẢNH BÁO: Hành động này sẽ xóa dữ liệu cũ và tạo mới dữ liệu ảo. Tiếp tục?")){setIsLoading(true); await db.seedDatabase(); setIsLoading(false); loadInitialData();}}} className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-red-200">Bắt đầu Seed</button>
-                            </div>
-                            <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
-                                <h5 className="font-black text-sm text-blue-700">Sitemap SEO</h5>
-                                <p className="text-[11px] text-blue-600/70 mb-4 font-medium">Tạo file sitemap.xml chứa toàn bộ link sản phẩm cho Google.</p>
-                                <button type="button" onClick={handleDownloadSitemap} className="bg-blue-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-blue-200">Tải Sitemap.xml</button>
-                            </div>
-                        </div>
-                    </div>
+                    {/* 5. SEO & Công cụ (Giữ nguyên) */}
+                    <div className="space-y-6 pt-6 border-t border-gray-100">
+                        <h4 className="text-sm font-black uppercase tracking-widest text-gray-800 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-gray-800 rounded-full"></span> Công cụ Developer
+                        </h4>
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
+                                <h5 className="font-black text-sm text-red-700">Khởi tạo dữ liệu</h5>
+                                <p className="text-[11px] text-red-600/70 mb-4 font-medium">Xóa toàn bộ tin/user ảo và tạo mới 100 tin mẫu.</p>
+                                <button type="button" onClick={async () => {if(window.confirm("CẢNH BÁO: Hành động này sẽ xóa dữ liệu cũ và tạo mới dữ liệu ảo. Tiếp tục?")){setIsLoading(true); await db.seedDatabase(); setIsLoading(false); loadInitialData();}}} className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-red-200">Bắt đầu Seed</button>
+                            </div>
+                            <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
+                                <h5 className="font-black text-sm text-blue-700">Sitemap SEO</h5>
+                                <p className="text-[11px] text-blue-600/70 mb-4 font-medium">Tạo file sitemap.xml chứa toàn bộ link sản phẩm cho Google.</p>
+                                <button type="button" onClick={handleDownloadSitemap} className="bg-blue-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-blue-200">Tải Sitemap.xml</button>
+                            </div>
+                        </div>
+                    </div>
 
-                    <button type="submit" disabled={isLoading} className="w-full bg-primary text-white font-black py-5 rounded-[2rem] shadow-2xl shadow-primary/30 hover:scale-[1.01] active:scale-95 transition-all uppercase tracking-widest text-xs">
-                        {isLoading ? 'Đang lưu hệ thống...' : 'Lưu tất cả cấu hình'}
-                    </button>
-                  </form>
-              </div>
-          )}
-      </div>
-    </div>
-  );
+                    <button type="submit" disabled={isLoading} className="w-full bg-primary text-white font-black py-5 rounded-[2rem] shadow-2xl shadow-primary/30 hover:scale-[1.01] active:scale-95 transition-all uppercase tracking-widest text-xs">
+                        {isLoading ? 'Đang lưu hệ thống...' : 'Lưu tất cả cấu hình'}
+                    </button>
+                  </form>
+              </div>
+          )}
+      </div>
+    </div>
+  );
 };
 
 export default Admin;

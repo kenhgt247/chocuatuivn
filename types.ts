@@ -61,7 +61,7 @@ export interface Listing {
   price: number;
   category: string;
   images: string[];
-  
+  affiliateLink?: string;
   // --- SEO & TÌM KIẾM (QUAN TRỌNG) ---
   slug?: string;         // URL SEO (vd: ban-iphone-15-pro)
   keywords?: string[];   // [MỚI] Mảng từ khóa hỗ trợ thuật toán tìm kiếm Hybrid

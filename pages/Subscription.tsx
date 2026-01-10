@@ -11,7 +11,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
   
   // State quản lý luồng thanh toán
   const [showPayModal, setShowPayModal] = useState<{ tier: SubscriptionTier, price: number } | null>(null);
-  const [paymentStep, setPaymentStep] = useState<'method' | 'qr'>('method'); // [MỚI] Quản lý bước thanh toán
+  const [paymentStep, setPaymentStep] = useState<'method' | 'qr'>('method');
   const [processingMethod, setProcessingMethod] = useState<'wallet' | 'transfer' | null>(null);
   
   const [toast, setToast] = useState<{ show: boolean, message: string, type: 'success' | 'error' }>({ show: false, message: '', type: 'success' });
@@ -30,8 +30,11 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
   };
 
   if (!user || !settings) {
-    if (!user) navigate('/login');
-    return null;
+    if (!user) {
+        // Có thể redirect hoặc hiển thị loading, nhưng trong useEffect đã check rồi nên return null an toàn
+        return <div className="h-screen flex items-center justify-center font-bold text-gray-400">Đang tải...</div>;
+    }
+    return <div className="h-screen flex items-center justify-center font-bold text-gray-400">Đang tải cấu hình...</div>;
   }
 
   const handleUpgradeClick = (tier: SubscriptionTier) => {
@@ -44,10 +47,11 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
     setShowPayModal({ tier, price: actualPrice });
   };
 
+  // --- THANH TOÁN QUA VÍ ---
   const payWithWallet = async () => {
     if (!showPayModal) return;
     if (user.walletBalance < showPayModal.price) {
-      showToast("Ví không đủ tiền. Vui lòng nạp thêm.", "error");
+      showToast("Ví không đủ tiền. Đang chuyển đến trang nạp...", "error");
       setTimeout(() => navigate('/wallet'), 1500);
       return;
     }
@@ -72,21 +76,20 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
     }
   };
 
-  // [MỚI] Chuyển sang bước hiển thị QR
+  // --- CHUYỂN KHOẢN ---
   const handleSelectTransfer = () => {
       setProcessingMethod('transfer');
       setPaymentStep('qr');
   };
 
-  // [MỚI] Xác nhận đã chuyển khoản
   const confirmTransfer = async () => {
     if (!showPayModal) return;
     setLoading(showPayModal.tier);
     try {
       await db.requestSubscriptionTransfer(user.id, showPayModal.tier, showPayModal.price);
-      showToast("Yêu cầu đã được gửi. Chờ Admin duyệt.");
+      showToast("Yêu cầu đã gửi. Vui lòng đợi Admin duyệt.");
       setShowPayModal(null);
-      setTimeout(() => navigate('/wallet'), 1500);
+      setTimeout(() => navigate('/wallet'), 2000); // Chuyển về wallet để xem lịch sử
     } catch (error) {
       showToast("Lỗi khi gửi yêu cầu", "error");
     } finally {
@@ -144,8 +147,9 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
           const discountedPrice = originalPrice * (1 - discountPercent / 100);
           const hasDiscount = discountPercent > 0 && tier !== 'free';
 
-          const isButtonDisabled = status.isCurrent && !status.isExpired && tier !== 'free'; 
-          const showRenew = status.isCurrent && (status.isExpired || status.daysLeft < 5) && tier !== 'free';
+          // Logic disable nút: Nếu đang dùng gói này VÀ chưa hết hạn (hoặc là free) thì ko cho mua lại, trừ khi sắp hết hạn
+          const isButtonDisabled = status.isCurrent && !status.isExpired && tier !== 'free' && status.daysLeft > 5; 
+          const showRenew = status.isCurrent && (status.isExpired || status.daysLeft <= 5) && tier !== 'free';
 
           return (
             <div key={tier} className={`group relative flex flex-col p-8 md:p-10 transition-all duration-500 rounded-[3.5rem] ${
@@ -187,6 +191,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
               </div>
 
               <div className="space-y-4 mb-10 flex-1">
+                {/* Thông số cơ bản */}
                 <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-white transition-colors">
                   <span className="text-2xl">🚀</span>
                   <div>
@@ -205,6 +210,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
 
                 <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent my-6"></div>
 
+                {/* Danh sách tính năng */}
                 <ul className="space-y-4 px-2">
                   {config.features.map((f: string, i: number) => (
                     <li key={i} className="flex items-start gap-3 text-sm">
@@ -214,15 +220,23 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                       <span className="text-slate-600 font-semibold leading-tight">{f}</span>
                     </li>
                   ))}
+                  
+                  {/* Hardcode thêm tính năng Affiliate cho gói Pro */}
+                  {tier === 'pro' && (
+                      <li className="flex items-start gap-3 text-sm font-bold text-orange-600 animate-pulse">
+                          <span className="text-lg">💰</span>
+                          Mở khóa Tiếp thị liên kết (Affiliate)
+                      </li>
+                  )}
                 </ul>
               </div>
 
               <div className="space-y-4">
                   <button 
-                    disabled={isButtonDisabled && !showRenew} 
+                    disabled={isButtonDisabled} 
                     onClick={() => handleUpgradeClick(tier)} 
                     className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-[0.1em] transition-all duration-300 transform active:scale-95 shadow-xl
-                        ${isButtonDisabled && !showRenew 
+                        ${isButtonDisabled 
                             ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none' 
                             : isPro 
                                 ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-yellow-200 hover:shadow-yellow-400 hover:-translate-y-1' 

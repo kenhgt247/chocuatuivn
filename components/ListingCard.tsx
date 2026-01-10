@@ -11,8 +11,6 @@ interface ListingCardProps {
   isFavorite?: boolean;
   onToggleFavorite?: (id: string) => void;
   onPushListing?: (id: string) => void;
-  
-  // [MỚI] Thêm dòng này để nhận lệnh ẩn lượt xem
   hideViews?: boolean; 
 }
 
@@ -21,11 +19,14 @@ const ListingCard: React.FC<ListingCardProps> = ({
   isFavorite, 
   onToggleFavorite,
   onPushListing,
-  // [MỚI] Lấy biến này ra để sử dụng
   hideViews = false 
 }) => {
-  const detailUrl = getListingUrl(listing);
+  // Kiểm tra xem có phải Affiliate không để hiện Badge
+  const isAffiliate = !!listing.affiliateLink;
   
+  // [SỬA QUAN TRỌNG]: Luôn luôn dùng Link nội bộ tới trang chi tiết
+  const detailUrl = getListingUrl(listing);
+
   const [imgSrc, setImgSrc] = useState(
     listing.images && listing.images.length > 0 ? listing.images[0] : PLACEHOLDER_IMAGE
   );
@@ -36,7 +37,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
   return (
     <div className={`flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group relative border border-gray-100 ${isSold ? 'opacity-70 grayscale' : ''}`}>
       
-      {/* PHẦN HÌNH ẢNH */}
+      {/* PHẦN HÌNH ẢNH - Luôn dùng Link nội bộ */}
       <Link to={detailUrl} className="block relative aspect-square overflow-hidden bg-gray-100">
         <img 
           src={imgSrc} 
@@ -54,8 +55,16 @@ const ListingCard: React.FC<ListingCardProps> = ({
             </div>
         )}
 
-        {/* Huy hiệu VIP (Chỉ hiện nếu chưa bán) */}
-        {!isSold && listing.tier && listing.tier !== 'free' && (
+        {/* [MỚI] Badge Affiliate (Ưu tiên hiển thị nếu là Affiliate) */}
+        {isAffiliate && !isSold && (
+             <div className="absolute top-2 left-2 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider shadow-md z-10 bg-gradient-to-r from-orange-500 to-red-500 text-white flex items-center gap-1">
+                {/* 👇 ĐÃ SỬA THÀNH: TIẾP THỊ LIÊN KẾT 👇 */}
+                <span>🛒</span> {listing.attributes?.brand || 'TIẾP THỊ LIÊN KẾT'}
+             </div>
+        )}
+
+        {/* Huy hiệu VIP (Chỉ hiện nếu KHÔNG PHẢI Affiliate và chưa bán) */}
+        {!isAffiliate && !isSold && listing.tier && listing.tier !== 'free' && (
           <div className={`absolute top-2 left-2 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-md z-10 backdrop-blur-md border border-white/20 ${
             listing.tier === 'pro' 
               ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white' 
@@ -65,45 +74,51 @@ const ListingCard: React.FC<ListingCardProps> = ({
           </div>
         )}
 
-        {/* Nút hành động */}
-        <div className="absolute top-2 right-2 flex flex-col gap-2 z-20">
-            <button 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onToggleFavorite?.(listing.id);
-              }}
-              className="p-2 bg-white/80 backdrop-blur-md rounded-full text-gray-400 hover:text-red-500 hover:bg-white transition-all shadow-sm group/btn"
-              title={isFavorite ? "Bỏ lưu" : "Lưu tin"}
-            >
-              <svg className={`w-4 h-4 transition-transform group-active/btn:scale-75 ${isFavorite ? 'text-red-500 fill-current' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-              </svg>
-            </button>
+        {/* Nút hành động (Chỉ hiện cho tin thường, Affiliate ko cần lưu/đẩy tin) */}
+        {!isAffiliate && (
+            <div className="absolute top-2 right-2 flex flex-col gap-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onToggleFavorite?.(listing.id);
+                  }}
+                  className="p-2 bg-white/80 backdrop-blur-md rounded-full text-gray-400 hover:text-red-500 hover:bg-white transition-all shadow-sm group/btn"
+                  title={isFavorite ? "Bỏ lưu" : "Lưu tin"}
+                >
+                  <svg className={`w-4 h-4 transition-transform group-active/btn:scale-75 ${isFavorite ? 'text-red-500 fill-current' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                </button>
 
-            {onPushListing && !isSold && (
-              <button 
-                onClick={(e) => {
-                  e.preventDefault(); 
-                  e.stopPropagation();
-                  onPushListing(listing.id);
-                }}
-                className="p-2 bg-white/80 backdrop-blur-md rounded-full text-green-600 hover:bg-green-500 hover:text-white transition-all shadow-sm animate-fade-in-up"
-                title="Đẩy tin lên đầu"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                </svg>
-              </button>
-            )}
-        </div>
+                {onPushListing && !isSold && (
+                  <button 
+                    onClick={(e) => {
+                      e.preventDefault(); 
+                      e.stopPropagation();
+                      onPushListing(listing.id);
+                    }}
+                    className="p-2 bg-white/80 backdrop-blur-md rounded-full text-green-600 hover:bg-green-500 hover:text-white transition-all shadow-sm animate-fade-in-up"
+                    title="Đẩy tin lên đầu"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                  </button>
+                )}
+            </div>
+        )}
       </Link>
 
       {/* PHẦN THÔNG TIN */}
       <Link to={detailUrl} className="p-3 space-y-1.5 flex flex-col flex-1">
-        <p className="text-primary font-black text-lg leading-none tracking-tight">
-          {formatPrice(listing.price)}
-        </p>
+        <div className="flex items-center justify-between">
+            <p className={`font-black text-lg leading-none tracking-tight ${isAffiliate ? 'text-orange-600' : 'text-primary'}`}>
+              {/* Nếu giá = 0 (Affiliate thường để 0) thì hiện "Đến nơi bán" */}
+              {listing.price > 0 ? formatPrice(listing.price) : (isAffiliate ? 'Xem giá ↗' : 'Liên hệ')}
+            </p>
+            {isAffiliate && <span className="text-[9px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">QC</span>}
+        </div>
         
         <h3 className="text-xs md:text-sm text-gray-800 font-bold line-clamp-2 leading-snug min-h-[2.5em] group-hover:text-primary transition-colors">
           {listing.title}
@@ -115,12 +130,10 @@ const ListingCard: React.FC<ListingCardProps> = ({
               📍 {listing.location || 'Toàn quốc'}
           </span>
           
-          {/* [MỚI] Hiển thị Lượt xem + Thời gian */}
           <div className="flex items-center gap-2 opacity-70">
-             {/* Logic: Nếu không có lệnh ẩn (hideViews) VÀ có lượt xem > 0 thì mới hiện */}
              {!hideViews && listing.viewCount !== undefined && listing.viewCount > 0 && (
                  <span className="flex items-center gap-0.5" title="Lượt xem">
-                    👀 {listing.viewCount}
+                   👀 {listing.viewCount}
                  </span>
              )}
              <span>{formatTimeAgo(listing.createdAt)}</span>

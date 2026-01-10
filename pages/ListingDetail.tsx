@@ -98,7 +98,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   useEffect(() => {
     if (!id) return;
 
-    // [THÊM MỚI] Tăng lượt xem ngay khi có ID
+    // Tăng lượt xem ngay khi có ID
     db.incrementListingView(id);
 
     const loadListing = async () => {
@@ -158,6 +158,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
   const currentCategory = CATEGORIES.find(c => c.id === listing.category);
 
+  // LOGIC NÚT BẤM
   const handleShowPhone = () => {
     if (!user) navigate('/login');
     else setIsPhoneVisible(true);
@@ -306,7 +307,10 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             
             {/* GIÁ & TIÊU ĐỀ */}
             <div className="space-y-3">
-              <p className="text-4xl font-black text-primary tracking-tighter">{formatPrice(listing.price)}</p>
+              <p className={`text-4xl font-black tracking-tighter ${listing.affiliateLink ? 'text-orange-600' : 'text-primary'}`}>
+                  {/* Nếu giá = 0 (Affiliate) thì hiện Liên hệ/Xem giá */}
+                  {listing.price > 0 ? formatPrice(listing.price) : (listing.affiliateLink ? 'Xem tại shop' : 'Liên hệ')}
+              </p>
               <h1 className="text-2xl font-black text-textMain leading-tight">{listing.title}</h1>
               
               {/* ĐỊA CHỈ & THỜI GIAN & VIEW COUNT */}
@@ -392,22 +396,38 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
               {/* KHU VỰC NÚT BẤM */}
               <div className="flex flex-col gap-3">
-                <button 
-                  onClick={handleStartChat} 
-                  disabled={isChatLoading}
-                  className="w-full bg-primary hover:bg-primaryHover text-white py-4 rounded-2xl font-bold text-sm shadow-xl shadow-primary/30 active:scale-95 transition-all flex items-center justify-center gap-3 group disabled:opacity-70 disabled:cursor-wait"
-                >
-                  {isChatLoading ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                      <>
-                        <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                        <span>CHAT VỚI NGƯỜI BÁN</span>
-                      </>
-                  )}
-                </button>
+                
+                {/* [LOGIC MỚI] Kiểm tra Affiliate Link */}
+                {listing.affiliateLink ? (
+                    <a 
+                      href={listing.affiliateLink}
+                      target="_blank"
+                      rel="nofollow noreferrer"
+                      className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white py-4 rounded-2xl font-bold text-sm shadow-xl shadow-orange-500/30 active:scale-95 transition-all flex items-center justify-center gap-3 group animate-pulse"
+                    >
+                      <span className="text-xl">🛒</span>
+                      <span>MUA NGAY TẠI {listing.attributes?.brand || 'CỬA HÀNG'} ↗</span>
+                    </a>
+                ) : (
+                    /* Nút Chat Bình Thường */
+                    <button 
+                      onClick={handleStartChat} 
+                      disabled={isChatLoading}
+                      className="w-full bg-primary hover:bg-primaryHover text-white py-4 rounded-2xl font-bold text-sm shadow-xl shadow-primary/30 active:scale-95 transition-all flex items-center justify-center gap-3 group disabled:opacity-70 disabled:cursor-wait"
+                    >
+                      {isChatLoading ? (
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                          <>
+                            <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                            <span>CHAT VỚI NGƯỜI BÁN</span>
+                          </>
+                      )}
+                    </button>
+                )}
 
-                {seller?.phone && (
+                {/* Nút Gọi Điện (Chỉ hiện nếu không phải Affiliate và có số điện thoại) */}
+                {!listing.affiliateLink && seller?.phone && (
                   isPhoneVisible ? (
                     <a 
                       href={`tel:${seller.phone}`} 

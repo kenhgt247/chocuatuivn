@@ -35,7 +35,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
   const isSold = listing.status === 'sold';
 
   return (
-    <div className={`flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group relative border border-gray-100 ${isSold ? 'opacity-70 grayscale' : ''}`}>
+    <div className={`flex flex-col bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group relative border border-gray-100 ${isSold ? 'opacity-70 grayscale' : ''}`}>
       
       {/* PHẦN HÌNH ẢNH - Luôn dùng Link nội bộ */}
       <Link to={detailUrl} className="block relative aspect-square overflow-hidden bg-gray-100">

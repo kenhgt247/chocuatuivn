@@ -7,6 +7,7 @@ import { analyzeListingImages } from '../services/geminiService';
 import { getLocationFromCoords } from '../utils/locationHelper';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import { crawlLinkMetadata } from '../utils/crawler';
+import { collection, addDoc } from 'firebase/firestore'; // Đảm bảo import đúng từ firebase
 
 interface ListingFormData {
   title: string;
@@ -18,28 +19,28 @@ interface ListingFormData {
   condition: 'new' | 'used';
   images: string[];
   attributes: Record<string, string>;
-  affiliateLink?: string;
+  affiliateLink?: string | null; // Sửa type để chấp nhận null
 }
 
 const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+   
   // --- STATE ---
   const [listingType, setListingType] = useState<'normal' | 'affiliate'>('normal');
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [aiSuccess, setAiSuccess] = useState(false);
-  
+   
   // State riêng cho Affiliate
   const [affiliateLinkInput, setAffiliateLinkInput] = useState('');
   const [isCrawling, setIsCrawling] = useState(false);
   const [manualAffiliateMode, setManualAffiliateMode] = useState(false); 
-  
+   
   const [locationDetected, setLocationDetected] = useState<{lat: number, lng: number} | null>(null);
   const [agreedToRules, setAgreedToRules] = useState(false);
-  
+   
   const [formData, setFormData] = useState<ListingFormData>({
     title: '',
     category: '',
@@ -49,13 +50,13 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     address: user?.address || '',
     condition: 'used',
     images: [],
-    attributes: {}
+    attributes: {},
+    affiliateLink: null
   });
 
   const inputStyle = "w-full bg-white border border-gray-200 rounded-2xl p-4 font-bold text-sm focus:outline-none focus:border-primary transition-all shadow-sm";
   const labelStyle = "text-[10px] font-black text-gray-400 uppercase tracking-widest px-1";
-  const wrapperStyle = "space-y-1.5";
-
+  
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
     const loadInitialData = async () => {
@@ -110,18 +111,18 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
   const handleFetchLink = async () => {
       if (!affiliateLinkInput) return alert("Vui lòng nhập link sản phẩm!");
-      
+       
       setIsCrawling(true);
       setManualAffiliateMode(false); 
-      
+       
       const res = await crawlLinkMetadata(affiliateLinkInput);
       setIsCrawling(false);
-      
+       
       if (res.success && res.data) {
           setFormData(prev => ({
               ...prev,
-              title: res.data.title,
-              images: [res.data.image], 
+              title: res.data.title || '',
+              images: res.data.image ? [res.data.image] : [], 
               affiliateLink: res.data.url, 
               description: prev.description || 'Sản phẩm tiếp thị liên kết chính hãng.',
               attributes: { ...prev.attributes, brand: res.data.brand || 'Affiliate' }
@@ -134,15 +135,74 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       }
   };
 
+  // --- RENDERING FIELDS THEO DANH MỤC ---
   const renderDynamicFields = () => {
-    // ... Copy lại đoạn switch case cũ vào đây ...
+    const categoryId = formData.category;
+
+    // Ví dụ: Hiển thị trường "Dung lượng" cho Điện tử
+    if (categoryId === 'electronics' || categoryId === 'dientu' || categoryId === 'laptop') {
+      return (
+        <div className="grid grid-cols-2 gap-4 animate-fade-in">
+          <div className="space-y-2">
+            <label className={labelStyle}>Hãng sản xuất</label>
+            <input 
+              type="text" 
+              placeholder="Apple, Samsung..." 
+              value={formData.attributes['brand'] || ''} 
+              onChange={(e) => updateAttr('brand', e.target.value)} 
+              className={inputStyle} 
+            />
+          </div>
+          <div className="space-y-2">
+            <label className={labelStyle}>Bộ nhớ / RAM</label>
+            <input 
+              type="text" 
+              placeholder="256GB, 8GB RAM..." 
+              value={formData.attributes['storage'] || ''} 
+              onChange={(e) => updateAttr('storage', e.target.value)} 
+              className={inputStyle} 
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // Ví dụ: Hiển thị "Odo" cho Xe cộ
+    if (categoryId === 'vehicles' || categoryId === 'xeco') {
+      return (
+        <div className="grid grid-cols-2 gap-4 animate-fade-in">
+          <div className="space-y-2">
+            <label className={labelStyle}>Hãng xe</label>
+            <input 
+              type="text" 
+              placeholder="Honda, Yamaha..." 
+              value={formData.attributes['brand'] || ''} 
+              onChange={(e) => updateAttr('brand', e.target.value)} 
+              className={inputStyle} 
+            />
+          </div>
+          <div className="space-y-2">
+            <label className={labelStyle}>Số KM đã đi</label>
+            <input 
+              type="number" 
+              placeholder="Ví dụ: 5000" 
+              value={formData.attributes['odo'] || ''} 
+              onChange={(e) => updateAttr('odo', e.target.value)} 
+              className={inputStyle} 
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // Mặc định trả về null nếu không khớp
     return null; 
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
     if (files.length === 0 || !settings) return;
-    
+     
     const userTier = user?.subscriptionTier || 'free';
     const tierConfig = (settings.tierConfigs as any)[userTier];
 
@@ -196,7 +256,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     if (!formData.title.trim() || !formData.category || !formData.price || formData.images.length === 0) {
       return alert('Vui lòng điền đủ thông tin: Tiêu đề, Danh mục, Giá, Ảnh!');
     }
-    
+     
     if (listingType === 'affiliate' && !formData.affiliateLink) {
         return alert('Vui lòng nhập Link tiếp thị liên kết.');
     }
@@ -208,7 +268,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     setLoading(true);
     try {
       let uploadedUrls = formData.images;
-      
+       
       if (listingType === 'normal' || manualAffiliateMode) {
           uploadedUrls = await Promise.all(
             formData.images.map((base64, index) => 
@@ -219,6 +279,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
       const listingStatus = (listingType === 'affiliate' || tierConfig.autoApprove) ? 'approved' : 'pending';
       
+      // [FIX QUAN TRỌNG]: Xử lý affiliateLink để không bị undefined
+      const finalAffiliateLink = listingType === 'affiliate' 
+        ? (formData.affiliateLink || affiliateLinkInput || null) 
+        : null;
+
       const listingData: any = {
         title: formData.title.trim(),
         description: formData.description.trim(),
@@ -228,27 +293,35 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         location: formData.location, 
         address: formData.address,
         condition: formData.condition,
-        attributes: formData.attributes,
+        attributes: formData.attributes || {},
         sellerId: user.id,
         sellerName: user.name,
         sellerAvatar: user.avatar || '',
         status: listingStatus,
         tier: listingType === 'affiliate' ? 'pro' : userTier, 
-        affiliateLink: listingType === 'affiliate' ? (formData.affiliateLink || affiliateLinkInput) : undefined,
+        affiliateLink: finalAffiliateLink, // Đã fix lỗi undefined
         createdAt: new Date().toISOString()
       };
-      
+       
+      // Loại bỏ các trường undefined để tránh lỗi Firebase
+      Object.keys(listingData).forEach(key => {
+        if (listingData[key] === undefined) {
+          delete listingData[key];
+        }
+      });
+
       if (locationDetected) {
         listingData.lat = locationDetected.lat;
         listingData.lng = locationDetected.lng;
       }
-      
+       
       await db.saveListing(listingData);
-      
+       
       alert(listingStatus === 'approved' ? "🎉 Thành công! Tin đã được đăng." : "📩 Tin đăng thành công và đang chờ duyệt.");
       navigate('/manage-ads');
-    } catch (error) {
-      alert("Đã có lỗi xảy ra. Vui lòng thử lại.");
+    } catch (error: any) {
+      console.error("Lỗi đăng tin:", error);
+      alert(`Đã có lỗi xảy ra: ${error.message || "Vui lòng thử lại"}`);
     } finally {
       setLoading(false);
     }
@@ -261,12 +334,12 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 px-4 pb-20 pt-8 font-sans">
-      
-      {/* HEADER SECTION (ĐƯỢC NÂNG CẤP) */}
+       
+      {/* HEADER SECTION */}
       <div className="text-center space-y-3 mb-8">
         <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase">Đăng Tin Rao Vặt</h1>
         
-        {/* Badge Gói Thành Viên Sang Trọng */}
+        {/* Badge Gói Thành Viên */}
         <div className="flex justify-center">
             <div className={`
                 relative inline-flex items-center gap-2 px-6 py-2 rounded-full border-2 
@@ -283,14 +356,14 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       </div>
 
-      {/* --- THANH CHUYỂN ĐỔI CHẾ ĐỘ (TAB SWITCHER) --- */}
+      {/* --- TAB SWITCHER --- */}
       <div className="bg-slate-100 p-1.5 rounded-2xl flex max-w-lg mx-auto shadow-inner border border-slate-200">
           <button 
              type="button"
              onClick={() => { 
                  setListingType('normal'); 
                  setManualAffiliateMode(false);
-                 setFormData(prev => ({...prev, title: '', price: '', images: [], affiliateLink: undefined})); 
+                 setFormData(prev => ({...prev, title: '', price: '', images: [], affiliateLink: null})); 
              }}
              className={`flex-1 py-4 rounded-xl text-xs font-black uppercase transition-all flex items-center justify-center gap-2 ${listingType === 'normal' ? 'bg-white shadow-md text-primary scale-[1.02] ring-1 ring-black/5' : 'text-slate-400 hover:bg-slate-200 hover:text-slate-600'}`}
           >

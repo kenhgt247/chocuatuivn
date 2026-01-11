@@ -1,7 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 
-// Dùng require để tránh lỗi TypeScript với thư viện nén
 const chromium = require("@sparticuz/chromium");
 const puppeteer = require("puppeteer-core");
 
@@ -10,7 +9,7 @@ admin.initializeApp();
 export const captureUrl = functions
   .runWith({ 
     timeoutSeconds: 60,
-    memory: "2GB" // Cloud cần RAM 2GB để chạy trình duyệt mượt
+    memory: "2GB" 
   })
   .https.onCall(async (data: any, context: any) => {
     const url = data.url;
@@ -21,9 +20,8 @@ export const captureUrl = functions
 
     let browser = null;
     try {
-      // Cấu hình trình duyệt cho môi trường Cloud
       browser = await puppeteer.launch({
-        args: chromium.args,
+        args: [...chromium.args, "--hide-scrollbars", "--disable-web-security"],
         defaultViewport: chromium.defaultViewport,
         executablePath: await chromium.executablePath(),
         headless: chromium.headless,
@@ -32,16 +30,25 @@ export const captureUrl = functions
 
       const page = await browser.newPage();
       
-      // Giả lập iPhone để load nhanh
-      await page.setViewport({ width: 390, height: 844, isMobile: true });
+      // Giả lập iPhone 12 Pro để Shopee hiện giao diện gọn hơn
+      await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
       await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1');
 
+      // Tăng thời gian chờ tải trang lên 30s
       await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
+
+      // 🔥 KỸ THUẬT MỚI: Cuộn xuống 300px để né Banner/Header
+      await page.evaluate(() => {
+        window.scrollBy(0, 300);
+      });
+
+      // ⏳ Chờ thêm 2 giây để ảnh load cho nét
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       const screenshotBuffer = await page.screenshot({ 
         encoding: "base64", 
         type: "jpeg", 
-        quality: 70 
+        quality: 60 // Giảm chất lượng chút cho nhẹ
       });
       
       await browser.close();

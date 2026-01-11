@@ -20,10 +20,12 @@ import {
   signInWithCredential
 } from "firebase/auth";
 import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
+// [MỚI] Import Functions để gọi Backend chụp ảnh
+import { getFunctions, httpsCallable, connectFunctionsEmulator } from "firebase/functions";
+
 import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus } from '../types';
 
 // [QUAN TRỌNG] IMPORT LOGIC TÌM KIẾM & FORMAT
-// Đảm bảo file utils/format.ts đã có hàm generateKeywords
 import { isSearchMatch, calculateRelevanceScore, generateKeywords } from '../utils/format';
 
 // 2. CẤU HÌNH ADMIN EMAIL
@@ -82,6 +84,7 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const firestore = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
+const functions = getFunctions(app); // [MỚI] Khởi tạo Functions
 
 // 4. OBJECT DB
 export const db = {
@@ -167,12 +170,9 @@ export const db = {
       let constraints: any[] = [];
 
       // 1. LOGIC TÌM KIẾM HYBRID (Server + Client)
-      // Nếu có từ khóa tìm kiếm, ta dùng array-contains để lọc thô trước
       if (options.search && options.search.trim().length > 0) {
          const searchKeywords = generateKeywords(options.search);
          if (searchKeywords.length > 0) {
-             // Lấy từ khóa đầu tiên để lọc (Firestore giới hạn 1 array-contains)
-             // VD: "Xe máy" -> lọc tất cả tin có chữ "xe" trước
              const primaryKeyword = searchKeywords[0];
              constraints.push(where("keywords", "array-contains", primaryKeyword));
          }
@@ -182,7 +182,6 @@ export const db = {
       if (options.status) {
           constraints.push(where("status", "==", options.status));
       } else if (!options.sellerId) {
-          // Mặc định chỉ lấy tin đã duyệt nếu không phải xem profile
           constraints.push(where("status", "==", "approved"));
       }
 
@@ -192,8 +191,6 @@ export const db = {
       if (options.isVip) constraints.push(where("tier", "==", "pro"));
 
       // 3. SẮP XẾP
-      // Lưu ý: Nếu có Search (filter keywords), ta không thể sort theo createdAt ngay 
-      // trừ khi tạo Composite Index. Để đơn giản & miễn phí, ta tạm bỏ sort khi search.
       if (!options.search) {
           constraints.push(orderBy("createdAt", "desc"));
       }
@@ -211,14 +208,9 @@ export const db = {
       let results = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
 
       // 6. LỌC TINH (CLIENT-SIDE REFINEMENT)
-      // Nếu đang tìm kiếm, ta dùng thuật toán Levenshtein để sắp xếp lại kết quả cho chính xác nhất
       if (options.search && options.search.trim().length > 0) {
           const queryText = options.search.trim();
-          
-          // Lọc lại lần nữa để loại bỏ các tin chứa từ khóa "primary" nhưng không khớp các từ còn lại
           results = results.filter(l => isSearchMatch(l.title, queryText));
-          
-          // Sắp xếp theo độ phù hợp
           results.sort((a, b) => {
              const scoreA = calculateRelevanceScore(a.title, queryText);
              const scoreB = calculateRelevanceScore(b.title, queryText);
@@ -266,11 +258,10 @@ export const db = {
 
   saveListing: async (listingData: any) => {
     try {
-      // [CẬP NHẬT] Tạo keywords cho tìm kiếm
       const dataToSave = {
         ...listingData,
         slug: db.toSlug(listingData.title),
-        keywords: generateKeywords(listingData.title), // Tạo mảng từ khóa
+        keywords: generateKeywords(listingData.title),
         
         viewCount: 0, 
         createdAt: new Date().toISOString(),
@@ -332,7 +323,6 @@ export const db = {
 
   updateListingContent: async (listingId: string, data: Partial<Listing>) => {
     try {
-      // Nếu có sửa tiêu đề, phải tạo lại keywords và slug
       let updates = { ...data, updatedAt: new Date().toISOString() };
       if (data.title) {
           updates = {
@@ -1065,6 +1055,32 @@ export const db = {
     } catch (e) {
         console.error("Error creating chat room:", e);
         throw e;
+    }
+  },
+
+  // --- [MỚI] TÍNH NĂNG CRAWLER ẢNH TỪ LINK (CHẠY LOCALHOST) ---
+  scanLinkToImage: async (url: string) => {
+    try {
+      // Để chạy trên Localhost, ta phải kết nối tới Emulator
+      // Nếu đã kết nối rồi thì nó có thể báo lỗi nhẹ (ignore được)
+      try {
+       //  connectFunctionsEmulator(functions, "localhost", 5001); 
+      } catch (err) {
+         // Đã kết nối rồi thì bỏ qua
+      }
+      
+      const captureFn = httpsCallable(functions, 'captureUrl');
+      
+      console.log("🚀 Đang gửi yêu cầu chụp ảnh tới Backend...");
+      const result: any = await captureFn({ url });
+      
+      if (result.data.success) {
+        return result.data.base64; // Trả về ảnh Base64
+      }
+      return null;
+    } catch (e) {
+      console.error("Lỗi scan link:", e);
+      return null;
     }
   },
 

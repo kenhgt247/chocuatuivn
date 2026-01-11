@@ -6,7 +6,6 @@ import { User } from '../types';
 import { analyzeListingImages } from '../services/geminiService';
 import { getLocationFromCoords } from '../utils/locationHelper';
 import { compressAndGetBase64 } from '../utils/imageCompression';
-import { crawlLinkMetadata } from '../utils/crawler'; // Nếu chưa có file này, code sẽ dùng logic dự phòng bên dưới
 
 interface ListingFormData {
   title: string;
@@ -111,32 +110,59 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     setFormData(prev => ({ ...prev, attributes: { ...prev.attributes, [key]: value } }));
   };
 
-  // --- 3. LOGIC AFFILIATE (MỚI) ---
+  // --- 3. LOGIC AFFILIATE (ĐÃ KẾT NỐI BACKEND) ---
   const handleFetchLink = async () => {
       if (!affiliateLinkInput) return alert("Vui lòng nhập link sản phẩm!");
-       
+      
       setIsCrawling(true);
       setManualAffiliateMode(false); 
-       
+      setAiAnalyzing(true);
+      setAiSuccess(false);
+
       try {
-          // Logic crawl giả lập (Nếu bạn có API thật thì thay vào đây)
-          const res = { success: false, data: null }; 
-          
-          if (res.success) {
-             // ... logic success
-          } else {
-             throw new Error("Crawl failed");
+          // BƯỚC 1: Gọi Backend (Cloud Functions) để chụp ảnh
+          // Hàm db.scanLinkToImage đã được định nghĩa trong db.ts
+          const base64Img = await db.scanLinkToImage(affiliateLinkInput);
+
+          if (!base64Img) {
+            throw new Error("Không thể chụp ảnh từ link này.");
           }
+
+          // BƯỚC 2: Gửi ảnh cho AI Gemini phân tích
+          const aiResult = await analyzeListingImages([base64Img]);
+
+          // BƯỚC 3: Điền Form
+          if (!aiResult.isProhibited) {
+             setFormData(prev => ({
+                 ...prev,
+                 title: aiResult.title || prev.title,
+                 price: aiResult.suggestedPrice ? aiResult.suggestedPrice.toString() : prev.price,
+                 description: aiResult.description || prev.description,
+                 category: aiResult.category || prev.category,
+                 condition: 'new', // Mặc định hàng mới
+                 attributes: { ...prev.attributes, ...aiResult.attributes },
+                 affiliateLink: affiliateLinkInput,
+                 images: [base64Img] // Dùng ảnh chụp làm ảnh sản phẩm
+             }));
+             
+             setAiSuccess(true);
+             alert("✅ AI đã lấy thông tin thành công!");
+          } else {
+             alert(`🚨 Cảnh báo nội dung: ${aiResult.prohibitedReason}`);
+          }
+
       } catch (e) {
+          console.error("Lỗi lấy link:", e);
           setManualAffiliateMode(true);
           setFormData(prev => ({ ...prev, affiliateLink: affiliateLinkInput })); 
-          alert("⚠️ Trang web này chặn tính năng lấy tin tự động.\n\nĐừng lo! Bạn có thể tải ảnh lên và nhập tiêu đề thủ công bên dưới.");
+          alert("⚠️ Không thể tự động lấy tin (Web chặn hoặc lỗi mạng).\nVui lòng nhập thủ công.");
       } finally {
           setIsCrawling(false);
+          setAiAnalyzing(false);
       }
   };
 
-  // --- 4. RENDER CÁC TRƯỜNG NHẬP LIỆU ĐỘNG (ĐÃ KHÔI PHỤC ĐẦY ĐỦ) ---
+  // --- 4. RENDER CÁC TRƯỜNG NHẬP LIỆU ĐỘNG ---
   const renderDynamicFields = () => {
     switch (formData.category) {
       case '1': // Bất động sản
@@ -216,7 +242,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
     if (files.length === 0 || !settings) return;
-     
+      
     const userTier = user?.subscriptionTier || 'free';
     const tierConfig = (settings.tierConfigs as any)[userTier];
 
@@ -271,7 +297,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     if (!formData.title.trim() || !formData.category || !formData.price || formData.images.length === 0) {
       return alert('Vui lòng điền đủ thông tin: Tiêu đề, Danh mục, Giá, Ảnh!');
     }
-     
+      
     // Validate Affiliate
     if (listingType === 'affiliate' && !formData.affiliateLink) {
         return alert('Vui lòng nhập Link tiếp thị liên kết.');
@@ -284,7 +310,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     setLoading(true);
     try {
       let uploadedUrls = formData.images;
-       
+        
       if (listingType === 'normal' || manualAffiliateMode) {
           uploadedUrls = await Promise.all(
             formData.images.map((base64, index) => 
@@ -321,14 +347,14 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           delete listingData[key];
         }
       });
-       
+        
       if (locationDetected) {
         listingData.lat = locationDetected.lat;
         listingData.lng = locationDetected.lng;
       }
-       
+        
       await db.saveListing(listingData);
-       
+        
       alert(listingStatus === 'approved' ? "🎉 Thành công! Tin đã được đăng." : "📩 Tin đăng thành công và đang chờ duyệt.");
       navigate('/manage-ads');
     } catch (error) {
@@ -345,7 +371,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 px-4 pb-20 pt-8 font-sans">
-       
+        
       {/* HEADER SECTION (ĐƯỢC NÂNG CẤP) */}
       <div className="text-center space-y-3 mb-8">
         <h1 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tighter uppercase">Đăng Tin Rao Vặt</h1>

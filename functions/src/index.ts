@@ -8,7 +8,7 @@ admin.initializeApp();
 
 export const captureUrl = functions
   .runWith({ 
-    timeoutSeconds: 60,
+    timeoutSeconds: 120, // Tăng thời gian chờ lên 2 phút
     memory: "2GB" 
   })
   .https.onCall(async (data: any, context: any) => {
@@ -20,8 +20,15 @@ export const captureUrl = functions
 
     let browser = null;
     try {
+      // Cấu hình trình duyệt
       browser = await puppeteer.launch({
-        args: [...chromium.args, "--hide-scrollbars", "--disable-web-security"],
+        args: [
+          ...chromium.args, 
+          "--hide-scrollbars", 
+          "--disable-web-security",
+          "--no-sandbox",
+          "--disable-setuid-sandbox"
+        ],
         defaultViewport: chromium.defaultViewport,
         executablePath: await chromium.executablePath(),
         headless: chromium.headless,
@@ -30,25 +37,37 @@ export const captureUrl = functions
 
       const page = await browser.newPage();
       
-      // Giả lập iPhone 12 Pro để Shopee hiện giao diện gọn hơn
-      await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
-      await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1');
+      // 🔥 THAY ĐỔI LỚN: Giả lập Màn hình Máy tính (PC) thay vì điện thoại
+      // Để tránh bị hiện popup "Mở App" che mất sản phẩm
+      await page.setViewport({ width: 1366, height: 768 });
+      
+      // Dùng UserAgent của Chrome trên Windows 10
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36');
 
-      // Tăng thời gian chờ tải trang lên 30s
-      await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
+      // Vào trang web
+      await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
 
-      // 🔥 KỸ THUẬT MỚI: Cuộn xuống 300px để né Banner/Header
-      await page.evaluate(() => {
-        window.scrollBy(0, 300);
+      // 🔥 KỸ THUẬT: Cuộn từ từ xuống để tải ảnh (Lazy load)
+      await page.evaluate(async () => {
+        // Cuộn xuống 500px
+        window.scrollBy(0, 500);
+        // Chờ 1 giây
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Cuộn thêm chút nữa
+        window.scrollBy(0, 500);
+        // Cuộn ngược lên đầu trang để chụp cho đẹp
+        window.scrollTo(0, 0);
       });
 
-      // ⏳ Chờ thêm 2 giây để ảnh load cho nét
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Chờ thêm 3 giây cho mọi thứ ổn định
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
+      // Chụp ảnh
       const screenshotBuffer = await page.screenshot({ 
         encoding: "base64", 
         type: "jpeg", 
-        quality: 60 // Giảm chất lượng chút cho nhẹ
+        quality: 70,
+        fullPage: false // Chỉ chụp màn hình hiển thị (không chụp dài ngoằng)
       });
       
       await browser.close();
@@ -58,6 +77,6 @@ export const captureUrl = functions
     } catch (error: any) {
       if (browser) await browser.close();
       console.error("Lỗi Crawler:", error);
-      throw new functions.https.HttpsError("internal", "Không thể truy cập trang web này.");
+      throw new functions.https.HttpsError("internal", "Không thể truy cập trang web này. Vui lòng thử lại.");
     }
   });

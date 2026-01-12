@@ -1,8 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-// ==========================================================================
-// 1. ĐỊNH NGHĨA INTERFACE (Kết quả trả về từ AI)
-// ==========================================================================
+// 1. Định nghĩa Interface kết quả trả về (Đầy đủ mọi trường như Chợ Tốt)
 export interface ListingAnalysis {
   category: string;
   suggestedPrice: number;
@@ -61,10 +59,6 @@ export interface ListingAnalysis {
   };
 }
 
-// ==========================================================================
-// 2. CẤU HÌNH & HELPER
-// ==========================================================================
-
 const CATEGORY_MAP_PROMPT = `
 Danh mục ID và Tên:
 1: Bất động sản
@@ -82,18 +76,12 @@ Danh mục ID và Tên:
 13: Các loại khác
 `;
 
-// Lấy API Key an toàn
+// Lấy API Key: Ưu tiên biến môi trường Vite, fallback sang process.env
 const getApiKey = () => {
   return (import.meta as any).env?.VITE_GEMINI_API_KEY || (process as any).env?.API_KEY || "";
 };
 
-// ==========================================================================
-// 3. CÁC HÀM XỬ LÝ CHÍNH
-// ==========================================================================
-
-/**
- * Hàm 1: Nhận diện từ khóa để tìm kiếm (Dùng model Flash cho nhanh)
- */
+// 2. Hàm nhận diện từ khóa (Dùng model Flash 2.0 cho nhanh)
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
   const apiKey = getApiKey();
   if (!apiKey) return "";
@@ -105,37 +93,32 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
     const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash', // Sử dụng bản Flash ổn định
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              inlineData: {
-                mimeType: 'image/jpeg',
-                data: cleanBase64,
-              },
+      model: 'gemini-2.0-flash-exp', // Sử dụng bản 2.0 Flash mới nhất
+      contents: {
+        role: 'user',
+        parts: [
+          {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: cleanBase64,
             },
-            { text: "Mô tả sản phẩm này trong 2-3 từ khóa ngắn gọn tiếng Việt để tìm kiếm mua bán. Chỉ trả về từ khóa, không giải thích." }
-          ]
-        }
-      ]
+          },
+          { text: "Mô tả sản phẩm này trong 2-3 từ khóa ngắn gọn để tìm kiếm mua bán. Chỉ trả về từ khóa." }
+        ]
+      }
     });
-
+    
     return response.text()?.trim() || "";
   } catch (error) {
-    console.warn("Image Search Identification Error (Ignored):", error);
+    console.error("Image Recognition Error:", error);
     return "";
   }
 };
 
-/**
- * Hàm 2: Phân tích chi tiết & bóc tách thông số (Dùng model Pro + Schema)
- */
+// 3. Hàm phân tích chi tiết & bóc tách thông số (Dùng model Pro 2.0 + Schema JSON)
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
   
-  // Trả về object mặc định ngay nếu thiếu key để không crash App
   if (!apiKey) {
     console.log("ℹ️ Skipped AI Analysis: No API Key provided.");
     return {
@@ -147,7 +130,6 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
   try {
     const ai = new GoogleGenAI({ apiKey });
     
-    // Chuẩn bị dữ liệu ảnh
     const imageParts = imagesBase64.map(base64 => ({
       inlineData: {
         mimeType: 'image/jpeg',
@@ -156,26 +138,29 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     }));
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-pro', // Sử dụng 1.5 Pro (hoặc 2.0-flash-exp nếu có quyền)
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            ...imageParts,
-            { text: `Phân tích sản phẩm chuyên nghiệp để đăng tin rao vặt tương tự Chợ Tốt.
-            ${CATEGORY_MAP_PROMPT}
-            
-            Yêu cầu:
-            1. Kiểm tra hàng cấm (Vũ khí, chất kích thích, động vật quý hiếm...).
-            2. Chọn ID danh mục (1-13) chính xác nhất.
-            3. Đề xuất Tiêu đề hấp dẫn và Giá bán sát thực tế (VNĐ).
-            4. Xác định Tình trạng (new/used).
-            5. Viết Mô tả ngắn gọn, đầy đủ ưu điểm.
-            6. TRÍCH XUẤT THÔNG SỐ KỸ THUẬT (attributes) chi tiết từ hình ảnh.
-            ` }
-          ]
-        }
-      ],
+      model: 'gemini-2.0-flash-exp', // Sử dụng bản 2.0 Flash mạnh mẽ thay vì 1.5
+      contents: {
+        role: 'user',
+        parts: [
+          ...imageParts,
+          { text: `Phân tích sản phẩm chuyên nghiệp để đăng tin rao vặt tương tự Chợ Tốt.
+          ${CATEGORY_MAP_PROMPT}
+          
+          Yêu cầu:
+          1. Kiểm tra hàng cấm (Vũ khí, chất kích thích, động vật quý hiếm...).
+          2. Chọn ID danh mục (1-13) chính xác nhất.
+          3. Đề xuất Tiêu đề hấp dẫn và Giá bán sát thực tế (VNĐ).
+          4. Xác định Tình trạng (new/used).
+          5. Viết Mô tả ngắn gọn, đầy đủ ưu điểm.
+          6. TRÍCH XUẤT THÔNG SỐ KỸ THUẬT (attributes) dựa trên hình ảnh:
+             - Xe cộ: Nhìn bảng đồng hồ đoán ODO, nhìn cần số đoán Hộp số, nhìn đuôi xe đoán Kiểu dáng.
+             - Bất động sản: Đọc thông tin trên biển bán nhà (nếu có) để lấy Diện tích, Hướng.
+             - Đồ điện tử: Đọc màn hình giới thiệu để lấy Pin, Bộ nhớ.
+             - Thú cưng: Nhận diện Giống loài (Poodle, Corgi...), Độ tuổi.
+             - Việc làm: Đọc nội dung tuyển dụng để lấy Lương, Kinh nghiệm.
+          ` }
+        ]
+      },
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -188,47 +173,52 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
             suggestedPrice: { type: Type.NUMBER },
             condition: { type: Type.STRING },
             description: { type: Type.STRING },
-            
-            // --- SCHEMA ATTRIBUTES CHI TIẾT ---
+            // --- ĐÂY LÀ PHẦN QUAN TRỌNG NHẤT: SCHEMA CHO CÁC TRƯỜNG DỮ LIỆU ---
             attributes: {
               type: Type.OBJECT,
               properties: {
                 // Xe cộ
-                mileage: { type: Type.STRING },
-                year: { type: Type.STRING },
-                gearbox: { type: Type.STRING },
-                fuel: { type: Type.STRING },
-                carType: { type: Type.STRING },
-                seatCount: { type: Type.STRING },
+                mileage: { type: Type.STRING, description: "Số ODO" },
+                year: { type: Type.STRING, description: "Năm sản xuất" },
+                gearbox: { type: Type.STRING, description: "Tự động/Số sàn" },
+                fuel: { type: Type.STRING, description: "Xăng/Dầu/Điện" },
+                carType: { type: Type.STRING, description: "Sedan/SUV/Hatchback..." },
+                seatCount: { type: Type.STRING, description: "Số chỗ ngồi" },
+                
                 // Bất động sản
-                area: { type: Type.STRING },
-                bedrooms: { type: Type.STRING },
-                bathrooms: { type: Type.STRING },
-                direction: { type: Type.STRING },
-                legal: { type: Type.STRING },
-                propertyType: { type: Type.STRING },
+                area: { type: Type.STRING, description: "Diện tích m2" },
+                bedrooms: { type: Type.STRING, description: "Số phòng ngủ" },
+                bathrooms: { type: Type.STRING, description: "Số WC" },
+                direction: { type: Type.STRING, description: "Hướng nhà" },
+                legal: { type: Type.STRING, description: "Sổ đỏ/Sổ hồng" },
+                propertyType: { type: Type.STRING, description: "Nhà ở/Chung cư/Đất" },
+
                 // Đồ điện tử
-                battery: { type: Type.STRING },
-                storage: { type: Type.STRING },
-                ram: { type: Type.STRING },
-                color: { type: Type.STRING },
-                warranty: { type: Type.STRING },
+                battery: { type: Type.STRING, description: "Pin %" },
+                storage: { type: Type.STRING, description: "Bộ nhớ trong" },
+                ram: { type: Type.STRING, description: "RAM" },
+                color: { type: Type.STRING, description: "Màu sắc" },
+                warranty: { type: Type.STRING, description: "Bảo hành" },
+
                 // Điện lạnh
-                capacity: { type: Type.STRING },
-                inverter: { type: Type.STRING },
+                capacity: { type: Type.STRING, description: "Công suất" },
+                inverter: { type: Type.STRING, description: "Có/Không" },
+
                 // Thú cưng
-                breed: { type: Type.STRING },
-                age: { type: Type.STRING },
-                gender: { type: Type.STRING },
+                breed: { type: Type.STRING, description: "Giống loài" },
+                age: { type: Type.STRING, description: "Tuổi" },
+                gender: { type: Type.STRING, description: "Đực/Cái" },
+
                 // Nội thất/Đồ dùng
-                material: { type: Type.STRING },
-                size: { type: Type.STRING },
-                brand: { type: Type.STRING },
-                personalSize: { type: Type.STRING },
+                material: { type: Type.STRING, description: "Chất liệu" },
+                size: { type: Type.STRING, description: "Kích thước" },
+                brand: { type: Type.STRING, description: "Thương hiệu" },
+                personalSize: { type: Type.STRING, description: "Size quần áo/giày" },
+
                 // Việc làm
-                salary: { type: Type.STRING },
-                jobType: { type: Type.STRING },
-                experience: { type: Type.STRING }
+                salary: { type: Type.STRING, description: "Mức lương" },
+                jobType: { type: Type.STRING, description: "Toàn thời gian/Bán thời gian" },
+                experience: { type: Type.STRING, description: "Kinh nghiệm" }
               }
             }
           },
@@ -237,23 +227,23 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
       }
     });
 
-    // Lấy text JSON và làm sạch (phòng trường hợp model trả về markdown code block)
     const rawText = response.text();
     if (!rawText) throw new Error("Empty response from Gemini");
 
+    // Clean JSON string (phòng trường hợp model trả về markdown code block)
     const cleanJson = rawText.replace(/```json|```/g, '').trim();
     return JSON.parse(cleanJson) as ListingAnalysis;
 
   } catch (error) {
     console.error("AI Analysis Error:", error);
-    // Trả về dữ liệu an toàn để không làm gián đoạn người dùng
+    // Trả về object mặc định để không gây lỗi trắng trang ở Frontend
     return {
-      title: '', 
-      description: '', 
-      category: '13', 
-      suggestedPrice: 0, 
-      condition: 'used', 
-      isProhibited: false 
+      isProhibited: false,
+      title: '',
+      category: '13',
+      suggestedPrice: 0,
+      condition: 'used',
+      description: ''
     };
   }
 };

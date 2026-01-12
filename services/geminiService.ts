@@ -82,19 +82,19 @@ Danh mục ID và Tên:
 13: Các loại khác
 `;
 
-// Lấy API Key: Ưu tiên biến môi trường VITE_ theo chuẩn React/Vite
+// Lấy API Key: Ưu tiên biến môi trường VITE_
 const getApiKey = () => {
   return (import.meta as any).env?.VITE_GEMINI_API_KEY || (process as any).env?.API_KEY || "";
 };
 
-// [QUAN TRỌNG] Hàm lấy text an toàn để tránh lỗi "text is not a function"
+// [HÀM QUAN TRỌNG] Lấy text an toàn để tránh lỗi "text is not a function"
 const safeGetText = (response: any): string => {
   try {
-    // Cách 1: Dùng hàm text() chuẩn của SDK mới nếu có
+    // Cách 1: Dùng hàm text() chuẩn nếu có
     if (typeof response.text === 'function') {
       return response.text();
     }
-    // Cách 2: Lấy trực tiếp từ cấu trúc JSON (Fallback)
+    // Cách 2: Lấy trực tiếp từ JSON (Fallback cho model mới)
     if (response.candidates && response.candidates.length > 0) {
       const firstCandidate = response.candidates[0];
       if (firstCandidate.content && firstCandidate.content.parts && firstCandidate.content.parts.length > 0) {
@@ -103,7 +103,7 @@ const safeGetText = (response: any): string => {
     }
     return "";
   } catch (e) {
-    console.error("Lỗi trích xuất text từ response AI:", e);
+    console.error("Lỗi trích xuất text từ AI response:", e);
     return "";
   }
 };
@@ -112,18 +112,18 @@ const safeGetText = (response: any): string => {
 // 3. CÁC HÀM XỬ LÝ CHÍNH
 // ==========================================================================
 
-// Hàm 1: Nhận diện từ khóa (Dùng model Flash)
+// Hàm 1: Nhận diện từ khóa (Dùng model 2.0 Flash Exp mới nhất)
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
   const apiKey = getApiKey();
   if (!apiKey) return "";
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    // Cắt header base64 nếu có để tránh lỗi payload
     const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash', 
+      // [UPDATE] Sử dụng Gemini 2.0 Flash Experimental (Thay thế 1.5)
+      model: 'gemini-2.0-flash-exp', 
       contents: {
         role: 'user',
         parts: [
@@ -140,11 +140,10 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
   }
 };
 
-// Hàm 2: Phân tích chi tiết & bóc tách thông số (Dùng model Flash + Schema)
+// Hàm 2: Phân tích chi tiết & bóc tách thông số (Dùng model 2.0 Flash Exp + Full Schema)
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
   
-  // Kiểm tra Key trước khi gọi để không crash app
   if (!apiKey) {
     console.log("⚠️ Bỏ qua AI: Chưa cấu hình API Key.");
     return { title: '', description: '', category: '13', suggestedPrice: 0, condition: 'used', isProhibited: false };
@@ -161,7 +160,9 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     }));
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash', // Dùng Flash để ổn định, tránh lỗi 404 Model Not Found
+      // [UPDATE] Sử dụng Gemini 2.0 Flash Experimental (Thay thế 1.5)
+      // Lưu ý: Nếu bạn có quyền truy cập sớm vào bản 3.0, hãy đổi thành 'gemini-3.0-flash-exp'
+      model: 'gemini-2.0-flash-exp', 
       
       contents: {
         role: 'user',
@@ -184,7 +185,7 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
             condition: { type: Type.STRING },
             description: { type: Type.STRING },
             
-            // --- SCHEMA ATTRIBUTES CHI TIẾT ---
+            // --- FULL SCHEMA ATTRIBUTES ---
             attributes: {
               type: Type.OBJECT,
               properties: {
@@ -243,13 +244,11 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     const rawText = safeGetText(response);
     if (!rawText) throw new Error("AI trả về dữ liệu rỗng");
 
-    // Clean JSON string (xóa markdown ```json nếu có)
     const cleanJson = rawText.replace(/```json|```/g, '').trim();
     return JSON.parse(cleanJson) as ListingAnalysis;
 
   } catch (error) {
     console.error("❌ Lỗi phân tích AI:", error);
-    // Trả về dữ liệu an toàn để người dùng vẫn nhập tay được
     return { title: '', description: '', category: '13', suggestedPrice: 0, condition: 'used', isProhibited: false };
   }
 };

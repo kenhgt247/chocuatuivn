@@ -6,7 +6,7 @@ import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
 import ListingCard from '../components/ListingCard';
 import ShareModal from '../components/ShareModal';
 import ReviewSection from '../components/ReviewSection';
-import OfferModal from '../components/OfferModal'; // [MỚI] Import Modal Mặc cả
+import OfferModal from '../components/OfferModal';
 import { CATEGORIES } from '../constants';
 
 // --- IMPORT LEAFLET MAP ---
@@ -89,7 +89,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   // Modals State
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [showOfferModal, setShowOfferModal] = useState(false); // [MỚI] State Offer Modal
+  const [showOfferModal, setShowOfferModal] = useState(false);
 
   const [reportReason, setReportReason] = useState("");
   const [reportDetails, setReportDetails] = useState("");
@@ -162,7 +162,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     finally { setIsChatLoading(false); }
   };
 
-  // [MỚI] Hàm xử lý Mặc cả
   const handleMakeOffer = async (offerPrice: number) => {
     if (!user) {
         alert("Vui lòng đăng nhập để mặc cả!");
@@ -179,8 +178,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     
     if (result.success) {
         alert(`✅ Đã gửi đề nghị giá ${offerPrice.toLocaleString()}đ thành công! Chủ shop sẽ trả lời bạn qua Chat.`);
-        // Optional: Chuyển hướng sang chat luôn để xem tin nhắn offer
-        // navigate(`/chat/${result.offerId}`); // Cần chỉnh lại logic navigate nếu muốn
     } else {
         alert("Lỗi: " + result.message);
     }
@@ -220,12 +217,11 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
       <div className="grid lg:grid-cols-12 gap-0 md:gap-8">
         
-        {/* LEFT: MEDIA GALLERY & DETAILS */}
+        {/* LEFT: MEDIA GALLERY & DETAILS (Cột trái chiếm 8 phần) */}
         <div className="lg:col-span-8 space-y-6">
           
           {/* MEDIA VIEWER */}
           <div className="relative bg-black aspect-square md:aspect-video md:rounded-[2.5rem] overflow-hidden group shadow-2xl border border-gray-800">
-            
             {/* RENDER VIDEO OR IMAGE */}
             {isVideoActive ? (
                 <div className="relative w-full h-full cursor-pointer" onClick={handleVideoPlayPause}>
@@ -241,8 +237,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                         onPlay={() => setIsPlaying(true)}
                         onPause={() => setIsPlaying(false)}
                     />
-                    
-                    {/* Play Button Overlay */}
                     {!isPlaying && (
                         <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/30 backdrop-blur-[2px]">
                             <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/50 shadow-xl transition-transform hover:scale-110">
@@ -250,8 +244,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                             </div>
                         </div>
                     )}
-
-                    {/* Controls Overlay */}
                     <div className="absolute bottom-6 left-6 right-6 z-30 flex justify-between items-end pointer-events-none">
                         <button 
                             onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }}
@@ -259,7 +251,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                         >
                             {isMuted ? '🔇' : '🔊'}
                         </button>
-
                         <div className="bg-primary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest animate-pulse shadow-lg">
                             Video Sống động
                         </div>
@@ -272,13 +263,9 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                     alt={listing.title} 
                 />
             )}
-
-            {/* WATERMARK */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 opacity-20">
                <span className="text-white text-5xl md:text-7xl font-black uppercase tracking-[0.5em] -rotate-45 whitespace-nowrap drop-shadow-lg">CHỢ CỦA TUI</span>
             </div>
-
-            {/* NAVIGATION */}
             {mediaList.length > 1 && (
               <>
                 <button onClick={() => setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-4 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-40 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-auto border border-white/10">
@@ -289,7 +276,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                 </button>
               </>
             )}
-            
             <div className="absolute bottom-6 right-6 bg-black/60 backdrop-blur-md text-white px-5 py-2 rounded-full text-xs font-black border border-white/10 z-30">
                 {activeMedia + 1} / {mediaList.length}
             </div>
@@ -308,7 +294,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                     className="w-full h-full object-cover" 
                     alt="" 
                 />
-                
                 {listing.videoUrl && idx === 0 && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                         <div className="w-8 h-8 rounded-full bg-white/30 backdrop-blur flex items-center justify-center border border-white/50">
@@ -348,32 +333,17 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             <p className="text-slate-700 leading-relaxed whitespace-pre-wrap font-medium text-lg italic border-l-4 border-slate-100 pl-6">"{listing.description}"</p>
           </div>
 
-          {/* [ĐÃ KHÔI PHỤC] MAP SECTION */}
-          {listing.lat && listing.lng && (
-             <div className="bg-white md:rounded-[2.5rem] overflow-hidden border border-gray-100 shadow-soft h-[350px] relative z-0">
-                <MapContainer center={[listing.lat, listing.lng]} zoom={15} style={{ height: '100%', width: '100%' }}>
-                    <TileLayer 
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    />
-                    <Marker position={[listing.lat, listing.lng]}>
-                        <Popup>{listing.address || "Vị trí người bán"}</Popup>
-                    </Marker>
-                </MapContainer>
-                {/* Overlay chặn cuộn chuột khi chưa focus để tránh lỗi UX */}
-                <div className="absolute inset-0 pointer-events-none border-[10px] border-white/50 z-[400] md:rounded-[2.5rem]"></div>
-             </div>
-          )}
-
           {/* REVIEWS */}
           <div className="bg-white md:rounded-[2.5rem] p-8 border border-gray-100 shadow-soft">
             <ReviewSection targetId={listing.id} targetType="listing" currentUser={user} />
           </div>
         </div>
 
-        {/* RIGHT: CONTACT & INFO */}
+        {/* RIGHT: CONTACT & INFO (Cột phải chiếm 4 phần) */}
         <div className="lg:col-span-4 p-4 md:p-0">
           <div className="bg-white md:rounded-[2.5rem] p-8 md:p-10 border border-gray-100 shadow-2xl space-y-8 sticky top-24">
+            
+            {/* Header Info */}
             <div className="space-y-4">
               <p className={`text-4xl font-black tracking-tighter ${listing.affiliateLink ? 'text-orange-600' : 'text-primary'}`}>
                   {listing.price > 0 ? formatPrice(listing.price) : 'Liên hệ'}
@@ -401,7 +371,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
             </Link>
 
-            {/* CTA BUTTONS (Affiliate / Chat / Offer) */}
+            {/* CTA BUTTONS */}
             <div className="space-y-4">
               {listing.affiliateLink ? (
                 <a href={listing.affiliateLink} target="_blank" rel="nofollow" className="w-full bg-orange-600 hover:bg-orange-700 text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-orange-200 flex items-center justify-center gap-3 animate-bounce">
@@ -409,15 +379,12 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                 </a>
               ) : (
                 <div className="flex gap-3">
-                    {/* [MỚI] Nút Mặc cả */}
                     <button 
                         onClick={() => setShowOfferModal(true)}
                         className="flex-1 bg-green-50 text-green-600 border border-green-200 py-4 rounded-2xl font-black text-xs uppercase hover:bg-green-100 transition-all flex items-center justify-center gap-2"
                     >
                         <span>💸</span> Mặc cả
                     </button>
-
-                    {/* Nút Chat */}
                     <button 
                         onClick={handleStartChat} 
                         disabled={isChatLoading} 
@@ -447,8 +414,25 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                   <span>📤</span> Chia sẻ
               </button>
             </div>
+
+            {/* [ĐÃ CHUYỂN] MAP SECTION SANG CỘT PHẢI */}
+            {listing.lat && listing.lng && (
+                <div className="w-full h-48 rounded-2xl overflow-hidden relative border border-gray-200 mt-4 z-0">
+                    <MapContainer center={[listing.lat, listing.lng]} zoom={13} style={{ height: '100%', width: '100%' }}>
+                        <TileLayer 
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        />
+                        <Marker position={[listing.lat, listing.lng]}>
+                            <Popup>{listing.address || "Vị trí người bán"}</Popup>
+                        </Marker>
+                    </MapContainer>
+                    {/* Overlay chống scroll nhầm trên mobile */}
+                    <div className="absolute inset-0 pointer-events-none border-[6px] border-white/50 z-[400] rounded-2xl"></div>
+                </div>
+            )}
             
-            <button onClick={() => setShowReportModal(true)} className="w-full text-[9px] font-black text-gray-300 uppercase tracking-widest hover:text-red-400 transition-colors text-center">
+            <button onClick={() => setShowReportModal(true)} className="w-full text-[9px] font-black text-gray-300 uppercase tracking-widest hover:text-red-400 transition-colors text-center pt-2">
                 Báo cáo tin này
             </button>
           </div>
@@ -496,7 +480,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       )}
 
-      {/* [MỚI] OFFER MODAL */}
+      {/* OFFER MODAL */}
       {listing && (
         <OfferModal 
           isOpen={showOfferModal}

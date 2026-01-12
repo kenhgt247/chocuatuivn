@@ -275,17 +275,30 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     setLoading(true);
     try {
       // 1. Upload Video (Nếu có file mới)
-      let finalVideoUrl = existingVideoUrl; // Mặc định giữ cái cũ
+      let finalVideoUrl = existingVideoUrl; 
       if (videoFile) {
           finalVideoUrl = await db.uploadVideo(videoFile, user.id);
       }
 
-      // 2. Upload Ảnh (Chỉ upload ảnh mới dạng Base64, giữ nguyên URL cũ)
+      // 2. Upload Ảnh
       const uploadedUrls = await Promise.all(
         formData.images.map((img, index) => 
           img.startsWith('data:') ? db.uploadImage(img, `listings/${user.id}/${Date.now()}_${index}.jpg`) : img
         )
       );
+
+      // --- [NEW LOGIC] XỬ LÝ TRẠNG THÁI DUYỆT ---
+      let status = 'pending';
+      if (isEditing) {
+          // Nếu Admin sửa -> Duyệt luôn
+          // Nếu User thường sửa -> Chờ duyệt lại
+          status = user.role === 'admin' ? 'approved' : 'pending';
+      } else {
+          // Nếu Đăng mới -> Check cấu hình gói VIP hoặc Affiliate
+          if (listingType === 'affiliate' || (settings.tierConfigs as any)[user.subscriptionTier].autoApprove) {
+              status = 'approved';
+          }
+      }
 
       // 3. Chuẩn bị Data
       const listingData: any = {
@@ -300,8 +313,8 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         condition: listingType === 'affiliate' ? 'new' : formData.condition,
         attributes: formData.attributes,
         
-        // Status Logic: Sửa tin -> Pending. Tạo mới -> Check auto approve
-        status: isEditing ? 'pending' : ((listingType === 'affiliate' || (settings.tierConfigs as any)[user.subscriptionTier].autoApprove) ? 'approved' : 'pending'),
+        // Sử dụng status đã tính toán ở trên
+        status: status,
         
         tier: listingType === 'affiliate' ? 'pro' : user.subscriptionTier, 
         affiliateLink: listingType === 'affiliate' ? formData.affiliateLink : null,
@@ -309,19 +322,21 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         lng: locationDetected?.lng || null,
       };
 
-      // [QUAN TRỌNG] Logic sửa tin an toàn cho Seed Data & Admin
-      // Nếu là TIN MỚI -> Gán người bán là user hiện tại
+      // [QUAN TRỌNG] Giữ nguyên SellerID nếu đang sửa (để Admin sửa được tin của User khác)
       if (!isEditing) {
           listingData.sellerId = user.id;
           listingData.sellerName = user.name;
           listingData.sellerAvatar = user.avatar || '';
-      } 
-      // Nếu ĐANG SỬA -> KHÔNG GỬI sellerId lên để giữ nguyên chủ cũ (kể cả seed_user)
+      }
       
       // 4. Lưu hoặc Cập nhật
       if (isEditing && id) {
           await db.updateListingContent(id, listingData);
-          alert("✅ Cập nhật thành công! Tin sẽ chờ duyệt lại.");
+          if (user.role === 'admin') {
+              alert("✅ Admin đã cập nhật tin thành công (Không cần duyệt lại).");
+          } else {
+              alert("✅ Cập nhật thành công! Tin sẽ chờ duyệt lại.");
+          }
           navigate(`/san-pham/${id}`);
       } else {
           await db.saveListing(listingData);

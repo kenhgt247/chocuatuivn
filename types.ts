@@ -12,10 +12,16 @@ export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'reject
 // Trạng thái tin đăng
 export type ListingStatus = 'pending' | 'approved' | 'rejected' | 'sold' | 'hidden';
 
-// Loại thông báo
+// Loại thông báo (Đã thêm 'offer')
 export type NotificationType = 
   | 'info' | 'success' | 'warning' | 'error' 
-  | 'review' | 'message' | 'approval' | 'follow' | 'system';
+  | 'review' | 'message' | 'approval' | 'follow' | 'offer' | 'system';
+
+// Loại tin nhắn chat (Đã thêm 'offer')
+export type MessageType = 'text' | 'image' | 'location' | 'offer';
+
+// Trạng thái của một lời mặc cả
+export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled';
 
 // ==========================================
 // 2. CÁC INTERFACE CHÍNH (CORE)
@@ -34,8 +40,8 @@ export interface User {
   // --- THÔNG TIN VỊ TRÍ ---
   location?: string; 
   address?: string; 
-  lat?: number;       
-  lng?: number;       
+  lat?: number;        
+  lng?: number;        
 
   // --- VÍ & GÓI CƯỚC ---
   subscriptionTier: SubscriptionTier;
@@ -59,7 +65,7 @@ export interface Listing {
   price: number;
   category: string;
   images: string[];
-  videoUrl?: string;     // [MỚI] Link video ngắn sản phẩm
+  videoUrl?: string;     // Link video ngắn sản phẩm
   affiliateLink?: string;
   
   // --- SEO & TÌM KIẾM ---
@@ -109,15 +115,38 @@ export interface Category {
 }
 
 // ==========================================
-// 3. TƯƠNG TÁC (CHAT, REVIEW, NOTIF)
+// 3. TƯƠNG TÁC (OFFER, CHAT, REVIEW, NOTIF)
 // ==========================================
+
+// [MỚI] Interface cho Lời mặc cả
+export interface Offer {
+  id: string;
+  listingId: string;
+  listingTitle: string; // Lưu dư thừa để hiển thị nhanh
+  listingImage: string;
+  
+  buyerId: string;
+  buyerName: string;
+  
+  sellerId: string;
+  
+  originalPrice: number; // Giá gốc
+  offerPrice: number;    // Giá khách trả
+  
+  status: OfferStatus;
+  createdAt: string;
+  updatedAt?: string;
+}
 
 export interface Message {
   id: string;
   senderId: string;
   text: string;
   timestamp: string;
+  type?: MessageType; // Loại tin nhắn (text, image, offer...)
   image?: string; 
+  offerId?: string;   // Nếu là tin nhắn mặc cả thì có ID này
+  isSystem?: boolean; // Tin nhắn hệ thống (không phải người chat)
 }
 
 export interface ChatRoom {
@@ -203,7 +232,6 @@ export interface BannerSlide {
   imageUrl?: string; 
 }
 
-// [QUAN TRỌNG] Cập nhật TierConfig để Admin quản lý quyền Video
 export interface TierConfig {
   name: string;
   price: number;
@@ -211,7 +239,7 @@ export interface TierConfig {
   postsPerDay: number;
   autoApprove: boolean;
   features: string[];
-  allowVideo: boolean; // [MỚI] Quyền đăng video (true/false)
+  allowVideo: boolean; 
 }
 
 export interface SystemSettings {

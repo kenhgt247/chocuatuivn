@@ -37,42 +37,30 @@ const REPORT_REASONS = [
 
 const STATIC_LINKS = [
   { slug: 'gioi-thieu', title: 'Giới thiệu' },
-  { slug: 'quy-che-hoat-dong', title: 'Quy chế hoạt động' },
-  { slug: 'chinh-sach-bao-mat', title: 'Chính sách bảo mật' },
-  { slug: 'meo-mua-ban-an-toan', title: 'Mẹo an toàn' },
-  { slug: 'huong-dan-dang-tin', title: 'Hỗ trợ' },
+  { slug: 'quy-che-hoat-dong', title: 'Quy chế' },
+  { slug: 'chinh-sach-bao-mat', title: 'Bảo mật' },
+  { slug: 'meo-mua-ban-an-toan', title: 'An toàn' },
 ];
 
-const ATTRIBUTE_LABELS: Record<string, { label: string; icon: string }> = {
-  mileage: { label: 'Số Km đã đi', icon: '🚗' },
-  year: { label: 'Năm sản xuất', icon: '📅' },
-  gearbox: { label: 'Hộp số', icon: '⚙️' },
-  fuel: { label: 'Nhiên liệu', icon: '⛽' },
-  carType: { label: 'Kiểu dáng', icon: '🚙' },
-  seatCount: { label: 'Số chỗ', icon: '💺' },
-  area: { label: 'Diện tích', icon: '📐' },
-  bedrooms: { label: 'Phòng ngủ', icon: '🛏️' },
-  bathrooms: { label: 'Số WC', icon: '🚿' },
-  direction: { label: 'Hướng nhà', icon: '🧭' },
-  legal: { label: 'Pháp lý', icon: '📜' },
-  propertyType: { label: 'Loại hình', icon: '🏘️' },
-  battery: { label: 'Pin', icon: '🔋' },
-  storage: { label: 'Bộ nhớ', icon: '💾' },
-  ram: { label: 'RAM', icon: '⚡' },
-  color: { label: 'Màu sắc', icon: '🎨' },
-  warranty: { label: 'Bảo hành', icon: '🛡️' },
-  capacity: { label: 'Công suất', icon: '❄️' },
-  inverter: { label: 'Inverter', icon: '📉' },
-  breed: { label: 'Giống loài', icon: '🐕' },
-  age: { label: 'Độ tuổi', icon: '🐾' },
-  gender: { label: 'Giới tính', icon: '⚧' },
-  material: { label: 'Chất liệu', icon: '🪵' },
-  size: { label: 'Kích thước', icon: '📏' },
-  brand: { label: 'Thương hiệu', icon: '🏷️' },
-  personalSize: { label: 'Size', icon: '👕' },
-  salary: { label: 'Mức lương', icon: '💰' },
-  jobType: { label: 'Hình thức', icon: '💼' },
-  experience: { label: 'Kinh nghiệm', icon: '🎓' },
+// --- VECTOR ICONS CHO THUỘC TÍNH ---
+const ATTRIBUTE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
+  mileage: { label: 'Odo (Km)', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+  year: { label: 'Năm SX', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
+  gearbox: { label: 'Hộp số', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg> },
+  fuel: { label: 'Nhiên liệu', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> }, // Icon năng lượng chung
+  carType: { label: 'Kiểu dáng', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg> }, // Icon chung
+  seatCount: { label: 'Số chỗ', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.536 8.464a5 5 0 000 7.072m-2.828-9.9a9 9 0 000 12.728" /></svg> },
+  area: { label: 'Diện tích', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg> },
+  bedrooms: { label: 'Phòng ngủ', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> },
+  bathrooms: { label: 'Số WC', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21H3m18-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14" /></svg> }, // Icon toà nhà tượng trưng
+  direction: { label: 'Hướng', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg> },
+  legal: { label: 'Pháp lý', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
+  propertyType: { label: 'Loại hình', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> },
+  battery: { label: 'Pin', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
+  storage: { label: 'Bộ nhớ', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg> },
+  ram: { label: 'RAM', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg> },
+  color: { label: 'Màu sắc', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg> },
+  warranty: { label: 'Bảo hành', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg> },
 };
 
 const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
@@ -106,12 +94,11 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     return parts[parts.length - 1];
   }, [slugWithId]);
 
-  // Hợp nhất Ảnh và Video thành một mảng Media
   const mediaList = useMemo(() => {
     if (!listing) return [];
     const list = [...listing.images];
     if (listing.videoUrl) {
-        list.unshift(listing.videoUrl); // Video luôn ở đầu
+        list.unshift(listing.videoUrl); 
     }
     return list;
   }, [listing]);
@@ -143,6 +130,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   if (!listing) return null;
   const currentCategory = CATEGORIES.find(c => c.id === listing.category);
   const isVideoActive = listing.videoUrl && activeMedia === 0;
+  const isOwner = user && user.id === listing.sellerId;
 
   // --- ACTIONS ---
   const handleToggleFav = async () => {
@@ -153,7 +141,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
   const handleStartChat = async () => {
     if (!user) return navigate('/login');
-    if (user.id === listing.sellerId) return;
+    if (isOwner) return; // Chính chủ không chat với mình
     setIsChatLoading(true);
     try {
         const roomId = await db.createChatRoom(listing, user);
@@ -163,21 +151,13 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   };
 
   const handleMakeOffer = async (offerPrice: number) => {
-    if (!user) {
-        alert("Vui lòng đăng nhập để mặc cả!");
-        navigate('/login');
-        return;
-    }
-    if (user.id === listing.sellerId) {
-        alert("Bạn không thể mặc cả sản phẩm của chính mình!");
-        return;
-    }
+    if (!user) { alert("Vui lòng đăng nhập!"); return navigate('/login'); }
+    if (isOwner) { alert("Bạn không thể mặc cả sản phẩm của chính mình!"); return; }
 
     setShowOfferModal(false);
     const result = await db.createOffer(listing, user, offerPrice);
-    
     if (result.success) {
-        alert(`✅ Đã gửi đề nghị giá ${offerPrice.toLocaleString()}đ thành công! Chủ shop sẽ trả lời bạn qua Chat.`);
+        alert(`✅ Đã gửi đề nghị giá ${offerPrice.toLocaleString()}đ thành công!`);
     } else {
         alert("Lỗi: " + result.message);
     }
@@ -206,12 +186,16 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   return (
     <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-6 pb-24 font-sans">
       
-      {/* BREADCRUMB */}
-      <nav className="flex items-center gap-2 text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-400 px-4 md:px-0">
-        <Link to="/" className="hover:text-primary">Chợ Của Tui</Link>
-        <span>/</span>
-        {currentCategory && <Link to={`/danh-muc/${currentCategory.slug}`} className="hover:text-primary">{currentCategory.name}</Link>}
-        <span>/</span>
+      {/* BREADCRUMB - Vector Arrow */}
+      <nav className="flex items-center gap-2 text-[10px] md:text-xs font-bold uppercase tracking-widest text-gray-400 px-4 md:px-0">
+        <Link to="/" className="hover:text-primary transition-colors">Trang chủ</Link>
+        <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        {currentCategory && (
+            <>
+                <Link to={`/danh-muc/${currentCategory.slug}`} className="hover:text-primary transition-colors">{currentCategory.name}</Link>
+                <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            </>
+        )}
         <span className="text-gray-900 truncate max-w-[200px]">{listing.title}</span>
       </nav>
 
@@ -221,7 +205,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         <div className="lg:col-span-8 space-y-6">
           
           {/* MEDIA VIEWER */}
-          <div className="relative bg-black aspect-square md:aspect-video md:rounded-[2.5rem] overflow-hidden group shadow-2xl border border-gray-800">
+          <div className="relative bg-gray-900 aspect-square md:aspect-video md:rounded-[2rem] overflow-hidden group shadow-2xl border border-gray-800">
             {/* RENDER VIDEO OR IMAGE */}
             {isVideoActive ? (
                 <div className="relative w-full h-full cursor-pointer" onClick={handleVideoPlayPause}>
@@ -249,10 +233,15 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                             onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }}
                             className="pointer-events-auto bg-black/60 backdrop-blur-md text-white p-3 rounded-full hover:bg-primary transition-all border border-white/10"
                         >
-                            {isMuted ? '🔇' : '🔊'}
+                            {isMuted ? (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+                            ) : (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+                            )}
                         </button>
-                        <div className="bg-primary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest animate-pulse shadow-lg">
-                            Video Sống động
+                        <div className="bg-primary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest animate-pulse shadow-lg flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" /></svg>
+                            Video
                         </div>
                     </div>
                 </div>
@@ -263,20 +252,19 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                     alt={listing.title} 
                 />
             )}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 opacity-20">
-               <span className="text-white text-5xl md:text-7xl font-black uppercase tracking-[0.5em] -rotate-45 whitespace-nowrap drop-shadow-lg">CHỢ CỦA TUI</span>
-            </div>
+            
+            {/* NAVIGATION BUTTONS */}
             {mediaList.length > 1 && (
               <>
-                <button onClick={() => setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-4 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-40 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-auto border border-white/10">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+                <button onClick={() => setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-40 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-auto border border-white/10">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                <button onClick={() => setActiveMedia(prev => prev < mediaList.length - 1 ? prev + 1 : 0)} className="absolute right-4 top-1/2 -translate-y-1/2 p-4 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-40 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-auto border border-white/10">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                <button onClick={() => setActiveMedia(prev => prev < mediaList.length - 1 ? prev + 1 : 0)} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-40 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-auto border border-white/10">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                 </button>
               </>
             )}
-            <div className="absolute bottom-6 right-6 bg-black/60 backdrop-blur-md text-white px-5 py-2 rounded-full text-xs font-black border border-white/10 z-30">
+            <div className="absolute bottom-6 right-6 bg-black/60 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-[10px] font-black border border-white/10 z-30 tracking-widest">
                 {activeMedia + 1} / {mediaList.length}
             </div>
           </div>
@@ -287,7 +275,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               <button 
                 key={idx} 
                 onClick={() => setActiveMedia(idx)} 
-                className={`w-24 h-24 rounded-2xl overflow-hidden border-4 transition-all flex-shrink-0 relative group/thumb ${activeMedia === idx ? 'border-primary shadow-xl scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 relative group/thumb ${activeMedia === idx ? 'border-primary shadow-lg scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}
               >
                 <img 
                     src={listing.videoUrl && idx === 0 ? listing.images[0] : item} 
@@ -296,8 +284,8 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                 />
                 {listing.videoUrl && idx === 0 && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                        <div className="w-8 h-8 rounded-full bg-white/30 backdrop-blur flex items-center justify-center border border-white/50">
-                            <span className="text-white text-sm">▶️</span>
+                        <div className="w-6 h-6 rounded-full bg-white/30 backdrop-blur flex items-center justify-center border border-white/50">
+                            <svg className="w-3 h-3 text-white fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                         </div>
                     </div>
                 )}
@@ -305,20 +293,24 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             ))}
           </div>
 
-          {/* ATTRIBUTES */}
+          {/* ATTRIBUTES - VECTOR ICONS */}
           {listing.attributes && Object.keys(listing.attributes).length > 0 && (
-            <div className="bg-white md:rounded-[2.5rem] p-8 md:p-12 border border-gray-100 shadow-soft">
-              <h2 className="text-xs font-black text-primary uppercase tracking-[0.3em] mb-10 border-l-4 border-primary pl-4">Thông số kỹ thuật</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-10">
+            <div className="bg-white md:rounded-[2rem] p-8 border border-gray-100 shadow-sm">
+              <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-8 border-l-4 border-primary pl-4 flex items-center gap-2">
+                  <span>⚡</span> Thông số kỹ thuật
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-y-8 gap-x-6">
                 {Object.entries(listing.attributes).map(([key, value]) => {
                   const info = ATTRIBUTE_LABELS[key];
                   if (!value || !info) return null;
                   return (
                     <div key={key} className="flex items-center gap-4 group">
-                      <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center text-3xl shadow-inner group-hover:bg-primary/10 transition-colors">{info.icon}</div>
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm group-hover:bg-primary group-hover:text-white transition-colors duration-300 border border-blue-100">
+                          {info.icon}
+                      </div>
                       <div className="min-w-0">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">{info.label}</p>
-                        <p className="text-sm font-black text-slate-800 truncate">{value}{key === 'mileage' ? ' Km' : key === 'area' ? ' m²' : ''}</p>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{info.label}</p>
+                        <p className="text-sm font-bold text-gray-800 truncate">{value}{key === 'mileage' ? ' Km' : key === 'area' ? ' m²' : ''}</p>
                       </div>
                     </div>
                   );
@@ -328,96 +320,137 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           )}
 
           {/* DESCRIPTION */}
-          <div className="bg-white md:rounded-[2.5rem] p-8 md:p-12 border border-gray-100 shadow-soft space-y-6">
-            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Mô tả từ người bán</h2>
-            <p className="text-slate-700 leading-relaxed whitespace-pre-wrap font-medium text-lg italic border-l-4 border-slate-100 pl-6">"{listing.description}"</p>
+          <div className="bg-white md:rounded-[2rem] p-8 border border-gray-100 shadow-sm space-y-4">
+            <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
+                Mô tả sản phẩm
+            </h2>
+            <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm font-medium border-l-4 border-gray-100 pl-6 py-2">
+                {listing.description}
+            </p>
           </div>
 
           {/* REVIEWS */}
-          <div className="bg-white md:rounded-[2.5rem] p-8 border border-gray-100 shadow-soft">
+          <div className="bg-white md:rounded-[2rem] p-8 border border-gray-100 shadow-sm">
             <ReviewSection targetId={listing.id} targetType="listing" currentUser={user} />
           </div>
         </div>
 
-        {/* RIGHT: CONTACT & INFO (Cột phải chiếm 4 phần) */}
+        {/* RIGHT: SIDEBAR (Cột phải chiếm 4 phần) */}
         <div className="lg:col-span-4 p-4 md:p-0">
-          <div className="bg-white md:rounded-[2.5rem] p-8 md:p-10 border border-gray-100 shadow-2xl space-y-8 sticky top-24">
+          <div className="bg-white md:rounded-[2.5rem] p-8 border border-gray-100 shadow-xl space-y-8 sticky top-24">
             
             {/* Header Info */}
             <div className="space-y-4">
               <p className={`text-4xl font-black tracking-tighter ${listing.affiliateLink ? 'text-orange-600' : 'text-primary'}`}>
                   {listing.price > 0 ? formatPrice(listing.price) : 'Liên hệ'}
               </p>
-              <h1 className="text-2xl font-black text-slate-900 leading-tight uppercase tracking-tight">{listing.title}</h1>
-              <div className="flex flex-col gap-3 pt-2 text-[10px] font-black uppercase text-slate-400">
-                <div className="flex items-start gap-2"><span>📍</span><span className="mt-1">{listing.address || listing.location}</span></div>
-                <div className="flex items-center gap-4">
-                    <span>🕒 {formatTimeAgo(listing.createdAt)}</span>
-                    {listing.viewCount !== undefined && <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">👀 {listing.viewCount} lượt xem</span>}
+              <h1 className="text-xl font-bold text-gray-800 leading-snug uppercase tracking-tight">{listing.title}</h1>
+              
+              <div className="flex flex-col gap-3 pt-4 border-t border-gray-50">
+                <div className="flex items-start gap-3 text-gray-500">
+                    <svg className="w-5 h-5 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    <span className="text-xs font-bold mt-0.5">{listing.address || listing.location}</span>
+                </div>
+                <div className="flex items-center gap-3 text-gray-500">
+                    <svg className="w-5 h-5 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold">{formatTimeAgo(listing.createdAt)}</span>
+                        {listing.viewCount !== undefined && <span className="bg-gray-100 px-2 py-0.5 rounded text-[10px] font-bold text-gray-500">👀 {listing.viewCount} xem</span>}
+                    </div>
                 </div>
               </div>
             </div>
 
             {/* SELLER CARD */}
-            <Link to={`/seller/${listing.sellerId}`} className="flex items-center gap-4 p-5 bg-slate-50 rounded-[2rem] border border-slate-100 hover:shadow-lg transition-all group">
-                <img src={listing.sellerAvatar} className="w-16 h-16 rounded-2xl object-cover border-2 border-white shadow-md group-hover:rotate-6 transition-transform" alt="" />
+            <Link to={`/seller/${listing.sellerId}`} className="flex items-center gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:border-primary/30 hover:bg-blue-50/30 transition-all group">
+                <div className="relative">
+                    <img src={listing.sellerAvatar} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md group-hover:scale-105 transition-transform" alt="" />
+                    {seller?.status === 'active' && <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full"></div>}
+                </div>
                 <div className="min-w-0">
-                    <p className="font-black text-slate-900 group-hover:text-primary transition-colors">{listing.sellerName}</p>
+                    <p className="font-bold text-sm text-gray-900 group-hover:text-primary transition-colors">{listing.sellerName}</p>
                     {seller?.verificationStatus === 'verified' ? (
-                        <p className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 mt-1">✅ Đối tác uy tín</p>
+                        <p className="text-[10px] font-black text-blue-500 uppercase flex items-center gap-1 mt-1">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                            Đã xác thực
+                        </p>
                     ) : (
-                        <p className="text-[9px] font-black text-green-500 uppercase flex items-center gap-1 mt-1"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Đang online</p>
+                        <p className="text-[10px] font-bold text-gray-400 mt-1">Thành viên mới</p>
                     )}
                 </div>
             </Link>
 
-            {/* CTA BUTTONS */}
-            <div className="space-y-4">
-              {listing.affiliateLink ? (
-                <a href={listing.affiliateLink} target="_blank" rel="nofollow" className="w-full bg-orange-600 hover:bg-orange-700 text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-orange-200 flex items-center justify-center gap-3 animate-bounce">
-                  🛒 ĐẾN NƠI BÁN ↗
-                </a>
+            {/* CTA BUTTONS - LOGIC SỬA TIN */}
+            <div className="space-y-3">
+              {/* Nếu là Chủ sở hữu hoặc Admin -> Hiện nút Sửa */}
+              {(isOwner || user?.role === 'admin') ? (
+                  <Link 
+                    to={`/edit/${listing.id}`} 
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl shadow-blue-200 flex items-center justify-center gap-2 transition-all active:scale-95"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    Chỉnh sửa tin này
+                  </Link>
               ) : (
-                <div className="flex gap-3">
-                    <button 
-                        onClick={() => setShowOfferModal(true)}
-                        className="flex-1 bg-green-50 text-green-600 border border-green-200 py-4 rounded-2xl font-black text-xs uppercase hover:bg-green-100 transition-all flex items-center justify-center gap-2"
-                    >
-                        <span>💸</span> Mặc cả
-                    </button>
-                    <button 
-                        onClick={handleStartChat} 
-                        disabled={isChatLoading} 
-                        className="flex-[2] bg-primary hover:bg-primaryHover text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl shadow-primary/20 flex items-center justify-center gap-2 active:scale-95 transition-all"
-                    >
-                        {isChatLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <>💬 Chat ngay</>}
-                    </button>
-                </div>
-              )}
+                  // Nếu là Khách -> Hiện nút Mua
+                  <>
+                      {listing.affiliateLink ? (
+                        <a href={listing.affiliateLink} target="_blank" rel="nofollow" className="w-full bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-black text-xs shadow-xl shadow-orange-200 flex items-center justify-center gap-2 animate-bounce">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                          MUA NGAY
+                        </a>
+                      ) : (
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setShowOfferModal(true)}
+                                className="flex-1 bg-green-50 text-green-600 border border-green-200 py-4 rounded-2xl font-black text-xs uppercase hover:bg-green-100 transition-all flex items-center justify-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                Trả giá
+                            </button>
+                            <button 
+                                onClick={handleStartChat} 
+                                disabled={isChatLoading} 
+                                className="flex-[2] bg-primary hover:bg-primaryHover text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl shadow-primary/20 flex items-center justify-center gap-2 active:scale-95 transition-all"
+                            >
+                                {isChatLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : (
+                                    <>
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                                        Chat ngay
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                      )}
 
-              {!listing.affiliateLink && seller?.phone && (
-                <button 
-                    onClick={() => isPhoneVisible ? window.location.href=`tel:${seller.phone}` : setIsPhoneVisible(true)} 
-                    className="w-full bg-white border-2 border-green-500 text-green-600 py-5 rounded-2xl font-black text-sm hover:bg-green-50 transition-all flex items-center justify-center gap-3 shadow-lg shadow-green-100"
-                >
-                    📞 {isPhoneVisible ? seller.phone : 'HIỆN SỐ ĐIỆN THOẠI'}
-                </button>
+                      {!listing.affiliateLink && seller?.phone && (
+                        <button 
+                            onClick={() => isPhoneVisible ? window.location.href=`tel:${seller.phone}` : setIsPhoneVisible(true)} 
+                            className="w-full bg-white border-2 border-green-500 text-green-600 py-4 rounded-2xl font-black text-xs uppercase hover:bg-green-50 transition-all flex items-center justify-center gap-2 shadow-sm"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                            {isPhoneVisible ? seller.phone : 'Hiện số điện thoại'}
+                        </button>
+                      )}
+                  </>
               )}
             </div>
 
             <div className="flex gap-3">
-              <button onClick={handleToggleFav} className="flex-1 py-4 border-2 border-slate-100 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:text-red-500 transition-colors flex items-center justify-center gap-2">
-                  <svg className={`w-5 h-5 ${userFavorites.includes(listing.id) ? 'text-red-500 fill-current' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" strokeWidth={2.5}/></svg>
+              <button onClick={handleToggleFav} className="flex-1 py-4 border border-gray-200 bg-gray-50 rounded-2xl text-[10px] font-black uppercase text-gray-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-colors flex items-center justify-center gap-2">
+                  <svg className={`w-5 h-5 ${userFavorites.includes(listing.id) ? 'text-red-500 fill-current' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
                   {userFavorites.includes(listing.id) ? 'Đã lưu' : 'Lưu tin'}
               </button>
-              <button onClick={() => setIsShareModalOpen(true)} className="flex-1 py-4 border-2 border-slate-100 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:text-blue-500 transition-colors flex items-center justify-center gap-2">
-                  <span>📤</span> Chia sẻ
+              <button onClick={() => setIsShareModalOpen(true)} className="flex-1 py-4 border border-gray-200 bg-gray-50 rounded-2xl text-[10px] font-black uppercase text-gray-500 hover:text-blue-500 hover:bg-blue-50 hover:border-blue-100 transition-colors flex items-center justify-center gap-2">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                  Chia sẻ
               </button>
             </div>
 
-            {/* [ĐÃ CHUYỂN] MAP SECTION SANG CỘT PHẢI */}
+            {/* MAP SECTION (CỘT PHẢI) */}
             {listing.lat && listing.lng && (
-                <div className="w-full h-48 rounded-2xl overflow-hidden relative border border-gray-200 mt-4 z-0">
+                <div className="w-full h-48 rounded-2xl overflow-hidden relative border border-gray-200 mt-4 z-0 shadow-sm group">
                     <MapContainer center={[listing.lat, listing.lng]} zoom={13} style={{ height: '100%', width: '100%' }}>
                         <TileLayer 
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
@@ -427,12 +460,17 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                             <Popup>{listing.address || "Vị trí người bán"}</Popup>
                         </Marker>
                     </MapContainer>
-                    {/* Overlay chống scroll nhầm trên mobile */}
+                    {/* Overlay hướng dẫn */}
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${listing.lat},${listing.lng}`} target="_blank" rel="noreferrer" className="absolute top-2 right-2 bg-white/90 backdrop-blur text-blue-600 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm border border-white/50 z-[400] hover:bg-blue-600 hover:text-white transition-colors flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        Chỉ đường
+                    </a>
                     <div className="absolute inset-0 pointer-events-none border-[6px] border-white/50 z-[400] rounded-2xl"></div>
                 </div>
             )}
             
-            <button onClick={() => setShowReportModal(true)} className="w-full text-[9px] font-black text-gray-300 uppercase tracking-widest hover:text-red-400 transition-colors text-center pt-2">
+            <button onClick={() => setShowReportModal(true)} className="w-full text-[9px] font-black text-gray-300 uppercase tracking-widest hover:text-red-400 transition-colors text-center pt-2 flex items-center justify-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                 Báo cáo tin này
             </button>
           </div>
@@ -441,9 +479,13 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
       {/* SIMILAR LISTINGS */}
       <div className="px-4 md:px-0 pt-10">
-        <div className="flex items-center justify-between mb-8 px-2">
-          <h2 className="text-xl font-black text-textMain tracking-tighter uppercase">Có thể bạn thích</h2>
-          <Link to={`/?category=${listing.category}`} className="text-xs font-black text-primary hover:underline">Xem tất cả →</Link>
+        <div className="flex items-center justify-between mb-8 px-2 border-b border-gray-100 pb-4">
+          <h2 className="text-xl font-black text-gray-800 tracking-tighter uppercase flex items-center gap-2">
+              <span className="text-2xl">🔥</span> Có thể bạn thích
+          </h2>
+          <Link to={`/?category=${listing.category}`} className="text-xs font-black text-primary hover:underline flex items-center gap-1">
+              Xem tất cả <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+          </Link>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-5">
           {similarListings.map(l => (
@@ -458,22 +500,25 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 animate-fade-in">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowReportModal(false)}></div>
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative border border-gray-200">
-            <h3 className="text-2xl font-black text-slate-900 mb-2 tracking-tighter">Báo cáo vi phạm</h3>
-            <div className="space-y-5">
+            <h3 className="text-2xl font-black text-gray-900 mb-2 tracking-tighter flex items-center gap-2">
+                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                Báo cáo vi phạm
+            </h3>
+            <div className="space-y-5 mt-6">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase px-1">Lý do</label>
-                <select value={reportReason} onChange={(e) => setReportReason(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-bold text-sm">
-                  <option value="">Chọn lý do...</option>
+                <select value={reportReason} onChange={(e) => setReportReason(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 font-bold text-sm outline-none focus:border-red-500 transition-colors">
+                  <option value="">-- Chọn lý do --</option>
                   {REPORT_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase px-1">Chi tiết</label>
-                <textarea rows={3} placeholder="Mô tả thêm..." value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium" />
+                <textarea rows={3} placeholder="Mô tả thêm..." value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-sm font-medium outline-none focus:border-red-500 transition-colors resize-none" />
               </div>
               <div className="flex gap-3 pt-4">
-                <button onClick={() => setShowReportModal(false)} className="flex-1 py-4.5 rounded-2xl font-black text-[11px] uppercase bg-gray-100 text-gray-400">Hủy</button>
-                <button onClick={handleReport} className="flex-1 py-4.5 rounded-2xl font-black text-[11px] uppercase bg-red-500 text-white shadow-lg">Gửi báo cáo</button>
+                <button onClick={() => setShowReportModal(false)} className="flex-1 py-4 rounded-2xl font-black text-[11px] uppercase bg-gray-100 text-gray-500 hover:bg-gray-200">Hủy</button>
+                <button onClick={handleReport} className="flex-1 py-4 rounded-2xl font-black text-[11px] uppercase bg-red-500 text-white shadow-lg shadow-red-200 hover:bg-red-600 hover:-translate-y-1 transition-all">Gửi báo cáo</button>
               </div>
             </div>
           </div>
@@ -495,11 +540,11 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
       {/* FOOTER DESKTOP */}
       <footer className="hidden md:block pt-20 border-t border-dashed border-gray-200 mt-20">
-         <div className="bg-white border border-borderMain rounded-[3rem] p-12 shadow-soft">
+         <div className="bg-white border border-gray-100 rounded-[3rem] p-12 shadow-sm">
             <div className="flex items-center justify-between mb-10">
-               <h4 className="text-2xl font-black text-textMain flex items-center gap-3"><span className="text-3xl">⚡</span> Chợ Của Tui</h4>
-               <div className="flex gap-6">
-                  {STATIC_LINKS.map(link => <Link key={link.slug} to={`/page/${link.slug}`} className="text-[10px] font-black text-gray-400 hover:text-primary transition-colors uppercase tracking-widest">{link.title}</Link>)}
+               <h4 className="text-2xl font-black text-gray-800 flex items-center gap-3"><span className="text-3xl">⚡</span> Chợ Của Tui</h4>
+               <div className="flex gap-8">
+                  {STATIC_LINKS.map(link => <Link key={link.slug} to={`/page/${link.slug}`} className="text-[11px] font-black text-gray-400 hover:text-primary transition-colors uppercase tracking-widest">{link.title}</Link>)}
                </div>
             </div>
             <div className="text-[10px] text-gray-300 font-bold text-center border-t border-gray-50 pt-10 uppercase tracking-widest">© 2026 ChoCuaTui.vn - Trí tuệ nhân tạo phục vụ cộng đồng.</div>

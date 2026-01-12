@@ -614,80 +614,102 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                         </div>
                     </div>
 
-                    {/* 3. Cấu hình các Gói Thành Viên (ĐÃ CẬP NHẬT ĐẦY ĐỦ) */}
-                    <div className="space-y-6 pt-6 border-t border-gray-100">
-                        <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                            <span className="w-2 h-2 bg-primary rounded-full"></span> Đặc quyền & Hạn mức Gói
-                        </h4>
-                        <div className="grid lg:grid-cols-3 gap-6">
-                            {['free', 'basic', 'pro'].map((tierKey) => (
-                                <div key={tierKey} className={`p-6 rounded-[2.5rem] border-2 space-y-5 transition-all ${tierKey === 'pro' ? 'border-yellow-400 bg-yellow-50/20' : tierKey === 'basic' ? 'border-blue-200 bg-blue-50/10' : 'border-gray-100 bg-gray-50/30'}`}>
-                                    <div className="space-y-1">
-                                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tên gói hiển thị</label>
-                                        <input type="text" value={(settings.tierConfigs as any)[tierKey].name} onChange={e => {
-                                            const newConfigs = { ...settings.tierConfigs };
-                                            (newConfigs as any)[tierKey].name = e.target.value;
-                                            setSettings({...settings, tierConfigs: newConfigs});
-                                        }} className="w-full bg-white border border-gray-100 rounded-xl p-3 text-xs font-black uppercase" />
-                                    </div>
+                   {/* 3. Cấu hình các Gói Thành Viên (CẬP NHẬT QUYỀN VIDEO) */}
+<div className="space-y-6 pt-6 border-t border-gray-100">
+    <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+        <span className="w-2 h-2 bg-primary rounded-full"></span> Đặc quyền & Hạn mức Gói
+    </h4>
+    <div className="grid lg:grid-cols-3 gap-6">
+        {(['free', 'basic', 'pro'] as const).map((tierKey) => (
+            <div key={tierKey} className={`p-6 rounded-[2.5rem] border-2 space-y-5 transition-all ${tierKey === 'pro' ? 'border-yellow-400 bg-yellow-50/20' : tierKey === 'basic' ? 'border-blue-200 bg-blue-50/10' : 'border-gray-100 bg-gray-50/30'}`}>
+                
+                {/* Tên gói */}
+                <div className="space-y-1">
+                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tên gói hiển thị</label>
+                    <input type="text" value={(settings.tierConfigs as any)[tierKey].name} onChange={e => {
+                        const newConfigs = { ...settings.tierConfigs };
+                        (newConfigs as any)[tierKey].name = e.target.value;
+                        setSettings({...settings, tierConfigs: newConfigs});
+                    }} className="w-full bg-white border border-gray-100 rounded-xl p-3 text-xs font-black uppercase" />
+                </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Giá (VNĐ)</label>
-                                            <input type="number" value={(settings.tierConfigs as any)[tierKey].price} onChange={e => {
-                                                const newConfigs = { ...settings.tierConfigs };
-                                                (newConfigs as any)[tierKey].price = parseInt(e.target.value);
-                                                setSettings({...settings, tierConfigs: newConfigs});
-                                            }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Ảnh tối đa/tin</label>
-                                            <input type="number" value={(settings.tierConfigs as any)[tierKey].maxImages} onChange={e => {
-                                                const newConfigs = { ...settings.tierConfigs };
-                                                (newConfigs as any)[tierKey].maxImages = parseInt(e.target.value);
-                                                setSettings({...settings, tierConfigs: newConfigs});
-                                            }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black" />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tin đăng/ngày</label>
-                                            <input type="number" value={(settings.tierConfigs as any)[tierKey].postsPerDay || 0} onChange={e => {
-                                                const newConfigs = { ...settings.tierConfigs };
-                                                (newConfigs as any)[tierKey].postsPerDay = parseInt(e.target.value);
-                                                setSettings({...settings, tierConfigs: newConfigs});
-                                            }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black text-primary" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Chế độ duyệt</label>
-                                            <select 
-                                                value={(settings.tierConfigs as any)[tierKey].autoApprove ? "true" : "false"}
-                                                onChange={e => {
-                                                    const newConfigs = { ...settings.tierConfigs };
-                                                    (newConfigs as any)[tierKey].autoApprove = e.target.value === "true";
-                                                    setSettings({...settings, tierConfigs: newConfigs});
-                                                }}
-                                                className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-[10px] font-black uppercase"
-                                            >
-                                                <option value="false">⏳ Phải duyệt</option>
-                                                <option value="true">✅ Hiện ngay</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tính năng (Mỗi dòng 1 ý)</label>
-                                        <textarea rows={4} value={(settings.tierConfigs as any)[tierKey].features.join('\n')} onChange={e => {
-                                            const newConfigs = { ...settings.tierConfigs };
-                                            (newConfigs as any)[tierKey].features = e.target.value.split('\n');
-                                            setSettings({...settings, tierConfigs: newConfigs});
-                                        }} className="w-full bg-white border border-gray-100 rounded-xl p-3 text-[11px] font-medium leading-relaxed" />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                {/* Giá và Số ảnh */}
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Giá (VNĐ)</label>
+                        <input type="number" value={(settings.tierConfigs as any)[tierKey].price} onChange={e => {
+                            const newConfigs = { ...settings.tierConfigs };
+                            (newConfigs as any)[tierKey].price = parseInt(e.target.value);
+                            setSettings({...settings, tierConfigs: newConfigs});
+                        }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black" />
                     </div>
+                    <div className="space-y-1">
+                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Ảnh tối đa</label>
+                        <input type="number" value={(settings.tierConfigs as any)[tierKey].maxImages} onChange={e => {
+                            const newConfigs = { ...settings.tierConfigs };
+                            (newConfigs as any)[tierKey].maxImages = parseInt(e.target.value);
+                            setSettings({...settings, tierConfigs: newConfigs});
+                        }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black" />
+                    </div>
+                </div>
+
+                {/* Tin đăng và QUYỀN VIDEO (QUAN TRỌNG) */}
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tin/ngày</label>
+                        <input type="number" value={(settings.tierConfigs as any)[tierKey].postsPerDay || 0} onChange={e => {
+                            const newConfigs = { ...settings.tierConfigs };
+                            (newConfigs as any)[tierKey].postsPerDay = parseInt(e.target.value);
+                            setSettings({...settings, tierConfigs: newConfigs});
+                        }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black text-primary" />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Quyền Đăng Video</label>
+                        <select 
+                            value={(settings.tierConfigs as any)[tierKey].allowVideo ? "true" : "false"}
+                            onChange={e => {
+                                const newConfigs = { ...settings.tierConfigs };
+                                (newConfigs as any)[tierKey].allowVideo = e.target.value === "true";
+                                setSettings({...settings, tierConfigs: newConfigs});
+                            }}
+                            className={`w-full border rounded-xl p-2.5 text-[10px] font-black uppercase transition-colors ${(settings.tierConfigs as any)[tierKey].allowVideo ? 'bg-green-50 border-green-200 text-green-600' : 'bg-white border-gray-100 text-gray-400'}`}
+                        >
+                            <option value="false">❌ KHÓA</option>
+                            <option value="true">✅ MỞ</option>
+                        </select>
+                    </div>
+                </div>
+
+                {/* Chế độ duyệt */}
+                <div className="space-y-1">
+                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Chế độ kiểm duyệt</label>
+                    <select 
+                        value={(settings.tierConfigs as any)[tierKey].autoApprove ? "true" : "false"}
+                        onChange={e => {
+                            const newConfigs = { ...settings.tierConfigs };
+                            (newConfigs as any)[tierKey].autoApprove = e.target.value === "true";
+                            setSettings({...settings, tierConfigs: newConfigs});
+                        }}
+                        className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-[10px] font-black uppercase"
+                    >
+                        <option value="false">⏳ Phải duyệt tay</option>
+                        <option value="true">🚀 Duyệt tự động</option>
+                    </select>
+                </div>
+
+                {/* Danh sách tính năng */}
+                <div className="space-y-1">
+                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tính năng (Mỗi dòng 1 ý)</label>
+                    <textarea rows={3} value={(settings.tierConfigs as any)[tierKey].features.join('\n')} onChange={e => {
+                        const newConfigs = { ...settings.tierConfigs };
+                        (newConfigs as any)[tierKey].features = e.target.value.split('\n');
+                        setSettings({...settings, tierConfigs: newConfigs});
+                    }} className="w-full bg-white border border-gray-100 rounded-xl p-3 text-[11px] font-medium leading-relaxed" />
+                </div>
+            </div>
+        ))}
+    </div>
+</div>
 
                     {/* 4. Cấu hình Ngân hàng */}
                     <div className="space-y-6 pt-6 border-t border-gray-100">

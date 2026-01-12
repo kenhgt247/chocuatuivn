@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { db } from '../services/db';
 import { Listing, User } from '../types';
@@ -13,7 +13,6 @@ import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-// Fix icon lỗi mặc định của Leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
@@ -77,10 +76,12 @@ const ATTRIBUTE_LABELS: Record<string, { label: string; icon: string }> = {
 const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const { slugWithId } = useParams();
   const navigate = useNavigate();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  
   const [listing, setListing] = useState<Listing | null>(null);
   const [seller, setSeller] = useState<User | null>(null);
   const [allListings, setAllListings] = useState<Listing[]>([]);
-  const [activeImage, setActiveImage] = useState(0);
+  const [activeMedia, setActiveMedia] = useState(0); 
   const [userFavorites, setUserFavorites] = useState<string[]>([]);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -88,6 +89,10 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const [reportDetails, setReportDetails] = useState("");
   const [isPhoneVisible, setIsPhoneVisible] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  
+  // State điều khiển video
+  const [isMuted, setIsMuted] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(true);
 
   const id = useMemo(() => {
     if (!slugWithId) return null;
@@ -95,96 +100,60 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     return parts[parts.length - 1];
   }, [slugWithId]);
 
+  // Hợp nhất Ảnh và Video thành một mảng Media
+  const mediaList = useMemo(() => {
+    if (!listing) return [];
+    const list = [...listing.images];
+    if (listing.videoUrl) {
+        list.unshift(listing.videoUrl); // Video luôn ở đầu
+    }
+    return list;
+  }, [listing]);
+
   useEffect(() => {
     if (!id) return;
-
-    // Tăng lượt xem ngay khi có ID
     db.incrementListingView(id);
-
     const loadListing = async () => {
-      if (db.getListingById) {
-         const l = await db.getListingById(id);
-         if (l) {
+        const l = await db.getListingById(id);
+        if (l) {
             setListing(l);
             db.getUserById(l.sellerId).then(setSeller);
             if (user) db.getFavorites(user.id).then(setUserFavorites);
-            const all = await db.getListings();
-            setAllListings(all);
-         }
-      } else {
-         const data = await db.getListings();
-         setAllListings(data);
-         const l = data.find(x => x.id === id);
-         if (l) {
-            setListing(l);
-            db.getUserById(l.sellerId).then(setSeller);
-            if (user) db.getFavorites(user.id).then(setUserFavorites);
-         }
-      }
+            db.getListings().then(setAllListings);
+        }
     };
     loadListing();
     window.scrollTo(0, 0);
   }, [id, user]);
 
   const similarListings = useMemo(() => {
-    if (!listing || allListings.length === 0) return [];
-    const targetLocation = user?.location || listing.location;
-
+    if (!listing) return [];
     return allListings
       .filter(l => l.id !== listing.id && l.category === listing.category)
-      .sort((a, b) => {
-        const getVipScore = (tier?: string) => {
-            if (tier === 'pro') return 2;
-            if (tier === 'basic') return 1;
-            return 0;
-        };
-        
-        const scoreA = getVipScore(a.tier);
-        const scoreB = getVipScore(b.tier);
-        
-        if (scoreA !== scoreB) return scoreB - scoreA;
-
-        const isNearA = a.location === targetLocation ? 1 : 0;
-        const isNearB = b.location === targetLocation ? 1 : 0;
-
-        if (isNearA !== isNearB) return isNearB - isNearA;
-
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 12);
-  }, [allListings, listing, user]);
+  }, [allListings, listing]);
 
   if (!listing) return null;
-
   const currentCategory = CATEGORIES.find(c => c.id === listing.category);
+  const isVideoActive = listing.videoUrl && activeMedia === 0;
 
-  // LOGIC NÚT BẤM
-  const handleShowPhone = () => {
-    if (!user) navigate('/login');
-    else setIsPhoneVisible(true);
+  // --- ACTIONS ---
+  const handleToggleFav = async () => {
+    if (!user) return navigate('/login');
+    await db.toggleFavorite(user.id, listing.id);
+    db.getFavorites(user.id).then(setUserFavorites);
   };
 
   const handleStartChat = async () => {
     if (!user) return navigate('/login');
     if (user.id === listing.sellerId) return;
-
     setIsChatLoading(true);
     try {
         const roomId = await db.createChatRoom(listing, user);
         navigate(`/chat/${roomId}`);
-    } catch (error) {
-        console.error("Lỗi khi tạo phòng chat:", error);
-        alert("Không thể kết nối trò chuyện lúc này.");
-    } finally {
-        setIsChatLoading(false);
-    }
-  };
-
-  const handleToggleFav = async () => {
-    if (!user) return navigate('/login');
-    await db.toggleFavorite(user.id, listing.id);
-    const updated = await db.getFavorites(user.id);
-    setUserFavorites(updated);
+    } catch (e) { alert("Lỗi kết nối chat."); }
+    finally { setIsChatLoading(false); }
   };
 
   const handleReport = async () => {
@@ -206,77 +175,144 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
       return null;
   };
 
+  const handleVideoPlayPause = () => {
+      if (videoRef.current) {
+          if (videoRef.current.paused) {
+              videoRef.current.play();
+              setIsPlaying(true);
+          } else {
+              videoRef.current.pause();
+              setIsPlaying(false);
+          }
+      }
+  };
+
   return (
-    <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-6 pb-24">
+    <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-6 pb-24 font-sans">
       
       {/* BREADCRUMB */}
-      <nav className="flex items-center gap-2 text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-400 px-4 md:px-0 overflow-x-auto no-scrollbar whitespace-nowrap">
-        <Link to="/" className="hover:text-primary transition-colors">Chợ Của Tui</Link>
+      <nav className="flex items-center gap-2 text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-400 px-4 md:px-0">
+        <Link to="/" className="hover:text-primary">Chợ Của Tui</Link>
         <span>/</span>
-        {currentCategory && <Link to={`/danh-muc/${currentCategory.slug}`} className="hover:text-primary transition-colors">{currentCategory.name}</Link>}
+        {currentCategory && <Link to={`/danh-muc/${currentCategory.slug}`} className="hover:text-primary">{currentCategory.name}</Link>}
         <span>/</span>
-        <span className="text-gray-900 truncate max-w-[150px] md:max-w-xs">{listing.title}</span>
+        <span className="text-gray-900 truncate max-w-[200px]">{listing.title}</span>
       </nav>
 
-      <div className="grid lg:grid-cols-12 gap-0 md:gap-8 bg-white md:bg-transparent overflow-hidden">
+      <div className="grid lg:grid-cols-12 gap-0 md:gap-8">
         
-        {/* LEFT COLUMN */}
+        {/* LEFT: MEDIA GALLERY */}
         <div className="lg:col-span-8 space-y-6">
-          
-          {/* Gallery - WATERMARK */}
-          <div className="relative bg-black aspect-square md:aspect-video md:rounded-3xl overflow-hidden group select-none">
-            <img src={listing.images[activeImage]} className="w-full h-full object-contain relative z-0" alt={listing.title} />
+          <div className="relative bg-black aspect-square md:aspect-video md:rounded-[2.5rem] overflow-hidden group shadow-2xl border border-gray-800">
             
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden">
-               <span className="text-white/20 text-4xl md:text-6xl font-black uppercase tracking-widest -rotate-45 whitespace-nowrap drop-shadow-md">
-                  CHỢ CỦA TUI
-               </span>
+            {/* RENDER VIDEO HOẶC ẢNH */}
+            {isVideoActive ? (
+                <div className="relative w-full h-full cursor-pointer" onClick={handleVideoPlayPause}>
+                    <video 
+                        ref={videoRef}
+                        src={listing.videoUrl} 
+                        poster={listing.images[0] || ""} 
+                        className="w-full h-full object-contain bg-black"
+                        autoPlay 
+                        loop 
+                        muted={isMuted}
+                        playsInline
+                        onPlay={() => setIsPlaying(true)}
+                        onPause={() => setIsPlaying(false)}
+                    />
+                    
+                    {/* Nút Play to ở giữa (chỉ hiện khi pause) */}
+                    {!isPlaying && (
+                        <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/30 backdrop-blur-[2px]">
+                            <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/50 shadow-xl transition-transform hover:scale-110">
+                                <svg className="w-10 h-10 text-white fill-current ml-1" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Controls Overlay */}
+                    <div className="absolute bottom-6 left-6 right-6 z-30 flex justify-between items-end pointer-events-none">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }}
+                            className="pointer-events-auto bg-black/60 backdrop-blur-md text-white p-3 rounded-full hover:bg-primary transition-all border border-white/10"
+                        >
+                            {isMuted ? '🔇' : '🔊'}
+                        </button>
+
+                        <div className="bg-primary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest animate-pulse shadow-lg">
+                            Video Sống động
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <img 
+                    src={mediaList[activeMedia]} 
+                    className="w-full h-full object-contain select-none bg-gray-100" 
+                    alt={listing.title} 
+                />
+            )}
+
+            {/* WATERMARK */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 opacity-20">
+               <span className="text-white text-5xl md:text-7xl font-black uppercase tracking-[0.5em] -rotate-45 whitespace-nowrap drop-shadow-lg">CHỢ CỦA TUI</span>
             </div>
 
-            {listing.images.length > 1 && (
+            {/* NAVIGATION BUTTONS */}
+            {mediaList.length > 1 && (
               <>
-                <button onClick={() => setActiveImage(prev => prev > 0 ? prev - 1 : listing.images.length - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-white"><svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg></button>
-                <button onClick={() => setActiveImage(prev => prev < listing.images.length - 1 ? prev + 1 : 0)} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-white"><svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg></button>
+                <button onClick={() => setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-4 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-40 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-auto border border-white/10">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <button onClick={() => setActiveMedia(prev => prev < mediaList.length - 1 ? prev + 1 : 0)} className="absolute right-4 top-1/2 -translate-y-1/2 p-4 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-40 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-auto border border-white/10">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                </button>
               </>
             )}
-            <div className="absolute bottom-4 right-4 bg-black/50 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-xs font-bold border border-white/20 z-20">{activeImage + 1} / {listing.images.length}</div>
+            
+            <div className="absolute bottom-6 right-6 bg-black/60 backdrop-blur-md text-white px-5 py-2 rounded-full text-xs font-black border border-white/10 z-30">
+                {activeMedia + 1} / {mediaList.length}
+            </div>
           </div>
 
-          {/* Thumbnails */}
-          {listing.images.length > 1 && (
-            <div className="hidden md:flex gap-3 overflow-x-auto no-scrollbar py-2 px-1">
-              {listing.images.map((img, idx) => (
-                <button key={idx} onClick={() => setActiveImage(idx)} className={`w-24 h-24 rounded-2xl overflow-hidden border-4 transition-all flex-shrink-0 ${activeImage === idx ? 'border-primary shadow-lg' : 'border-transparent opacity-50'}`}><img src={img} className="w-full h-full object-cover" alt="" /></button>
-              ))}
-            </div>
-          )}
+          {/* THUMBNAILS - Có Badge Video */}
+          <div className="hidden md:flex gap-3 overflow-x-auto no-scrollbar py-2">
+            {mediaList.map((item, idx) => (
+              <button 
+                key={idx} 
+                onClick={() => setActiveMedia(idx)} 
+                className={`w-24 h-24 rounded-2xl overflow-hidden border-4 transition-all flex-shrink-0 relative group/thumb ${activeMedia === idx ? 'border-primary shadow-xl scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}
+              >
+                <img 
+                    src={listing.videoUrl && idx === 0 ? listing.images[0] : item} 
+                    className="w-full h-full object-cover" 
+                    alt="" 
+                />
+                
+                {listing.videoUrl && idx === 0 && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-white/30 backdrop-blur flex items-center justify-center border border-white/50">
+                            <span className="text-white text-sm">▶️</span>
+                        </div>
+                    </div>
+                )}
+              </button>
+            ))}
+          </div>
 
-          {/* THÔNG SỐ KỸ THUẬT */}
+          {/* ATTRIBUTES GRID */}
           {listing.attributes && Object.keys(listing.attributes).length > 0 && (
-            <div className="bg-white md:rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-soft animate-fade-in-up">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-1.5 h-6 bg-primary rounded-full"></div>
-                <h2 className="text-sm font-black text-textMain uppercase tracking-[0.2em]">Thông tin chi tiết</h2>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-y-8 gap-x-6">
+            <div className="bg-white md:rounded-[2.5rem] p-8 md:p-12 border border-gray-100 shadow-soft">
+              <h2 className="text-xs font-black text-primary uppercase tracking-[0.3em] mb-10 border-l-4 border-primary pl-4">Thông số kỹ thuật</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-10">
                 {Object.entries(listing.attributes).map(([key, value]) => {
                   const info = ATTRIBUTE_LABELS[key];
                   if (!value || !info) return null;
                   return (
-                    <div key={key} className="flex items-start gap-4 group">
-                      <div className="w-12 h-12 rounded-2xl bg-bgMain flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform duration-300">
-                        {info.icon}
-                      </div>
+                    <div key={key} className="flex items-center gap-4 group">
+                      <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center text-3xl shadow-inner group-hover:bg-primary/10 transition-colors">{info.icon}</div>
                       <div className="min-w-0">
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter mb-0.5">{info.label}</p>
-                        <p className="text-sm font-black text-textMain truncate">
-                          {['mileage', 'area'].includes(key) && !isNaN(Number(value)) 
-                            ? parseInt(value as string).toLocaleString() 
-                            : value}
-                          {key === 'mileage' && ' Km'}
-                          {key === 'area' && ' m²'}
-                          {key === 'battery' && '%'}
-                        </p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">{info.label}</p>
+                        <p className="text-sm font-black text-slate-800 truncate">{value}{key === 'mileage' ? ' Km' : key === 'area' ? ' m²' : ''}</p>
                       </div>
                     </div>
                   );
@@ -285,190 +321,88 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
           )}
 
-          {/* Description */}
-          <div className="bg-white md:rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-soft space-y-6">
-            <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Mô tả chi tiết</h2>
-            <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-base font-medium">{listing.description}</p>
-            <div className="pt-6 border-t border-gray-100 flex flex-wrap gap-3">
-               <div className="bg-bgMain px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase text-gray-500">Tình trạng: <span className="text-textMain">{listing.condition === 'new' ? 'Mới' : 'Đã dùng'}</span></div>
-               <div className="bg-bgMain px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase text-gray-500">Danh mục: <span className="text-textMain">{currentCategory?.name || listing.category}</span></div>
-            </div>
+          {/* DESCRIPTION */}
+          <div className="bg-white md:rounded-[2.5rem] p-8 md:p-12 border border-gray-100 shadow-soft space-y-6">
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Mô tả từ người bán</h2>
+            <p className="text-slate-700 leading-relaxed whitespace-pre-wrap font-medium text-lg italic border-l-4 border-slate-100 pl-6">"{listing.description}"</p>
           </div>
 
-          {/* Reviews */}
-          <div className="bg-white md:rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-soft">
+          {/* REVIEWS */}
+          <div className="bg-white md:rounded-[2.5rem] p-8 border border-gray-100 shadow-soft">
             <ReviewSection targetId={listing.id} targetType="listing" currentUser={user} />
           </div>
         </div>
 
-        {/* RIGHT COLUMN (STICKY) */}
+        {/* RIGHT: CONTACT & INFO */}
         <div className="lg:col-span-4 p-4 md:p-0">
-          <div className="bg-white md:rounded-[2.5rem] p-6 md:p-10 md:border border-gray-100 md:shadow-soft space-y-8 sticky top-24">
-            
-            {/* GIÁ & TIÊU ĐỀ */}
-            <div className="space-y-3">
+          <div className="bg-white md:rounded-[2.5rem] p-8 md:p-10 border border-gray-100 shadow-2xl space-y-8 sticky top-24">
+            <div className="space-y-4">
               <p className={`text-4xl font-black tracking-tighter ${listing.affiliateLink ? 'text-orange-600' : 'text-primary'}`}>
-                  {/* Nếu giá = 0 (Affiliate) thì hiện Liên hệ/Xem giá */}
-                  {listing.price > 0 ? formatPrice(listing.price) : (listing.affiliateLink ? 'Xem tại shop' : 'Liên hệ')}
+                  {listing.price > 0 ? formatPrice(listing.price) : 'Liên hệ'}
               </p>
-              <h1 className="text-2xl font-black text-textMain leading-tight">{listing.title}</h1>
-              
-              {/* ĐỊA CHỈ & THỜI GIAN & VIEW COUNT */}
-              <div className="flex flex-col gap-1 text-[10px] text-gray-400 font-black uppercase tracking-widest pt-2">
-                <div className="flex items-start gap-2">
-                    <span className="text-lg">📍</span>
-                    <span className="line-clamp-2 mt-1">
-                        {listing.address || listing.location}
-                    </span>
+              <h1 className="text-2xl font-black text-slate-900 leading-tight uppercase tracking-tight">{listing.title}</h1>
+              <div className="flex flex-col gap-3 pt-2 text-[10px] font-black uppercase text-slate-400">
+                <div className="flex items-start gap-2"><span>📍</span><span className="mt-1">{listing.address || listing.location}</span></div>
+                <div className="flex items-center gap-4">
+                    <span>🕒 {formatTimeAgo(listing.createdAt)}</span>
+                    {listing.viewCount !== undefined && <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">👀 {listing.viewCount} lượt xem</span>}
                 </div>
-                
-                {/* [MỚI] Hiển thị View Count và Thời gian */}
-                <div className="flex items-center gap-4 pl-1 mt-1">
-                    <span className="flex items-center gap-1">
-                      🕒 {formatTimeAgo(listing.createdAt)}
-                    </span>
-                    
-                    {listing.viewCount !== undefined && listing.viewCount > 0 && (
-                      <span className="flex items-center gap-1 text-gray-500" title="Lượt xem">
-                        👀 {listing.viewCount} lượt xem
-                      </span>
+              </div>
+            </div>
+
+            {/* SELLER CARD */}
+            <Link to={`/seller/${listing.sellerId}`} className="flex items-center gap-4 p-5 bg-slate-50 rounded-[2rem] border border-slate-100 hover:shadow-lg transition-all group">
+                <img src={listing.sellerAvatar} className="w-16 h-16 rounded-2xl object-cover border-2 border-white shadow-md group-hover:rotate-6 transition-transform" alt="" />
+                <div className="min-w-0">
+                    <p className="font-black text-slate-900 group-hover:text-primary transition-colors">{listing.sellerName}</p>
+                    {seller?.verificationStatus === 'verified' ? (
+                        <p className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 mt-1">✅ Đối tác uy tín</p>
+                    ) : (
+                        <p className="text-[9px] font-black text-green-500 uppercase flex items-center gap-1 mt-1"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Đang online</p>
                     )}
                 </div>
-              </div>
+            </Link>
+
+            {/* CTA BUTTONS */}
+            <div className="space-y-4">
+              {listing.affiliateLink ? (
+                <a href={listing.affiliateLink} target="_blank" rel="nofollow" className="w-full bg-orange-600 hover:bg-orange-700 text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-orange-200 flex items-center justify-center gap-3 animate-bounce">
+                  🛒 ĐẾN NƠI BÁN ↗
+                </a>
+              ) : (
+                <button onClick={handleStartChat} disabled={isChatLoading} className="w-full bg-primary hover:bg-primaryHover text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 flex items-center justify-center gap-3 active:scale-95 transition-all">
+                  {isChatLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <>💬 CHAT VỚI NGƯỜI BÁN</>}
+                </button>
+              )}
+
+              {!listing.affiliateLink && seller?.phone && (
+                <button 
+                    onClick={() => isPhoneVisible ? window.location.href=`tel:${seller.phone}` : setIsPhoneVisible(true)} 
+                    className="w-full bg-white border-2 border-green-500 text-green-600 py-5 rounded-2xl font-black text-sm hover:bg-green-50 transition-all flex items-center justify-center gap-3 shadow-lg shadow-green-100"
+                >
+                    📞 {isPhoneVisible ? seller.phone : 'HIỆN SỐ ĐIỆN THOẠI'}
+                </button>
+              )}
             </div>
 
-            {/* MAP CONTAINER */}
-            {listing.lat && listing.lng && (
-                <div className="h-44 w-full rounded-2xl overflow-hidden border border-gray-200 shadow-inner relative z-0 group">
-                    <MapContainer 
-                        center={[listing.lat, listing.lng]} 
-                        zoom={14} 
-                        scrollWheelZoom={false}
-                        dragging={false}        
-                        zoomControl={false}      
-                        style={{ height: '100%', width: '100%' }}
-                    >
-                        <TileLayer 
-                            attribution='© OpenStreetMap'
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
-                        />
-                        <Marker position={[listing.lat, listing.lng]} />
-                    </MapContainer>
-                    
-                    <a 
-                        href={`https://www.google.com/maps/search/?api=1&query=${listing.lat},${listing.lng}`} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="absolute inset-0 bg-black/5 group-hover:bg-black/20 transition-colors flex items-center justify-center z-[500]"
-                    >
-                        <span className="bg-white text-primary px-4 py-2 rounded-xl text-xs font-black uppercase shadow-lg scale-90 group-hover:scale-100 transition-transform flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                            Mở Google Maps
-                        </span>
-                    </a>
-                </div>
-            )}
-
-            <div className="pt-8 border-t border-gray-100 space-y-6">
-              {/* THẺ NGƯỜI BÁN */}
-              <Link to={`/seller/${listing.sellerId}`} className="flex items-center gap-4 p-4 bg-bgMain rounded-3xl border border-gray-100 hover:shadow-md transition-all group">
-                <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white shadow-sm flex-shrink-0 group-hover:rotate-3 transition-transform">
-                  <img src={listing.sellerAvatar} className="w-full h-full object-cover" alt={listing.sellerName} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1">
-                      <p className="font-black text-sm text-textMain group-hover:text-primary transition-colors truncate">{listing.sellerName}</p>
-                      {renderVerificationBadge()}
-                  </div>
-                  
-                  {seller?.verificationStatus === 'verified' ? (
-                      <p className="text-[9px] font-black text-blue-500 uppercase mt-1 flex items-center gap-1.5">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg> 
-                          Người bán uy tín
-                      </p>
-                  ) : (
-                      <p className="text-[9px] font-black text-green-500 uppercase mt-1 flex items-center gap-1.5">
-                          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Đang hoạt động
-                      </p>
-                  )}
-                </div>
-              </Link>
-
-              {/* KHU VỰC NÚT BẤM */}
-              <div className="flex flex-col gap-3">
-                
-                {/* [LOGIC MỚI] Kiểm tra Affiliate Link */}
-                {listing.affiliateLink ? (
-                    <a 
-                      href={listing.affiliateLink}
-                      target="_blank"
-                      rel="nofollow noreferrer"
-                      className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white py-4 rounded-2xl font-bold text-sm shadow-xl shadow-orange-500/30 active:scale-95 transition-all flex items-center justify-center gap-3 group animate-pulse"
-                    >
-                      <span className="text-xl">🛒</span>
-                      <span>MUA NGAY TẠI {listing.attributes?.brand || 'CỬA HÀNG'} ↗</span>
-                    </a>
-                ) : (
-                    /* Nút Chat Bình Thường */
-                    <button 
-                      onClick={handleStartChat} 
-                      disabled={isChatLoading}
-                      className="w-full bg-primary hover:bg-primaryHover text-white py-4 rounded-2xl font-bold text-sm shadow-xl shadow-primary/30 active:scale-95 transition-all flex items-center justify-center gap-3 group disabled:opacity-70 disabled:cursor-wait"
-                    >
-                      {isChatLoading ? (
-                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      ) : (
-                          <>
-                            <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                            <span>CHAT VỚI NGƯỜI BÁN</span>
-                          </>
-                      )}
-                    </button>
-                )}
-
-                {/* Nút Gọi Điện (Chỉ hiện nếu không phải Affiliate và có số điện thoại) */}
-                {!listing.affiliateLink && seller?.phone && (
-                  isPhoneVisible ? (
-                    <a 
-                      href={`tel:${seller.phone}`} 
-                      className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-2xl font-bold text-sm shadow-xl shadow-green-500/30 active:scale-95 transition-all flex items-center justify-center gap-3 group"
-                    >
-                      <svg className="w-6 h-6 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                      <span>GỌI: {seller.phone}</span>
-                    </a>
-                  ) : (
-                    <button 
-                      onClick={handleShowPhone} 
-                      className="w-full bg-white border-2 border-green-500 text-green-600 hover:bg-green-50 py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-3 group"
-                    >
-                      <svg className="w-6 h-6 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                      <span>BẤM ĐỂ HIỆN SỐ ĐIỆN THOẠI</span>
-                    </button>
-                  )
-                )}
-              </div>
-              
-              <div className="flex gap-3">
-                <button onClick={handleToggleFav} className="flex-1 flex items-center justify-center gap-2 py-4 border-2 border-gray-100 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all text-gray-500 hover:text-red-500">
-                  <svg className={`w-5 h-5 ${userFavorites.includes(listing.id) ? 'text-red-500 fill-current' : 'text-current'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" strokeWidth={2.5}/></svg>
+            <div className="flex gap-3">
+              <button onClick={handleToggleFav} className="flex-1 py-4 border-2 border-slate-100 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:text-red-500 transition-colors flex items-center justify-center gap-2">
+                  <svg className={`w-5 h-5 ${userFavorites.includes(listing.id) ? 'text-red-500 fill-current' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" strokeWidth={2.5}/></svg>
                   {userFavorites.includes(listing.id) ? 'Đã lưu' : 'Lưu tin'}
-                </button>
-                <button onClick={() => setIsShareModalOpen(true)} className="flex-1 flex items-center justify-center gap-2 py-4 border-2 border-gray-100 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all text-gray-500 hover:text-blue-500">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
-                  Chia sẻ
-                </button>
-              </div>
-
-              <button onClick={() => setShowReportModal(true)} className="w-full text-[9px] font-black text-gray-300 uppercase tracking-widest hover:text-red-400 transition-colors py-2 flex items-center justify-center gap-2">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                Báo cáo tin đăng vi phạm
+              </button>
+              <button onClick={() => setIsShareModalOpen(true)} className="flex-1 py-4 border-2 border-slate-100 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:text-blue-500 transition-colors flex items-center justify-center gap-2">
+                  <span>📤</span> Chia sẻ
               </button>
             </div>
+            
+            <button onClick={() => setShowReportModal(true)} className="w-full text-[9px] font-black text-gray-300 uppercase tracking-widest hover:text-red-400 transition-colors text-center">
+                Báo cáo tin này
+            </button>
           </div>
         </div>
       </div>
 
-      {/* SIMILAR LISTINGS */}
+      {/* SIMILAR LISTINGS - ĐÃ THÊM LẠI PHẦN NÀY */}
       <div className="px-4 md:px-0 pt-10">
         <div className="flex items-center justify-between mb-8 px-2">
           <h2 className="text-xl font-black text-textMain tracking-tighter uppercase">Có thể bạn thích</h2>
@@ -486,24 +420,23 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
       {showReportModal && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 animate-fade-in">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowReportModal(false)}></div>
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative border border-borderMain">
-            <h3 className="text-2xl font-black text-textMain mb-2 tracking-tighter">Báo cáo vi phạm</h3>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-8">Giúp cộng đồng Chợ Của Tui sạch hơn</p>
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative border border-gray-200">
+            <h3 className="text-2xl font-black text-slate-900 mb-2 tracking-tighter">Báo cáo vi phạm</h3>
             <div className="space-y-5">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase px-1">Lý do</label>
-                <select value={reportReason} onChange={(e) => setReportReason(e.target.value)} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold text-sm appearance-none outline-none focus:border-primary transition-colors">
+                <select value={reportReason} onChange={(e) => setReportReason(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-bold text-sm">
                   <option value="">Chọn lý do...</option>
                   {REPORT_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase px-1">Chi tiết</label>
-                <textarea rows={3} placeholder="Mô tả thêm..." value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 text-sm font-medium outline-none focus:border-primary transition-colors" />
+                <textarea rows={3} placeholder="Mô tả thêm..." value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium" />
               </div>
               <div className="flex gap-3 pt-4">
                 <button onClick={() => setShowReportModal(false)} className="flex-1 py-4.5 rounded-2xl font-black text-[11px] uppercase bg-gray-100 text-gray-400">Hủy</button>
-                <button onClick={handleReport} className="flex-1 py-4.5 rounded-2xl font-black text-[11px] uppercase bg-red-500 text-white shadow-lg shadow-red-200 active:scale-95 transition-all">Gửi báo cáo</button>
+                <button onClick={handleReport} className="flex-1 py-4.5 rounded-2xl font-black text-[11px] uppercase bg-red-500 text-white shadow-lg">Gửi báo cáo</button>
               </div>
             </div>
           </div>
@@ -521,7 +454,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                   {STATIC_LINKS.map(link => <Link key={link.slug} to={`/page/${link.slug}`} className="text-[10px] font-black text-gray-400 hover:text-primary transition-colors uppercase tracking-widest">{link.title}</Link>)}
                </div>
             </div>
-            <div className="text-[10px] text-gray-300 font-bold text-center border-t border-gray-50 pt-10 uppercase tracking-widest">© 2024 ChoCuaTui.vn - Trí tuệ nhân tạo phục vụ cộng đồng.</div>
+            <div className="text-[10px] text-gray-300 font-bold text-center border-t border-gray-50 pt-10 uppercase tracking-widest">© 2026 ChoCuaTui.vn - Trí tuệ nhân tạo phục vụ cộng đồng.</div>
          </div>
       </footer>
     </div>

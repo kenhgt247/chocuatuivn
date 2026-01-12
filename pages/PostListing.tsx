@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { CATEGORIES, LOCATIONS } from '../constants'; 
 import { db, SystemSettings } from '../services/db'; 
 import { User } from '../types';
-import { analyzeListingImages } from '../services/geminiService'; // Vẫn giữ AI để hỗ trợ điền form
+import { analyzeListingImages } from '../services/geminiService'; 
 import { getLocationFromCoords } from '../utils/locationHelper';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 
@@ -23,6 +23,7 @@ interface ListingFormData {
 const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
    
   // --- STATE ---
   const [listingType, setListingType] = useState<'normal' | 'affiliate'>('normal');
@@ -32,6 +33,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   
   const [locationDetected, setLocationDetected] = useState<{lat: number, lng: number} | null>(null);
   const [agreedToRules, setAgreedToRules] = useState(false);
+
+  // --- STATE VIDEO ---
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string>("");
    
   const [formData, setFormData] = useState<ListingFormData>({
     title: '',
@@ -95,7 +100,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   // --- 2. RENDER DYNAMIC FIELDS (GIỮ NGUYÊN) ---
   const renderDynamicFields = () => {
     switch (formData.category) {
-      case '1': return ( /* Bất động sản */
+      case '1': return (
           <div className="grid grid-cols-2 gap-4 animate-fade-in-up">
             <div className={wrapperStyle}><label className={labelStyle}>Diện tích (m²)</label><input type="number" placeholder="m²" className={inputStyle} value={formData.attributes.area || ''} onChange={(e) => updateAttr('area', e.target.value)} /></div>
             <div className={wrapperStyle}><label className={labelStyle}>Phòng ngủ</label><input type="number" placeholder="Số phòng" className={inputStyle} value={formData.attributes.bedrooms || ''} onChange={(e) => updateAttr('bedrooms', e.target.value)} /></div>
@@ -105,7 +110,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             <div className={wrapperStyle}><label className={labelStyle}>Loại hình</label><select className={inputStyle} value={formData.attributes.propertyType || ''} onChange={(e) => updateAttr('propertyType', e.target.value)}><option value="">Chọn loại</option><option value="Nhà ở">Nhà ở</option><option value="Đất nền">Đất nền</option><option value="Chung cư">Chung cư</option></select></div>
           </div>
       );
-      case '2': return ( /* Xe cộ */
+      case '2': return (
           <div className="grid grid-cols-2 gap-4 animate-fade-in-up">
             <div className={wrapperStyle}><label className={labelStyle}>Số Km (ODO)</label><input type="number" placeholder="Km" className={inputStyle} value={formData.attributes.mileage || ''} onChange={(e) => updateAttr('mileage', e.target.value)} /></div>
             <div className={wrapperStyle}><label className={labelStyle}>Năm sản xuất</label><input type="number" placeholder="YYYY" className={inputStyle} value={formData.attributes.year || ''} onChange={(e) => updateAttr('year', e.target.value)} /></div>
@@ -115,7 +120,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             <div className={wrapperStyle}><label className={labelStyle}>Số chỗ</label><input type="number" placeholder="Chỗ" className={inputStyle} value={formData.attributes.seatCount || ''} onChange={(e) => updateAttr('seatCount', e.target.value)} /></div>
           </div>
       );
-      case '3': return ( /* Đồ điện tử */
+      case '3': return (
           <div className="grid grid-cols-2 gap-4 animate-fade-in-up">
             <div className={wrapperStyle}><label className={labelStyle}>Pin (%)</label><input type="number" placeholder="%" className={inputStyle} value={formData.attributes.battery || ''} onChange={(e) => updateAttr('battery', e.target.value)} /></div>
             <div className={wrapperStyle}><label className={labelStyle}>Bộ nhớ</label><input type="text" placeholder="128GB..." className={inputStyle} value={formData.attributes.storage || ''} onChange={(e) => updateAttr('storage', e.target.value)} /></div>
@@ -124,43 +129,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             <div className={wrapperStyle}><label className={labelStyle}>Bảo hành</label><input type="text" placeholder="Tình trạng BH" className={inputStyle} value={formData.attributes.warranty || ''} onChange={(e) => updateAttr('warranty', e.target.value)} /></div>
           </div>
       );
-      case '10': return ( /* Điện lạnh */
-          <div className="grid grid-cols-2 gap-4 animate-fade-in-up">
-            <div className={wrapperStyle}><label className={labelStyle}>Công suất</label><input type="text" placeholder="1.5 HP/BTU" className={inputStyle} value={formData.attributes.capacity || ''} onChange={(e) => updateAttr('capacity', e.target.value)} /></div>
-            <div className={wrapperStyle}><label className={labelStyle}>Inverter</label><select className={inputStyle} value={formData.attributes.inverter || ''} onChange={(e) => updateAttr('inverter', e.target.value)}><option value="">Chọn</option><option value="Có">Có</option><option value="Không">Không</option></select></div>
-          </div>
-      );
-      case '8': return ( /* Thú cưng */
-          <div className="grid grid-cols-2 gap-4 animate-fade-in-up">
-            <div className={wrapperStyle}><label className={labelStyle}>Giống loài</label><input type="text" placeholder="Poodle/Mèo..." className={inputStyle} value={formData.attributes.breed || ''} onChange={(e) => updateAttr('breed', e.target.value)} /></div>
-            <div className={wrapperStyle}><label className={labelStyle}>Độ tuổi</label><input type="text" placeholder="2 tháng..." className={inputStyle} value={formData.attributes.age || ''} onChange={(e) => updateAttr('age', e.target.value)} /></div>
-            <div className={wrapperStyle}><label className={labelStyle}>Giới tính</label><select className={inputStyle} value={formData.attributes.gender || ''} onChange={(e) => updateAttr('gender', e.target.value)}><option value="">Chọn</option><option value="Đực">Đực</option><option value="Cái">Cái</option></select></div>
-          </div>
-      );
-      case '4': return ( /* Nội thất */
-          <div className="grid grid-cols-2 gap-4 animate-fade-in-up">
-            <div className={wrapperStyle}><label className={labelStyle}>Chất liệu</label><input type="text" placeholder="Gỗ/Nhựa..." className={inputStyle} value={formData.attributes.material || ''} onChange={(e) => updateAttr('material', e.target.value)} /></div>
-            <div className={wrapperStyle}><label className={labelStyle}>Kích thước</label><input type="text" placeholder="Dài x Rộng" className={inputStyle} value={formData.attributes.size || ''} onChange={(e) => updateAttr('size', e.target.value)} /></div>
-          </div>
-      );
-      case '6': return ( /* Đồ cá nhân */
-          <div className="grid grid-cols-2 gap-4 animate-fade-in-up">
-            <div className={wrapperStyle}><label className={labelStyle}>Thương hiệu</label><input type="text" placeholder="Nike/Adidas..." className={inputStyle} value={formData.attributes.brand || ''} onChange={(e) => updateAttr('brand', e.target.value)} /></div>
-            <div className={wrapperStyle}><label className={labelStyle}>Kích cỡ</label><input type="text" placeholder="M/L/42..." className={inputStyle} value={formData.attributes.personalSize || ''} onChange={(e) => updateAttr('personalSize', e.target.value)} /></div>
-          </div>
-      );
-      case '11': return ( /* Việc làm */
-          <div className="grid grid-cols-2 gap-4 animate-fade-in-up">
-            <div className={wrapperStyle}><label className={labelStyle}>Mức lương</label><input type="text" placeholder="Lương" className={inputStyle} value={formData.attributes.salary || ''} onChange={(e) => updateAttr('salary', e.target.value)} /></div>
-            <div className={wrapperStyle}><label className={labelStyle}>Kinh nghiệm</label><input type="text" placeholder="Yêu cầu" className={inputStyle} value={formData.attributes.experience || ''} onChange={(e) => updateAttr('experience', e.target.value)} /></div>
-            <div className={wrapperStyle}><label className={labelStyle}>Hình thức</label><select className={inputStyle} value={formData.attributes.jobType || ''} onChange={(e) => updateAttr('jobType', e.target.value)}><option value="">Chọn</option><option value="Toàn thời gian">Toàn thời gian</option><option value="Bán thời gian">Bán thời gian</option></select></div>
-          </div>
-      );
       default: return null;
     }
   };
 
-  // --- 3. UPLOAD ẢNH & AI ---
+  // --- 3. XỬ LÝ ẢNH & VIDEO ---
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
     if (files.length === 0 || !settings) return;
@@ -168,7 +141,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     const tierConfig = (settings.tierConfigs as any)[userTier];
 
     if (files.length + formData.images.length > tierConfig.maxImages) {
-      return alert(`Gói ${tierConfig.name} chỉ cho phép tối đa ${tierConfig.maxImages} ảnh.`);
+      return alert(`Gói ${tierConfig.name} tối đa ${tierConfig.maxImages} ảnh.`);
     }
 
     try {
@@ -176,7 +149,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         const updatedImages = [...formData.images, ...compressedResults];
         setFormData(prev => ({ ...prev, images: updatedImages }));
         
-        // Vẫn chạy AI để hỗ trợ điền thông tin (dù là Affiliate hay Normal)
         if (compressedResults.length > 0) {
             runAIAnalysis(updatedImages);
         }
@@ -184,12 +156,35 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     finally { if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
 
+  // Hàm xử lý Video
+  const handleVideoClick = () => {
+    if (!settings) return;
+    const userTier = user?.subscriptionTier || 'free';
+    const canUploadVideo = (settings.tierConfigs as any)[userTier]?.allowVideo;
+
+    if (!canUploadVideo) {
+      alert(`📹 Gói ${userTier.toUpperCase()} hiện không hỗ trợ đăng Video. Vui lòng nâng cấp!`);
+      if (userTier !== 'pro') navigate('/upgrade');
+      return;
+    }
+    videoInputRef.current?.click();
+  };
+
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 35 * 1024 * 1024) return alert("Dung lượng video tối đa 35MB");
+      setVideoFile(file);
+      setVideoPreview(URL.createObjectURL(file));
+    }
+  };
+
   const runAIAnalysis = async (images: string[]) => {
     setAiAnalyzing(true);
     try {
-      const analysis = await analyzeListingImages(images.slice(0, 3));
-      // Chỉ tự động điền nếu có tiêu đề, không đè lên dữ liệu đã nhập nếu người dùng đang sửa
-      if (analysis.title) {
+      // Bọc kỹ để tránh lỗi API Key làm treo web
+      const analysis = await analyzeListingImages(images.slice(0, 3)).catch(() => null);
+      if (analysis && analysis.title) {
         setFormData(prev => ({
           ...prev,
           title: (!prev.title) ? (analysis.title || '') : prev.title,
@@ -200,7 +195,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           attributes: { ...prev.attributes, ...(analysis.attributes || {}) }
         }));
       }
-    } catch (err) { }
+    } catch (err) { console.log("AI skip"); }
     finally { setAiAnalyzing(false); }
   };
 
@@ -220,18 +215,19 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       return alert('Vui lòng điền đủ: Tiêu đề, Danh mục, Giá và ít nhất 1 Ảnh!');
     }
     
-    // Check Affiliate Link
-    if (listingType === 'affiliate' && !formData.affiliateLink) {
-        return alert('Vui lòng nhập Link tiếp thị liên kết.');
-    }
-
-    if (!agreedToRules) return alert('Bạn cần đồng ý với quy tắc cộng đồng.');
+    if (listingType === 'affiliate' && !formData.affiliateLink) return alert('Nhập Link tiếp thị liên kết.');
+    if (!agreedToRules) return alert('Vui lòng đồng ý quy tắc.');
 
     setLoading(true);
     try {
-      let uploadedUrls = formData.images;
-      // Upload ảnh lên Storage
-      uploadedUrls = await Promise.all(
+      // Tải video (nếu có)
+      let finalVideoUrl = "";
+      if (videoFile) {
+          finalVideoUrl = await db.uploadVideo(videoFile, user.id);
+      }
+
+      // Tải ảnh
+      const uploadedUrls = await Promise.all(
         formData.images.map((img, index) => 
           img.startsWith('data:') ? db.uploadImage(img, `listings/${user.id}/${Date.now()}_${index}.jpg`) : img
         )
@@ -243,9 +239,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         price: parseInt(formData.price.replace(/\D/g, '')),
         category: formData.category,
         images: uploadedUrls,
+        videoUrl: finalVideoUrl || null,
         location: formData.location, 
         address: formData.address,
-        condition: listingType === 'affiliate' ? 'new' : formData.condition, // Affiliate mặc định là hàng mới
+        condition: listingType === 'affiliate' ? 'new' : formData.condition,
         attributes: formData.attributes,
         sellerId: user.id,
         sellerName: user.name,
@@ -258,7 +255,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         createdAt: new Date().toISOString()
       };
       
-      Object.keys(listingData).forEach(key => listingData[key] === undefined && delete listingData[key]);
       await db.saveListing(listingData);
       alert("🎉 Đăng tin thành công!");
       navigate('/manage-ads');
@@ -269,7 +265,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     }
   };
 
-  if (!settings) return <div className="h-96 flex items-center justify-center font-black text-primary animate-pulse">Đang tải...</div>;
+  if (!settings) return <div className="h-96 flex items-center justify-center font-black text-primary animate-pulse uppercase tracking-widest text-xl">Đang tải dữ liệu...</div>;
   const currentTierConfig = (settings.tierConfigs as any)[user?.subscriptionTier || 'free'];
   const isVip = user?.subscriptionTier === 'pro';
 
@@ -284,58 +280,65 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       </div>
 
       <div className="bg-gray-100 p-1 rounded-xl flex max-w-md mx-auto">
-          <button 
-            onClick={() => { 
-                setListingType('normal'); 
-                setFormData(p => ({...p, title: '', price: '', images: [], affiliateLink: null})); 
-            }} 
-            className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase ${listingType === 'normal' ? 'bg-white shadow text-primary' : 'text-gray-400'}`}
-          >
-            📦 Bán ngay
-          </button>
-          <button 
-            onClick={() => { 
-                setListingType('affiliate'); 
-                setFormData(p => ({...p, title: '', price: '', images: [], affiliateLink: ''})); 
-            }} 
-            className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase ${listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow' : 'text-gray-400'}`}
-          >
-            💰 Tiếp thị liên kết
-          </button>
+          <button onClick={() => setListingType('normal')} className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase transition-all ${listingType === 'normal' ? 'bg-white shadow text-primary' : 'text-gray-400'}`}>📦 Bán đồ cũ</button>
+          <button onClick={() => setListingType('affiliate')} className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase transition-all ${listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow' : 'text-gray-400'}`}>💰 Tiếp thị VIP</button>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* CỘT TRÁI: ẢNH */}
+        {/* CỘT TRÁI: MEDIA (ẢNH & VIDEO CUỐN CHIẾU) */}
         <div className="space-y-4">
            {listingType === 'affiliate' && !isVip ? (
-              <div className="bg-orange-50 border border-orange-100 rounded-2xl p-6 text-center">
-                  <h3 className="text-lg font-black text-orange-600 mb-2">DÀNH CHO VIP</h3>
-                  <Link to="/upgrade" className="bg-orange-500 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase shadow-lg">Nâng cấp ngay</Link>
+              <div className="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center space-y-4">
+                  <div className="text-4xl">👑</div>
+                  <h3 className="text-sm font-black text-orange-600 uppercase">Dành cho VIP PRO</h3>
+                  <p className="text-[10px] text-orange-400 font-bold">Vui lòng nâng cấp để sử dụng tính năng kiếm tiền.</p>
+                  <Link to="/upgrade" className="block w-full bg-orange-500 text-white py-4 rounded-xl font-bold text-xs">Nâng cấp ngay</Link>
               </div>
            ) : (
               <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-4">
-                    <label className={labelStyle}>Hình ảnh ({formData.images.length}/{currentTierConfig.maxImages})</label>
-                    {aiAnalyzing && <span className="text-[9px] font-bold text-blue-500 animate-pulse">✨ AI đang quét...</span>}
+                    <label className={labelStyle}>Media ({formData.images.length}/{currentTierConfig.maxImages})</label>
+                    {aiAnalyzing && <span className="text-[9px] font-bold text-blue-500 animate-pulse uppercase">AI Đang quét...</span>}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
+                  {/* Danh sách ảnh */}
                   {formData.images.map((img, i) => (
                     <div key={i} className="aspect-square rounded-xl overflow-hidden border border-gray-200 relative group">
                       <img src={img} className="w-full h-full object-cover" alt="" />
-                      <button type="button" onClick={() => setFormData(p => ({...p, images: p.images.filter((_, idx) => idx !== i)}))} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 scale-0 group-hover:scale-100 transition-all">✕</button>
+                      <button type="button" onClick={() => setFormData(p => ({...p, images: p.images.filter((_, idx) => idx !== i)}))} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all">✕</button>
                     </div>
                   ))}
                   
-                  {/* NÚT UPLOAD ẢNH (DÙNG CHO CẢ 2 CHẾ ĐỘ) */}
+                  {/* Ô đăng ảnh */}
                   {formData.images.length < currentTierConfig.maxImages && (
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-all">
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary">
                       <span className="text-2xl">+</span>
-                      <span className="text-[8px] font-bold uppercase mt-1">Tải ảnh</span>
+                      <span className="text-[8px] font-bold uppercase">Tải ảnh</span>
                     </button>
                   )}
+
+                  {/* Ô ĐĂNG VIDEO (CUỐN CHIẾU) */}
+                  {!videoPreview ? (
+                      <button 
+                        type="button" 
+                        onClick={handleVideoClick}
+                        className={`aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center transition-all ${currentTierConfig.allowVideo ? 'bg-blue-50 border-blue-200 text-blue-500 hover:border-blue-400' : 'bg-gray-50 border-gray-200 text-gray-300 opacity-50 cursor-not-allowed'}`}
+                      >
+                         <span className="text-xl">📹</span>
+                         <span className="text-[8px] font-black uppercase">Video ngắn</span>
+                         {!currentTierConfig.allowVideo && <span className="text-[7px] text-red-400">Lock</span>}
+                      </button>
+                  ) : (
+                    <div className="aspect-square rounded-xl overflow-hidden border border-blue-200 relative group shadow-lg">
+                      <video src={videoPreview} className="w-full h-full object-cover" />
+                      <button type="button" onClick={() => {setVideoFile(null); setVideoPreview("");}} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 shadow-md">✕</button>
+                    </div>
+                  )}
                 </div>
+                
                 <input type="file" ref={fileInputRef} onChange={handleImageUpload} multiple accept="image/*" className="hidden" />
+                <input type="file" ref={videoInputRef} onChange={handleVideoChange} accept="video/*" className="hidden" />
               </div>
            )}
         </div>
@@ -345,18 +348,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           {(listingType === 'normal' || isVip) && (
              <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-4">
                 
-                {/* Ô NHẬP LINK AFFILIATE (CHỈ HIỆN KHI Ở TAB AFFILIATE) */}
                 {listingType === 'affiliate' && (
                     <div className="space-y-1 bg-orange-50 p-4 rounded-xl border border-orange-100">
-                        <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest px-1">Link Tiếp Thị (Shopee/Lazada...)</label>
-                        <input 
-                            type="url" 
-                            placeholder="Dán link sản phẩm vào đây để nhận hoa hồng..." 
-                            value={formData.affiliateLink || ''} 
-                            onChange={(e) => setFormData({...formData, affiliateLink: e.target.value})} 
-                            className="w-full bg-white border border-orange-200 rounded-xl p-3 font-bold text-sm focus:outline-none focus:border-orange-500 text-orange-700" 
-                        />
-                        <p className="text-[9px] text-gray-500 italic px-1">Người mua sẽ được chuyển đến link này khi bấm "Mua Ngay".</p>
+                        <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest px-1">Link Tiếp Thị Liên Kết *</label>
+                        <input type="url" required placeholder="Dán link Shopee, Lazada..." value={formData.affiliateLink || ''} onChange={(e) => setFormData({...formData, affiliateLink: e.target.value})} className="w-full bg-white border border-orange-200 rounded-xl p-3 font-bold text-sm focus:outline-none focus:border-orange-500 text-orange-700" />
                     </div>
                 )}
 
@@ -388,15 +383,13 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                             {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
                         </select>
                      </div>
-                     {listingType === 'normal' && (
-                         <div className="space-y-1">
-                            <label className={labelStyle}>Tình trạng</label>
-                            <select value={formData.condition} onChange={(e) => setFormData({...formData, condition: e.target.value as any})} className={inputStyle}>
-                                <option value="used">Đã qua sử dụng</option>
-                                <option value="new">Mới 100%</option>
-                            </select>
-                         </div>
-                     )}
+                     <div className="space-y-1">
+                        <label className={labelStyle}>Tình trạng</label>
+                        <select value={formData.condition} onChange={(e) => setFormData({...formData, condition: e.target.value as any})} className={inputStyle}>
+                            <option value="used">Đã qua sử dụng</option>
+                            <option value="new">Mới 100%</option>
+                        </select>
+                     </div>
                 </div>
 
                 <div className="space-y-1">
@@ -404,7 +397,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                      <label className={labelStyle}>Địa chỉ</label>
                      <button type="button" onClick={handleManualLocate} className="text-[9px] font-bold text-blue-500 uppercase">📍 Định vị</button>
                   </div>
-                  <textarea value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className={`${inputStyle} h-20 resize-none`} placeholder="Địa chỉ giao dịch..." />
+                  <textarea value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className={`${inputStyle} h-20 resize-none`} placeholder="Địa chỉ chi tiết..." />
                 </div>
 
                 <div className="space-y-1">
@@ -417,8 +410,8 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                    <span className="text-[10px] font-bold text-gray-500 uppercase">Đồng ý quy tắc cộng đồng</span>
                 </div>
 
-                <button type="submit" disabled={loading} className={`w-full py-4 rounded-xl font-black text-xs uppercase shadow-lg text-white ${listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500 shadow-orange-200' : 'bg-primary hover:bg-primaryHover shadow-blue-200'}`}>
-                    {loading ? 'Đang xử lý...' : (listingType === 'affiliate' ? 'Đăng tin kiếm tiền ngay' : 'Đăng tin bán')}
+                <button type="submit" disabled={loading} className={`w-full py-4 rounded-xl font-black text-xs uppercase shadow-lg text-white ${listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-primary hover:bg-primaryHover'}`}>
+                    {loading ? 'Đang tải media...' : (listingType === 'affiliate' ? 'Đăng tin kiếm tiền' : 'Đăng tin bán')}
                 </button>
              </form>
           )}

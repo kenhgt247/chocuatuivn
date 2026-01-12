@@ -19,8 +19,9 @@ import {
   signInWithPopup,
   signInWithCredential
 } from "firebase/auth";
-import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
-// [MỚI] Import Functions để gọi Backend chụp ảnh
+// [SỬA LỖI] Gộp import Storage thành 1 dòng duy nhất để tránh lỗi trùng lặp
+import { getStorage, ref, uploadString, getDownloadURL, uploadBytes } from "firebase/storage";
+// [MỚI] Import Functions
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from "firebase/functions";
 
 import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus } from '../types';
@@ -38,30 +39,9 @@ export interface SystemSettings {
   tierDiscount: number; 
   bannerSlides?: any[]; 
   tierConfigs: {
-    free: { 
-      name: string; 
-      price: number; 
-      maxImages: number; 
-      postsPerDay: number;   
-      autoApprove: boolean;  
-      features: string[] 
-    };
-    basic: { 
-      name: string; 
-      price: number; 
-      maxImages: number; 
-      postsPerDay: number; 
-      autoApprove: boolean; 
-      features: string[] 
-    };
-    pro: { 
-      name: string; 
-      price: number; 
-      maxImages: number; 
-      postsPerDay: number; 
-      autoApprove: boolean; 
-      features: string[] 
-    };
+    free: { name: string; price: number; maxImages: number; postsPerDay: number; autoApprove: boolean; features: string[]; allowVideo: boolean };
+    basic: { name: string; price: number; maxImages: number; postsPerDay: number; autoApprove: boolean; features: string[]; allowVideo: boolean };
+    pro: { name: string; price: number; maxImages: number; postsPerDay: number; autoApprove: boolean; features: string[]; allowVideo: boolean };
   };
   bankName: string;
   accountNumber: string;
@@ -84,7 +64,7 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const firestore = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
-const functions = getFunctions(app); // [MỚI] Khởi tạo Functions
+const functions = getFunctions(app);
 
 // 4. OBJECT DB
 export const db = {
@@ -264,6 +244,14 @@ export const db = {
         keywords: generateKeywords(listingData.title),
         
         viewCount: 0, 
+        
+        // --- [SỬA LỖI QUAN TRỌNG TẠI ĐÂY] ---
+        // Firebase không nhận undefined, phải đổi thành null
+        videoUrl: listingData.videoUrl || null, 
+        lat: listingData.lat || null, 
+        lng: listingData.lng || null,
+        // ------------------------------------
+
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         status: listingData.status || 'pending', 
@@ -272,6 +260,7 @@ export const db = {
 
       const docRef = await addDoc(collection(firestore, "listings"), dataToSave);
       
+      // Gửi email báo Admin (Giữ nguyên)
       await addDoc(collection(firestore, "mail"), {
         to: [ADMIN_EMAIL],
         message: {
@@ -280,9 +269,9 @@ export const db = {
             <h3 style="color: #0066cc;">Có người đăng tin bán hàng mới!</h3>
             <p><strong>Tiêu đề:</strong> ${listingData.title}</p>
             <p><strong>Giá:</strong> ${Number(listingData.price).toLocaleString()} VNĐ</p>
-            <p><strong>Danh mục ID:</strong> ${listingData.category}</p>
+            <p><strong>Có Video:</strong> ${listingData.videoUrl ? "✅ Có" : "❌ Không"}</p>
+            <p><strong>Vị trí:</strong> ${listingData.lat ? "✅ Có GPS" : "❌ Không GPS"}</p>
             <p><strong>Người bán:</strong> ${listingData.sellerName}</p>
-            <p>Vui lòng vào trang Admin để kiểm duyệt.</p>
           `
         }
       });
@@ -482,10 +471,6 @@ export const db = {
         
         const txData = txSnap.data() as Transaction & { metadata?: any };
         if (txData.status !== 'pending') throw new Error("Transaction already processed");
-
-        targetUserId = txData.userId;
-        amount = txData.amount;
-        type = txData.type;
 
         const userRef = doc(firestore, "users", txData.userId);
         const userSnap = await transaction.get(userRef);
@@ -925,6 +910,20 @@ export const db = {
     return await getDownloadURL(storageRef);
   },
 
+  // [QUAN TRỌNG] HÀM UPLOAD VIDEO
+  uploadVideo: async (file: File | Blob, userId: string): Promise<string> => {
+    try {
+      const path = `videos/${userId}/${Date.now()}_short.mp4`;
+      const storageRef = ref(storage, path);
+      // Sử dụng uploadBytes thay vì uploadString để không bị lag trình duyệt với file lớn
+      const snapshot = await uploadBytes(storageRef, file);
+      return await getDownloadURL(snapshot.ref);
+    } catch (e) {
+      console.error("Lỗi tải video:", e);
+      throw e;
+    }
+  },
+
   getSettings: async (): Promise<SystemSettings | null> => {
     const d = await getDoc(doc(firestore, "system", "settings"));
     return d.exists() ? (d.data() as SystemSettings) : null;
@@ -1061,16 +1060,7 @@ export const db = {
   // --- [MỚI] TÍNH NĂNG CRAWLER ẢNH TỪ LINK (CHẠY LOCALHOST) ---
   scanLinkToImage: async (url: string) => {
     try {
-      // Để chạy trên Localhost, ta phải kết nối tới Emulator
-      // Nếu đã kết nối rồi thì nó có thể báo lỗi nhẹ (ignore được)
-      try {
-       //  connectFunctionsEmulator(functions, "localhost", 5001); 
-      } catch (err) {
-         // Đã kết nối rồi thì bỏ qua
-      }
-      
       const captureFn = httpsCallable(functions, 'captureUrl');
-      
       console.log("🚀 Đang gửi yêu cầu chụp ảnh tới Backend...");
       const result: any = await captureFn({ url });
       
@@ -1129,7 +1119,8 @@ export const db = {
             maxImages: 3, 
             postsPerDay: 5, 
             autoApprove: false, 
-            features: ["Đăng tối đa 5 tin/ngày", "Tối đa 3 ảnh/tin", "Tin chờ duyệt", "Hiển thị tiêu chuẩn"] 
+            features: ["Đăng tối đa 5 tin/ngày", "Tối đa 3 ảnh/tin", "Tin chờ duyệt", "Hiển thị tiêu chuẩn"],
+            allowVideo: false 
           },
           basic: { 
             name: "Gói Basic", 
@@ -1137,7 +1128,8 @@ export const db = {
             maxImages: 6, 
             postsPerDay: 15, 
             autoApprove: true, 
-            features: ["Đăng tối đa 15 tin/ngày", "Tối đa 6 ảnh/tin", "Duyệt tin tự động", "Huy hiệu Bạc"] 
+            features: ["Đăng tối đa 15 tin/ngày", "Tối đa 6 ảnh/tin", "Duyệt tin tự động", "Huy hiệu Bạc"],
+            allowVideo: true
           },
           pro: { 
             name: "Gói Pro VIP", 
@@ -1145,7 +1137,8 @@ export const db = {
             maxImages: 10, 
             postsPerDay: 999, 
             autoApprove: true, 
-            features: ["Không giới hạn tin đăng", "Tối đa 10 ảnh/tin", "Duyệt tin tự động", "Huy hiệu Vàng", "Ưu tiên hiển thị"] 
+            features: ["Không giới hạn tin đăng", "Tối đa 10 ảnh/tin", "Duyệt tin tự động", "Huy hiệu Vàng", "Ưu tiên hiển thị"],
+            allowVideo: true
           }
         },
         bankName: "MBBANK",
@@ -1226,19 +1219,22 @@ export const db = {
         const mainImage = `https://loremflickr.com/800/600/${cat.keyword}?lock=${i}`;
         const subImage = `https://picsum.photos/seed/${i}/800/600`;
 
+        // [MỚI] Random Video giả lập
+        const hasVideo = Math.random() > 0.7; // 30% có video
+        const videoUrl = hasVideo ? "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4" : null;
+
         const listingRef = doc(firestore, "listings", lid);
-        // [CẬP NHẬT] Tạo keywords cho dữ liệu mẫu
         const newListing: Listing = {
           id: lid,
           title: prod.title,
           slug: db.toSlug(prod.title), 
-          // @ts-ignore
-          keywords: generateKeywords(prod.title), // Tạo keywords
+          keywords: generateKeywords(prod.title), 
           viewCount: randomInt(0, 500), 
           description: `Cần bán ${prod.title}. Hàng còn mới, sử dụng kỹ. Bao test thoải mái. Liên hệ ${seller.name} để ép giá. Giao dịch trực tiếp tại ${seller.location}.`,
           price: finalPrice > 0 ? finalPrice : 1000000,
           category: cat.id,
           images: [mainImage, subImage], 
+          videoUrl: videoUrl || undefined, // Gán video URL
           location: seller.location || "Toàn quốc",
           address: `Quận ${randomInt(1, 12)}, ${seller.location}`,
           sellerId: seller.id,

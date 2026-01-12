@@ -1311,7 +1311,7 @@ export const db = {
           price: finalPrice > 0 ? finalPrice : 1000000,
           category: cat.id,
           images: [mainImage, subImage], 
-          videoUrl: videoUrl || undefined, // Gán video URL
+          videoUrl: videoUrl, // Gán video URL
           location: seller.location || "Toàn quốc",
           address: `Quận ${randomInt(1, 12)}, ${seller.location}`,
           sellerId: seller.id,

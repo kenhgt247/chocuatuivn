@@ -305,21 +305,30 @@ export const db = {
 
   deleteListing: async (id: string) => await deleteDoc(doc(firestore, "listings", id)),
 
+  // [CẬP NHẬT QUAN TRỌNG] HÀM SỬA TIN AN TOÀN
   updateListingContent: async (listingId: string, data: Partial<Listing>) => {
     try {
-      let updates = { ...data, updatedAt: new Date().toISOString() };
+      let updates: any = { ...data, updatedAt: new Date().toISOString() };
+      
+      // Tự động cập nhật Slug và Keyword nếu tiêu đề thay đổi
       if (data.title) {
-          updates = {
-              ...updates,
-              slug: db.toSlug(data.title),
-              // @ts-ignore
-              keywords: generateKeywords(data.title)
-          };
+          updates.slug = db.toSlug(data.title);
+          // @ts-ignore
+          updates.keywords = generateKeywords(data.title);
       }
 
-      await updateDoc(doc(firestore, "listings", listingId), updates);
+      // [QUAN TRỌNG] Lọc bỏ các trường undefined để tránh lỗi Firestore
+      const cleanUpdates = Object.entries(updates).reduce((acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as any);
+
+      await updateDoc(doc(firestore, "listings", listingId), cleanUpdates);
       return { success: true };
     } catch (e: any) {
+      console.error("Lỗi updateListingContent:", e);
       return { success: false, error: e.message };
     }
   },

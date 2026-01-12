@@ -74,7 +74,12 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             const listing = await db.getListingById(id);
             
             if (!listing) { alert("Tin không tồn tại"); return navigate('/'); }
-            if (listing.sellerId !== user.id && user.role !== 'admin') { alert("Không có quyền sửa"); return navigate('/'); }
+            
+            // Check quyền: Chính chủ HOẶC Admin đều được sửa
+            if (listing.sellerId !== user.id && user.role !== 'admin') { 
+                alert("Không có quyền sửa"); 
+                return navigate('/'); 
+            }
 
             setFormData({
                 title: listing.title,
@@ -275,7 +280,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           finalVideoUrl = await db.uploadVideo(videoFile, user.id);
       }
 
-      // 2. Upload Ảnh (Chỉ upload ảnh mới dạng Base64, giữ nguyên URL)
+      // 2. Upload Ảnh (Chỉ upload ảnh mới dạng Base64, giữ nguyên URL cũ)
       const uploadedUrls = await Promise.all(
         formData.images.map((img, index) => 
           img.startsWith('data:') ? db.uploadImage(img, `listings/${user.id}/${Date.now()}_${index}.jpg`) : img
@@ -294,18 +299,24 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         address: formData.address,
         condition: listingType === 'affiliate' ? 'new' : formData.condition,
         attributes: formData.attributes,
-        sellerId: user.id,
-        sellerName: user.name,
-        sellerAvatar: user.avatar || '',
         
-        // Logic trạng thái: Nếu sửa tin -> Về pending để duyệt lại. Nếu tạo mới -> Check auto approve
+        // Status Logic: Sửa tin -> Pending. Tạo mới -> Check auto approve
         status: isEditing ? 'pending' : ((listingType === 'affiliate' || (settings.tierConfigs as any)[user.subscriptionTier].autoApprove) ? 'approved' : 'pending'),
         
         tier: listingType === 'affiliate' ? 'pro' : user.subscriptionTier, 
         affiliateLink: listingType === 'affiliate' ? formData.affiliateLink : null,
-        lat: locationDetected?.lat,
-        lng: locationDetected?.lng,
+        lat: locationDetected?.lat || null,
+        lng: locationDetected?.lng || null,
       };
+
+      // [QUAN TRỌNG] Logic sửa tin an toàn cho Seed Data & Admin
+      // Nếu là TIN MỚI -> Gán người bán là user hiện tại
+      if (!isEditing) {
+          listingData.sellerId = user.id;
+          listingData.sellerName = user.name;
+          listingData.sellerAvatar = user.avatar || '';
+      } 
+      // Nếu ĐANG SỬA -> KHÔNG GỬI sellerId lên để giữ nguyên chủ cũ (kể cả seed_user)
       
       // 4. Lưu hoặc Cập nhật
       if (isEditing && id) {
@@ -319,6 +330,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       }
 
     } catch (error) {
+      console.error(error);
       alert("Lỗi khi xử lý tin. Thử lại sau.");
     } finally {
       setLoading(false);
@@ -330,7 +342,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const isVip = user?.subscriptionTier === 'pro';
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 px-4 pb-20 pt-6 font-sans">
+    <div className="max-w-7xl mx-auto space-y-6 px-4 pb-20 pt-6 font-sans">
       <div className="text-center space-y-2 mb-6">
         <h1 className="text-3xl font-black text-gray-900 uppercase">{isEditing ? 'Chỉnh Sửa Tin' : 'Đăng Tin Mới'}</h1>
         <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-gray-100 border border-gray-200">
@@ -340,16 +352,19 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       </div>
 
       {!isEditing && (
-          <div className="bg-gray-100 p-1 rounded-xl flex max-w-md mx-auto">
+          <div className="bg-gray-100 p-1 rounded-xl flex max-w-md mx-auto mb-8">
             <button onClick={() => setListingType('normal')} className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase transition-all ${listingType === 'normal' ? 'bg-white shadow text-primary' : 'text-gray-400'}`}>📦 Bán đồ cũ</button>
             <button onClick={() => setListingType('affiliate')} className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase transition-all ${listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow' : 'text-gray-400'}`}>💰 Tiếp thị VIP</button>
           </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      {/* --- BỐ CỤC 2 CỘT CHO DESKTOP --- */}
+      <div className="grid lg:grid-cols-12 gap-8">
         
-        {/* CỘT TRÁI: MEDIA */}
-        <div className="space-y-4">
+        {/* CỘT TRÁI: MEDIA + QUY TẮC (Sidebar) */}
+        <div className="lg:col-span-4 space-y-6">
+           
+           {/* Box Upload Media */}
            {listingType === 'affiliate' && !isVip ? (
               <div className="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center space-y-4">
                   <div className="text-4xl">👑</div>
@@ -358,13 +373,13 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                   <Link to="/upgrade" className="block w-full bg-orange-500 text-white py-4 rounded-xl font-bold text-xs">Nâng cấp ngay</Link>
               </div>
            ) : (
-              <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
                 <div className="flex justify-between items-center mb-4">
                     <label className={labelStyle}>Media ({formData.images.length}/{currentTierConfig.maxImages})</label>
                     {aiAnalyzing && <span className="text-[9px] font-bold text-blue-500 animate-pulse uppercase">AI Đang quét...</span>}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   {/* Danh sách ảnh */}
                   {formData.images.map((img, i) => (
                     <div key={i} className="aspect-square rounded-xl overflow-hidden border border-gray-200 relative group">
@@ -375,9 +390,9 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                   
                   {/* Nút thêm ảnh */}
                   {formData.images.length < currentTierConfig.maxImages && (
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary">
-                      <span className="text-2xl">+</span>
-                      <span className="text-[8px] font-bold uppercase">Tải ảnh</span>
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-all">
+                      <span className="text-3xl font-light">+</span>
+                      <span className="text-[9px] font-black uppercase mt-1">Tải ảnh</span>
                     </button>
                   )}
 
@@ -388,9 +403,9 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                         onClick={handleVideoClick}
                         className={`aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center transition-all ${currentTierConfig.allowVideo ? 'bg-blue-50 border-blue-200 text-blue-500 hover:border-blue-400' : 'bg-gray-50 border-gray-200 text-gray-300 opacity-50 cursor-not-allowed'}`}
                       >
-                         <span className="text-xl">📹</span>
-                         <span className="text-[8px] font-black uppercase">Video ngắn</span>
-                         {!currentTierConfig.allowVideo && <span className="text-[7px] text-red-400">Lock</span>}
+                         <span className="text-2xl">📹</span>
+                         <span className="text-[9px] font-black uppercase mt-1">Video</span>
+                         {!currentTierConfig.allowVideo && <span className="text-[7px] text-red-400 mt-0.5 font-bold">VIP Only</span>}
                       </button>
                   ) : (
                     <div className="aspect-square rounded-xl overflow-hidden border border-blue-200 relative group shadow-lg">
@@ -402,54 +417,87 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 
                 <input type="file" ref={fileInputRef} onChange={handleImageUpload} multiple accept="image/*" className="hidden" />
                 <input type="file" ref={videoInputRef} onChange={handleVideoChange} accept="video/*" className="hidden" />
+                <p className="text-[9px] text-gray-400 text-center mt-3 font-medium italic">Tối đa {currentTierConfig.maxImages} ảnh & 1 video</p>
               </div>
            )}
+
+           {/* Box Quy tắc (Đã chuyển sang trái) */}
+           <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl space-y-4">
+                <div className="flex items-center gap-2 text-blue-600">
+                    <span className="text-xl">🛡️</span>
+                    <h3 className="font-black text-xs uppercase">Quy tắc đăng tin</h3>
+                </div>
+                <ul className="space-y-3">
+                    {[
+                        "Không đăng hàng cấm, hàng giả.",
+                        "Hình ảnh rõ nét, không chèn SĐT.",
+                        "Giá bán niêm yết rõ ràng.",
+                        "Mô tả trung thực về sản phẩm.",
+                        "Tin đăng trùng lặp sẽ bị xóa."
+                    ].map((rule, i) => (
+                        <li key={i} className="flex gap-2 text-[10px] text-gray-600 font-medium leading-relaxed">
+                            <span className="text-blue-400">•</span>
+                            {rule}
+                        </li>
+                    ))}
+                </ul>
+            </div>
+
+            {/* Box Mẹo Bán Nhanh (Đã chuyển sang trái) */}
+            <div className="bg-yellow-50/50 border border-yellow-100 p-5 rounded-2xl space-y-4">
+                <div className="flex items-center gap-2 text-yellow-600">
+                    <span className="text-xl">⚡</span>
+                    <h3 className="font-black text-xs uppercase">Mẹo bán nhanh</h3>
+                </div>
+                <ul className="space-y-3">
+                    <li className="flex gap-2 text-[10px] text-gray-600 font-medium"><span className="text-yellow-400">★</span> Nên có Video quay thực tế.</li>
+                    <li className="flex gap-2 text-[10px] text-gray-600 font-medium"><span className="text-yellow-400">★</span> Viết tiêu đề đầy đủ tên hãng.</li>
+                    <li className="flex gap-2 text-[10px] text-gray-600 font-medium"><span className="text-yellow-400">★</span> Chia sẻ tin lên Facebook.</li>
+                </ul>
+            </div>
         </div>
 
-        {/* CỘT GIỮA & PHẢI: FORM */}
-        <div className="lg:col-span-2 flex flex-col lg:flex-row gap-6">
-          
-          {/* CỘT GIỮA: INPUTS CHÍNH */}
-          <div className="flex-1">
+        {/* CỘT PHẢI: FORM CHÍNH (Main Content) */}
+        <div className="lg:col-span-8">
               {(listingType === 'normal' || isVip) && (
-                  <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-4">
+                  <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-3xl p-8 shadow-xl shadow-gray-100/50 space-y-6">
                     
                     {listingType === 'affiliate' && (
-                        <div className="space-y-1 bg-orange-50 p-4 rounded-xl border border-orange-100">
+                        <div className="space-y-2 bg-orange-50 p-6 rounded-2xl border border-orange-100">
                             <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest px-1">Link Tiếp Thị Liên Kết *</label>
-                            <input type="url" required placeholder="Dán link Shopee, Lazada..." value={formData.affiliateLink || ''} onChange={(e) => setFormData({...formData, affiliateLink: e.target.value})} className="w-full bg-white border border-orange-200 rounded-xl p-3 font-bold text-sm focus:outline-none focus:border-orange-500 text-orange-700" />
+                            <input type="url" required placeholder="Dán link Shopee, Lazada..." value={formData.affiliateLink || ''} onChange={(e) => setFormData({...formData, affiliateLink: e.target.value})} className="w-full bg-white border border-orange-200 rounded-xl p-4 font-bold text-sm focus:outline-none focus:border-orange-500 text-orange-700 placeholder-orange-300" />
                         </div>
                     )}
 
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       <label className={labelStyle}>Tiêu đề *</label>
-                      <input type="text" placeholder="Tên sản phẩm..." value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className={inputStyle} />
+                      <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max 256GB Chính hãng..." value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className={inputStyle} />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2">
                         <label className={labelStyle}>Danh mục *</label>
                         <select value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value, attributes: {}})} className={inputStyle}>
                           <option value="">-- Chọn --</option>
                           {CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                         </select>
                       </div>
-                      <div className="space-y-1">
-                        <label className={labelStyle}>Giá bán *</label>
-                        <input type="number" placeholder="VNĐ" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className={inputStyle} />
+                      <div className="space-y-2">
+                        <label className={labelStyle}>Giá bán (VNĐ) *</label>
+                        <input type="number" placeholder="0" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className={inputStyle} />
                       </div>
                     </div>
 
                     {renderDynamicFields()}
 
-                    <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
+                    <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-2">
                             <label className={labelStyle}>Khu vực</label>
                             <select value={formData.location} onChange={(e) => setFormData({...formData, location: e.target.value})} className={inputStyle}>
                                 {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
                             </select>
                           </div>
-                          <div className="space-y-1">
+                          <div className="space-y-2">
                             <label className={labelStyle}>Tình trạng</label>
                             <select value={formData.condition} onChange={(e) => setFormData({...formData, condition: e.target.value as any})} className={inputStyle}>
                                 <option value="used">Đã qua sử dụng</option>
@@ -458,73 +506,41 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                           </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <div className="flex justify-between">
-                          <label className={labelStyle}>Địa chỉ</label>
-                          <button type="button" onClick={handleManualLocate} className="text-[9px] font-bold text-blue-500 uppercase">📍 Định vị</button>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-end px-1">
+                          <label className={labelStyle}>Địa chỉ chi tiết</label>
+                          <button type="button" onClick={handleManualLocate} className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 hover:text-blue-600">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                              Lấy vị trí hiện tại
+                          </button>
                       </div>
-                      <textarea value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className={`${inputStyle} h-20 resize-none`} placeholder="Địa chỉ chi tiết..." />
+                      <textarea value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className={`${inputStyle} h-24 resize-none`} placeholder="Số nhà, đường, phường/xã..." />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className={labelStyle}>Mô tả</label>
-                      <textarea value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} className={`${inputStyle} h-28`} placeholder="Mô tả chi tiết sản phẩm..." />
+                    <div className="space-y-2">
+                      <label className={labelStyle}>Mô tả chi tiết</label>
+                      <textarea value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} className={`${inputStyle} h-40 leading-relaxed`} placeholder="Mô tả kỹ về sản phẩm, tình trạng, phụ kiện đi kèm..." />
                     </div>
 
-                    <div className="flex items-center gap-2 pt-2">
-                        <input type="checkbox" checked={agreedToRules} onChange={e => setAgreedToRules(e.target.checked)} className="w-4 h-4 text-primary rounded" />
-                        <span className="text-[10px] font-bold text-gray-500 uppercase">Đồng ý quy tắc cộng đồng</span>
+                    <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
+                        <input type="checkbox" id="rules" checked={agreedToRules} onChange={e => setAgreedToRules(e.target.checked)} className="w-5 h-5 text-primary rounded border-gray-300 focus:ring-primary" />
+                        <label htmlFor="rules" className="text-[11px] font-bold text-gray-500 uppercase cursor-pointer select-none">Tôi cam kết tuân thủ quy tắc cộng đồng của Chợ Của Tui</label>
                     </div>
 
-                    <button type="submit" disabled={loading} className={`w-full py-4 rounded-xl font-black text-xs uppercase shadow-lg text-white ${listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-primary hover:bg-primaryHover'}`}>
-                        {loading ? 'Đang xử lý...' : (isEditing ? 'Lưu thay đổi' : (listingType === 'affiliate' ? 'Đăng tin kiếm tiền' : 'Đăng tin bán'))}
+                    <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl font-black text-sm uppercase shadow-xl text-white transition-all transform active:scale-95 ${listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500 shadow-orange-200' : 'bg-primary hover:bg-primaryHover shadow-primary/30'}`}>
+                        {loading ? (
+                            <span className="flex items-center justify-center gap-2">
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                Đang xử lý...
+                            </span>
+                        ) : (
+                            isEditing ? 'Lưu thay đổi' : (listingType === 'affiliate' ? 'Đăng tin kiếm tiền ngay' : 'Đăng tin bán ngay')
+                        )}
                     </button>
                   </form>
               )}
-          </div>
-
-          {/* CỘT PHẢI: QUY TẮC ĐĂNG TIN (ĐÃ KHÔI PHỤC) */}
-          <div className="lg:w-64 space-y-6">
-              {/* Box Quy tắc */}
-              <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl space-y-4">
-                  <div className="flex items-center gap-2 text-blue-600">
-                      <span className="text-xl">🛡️</span>
-                      <h3 className="font-black text-xs uppercase">Quy tắc đăng tin</h3>
-                  </div>
-                  <ul className="space-y-3">
-                      {[
-                          "Không đăng hàng cấm, hàng giả.",
-                          "Hình ảnh rõ nét, không chèn SĐT.",
-                          "Giá bán niêm yết rõ ràng.",
-                          "Mô tả trung thực về sản phẩm.",
-                          "Tin đăng trùng lặp sẽ bị xóa."
-                      ].map((rule, i) => (
-                          <li key={i} className="flex gap-2 text-[10px] text-gray-600 font-medium leading-relaxed">
-                              <span className="text-blue-400">•</span>
-                              {rule}
-                          </li>
-                      ))}
-                  </ul>
-                  <div className="pt-2 border-t border-blue-100">
-                      <p className="text-[9px] text-blue-400 text-center font-bold">Vi phạm sẽ bị khóa tài khoản vĩnh viễn.</p>
-                  </div>
-              </div>
-
-              {/* Box Mẹo Bán Nhanh */}
-              <div className="bg-yellow-50/50 border border-yellow-100 p-5 rounded-2xl space-y-4">
-                  <div className="flex items-center gap-2 text-yellow-600">
-                      <span className="text-xl">⚡</span>
-                      <h3 className="font-black text-xs uppercase">Mẹo bán nhanh</h3>
-                  </div>
-                  <ul className="space-y-3">
-                      <li className="flex gap-2 text-[10px] text-gray-600 font-medium"><span className="text-yellow-400">★</span> Nên có Video quay thực tế.</li>
-                      <li className="flex gap-2 text-[10px] text-gray-600 font-medium"><span className="text-yellow-400">★</span> Viết tiêu đề đầy đủ tên hãng.</li>
-                      <li className="flex gap-2 text-[10px] text-gray-600 font-medium"><span className="text-yellow-400">★</span> Chia sẻ tin lên Facebook.</li>
-                  </ul>
-              </div>
-          </div>
-
         </div>
+
       </div>
     </div>
   );

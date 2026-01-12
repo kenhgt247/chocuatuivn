@@ -47,12 +47,12 @@ const ATTRIBUTE_LABELS: Record<string, { label: string; icon: React.ReactNode }>
   mileage: { label: 'Odo (Km)', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
   year: { label: 'Năm SX', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
   gearbox: { label: 'Hộp số', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg> },
-  fuel: { label: 'Nhiên liệu', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> }, // Icon năng lượng chung
-  carType: { label: 'Kiểu dáng', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg> }, // Icon chung
+  fuel: { label: 'Nhiên liệu', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
+  carType: { label: 'Kiểu dáng', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg> },
   seatCount: { label: 'Số chỗ', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.536 8.464a5 5 0 000 7.072m-2.828-9.9a9 9 0 000 12.728" /></svg> },
   area: { label: 'Diện tích', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg> },
   bedrooms: { label: 'Phòng ngủ', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> },
-  bathrooms: { label: 'Số WC', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21H3m18-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14" /></svg> }, // Icon toà nhà tượng trưng
+  bathrooms: { label: 'Số WC', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21H3m18-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14" /></svg> },
   direction: { label: 'Hướng', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg> },
   legal: { label: 'Pháp lý', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
   propertyType: { label: 'Loại hình', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> },
@@ -119,11 +119,31 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     window.scrollTo(0, 0);
   }, [id, user]);
 
+  // [CẬP NHẬT] THUẬT TOÁN SẮP XẾP: VIP > Basic > Free, rồi mới đến Thời gian
   const similarListings = useMemo(() => {
     if (!listing) return [];
+    
+    // Hàm tính điểm ưu tiên (VIP Score)
+    const getTierScore = (tier?: string) => {
+        if (tier === 'pro') return 3;
+        if (tier === 'basic') return 2;
+        return 1;
+    };
+
     return allListings
       .filter(l => l.id !== listing.id && l.category === listing.category)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .sort((a, b) => {
+          // 1. So sánh điểm VIP trước
+          const scoreA = getTierScore(a.tier);
+          const scoreB = getTierScore(b.tier);
+          
+          if (scoreA !== scoreB) {
+              return scoreB - scoreA; // Điểm cao xếp trên
+          }
+          
+          // 2. Nếu cùng điểm VIP, so sánh thời gian (Mới nhất lên đầu)
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      })
       .slice(0, 12);
   }, [allListings, listing]);
 
@@ -141,7 +161,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
   const handleStartChat = async () => {
     if (!user) return navigate('/login');
-    if (isOwner) return; // Chính chủ không chat với mình
+    if (isOwner) return; 
     setIsChatLoading(true);
     try {
         const roomId = await db.createChatRoom(listing, user);
@@ -186,7 +206,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   return (
     <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-6 pb-24 font-sans">
       
-      {/* BREADCRUMB - Vector Arrow */}
+      {/* BREADCRUMB */}
       <nav className="flex items-center gap-2 text-[10px] md:text-xs font-bold uppercase tracking-widest text-gray-400 px-4 md:px-0">
         <Link to="/" className="hover:text-primary transition-colors">Trang chủ</Link>
         <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -293,7 +313,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             ))}
           </div>
 
-          {/* ATTRIBUTES - VECTOR ICONS */}
+          {/* ATTRIBUTES */}
           {listing.attributes && Object.keys(listing.attributes).length > 0 && (
             <div className="bg-white md:rounded-[2rem] p-8 border border-gray-100 shadow-sm">
               <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-8 border-l-4 border-primary pl-4 flex items-center gap-2">
@@ -357,6 +377,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold">{formatTimeAgo(listing.createdAt)}</span>
                         {listing.viewCount !== undefined && <span className="bg-gray-100 px-2 py-0.5 rounded text-[10px] font-bold text-gray-500">👀 {listing.viewCount} xem</span>}
+                        {listing.tier === 'pro' && <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-[10px] font-black uppercase">VIP PRO</span>}
                     </div>
                 </div>
               </div>
@@ -454,14 +475,14 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                     <MapContainer center={[listing.lat, listing.lng]} zoom={13} style={{ height: '100%', width: '100%' }}>
                         <TileLayer 
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         />
                         <Marker position={[listing.lat, listing.lng]}>
                             <Popup>{listing.address || "Vị trí người bán"}</Popup>
                         </Marker>
                     </MapContainer>
                     {/* Overlay hướng dẫn */}
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${listing.lat},${listing.lng}`} target="_blank" rel="noreferrer" className="absolute top-2 right-2 bg-white/90 backdrop-blur text-blue-600 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm border border-white/50 z-[400] hover:bg-blue-600 hover:text-white transition-colors flex items-center gap-1">
+                    <a href={`http://maps.google.com/maps?q=${listing.lat},${listing.lng}`} target="_blank" rel="noreferrer" className="absolute top-2 right-2 bg-white/90 backdrop-blur text-blue-600 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm border border-white/50 z-[400] hover:bg-blue-600 hover:text-white transition-colors flex items-center gap-1">
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         Chỉ đường
                     </a>

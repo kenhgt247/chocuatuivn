@@ -1,37 +1,30 @@
-// 1. Tăng phiên bản lên để xóa cache cũ
-const CACHE_NAME = 'chocuatui-v2';
+// public/sw.js
 
-// 2. Danh sách các file tĩnh quan trọng nhất (App Shell)
+// 1. Tăng version để trình duyệt biết cần cập nhật
+const CACHE_NAME = 'chocuatui-v3-fix-video';
+
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  // Lưu ý: Không cần cache file CSS/JS cụ thể ở đây vì tên file sẽ đổi sau mỗi lần build.
-  // Chúng ta sẽ cache chúng tự động ở phần fetch bên dưới.
 ];
 
-// --- INSTALL: Cài đặt Service Worker ---
+// --- INSTALL ---
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing...');
+  self.skipWaiting(); // Kích hoạt ngay lập tức
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Caching App Shell');
-      return cache.addAll(STATIC_ASSETS);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
   );
-  // Kích hoạt ngay lập tức không cần chờ reload
-  self.skipWaiting();
 });
 
-// --- ACTIVATE: Xóa Cache cũ khi có phiên bản mới ---
+// --- ACTIVATE ---
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
-            console.log('[SW] Clearing old cache:', cache);
+            console.log('[SW] Xóa cache cũ:', cache);
             return caches.delete(cache);
           }
         })
@@ -41,53 +34,64 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim();
 });
 
-// --- FETCH: Xử lý request mạng ---
+// --- FETCH (QUAN TRỌNG NHẤT) ---
 self.addEventListener('fetch', (event) => {
-  // Chỉ xử lý GET request
-  if (event.request.method !== 'GET') return;
+  const requestUrl = new URL(event.request.url);
 
-  // Bỏ qua các request chrome-extension hoặc không phải http/https
-  if (!event.request.url.startsWith('http')) return;
+  // 1. BỎ QUA KHÔNG XỬ LÝ VIDEO & FIREBASE STORAGE
+  // Để trình duyệt tự xử lý video (Range Requests) -> Fix lỗi lúc hiện lúc không
+  if (
+    requestUrl.pathname.endsWith('.mp4') || 
+    requestUrl.href.includes('firebasestorage.googleapis.com') ||
+    requestUrl.href.includes('video')
+  ) {
+    return; // Return để browser tự fetch trực tiếp từ mạng (Network Only)
+  }
+
+  // 2. Chỉ xử lý GET request http/https
+  if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) return;
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      // 1. Nếu có trong cache thì dùng luôn (Tốc độ cao)
+    (async () => {
+      // A. Thử tìm trong Cache trước
+      const cachedResponse = await caches.match(event.request);
       if (cachedResponse) {
         return cachedResponse;
       }
 
-      // 2. Nếu không có, tải từ mạng
-      return fetch(event.request).then((networkResponse) => {
-        // Kiểm tra response hợp lệ
+      // B. Nếu không có, tải từ Mạng
+      try {
+        const networkResponse = await fetch(event.request);
+
+        // Nếu mạng lỗi hoặc server trả về lỗi (404, 500...), trả về nguyên bản
         if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
           return networkResponse;
         }
 
-        // 3. Logic Cache Động (Dynamic Caching)
-        // Cache các file JS, CSS, Font, Ảnh nội bộ để lần sau dùng offline được
-        // Điều kiện: Là file nội bộ (cùng domain) HOẶC là font Google/ảnh Dicebear
-        const url = event.request.url;
-        
+        // C. Cache lại các file tĩnh (JS, CSS, Font, Ảnh nhỏ)
+        // KHÔNG cache API call hoặc Video
         if (
-           url.match(/\.(js|css|png|jpg|jpeg|svg|ico)$/) || // File tĩnh
-           url.includes('fonts.googleapis.com') ||           // Font
-           url.includes('fonts.gstatic.com') ||              // Font file
-           url.includes('dicebear.com')                      // Avatar
+          requestUrl.pathname.match(/\.(js|css|png|jpg|jpeg|svg|ico|woff2)$/) &&
+          !requestUrl.href.includes('firebasestorage') // Chặn cache ảnh từ Firebase để tránh lỗi CORS
         ) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
         }
 
         return networkResponse;
-      }).catch(() => {
-        // 4. Nếu mất mạng và không có cache -> Trả về trang chủ (Offline Fallback)
-        // Áp dụng cho các đường dẫn điều hướng (HTML)
+
+      } catch (error) {
+        // D. MẤT MẠNG (OFFLINE)
+        // Nếu là request điều hướng trang (HTML) -> Trả về trang chủ hoặc trang Offline
         if (event.request.mode === 'navigate') {
           return caches.match('/index.html');
         }
-      });
-    })
+        
+        // [FIX LỖI FAILED TO CONVERT] Trả về response rỗng thay vì undefined để không crash
+        return new Response('', { status: 408, statusText: 'Request timed out' });
+      }
+    })()
   );
 });

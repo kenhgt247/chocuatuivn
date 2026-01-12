@@ -32,6 +32,9 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const PAGE_SIZE = 10;
 
+  // Kiểm tra xem người xem có phải là chủ sở hữu trang này không
+  const isOwner = currentUser && id && currentUser.id === id;
+
   const loadInitialData = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -55,8 +58,8 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
             console.warn("Chưa lấy được follow stats", e);
         }
 
-        // 3. Kiểm tra xem mình có đang follow người này không
-        if (currentUser) {
+        // 3. Kiểm tra xem mình có đang follow người này không (Chỉ khi không phải chính chủ)
+        if (currentUser && !isOwner) {
             try {
                 const isF = await db.checkIsFollowing(currentUser.id, id);
                 setIsFollowing(isF);
@@ -90,7 +93,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
     } finally {
       setLoading(false);
     }
-  }, [id, currentUser]);
+  }, [id, currentUser, isOwner]);
 
   useEffect(() => {
     loadInitialData();
@@ -128,7 +131,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
   // --- LOGIC FOLLOW ---
   const handleToggleFollow = async () => {
     if (!currentUser) return navigate('/login');
-    if (currentUser.id === id) return;
+    if (isOwner) return;
     
     const prevStatus = isFollowing;
     const prevCount = followStats.followers;
@@ -156,7 +159,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
   // --- LOGIC CHAT THÔNG MINH ---
  const handleStartChat = async () => {
     if (!currentUser) return navigate('/login');
-    if (!seller || currentUser.id === seller.id) return;
+    if (!seller || isOwner) return;
 
     setChatLoading(true);
     try {
@@ -236,7 +239,6 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-6 border-y border-gray-100">
-               {/* FIX MÀU SẮC TRIỆT ĐỂ: DÙNG SVG THAY VÌ TEXT */}
                <div>
                  <div className="flex items-center justify-center md:justify-start gap-2">
                    <span className="text-2xl font-black text-textMain">{avgRating}</span>
@@ -265,21 +267,35 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
                <div><p className="text-2xl font-black text-green-600">99%</p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Phản hồi</p></div>
             </div>
 
+            {/* [SỬA ĐỔI QUAN TRỌNG] LOGIC HIỂN THỊ NÚT BẤM */}
             <div className="flex flex-wrap gap-4 pt-2">
-              <button 
-                onClick={handleToggleFollow} 
-                className={`flex-1 md:flex-none min-w-[160px] px-8 py-4 rounded-2xl font-black text-xs transition-all uppercase tracking-widest ${isFollowing ? 'bg-gray-100 text-gray-400' : 'bg-primary text-white shadow-xl shadow-primary/20 hover:scale-105 active:scale-95'}`}
-              >
-                {isFollowing ? 'Đang theo dõi ✓' : '+ Theo dõi'}
-              </button>
-              
-              <button 
-                onClick={handleStartChat} 
-                disabled={chatLoading}
-                className="flex-1 md:flex-none min-w-[160px] px-8 py-4 bg-white border-2 border-primary text-primary rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary/5 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-wait"
-              >
-                {chatLoading ? 'Đang kết nối...' : 'Nhắn tin'}
-              </button>
+              {isOwner ? (
+                  // Nếu là Chính chủ -> Hiện nút Chỉnh sửa
+                  <Link 
+                    to="/profile" 
+                    className="flex-1 md:flex-none min-w-[200px] bg-gray-100 text-gray-600 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-all shadow-sm"
+                  >
+                    ⚙️ Chỉnh sửa hồ sơ
+                  </Link>
+              ) : (
+                  // Nếu là Khách -> Hiện nút Follow & Chat
+                  <>
+                      <button 
+                        onClick={handleToggleFollow} 
+                        className={`flex-1 md:flex-none min-w-[160px] px-8 py-4 rounded-2xl font-black text-xs transition-all uppercase tracking-widest ${isFollowing ? 'bg-gray-100 text-gray-400' : 'bg-primary text-white shadow-xl shadow-primary/20 hover:scale-105 active:scale-95'}`}
+                      >
+                        {isFollowing ? 'Đang theo dõi ✓' : '+ Theo dõi'}
+                      </button>
+                      
+                      <button 
+                        onClick={handleStartChat} 
+                        disabled={chatLoading}
+                        className="flex-1 md:flex-none min-w-[160px] px-8 py-4 bg-white border-2 border-primary text-primary rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary/5 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-wait"
+                      >
+                        {chatLoading ? 'Đang kết nối...' : 'Nhắn tin'}
+                      </button>
+                  </>
+              )}
             </div>
           </div>
         </div>
@@ -326,7 +342,6 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
               </>
             ) : (
               <div className="bg-white border border-borderMain rounded-[3rem] p-8 md:p-12 shadow-soft">
-                {/* Lưu ý: Nếu phần danh sách đánh giá bên dưới vẫn chưa đổi màu, hãy kiểm tra file ReviewSection.tsx nhé */}
                 <ReviewSection targetId={seller.id} targetType="user" currentUser={currentUser} />
               </div>
             )}

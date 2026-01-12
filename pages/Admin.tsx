@@ -289,7 +289,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       )}
 
-      {/* KYC Modal & Edit Modal (Giữ nguyên) */}
+      {/* KYC Modal & Edit Modal */}
       {verifyModal.show && verifyModal.user && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <div className="bg-white w-full max-w-3xl rounded-[2rem] p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
@@ -392,13 +392,21 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                     </td>
                                     <td className="py-4">
                                         <div className="flex items-center gap-3">
-                                            <img src={l.images[0]} className="w-10 h-10 rounded-lg object-cover bg-gray-100" />
+                                            {/* [FIX] THÊM BIỂU TƯỢNG VIDEO Ở ĐÂY */}
+                                            <div className="relative w-10 h-10 flex-shrink-0">
+                                                <img src={l.images[0]} className="w-full h-full rounded-lg object-cover bg-gray-100" />
+                                                {l.videoUrl && (
+                                                    <div className="absolute -bottom-1 -right-1 bg-red-500 text-white w-4 h-4 flex items-center justify-center rounded-full text-[8px] border border-white z-10 shadow-sm" title="Có Video">
+                                                        🎥
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
                                             <div className="min-w-0 max-w-[200px]">
                                                 <Link to={getListingUrl(l)} target="_blank" className="text-xs font-black truncate block hover:text-primary">
                                                     {l.title}
                                                 </Link>
                                                 <p className="text-[10px] text-primary font-bold">{formatPrice(l.price)}</p>
-                                                {/* Hiển thị link gốc nếu là Affiliate */}
                                                 {l.affiliateLink && (
                                                     <a href={l.affiliateLink} target="_blank" rel="noreferrer" className="text-[9px] text-blue-500 hover:underline flex items-center gap-1 mt-0.5">
                                                         <span>🔗 Link Gốc</span>
@@ -407,7 +415,6 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                             </div>
                                         </div>
                                     </td>
-                                    {/* Cột Loại tin mới */}
                                     <td className="py-4">
                                         {l.affiliateLink ? (
                                             <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-[9px] font-black uppercase border border-orange-200">
@@ -473,31 +480,31 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                   <form onSubmit={handleSaveSettings} className="space-y-12">
                     
                     {/* 1. Cấu hình Phí & Ưu đãi */}
-<div className="space-y-6">
-   <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-       <span className="w-2 h-2 bg-primary rounded-full"></span> Quản lý Chiết khấu & Giá
-   </h4>
-   <div className="grid md:grid-cols-3 gap-6 bg-gray-50 p-6 rounded-[2rem]">
-       <div className="space-y-2">
-           <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giá Đẩy Tin (đ)</label>
-           <input type="number" value={settings.pushPrice} onChange={e => setSettings({...settings, pushPrice: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold" />
-       </div>
-       <div className="space-y-2">
-           <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giảm giá Đẩy Tin (%)</label>
-           <input type="number" value={settings.pushDiscount} onChange={e => setSettings({...settings, pushDiscount: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-red-500" />
-       </div>
-       <div className="space-y-2">
-           <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giảm giá Gói VIP (%)</label>
-           <input type="number" value={settings.tierDiscount} onChange={e => setSettings({...settings, tierDiscount: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-red-500" />
-       </div>
-   </div>
-</div>
+                    <div className="space-y-6">
+                       <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                           <span className="w-2 h-2 bg-primary rounded-full"></span> Quản lý Chiết khấu & Giá
+                       </h4>
+                       <div className="grid md:grid-cols-3 gap-6 bg-gray-50 p-6 rounded-[2rem]">
+                           <div className="space-y-2">
+                               <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giá Đẩy Tin (đ)</label>
+                               <input type="number" value={settings.pushPrice} onChange={e => setSettings({...settings, pushPrice: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold" />
+                           </div>
+                           <div className="space-y-2">
+                               <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giảm giá Đẩy Tin (%)</label>
+                               <input type="number" value={settings.pushDiscount} onChange={e => setSettings({...settings, pushDiscount: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-red-500" />
+                           </div>
+                           <div className="space-y-2">
+                               <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giảm giá Gói VIP (%)</label>
+                               <input type="number" value={settings.tierDiscount} onChange={e => setSettings({...settings, tierDiscount: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-red-500" />
+                           </div>
+                       </div>
+                    </div>
 
-                    {/* 2. Quản lý Banner (Giữ nguyên logic cũ) */}
+                    {/* 2. Quản lý Banner */}
                     <div className="space-y-6 pt-6 border-t border-gray-100">
                         <div className="flex items-center justify-between">
                              <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                                 <span className="w-2 h-2 bg-orange-500 rounded-full"></span> Quản lý Banner Slide
+                                  <span className="w-2 h-2 bg-orange-500 rounded-full"></span> Quản lý Banner Slide
                              </h4>
                              <button 
                                  type="button"
@@ -533,10 +540,10 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                                  const newSlides = [...(settings.bannerSlides || [])];
                                                  newSlides[idx].type = e.target.value;
                                                  setSettings({...settings, bannerSlides: newSlides});
-                                             }} className="bg-gray-50 border-none text-[10px] font-black rounded-lg py-1 px-2 focus:ring-0">
+                                            }} className="bg-gray-50 border-none text-[10px] font-black rounded-lg py-1 px-2 focus:ring-0">
                                                  <option value="text">Dạng Chữ</option>
                                                  <option value="image">Dạng Ảnh</option>
-                                             </select>
+                                            </select>
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <label className="flex items-center cursor-pointer gap-2">
@@ -614,102 +621,97 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                         </div>
                     </div>
 
-                   {/* 3. Cấu hình các Gói Thành Viên (CẬP NHẬT QUYỀN VIDEO) */}
-<div className="space-y-6 pt-6 border-t border-gray-100">
-    <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-        <span className="w-2 h-2 bg-primary rounded-full"></span> Đặc quyền & Hạn mức Gói
-    </h4>
-    <div className="grid lg:grid-cols-3 gap-6">
-        {(['free', 'basic', 'pro'] as const).map((tierKey) => (
-            <div key={tierKey} className={`p-6 rounded-[2.5rem] border-2 space-y-5 transition-all ${tierKey === 'pro' ? 'border-yellow-400 bg-yellow-50/20' : tierKey === 'basic' ? 'border-blue-200 bg-blue-50/10' : 'border-gray-100 bg-gray-50/30'}`}>
-                
-                {/* Tên gói */}
-                <div className="space-y-1">
-                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tên gói hiển thị</label>
-                    <input type="text" value={(settings.tierConfigs as any)[tierKey].name} onChange={e => {
-                        const newConfigs = { ...settings.tierConfigs };
-                        (newConfigs as any)[tierKey].name = e.target.value;
-                        setSettings({...settings, tierConfigs: newConfigs});
-                    }} className="w-full bg-white border border-gray-100 rounded-xl p-3 text-xs font-black uppercase" />
-                </div>
+                    {/* 3. Cấu hình các Gói Thành Viên */}
+                    <div className="space-y-6 pt-6 border-t border-gray-100">
+                        <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                            <span className="w-2 h-2 bg-primary rounded-full"></span> Đặc quyền & Hạn mức Gói
+                        </h4>
+                        <div className="grid lg:grid-cols-3 gap-6">
+                            {(['free', 'basic', 'pro'] as const).map((tierKey) => (
+                                <div key={tierKey} className={`p-6 rounded-[2.5rem] border-2 space-y-5 transition-all ${tierKey === 'pro' ? 'border-yellow-400 bg-yellow-50/20' : tierKey === 'basic' ? 'border-blue-200 bg-blue-50/10' : 'border-gray-100 bg-gray-50/30'}`}>
+                                    
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tên gói hiển thị</label>
+                                        <input type="text" value={(settings.tierConfigs as any)[tierKey].name} onChange={e => {
+                                            const newConfigs = { ...settings.tierConfigs };
+                                            (newConfigs as any)[tierKey].name = e.target.value;
+                                            setSettings({...settings, tierConfigs: newConfigs});
+                                        }} className="w-full bg-white border border-gray-100 rounded-xl p-3 text-xs font-black uppercase" />
+                                    </div>
 
-                {/* Giá và Số ảnh */}
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Giá (VNĐ)</label>
-                        <input type="number" value={(settings.tierConfigs as any)[tierKey].price} onChange={e => {
-                            const newConfigs = { ...settings.tierConfigs };
-                            (newConfigs as any)[tierKey].price = parseInt(e.target.value);
-                            setSettings({...settings, tierConfigs: newConfigs});
-                        }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black" />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Ảnh tối đa</label>
-                        <input type="number" value={(settings.tierConfigs as any)[tierKey].maxImages} onChange={e => {
-                            const newConfigs = { ...settings.tierConfigs };
-                            (newConfigs as any)[tierKey].maxImages = parseInt(e.target.value);
-                            setSettings({...settings, tierConfigs: newConfigs});
-                        }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black" />
-                    </div>
-                </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Giá (VNĐ)</label>
+                                            <input type="number" value={(settings.tierConfigs as any)[tierKey].price} onChange={e => {
+                                                const newConfigs = { ...settings.tierConfigs };
+                                                (newConfigs as any)[tierKey].price = parseInt(e.target.value);
+                                                setSettings({...settings, tierConfigs: newConfigs});
+                                            }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Ảnh tối đa</label>
+                                            <input type="number" value={(settings.tierConfigs as any)[tierKey].maxImages} onChange={e => {
+                                                const newConfigs = { ...settings.tierConfigs };
+                                                (newConfigs as any)[tierKey].maxImages = parseInt(e.target.value);
+                                                setSettings({...settings, tierConfigs: newConfigs});
+                                            }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black" />
+                                        </div>
+                                    </div>
 
-                {/* Tin đăng và QUYỀN VIDEO (QUAN TRỌNG) */}
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tin/ngày</label>
-                        <input type="number" value={(settings.tierConfigs as any)[tierKey].postsPerDay || 0} onChange={e => {
-                            const newConfigs = { ...settings.tierConfigs };
-                            (newConfigs as any)[tierKey].postsPerDay = parseInt(e.target.value);
-                            setSettings({...settings, tierConfigs: newConfigs});
-                        }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black text-primary" />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Quyền Đăng Video</label>
-                        <select 
-                            value={(settings.tierConfigs as any)[tierKey].allowVideo ? "true" : "false"}
-                            onChange={e => {
-                                const newConfigs = { ...settings.tierConfigs };
-                                (newConfigs as any)[tierKey].allowVideo = e.target.value === "true";
-                                setSettings({...settings, tierConfigs: newConfigs});
-                            }}
-                            className={`w-full border rounded-xl p-2.5 text-[10px] font-black uppercase transition-colors ${(settings.tierConfigs as any)[tierKey].allowVideo ? 'bg-green-50 border-green-200 text-green-600' : 'bg-white border-gray-100 text-gray-400'}`}
-                        >
-                            <option value="false">❌ KHÓA</option>
-                            <option value="true">✅ MỞ</option>
-                        </select>
-                    </div>
-                </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tin/ngày</label>
+                                            <input type="number" value={(settings.tierConfigs as any)[tierKey].postsPerDay || 0} onChange={e => {
+                                                const newConfigs = { ...settings.tierConfigs };
+                                                (newConfigs as any)[tierKey].postsPerDay = parseInt(e.target.value);
+                                                setSettings({...settings, tierConfigs: newConfigs});
+                                            }} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-xs font-black text-primary" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Quyền Đăng Video</label>
+                                            <select 
+                                                value={(settings.tierConfigs as any)[tierKey].allowVideo ? "true" : "false"}
+                                                onChange={e => {
+                                                    const newConfigs = { ...settings.tierConfigs };
+                                                    (newConfigs as any)[tierKey].allowVideo = e.target.value === "true";
+                                                    setSettings({...settings, tierConfigs: newConfigs});
+                                                }}
+                                                className={`w-full border rounded-xl p-2.5 text-[10px] font-black uppercase transition-colors ${(settings.tierConfigs as any)[tierKey].allowVideo ? 'bg-green-50 border-green-200 text-green-600' : 'bg-white border-gray-100 text-gray-400'}`}
+                                            >
+                                                <option value="false">❌ KHÓA</option>
+                                                <option value="true">✅ MỞ</option>
+                                            </select>
+                                        </div>
+                                    </div>
 
-                {/* Chế độ duyệt */}
-                <div className="space-y-1">
-                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Chế độ kiểm duyệt</label>
-                    <select 
-                        value={(settings.tierConfigs as any)[tierKey].autoApprove ? "true" : "false"}
-                        onChange={e => {
-                            const newConfigs = { ...settings.tierConfigs };
-                            (newConfigs as any)[tierKey].autoApprove = e.target.value === "true";
-                            setSettings({...settings, tierConfigs: newConfigs});
-                        }}
-                        className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-[10px] font-black uppercase"
-                    >
-                        <option value="false">⏳ Phải duyệt tay</option>
-                        <option value="true">🚀 Duyệt tự động</option>
-                    </select>
-                </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Chế độ kiểm duyệt</label>
+                                        <select 
+                                            value={(settings.tierConfigs as any)[tierKey].autoApprove ? "true" : "false"}
+                                            onChange={e => {
+                                                const newConfigs = { ...settings.tierConfigs };
+                                                (newConfigs as any)[tierKey].autoApprove = e.target.value === "true";
+                                                setSettings({...settings, tierConfigs: newConfigs});
+                                            }}
+                                            className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-[10px] font-black uppercase"
+                                        >
+                                            <option value="false">⏳ Phải duyệt tay</option>
+                                            <option value="true">🚀 Duyệt tự động</option>
+                                        </select>
+                                    </div>
 
-                {/* Danh sách tính năng */}
-                <div className="space-y-1">
-                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tính năng (Mỗi dòng 1 ý)</label>
-                    <textarea rows={3} value={(settings.tierConfigs as any)[tierKey].features.join('\n')} onChange={e => {
-                        const newConfigs = { ...settings.tierConfigs };
-                        (newConfigs as any)[tierKey].features = e.target.value.split('\n');
-                        setSettings({...settings, tierConfigs: newConfigs});
-                    }} className="w-full bg-white border border-gray-100 rounded-xl p-3 text-[11px] font-medium leading-relaxed" />
-                </div>
-            </div>
-        ))}
-    </div>
-</div>
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Tính năng (Mỗi dòng 1 ý)</label>
+                                        <textarea rows={3} value={(settings.tierConfigs as any)[tierKey].features.join('\n')} onChange={e => {
+                                            const newConfigs = { ...settings.tierConfigs };
+                                            (newConfigs as any)[tierKey].features = e.target.value.split('\n');
+                                            setSettings({...settings, tierConfigs: newConfigs});
+                                        }} className="w-full bg-white border border-gray-100 rounded-xl p-3 text-[11px] font-medium leading-relaxed" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
 
                     {/* 4. Cấu hình Ngân hàng */}
                     <div className="space-y-6 pt-6 border-t border-gray-100">
@@ -733,7 +735,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                         </div>
                     </div>
 
-                    {/* 5. SEO & Công cụ (Giữ nguyên) */}
+                    {/* 5. SEO & Công cụ */}
                     <div className="space-y-6 pt-6 border-t border-gray-100">
                         <h4 className="text-sm font-black uppercase tracking-widest text-gray-800 flex items-center gap-2">
                             <span className="w-2 h-2 bg-gray-800 rounded-full"></span> Công cụ Developer

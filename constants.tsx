@@ -1,27 +1,27 @@
-
 import React from 'react';
 import { Category, Listing, User, SubscriptionTier } from './types';
 
 export const PUSH_LISTING_PRICE = 20000; // Giá đẩy tin: 20.000đ
 
+// [ĐÃ SỬA] ID của danh mục phải là 'bat-dong-san', 'xe-co'... để khớp với logic hiển thị form
 export const CATEGORIES: Category[] = [
-  { id: '1', name: 'Bất động sản', icon: '🏠', slug: 'bat-dong-san' },
-  { id: '2', name: 'Xe cộ', icon: '🚗', slug: 'xe-co' },
-  { id: '3', name: 'Đồ điện tử', icon: '💻', slug: 'do-dien-tu' },
-  { id: '4', name: 'Đồ gia dụng, nội thất', icon: '🛋️', slug: 'do-gia-dung-noi-that' },
-  { id: '5', name: 'Giải trí, Thể thao, Sở thích', icon: '🎨', slug: 'giai-tri-the-thao-so-thich' },
-  { id: '6', name: 'Đồ dùng cá nhân', icon: '👕', slug: 'do-dung-ca-nhan' },
-  { id: '7', name: 'Mẹ và bé', icon: '👶', slug: 'me-va-be' },
-  { id: '8', name: 'Thú cưng', icon: '🐕', slug: 'thu-cung' },
-  { id: '9', name: 'Đồ ăn, thực phẩm', icon: '🍎', slug: 'do-an-thuc-pham' },
-  { id: '10', name: 'Tủ lạnh, máy lạnh, máy giặt', icon: '❄️', slug: 'dien-lanh' },
-  { id: '11', name: 'Việc làm', icon: '💼', slug: 'viec-lam' },
-  { id: '12', name: 'Dịch vụ, Du lịch', icon: '✈️', slug: 'dich-vu-du-lich' },
-  { id: '13', name: 'Các loại khác', icon: '📦', slug: 'cac-loai-khac' },
+  { id: 'bat-dong-san', name: 'Bất động sản', icon: '🏠', slug: 'bat-dong-san' },
+  { id: 'xe-co', name: 'Xe cộ', icon: '🚗', slug: 'xe-co' },
+  { id: 'do-dien-tu', name: 'Đồ điện tử', icon: '💻', slug: 'do-dien-tu' },
+  { id: 'do-gia-dung-noi-that', name: 'Đồ gia dụng, nội thất', icon: '🛋️', slug: 'do-gia-dung-noi-that' },
+  { id: 'giai-tri-the-thao-so-thich', name: 'Giải trí, Thể thao', icon: '🎨', slug: 'giai-tri-the-thao-so-thich' },
+  { id: 'do-dung-ca-nhan', name: 'Đồ dùng cá nhân', icon: '👕', slug: 'do-dung-ca-nhan' },
+  { id: 'me-va-be', name: 'Mẹ và bé', icon: '👶', slug: 'me-va-be' },
+  { id: 'thu-cung', name: 'Thú cưng', icon: '🐕', slug: 'thu-cung' },
+  { id: 'do-an-thuc-pham', name: 'Đồ ăn, thực phẩm', icon: '🍎', slug: 'do-an-thuc-pham' },
+  { id: 'dien-lanh', name: 'Tủ lạnh, máy lạnh', icon: '❄️', slug: 'dien-lanh' },
+  { id: 'viec-lam', name: 'Việc làm', icon: '💼', slug: 'viec-lam' },
+  { id: 'dich-vu-du-lich', name: 'Dịch vụ, Du lịch', icon: '✈️', slug: 'dich-vu-du-lich' },
+  { id: 'cac-loai-khac', name: 'Các loại khác', icon: '📦', slug: 'cac-loai-khac' },
 ];
 
 export const LOCATIONS = [
-  'Toàn quốc', 'TP Hà Nội', 'TP Huế', 'Quảng Ninh', 'Cao Bằng', 'Lạng Sơn', 'Lai Châu', 'Điện Biên', 'Sơn La', 'Thanh Hóa', 'Nghệ An', 'Hà Tĩnh', 'Tuyên Quang', 'Lào Cai', 'Thái Nguyên', 'Phú Thọ', 'Bắc Ninh', 'Hưng Yên', 'TP Hải Phòng', 'Ninh Bình', 'Quảng Trị', 'TP Đà Nẵng', 'Quảng Ngãi', 'Gia Lai', 'Khánh Hòa', 'Lâm Đồng', 'Đánh Lắk', 'TPHCM', 'Đồng Nai', 'Tây Ninh', 'TP Cần Thơ', 'Vĩnh Long', 'Đồng Tháp', 'Cà Mau', 'An Giang'
+  'Toàn quốc', 'TP Hà Nội', 'TP Huế', 'Quảng Ninh', 'Cao Bằng', 'Lạng Sơn', 'Lai Châu', 'Điện Biên', 'Sơn La', 'Thanh Hóa', 'Nghệ An', 'Hà Tĩnh', 'Tuyên Quang', 'Lào Cai', 'Thái Nguyên', 'Phú Thọ', 'Bắc Ninh', 'Hưng Yên', 'TP Hải Phòng', 'Ninh Bình', 'Quảng Trị', 'TP Đà Nẵng', 'Quảng Ngãi', 'Gia Lai', 'Khánh Hòa', 'Lâm Đồng', 'Đắk Lắk', 'TPHCM', 'Đồng Nai', 'Tây Ninh', 'TP Cần Thơ', 'Vĩnh Long', 'Đồng Tháp', 'Cà Mau', 'An Giang'
 ];
 
 export const TIER_CONFIG = {
@@ -86,7 +86,7 @@ export const generateMockListings = (count: number): Listing[] => {
     title: `Sản phẩm mẫu ${i + 1} - ${CATEGORIES[i % CATEGORIES.length].name}`,
     description: `Mô tả chi tiết sản phẩm chất lượng cao, giá cả phải chăng cho sản phẩm thứ ${i + 1}.`,
     price: Math.floor(Math.random() * 500) * 10000 + 50000,
-    category: CATEGORIES[i % CATEGORIES.length].id,
+    category: CATEGORIES[i % CATEGORIES.length].id, // Sử dụng ID mới
     images: [`https://picsum.photos/seed/list${i + 1}/800/600`],
     location: LOCATIONS[(i % (LOCATIONS.length - 1)) + 1],
     sellerId: `u${(i % 2) + 1}`,

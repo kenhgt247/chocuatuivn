@@ -4,36 +4,35 @@ const UniversalInstallPrompt: React.FC = () => {
   const [showPrompt, setShowPrompt] = useState(false);
   const [platform, setPlatform] = useState<'ios' | 'android-pc' | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isInstalling, setIsInstalling] = useState(false); // [MỚI] Trạng thái đang cài đặt
+  const [isInstalling, setIsInstalling] = useState(false);
 
   useEffect(() => {
-    // Logic kiểm tra PWA đã cài đặt chưa
+    // 1. Check if running in standalone mode (already installed)
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
-    if (isStandalone) return;
+    if (isStandalone) return; 
 
-    // Kiểm tra iOS
+    // 2. Check if iOS
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
 
-    // Logic kiểm tra xem người dùng đã đóng prompt chưa và thời gian đóng
+    // 3. Check dismissed timestamp
     const dismissedTimestamp = localStorage.getItem('pwaPromptDismissed');
     const now = Date.now();
-    // Nếu đã đóng, chỉ hiện lại sau 7 ngày (7 * 24 * 60 * 60 * 1000 ms)
     if (dismissedTimestamp && now - parseInt(dismissedTimestamp) < 7 * 24 * 60 * 60 * 1000) {
         return;
     }
 
     if (isIOS) {
       setPlatform('ios');
-      // Delay hiển thị để không che khuất nội dung chính ngay khi vào trang
       const timer = setTimeout(() => setShowPrompt(true), 5000); 
       return () => clearTimeout(timer);
     } else {
-      // Xử lý sự kiện cho Android & PC
+      // 4. Handle 'beforeinstallprompt' event for Android & PC
       const handleBeforeInstallPrompt = (e: any) => {
-        e.preventDefault(); // Ngăn trình duyệt hiển thị prompt mặc định xấu xí
+        e.preventDefault(); 
         setDeferredPrompt(e);
         setPlatform('android-pc');
-        const timer = setTimeout(() => setShowPrompt(true), 5000);
+        // Only show prompt if the event fires (meaning not installed)
+        const timer = setTimeout(() => setShowPrompt(true), 5000); 
       };
 
       window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -46,7 +45,6 @@ const UniversalInstallPrompt: React.FC = () => {
 
   const handleDismiss = () => {
     setShowPrompt(false);
-    // Lưu thời điểm đóng để tính toán thời gian hiển thị lại
     localStorage.setItem('pwaPromptDismissed', Date.now().toString());
   };
 
@@ -55,15 +53,13 @@ const UniversalInstallPrompt: React.FC = () => {
     
     setIsInstalling(true);
     
-    // Hiển thị prompt cài đặt native
     deferredPrompt.prompt();
     
-    // Đợi người dùng phản hồi
     const { outcome } = await deferredPrompt.userChoice;
     
     if (outcome === 'accepted') {
       setShowPrompt(false);
-      setDeferredPrompt(null); // Clear prompt sau khi cài đặt thành công
+      setDeferredPrompt(null); 
     }
     
     setIsInstalling(false);

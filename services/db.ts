@@ -19,14 +19,15 @@ import {
   signInWithPopup,
   signInWithCredential
 } from "firebase/auth";
-// [SỬA LỖI] Gộp import Storage thành 1 dòng duy nhất để tránh lỗi trùng lặp
+// Gộp import Storage thành 1 dòng
 import { getStorage, ref, uploadString, getDownloadURL, uploadBytes } from "firebase/storage";
-// [MỚI] Import Functions
-import { getFunctions, httpsCallable, connectFunctionsEmulator } from "firebase/functions";
+// Import Functions
+import { getFunctions, httpsCallable } from "firebase/functions";
 
-import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus } from '../types';
+// [CẬP NHẬT] Thêm Offer vào import
+import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus, Offer } from '../types';
 
-// [QUAN TRỌNG] IMPORT LOGIC TÌM KIẾM & FORMAT
+// IMPORT LOGIC TÌM KIẾM & FORMAT
 import { isSearchMatch, calculateRelevanceScore, generateKeywords } from '../utils/format';
 
 // 2. CẤU HÌNH ADMIN EMAIL
@@ -103,7 +104,6 @@ export const db = {
     }
   },
 
-  // Tăng lượt xem cho tin đăng
   incrementListingView: async (listingId: string) => {
     try {
         const ref = doc(firestore, "listings", listingId);
@@ -134,7 +134,6 @@ export const db = {
     }
   },
 
-  // [NÂNG CẤP TÌM KIẾM]
   getListingsPaged: async (options: {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
@@ -149,7 +148,7 @@ export const db = {
       const colRef = collection(firestore, "listings");
       let constraints: any[] = [];
 
-      // 1. LOGIC TÌM KIẾM HYBRID (Server + Client)
+      // 1. LOGIC TÌM KIẾM HYBRID
       if (options.search && options.search.trim().length > 0) {
          const searchKeywords = generateKeywords(options.search);
          if (searchKeywords.length > 0) {
@@ -187,7 +186,7 @@ export const db = {
       
       let results = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
 
-      // 6. LỌC TINH (CLIENT-SIDE REFINEMENT)
+      // 6. LỌC TINH (CLIENT-SIDE)
       if (options.search && options.search.trim().length > 0) {
           const queryText = options.search.trim();
           results = results.filter(l => isSearchMatch(l.title, queryText));
@@ -245,12 +244,9 @@ export const db = {
         
         viewCount: 0, 
         
-        // --- [SỬA LỖI QUAN TRỌNG TẠI ĐÂY] ---
-        // Firebase không nhận undefined, phải đổi thành null
         videoUrl: listingData.videoUrl || null, 
         lat: listingData.lat || null, 
         lng: listingData.lng || null,
-        // ------------------------------------
 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -260,7 +256,6 @@ export const db = {
 
       const docRef = await addDoc(collection(firestore, "listings"), dataToSave);
       
-      // Gửi email báo Admin (Giữ nguyên)
       await addDoc(collection(firestore, "mail"), {
         to: [ADMIN_EMAIL],
         message: {
@@ -1054,6 +1049,88 @@ export const db = {
     } catch (e) {
         console.error("Error creating chat room:", e);
         throw e;
+    }
+  },
+
+  // --- I. TÍNH NĂNG MẶC CẢ (OFFERS) ---
+  
+  createOffer: async (listing: Listing, buyer: User, offerPrice: number) => {
+    try {
+      // 1. Tạo bản ghi Offer
+      const offerData: Omit<Offer, 'id'> = {
+        listingId: listing.id,
+        listingTitle: listing.title,
+        listingImage: listing.images[0] || "",
+        
+        buyerId: buyer.id,
+        buyerName: buyer.name,
+        
+        sellerId: listing.sellerId,
+        
+        originalPrice: listing.price,
+        offerPrice: offerPrice,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+      
+      const offerRef = await addDoc(collection(firestore, "offers"), offerData);
+      
+      // 2. Tạo hoặc Lấy phòng chat
+      const roomId = await db.createChatRoom(listing, buyer);
+
+      // 3. Gửi tin nhắn Offer vào Chat
+      const message = {
+        senderId: buyer.id,
+        text: `💰 Đã đề nghị mức giá: ${offerPrice.toLocaleString()} VNĐ`,
+        type: 'offer', 
+        offerId: offerRef.id,
+        isSystem: true
+      };
+      await db.addMessage(roomId, message);
+
+      // 4. Báo cho người bán
+      await db.sendNotification({
+        userId: listing.sellerId,
+        title: "Nhận được lời mặc cả mới!",
+        message: `Khách muốn mua "${listing.title}" với giá ${offerPrice.toLocaleString()}đ`,
+        type: 'offer',
+        link: `/messages/${roomId}` 
+      });
+
+      return { success: true, offerId: offerRef.id };
+    } catch (e: any) {
+      console.error("Lỗi tạo offer:", e);
+      return { success: false, message: e.message };
+    }
+  },
+
+  respondToOffer: async (offerId: string, status: 'accepted' | 'rejected', roomId: string) => {
+    try {
+      await updateDoc(doc(firestore, "offers", offerId), { status });
+
+      const offerSnap = await getDoc(doc(firestore, "offers", offerId));
+      const offerData = offerSnap.data() as Offer;
+
+      const actionText = status === 'accepted' ? "✅ Đã CHẤP NHẬN" : "❌ Đã TỪ CHỐI";
+      const message = {
+        senderId: offerData.sellerId, 
+        text: `${actionText} mức giá ${offerData.offerPrice.toLocaleString()} VNĐ`,
+        type: 'text',
+        isSystem: true
+      };
+      await db.addMessage(roomId, message);
+
+      await db.sendNotification({
+        userId: offerData.buyerId,
+        title: status === 'accepted' ? "Tin vui! Mặc cả thành công" : "Mặc cả thất bại",
+        message: `Người bán đã ${status === 'accepted' ? 'đồng ý' : 'từ chối'} giá bạn đưa ra.`,
+        type: status === 'accepted' ? 'success' : 'error',
+        link: `/messages/${roomId}`
+      });
+
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, message: e.message };
     }
   },
 

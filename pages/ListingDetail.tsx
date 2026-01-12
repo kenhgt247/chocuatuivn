@@ -6,16 +6,18 @@ import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
 import ListingCard from '../components/ListingCard';
 import ShareModal from '../components/ShareModal';
 import ReviewSection from '../components/ReviewSection';
+import OfferModal from '../components/OfferModal'; // [MỚI] Import Modal Mặc cả
 import { CATEGORIES } from '../constants';
 
 // --- IMPORT LEAFLET MAP ---
-import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
+// Fix lỗi icon Leaflet mặc định
 let DefaultIcon = L.icon({
     iconUrl: icon,
     shadowUrl: iconShadow,
@@ -77,20 +79,24 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const { slugWithId } = useParams();
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
-  
+   
   const [listing, setListing] = useState<Listing | null>(null);
   const [seller, setSeller] = useState<User | null>(null);
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [activeMedia, setActiveMedia] = useState(0); 
   const [userFavorites, setUserFavorites] = useState<string[]>([]);
+  
+  // Modals State
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showOfferModal, setShowOfferModal] = useState(false); // [MỚI] State Offer Modal
+
   const [reportReason, setReportReason] = useState("");
   const [reportDetails, setReportDetails] = useState("");
   const [isPhoneVisible, setIsPhoneVisible] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
   
-  // State điều khiển video
+  // Video Controls
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
 
@@ -156,23 +162,36 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     finally { setIsChatLoading(false); }
   };
 
+  // [MỚI] Hàm xử lý Mặc cả
+  const handleMakeOffer = async (offerPrice: number) => {
+    if (!user) {
+        alert("Vui lòng đăng nhập để mặc cả!");
+        navigate('/login');
+        return;
+    }
+    if (user.id === listing.sellerId) {
+        alert("Bạn không thể mặc cả sản phẩm của chính mình!");
+        return;
+    }
+
+    setShowOfferModal(false);
+    const result = await db.createOffer(listing, user, offerPrice);
+    
+    if (result.success) {
+        alert(`✅ Đã gửi đề nghị giá ${offerPrice.toLocaleString()}đ thành công! Chủ shop sẽ trả lời bạn qua Chat.`);
+        // Optional: Chuyển hướng sang chat luôn để xem tin nhắn offer
+        // navigate(`/chat/${result.offerId}`); // Cần chỉnh lại logic navigate nếu muốn
+    } else {
+        alert("Lỗi: " + result.message);
+    }
+  };
+
   const handleReport = async () => {
     if (!user) return navigate('/login');
     if (!reportReason) return alert("Vui lòng chọn lý do báo cáo");
     await db.reportListing({ listingId: listing.id, userId: user.id, reason: reportReason, details: reportDetails });
     alert("Báo cáo của bạn đã được gửi.");
     setShowReportModal(false);
-  };
-
-  const renderVerificationBadge = () => {
-      if (seller?.verificationStatus === 'verified') {
-          return (
-              <span className="bg-blue-500 text-white p-0.5 rounded-full shadow-sm ml-1" title="Đã xác thực danh tính">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>
-              </span>
-          );
-      }
-      return null;
   };
 
   const handleVideoPlayPause = () => {
@@ -201,11 +220,13 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
       <div className="grid lg:grid-cols-12 gap-0 md:gap-8">
         
-        {/* LEFT: MEDIA GALLERY */}
+        {/* LEFT: MEDIA GALLERY & DETAILS */}
         <div className="lg:col-span-8 space-y-6">
+          
+          {/* MEDIA VIEWER */}
           <div className="relative bg-black aspect-square md:aspect-video md:rounded-[2.5rem] overflow-hidden group shadow-2xl border border-gray-800">
             
-            {/* RENDER VIDEO HOẶC ẢNH */}
+            {/* RENDER VIDEO OR IMAGE */}
             {isVideoActive ? (
                 <div className="relative w-full h-full cursor-pointer" onClick={handleVideoPlayPause}>
                     <video 
@@ -221,7 +242,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                         onPause={() => setIsPlaying(false)}
                     />
                     
-                    {/* Nút Play to ở giữa (chỉ hiện khi pause) */}
+                    {/* Play Button Overlay */}
                     {!isPlaying && (
                         <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/30 backdrop-blur-[2px]">
                             <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/50 shadow-xl transition-transform hover:scale-110">
@@ -257,7 +278,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                <span className="text-white text-5xl md:text-7xl font-black uppercase tracking-[0.5em] -rotate-45 whitespace-nowrap drop-shadow-lg">CHỢ CỦA TUI</span>
             </div>
 
-            {/* NAVIGATION BUTTONS */}
+            {/* NAVIGATION */}
             {mediaList.length > 1 && (
               <>
                 <button onClick={() => setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-4 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-40 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-auto border border-white/10">
@@ -274,7 +295,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
           </div>
 
-          {/* THUMBNAILS - Có Badge Video */}
+          {/* THUMBNAILS */}
           <div className="hidden md:flex gap-3 overflow-x-auto no-scrollbar py-2">
             {mediaList.map((item, idx) => (
               <button 
@@ -299,7 +320,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             ))}
           </div>
 
-          {/* ATTRIBUTES GRID */}
+          {/* ATTRIBUTES */}
           {listing.attributes && Object.keys(listing.attributes).length > 0 && (
             <div className="bg-white md:rounded-[2.5rem] p-8 md:p-12 border border-gray-100 shadow-soft">
               <h2 className="text-xs font-black text-primary uppercase tracking-[0.3em] mb-10 border-l-4 border-primary pl-4">Thông số kỹ thuật</h2>
@@ -326,6 +347,23 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Mô tả từ người bán</h2>
             <p className="text-slate-700 leading-relaxed whitespace-pre-wrap font-medium text-lg italic border-l-4 border-slate-100 pl-6">"{listing.description}"</p>
           </div>
+
+          {/* [ĐÃ KHÔI PHỤC] MAP SECTION */}
+          {listing.lat && listing.lng && (
+             <div className="bg-white md:rounded-[2.5rem] overflow-hidden border border-gray-100 shadow-soft h-[350px] relative z-0">
+                <MapContainer center={[listing.lat, listing.lng]} zoom={15} style={{ height: '100%', width: '100%' }}>
+                    <TileLayer 
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    />
+                    <Marker position={[listing.lat, listing.lng]}>
+                        <Popup>{listing.address || "Vị trí người bán"}</Popup>
+                    </Marker>
+                </MapContainer>
+                {/* Overlay chặn cuộn chuột khi chưa focus để tránh lỗi UX */}
+                <div className="absolute inset-0 pointer-events-none border-[10px] border-white/50 z-[400] md:rounded-[2.5rem]"></div>
+             </div>
+          )}
 
           {/* REVIEWS */}
           <div className="bg-white md:rounded-[2.5rem] p-8 border border-gray-100 shadow-soft">
@@ -363,16 +401,31 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
             </Link>
 
-            {/* CTA BUTTONS */}
+            {/* CTA BUTTONS (Affiliate / Chat / Offer) */}
             <div className="space-y-4">
               {listing.affiliateLink ? (
                 <a href={listing.affiliateLink} target="_blank" rel="nofollow" className="w-full bg-orange-600 hover:bg-orange-700 text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-orange-200 flex items-center justify-center gap-3 animate-bounce">
                   🛒 ĐẾN NƠI BÁN ↗
                 </a>
               ) : (
-                <button onClick={handleStartChat} disabled={isChatLoading} className="w-full bg-primary hover:bg-primaryHover text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 flex items-center justify-center gap-3 active:scale-95 transition-all">
-                  {isChatLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <>💬 CHAT VỚI NGƯỜI BÁN</>}
-                </button>
+                <div className="flex gap-3">
+                    {/* [MỚI] Nút Mặc cả */}
+                    <button 
+                        onClick={() => setShowOfferModal(true)}
+                        className="flex-1 bg-green-50 text-green-600 border border-green-200 py-4 rounded-2xl font-black text-xs uppercase hover:bg-green-100 transition-all flex items-center justify-center gap-2"
+                    >
+                        <span>💸</span> Mặc cả
+                    </button>
+
+                    {/* Nút Chat */}
+                    <button 
+                        onClick={handleStartChat} 
+                        disabled={isChatLoading} 
+                        className="flex-[2] bg-primary hover:bg-primaryHover text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl shadow-primary/20 flex items-center justify-center gap-2 active:scale-95 transition-all"
+                    >
+                        {isChatLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <>💬 Chat ngay</>}
+                    </button>
+                </div>
               )}
 
               {!listing.affiliateLink && seller?.phone && (
@@ -402,7 +455,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       </div>
 
-      {/* SIMILAR LISTINGS - ĐÃ THÊM LẠI PHẦN NÀY */}
+      {/* SIMILAR LISTINGS */}
       <div className="px-4 md:px-0 pt-10">
         <div className="flex items-center justify-between mb-8 px-2">
           <h2 className="text-xl font-black text-textMain tracking-tighter uppercase">Có thể bạn thích</h2>
@@ -441,6 +494,17 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* [MỚI] OFFER MODAL */}
+      {listing && (
+        <OfferModal 
+          isOpen={showOfferModal}
+          onClose={() => setShowOfferModal(false)}
+          onSubmit={handleMakeOffer}
+          originalPrice={listing.price}
+          productName={listing.title}
+        />
       )}
 
       <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} url={getListingUrl(listing)} title={listing.title} />

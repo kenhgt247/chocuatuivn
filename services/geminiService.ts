@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 // ==========================================================================
-// 1. ĐỊNH NGHĨA INTERFACE (FULL ĐẦY ĐỦ CÁC NGÀNH HÀNG)
+// 1. ĐỊNH NGHĨA INTERFACE (GIỮ NGUYÊN NHƯ CẤU HÌNH CỦA BẠN)
 // ==========================================================================
 export interface ListingAnalysis {
   category: string;
@@ -13,138 +13,125 @@ export interface ListingAnalysis {
   prohibitedReason?: string;
   attributes?: {
     // --- Xe cộ ---
-    mileage?: string;      // Số Km
-    year?: string;         // Năm SX
-    gearbox?: string;      // Hộp số
-    fuel?: string;         // Nhiên liệu
-    carType?: string;      // Kiểu dáng
-    seatCount?: string;    // Số chỗ
+    mileage?: string;      
+    year?: string;         
+    gearbox?: string;      
+    fuel?: string;         
+    carType?: string;      
+    seatCount?: string;    
     
     // --- Bất động sản ---
-    area?: string;         // Diện tích
-    bedrooms?: string;     // Số phòng ngủ
-    bathrooms?: string;    // Số WC
-    direction?: string;    // Hướng nhà
-    legal?: string;        // Pháp lý
-    propertyType?: string; // Loại hình
+    area?: string;         
+    bedrooms?: string;     
+    bathrooms?: string;    
+    direction?: string;    
+    legal?: string;        
+    propertyType?: string; 
 
     // --- Đồ điện tử ---
-    battery?: string;      // Pin (%)
-    storage?: string;      // Bộ nhớ trong
-    ram?: string;          // RAM
-    color?: string;        // Màu sắc
-    warranty?: string;     // Bảo hành
+    battery?: string;      
+    storage?: string;      
+    ram?: string;          
+    color?: string;        
+    warranty?: string;     
 
     // --- Điện lạnh ---
-    capacity?: string;     // Công suất
-    inverter?: string;     // Tiết kiệm điện
+    capacity?: string;     
+    inverter?: string;     
 
     // --- Thú cưng ---
-    breed?: string;        // Giống loài
-    age?: string;          // Độ tuổi
-    gender?: string;       // Giới tính
+    breed?: string;        
+    age?: string;          
+    gender?: string;       
 
-    // --- Đồ gia dụng / Nội thất ---
-    material?: string;     // Chất liệu
-    size?: string;         // Kích thước
+    // --- Đồ gia dụng, Nội thất ---
+    material?: string;     
+    size?: string;         
 
-    // --- Thời trang / Đồ cá nhân ---
-    brand?: string;        // Thương hiệu
-    personalSize?: string; // Size quần áo/giày
+    // --- Đồ dùng cá nhân ---
+    brand?: string;        
+    personalSize?: string; 
 
     // --- Việc làm ---
-    salary?: string;       // Mức lương
-    jobType?: string;      // Hình thức làm việc
-    experience?: string;   // Kinh nghiệm
+    salary?: string;       
+    jobType?: string;      
+    experience?: string;   
 
     [key: string]: any;
   };
 }
 
-// ==========================================================================
-// 2. CẤU HÌNH & HELPER
-// ==========================================================================
-
 const CATEGORY_MAP_PROMPT = `
 Danh mục ID và Tên:
 1: Bất động sản
 2: Xe cộ
-3: Đồ điện tử (Điện thoại, Laptop, Loa...)
+3: Đồ điện tử
 4: Đồ gia dụng, nội thất
 5: Giải trí, Thể thao, Sở thích
-6: Đồ dùng cá nhân (Quần áo, Giày dép...)
+6: Đồ dùng cá nhân
 7: Mẹ và bé
 8: Thú cưng
 9: Đồ ăn, thực phẩm
-10: Tủ lạnh, máy lạnh, máy giặt (Điện lạnh)
+10: Tủ lạnh, máy lạnh, máy giặt
 11: Việc làm
 12: Dịch vụ, Du lịch
 13: Các loại khác
 `;
 
-// Lấy API Key: Ưu tiên biến môi trường VITE_ theo chuẩn React/Vite
+// Lấy API KEY an toàn (Ưu tiên VITE_)
 const getApiKey = () => {
   return (import.meta as any).env?.VITE_GEMINI_API_KEY || (process as any).env?.API_KEY || "";
 };
 
-// [QUAN TRỌNG] Hàm lấy text an toàn để tránh lỗi "text is not a function"
+// Hàm Helper: Trích xuất text an toàn (Tránh lỗi response.text is not a function)
 const safeGetText = (response: any): string => {
   try {
-    // Cách 1: Dùng hàm text() chuẩn của SDK mới nếu có
-    if (typeof response.text === 'function') {
-      return response.text();
-    }
-    // Cách 2: Lấy trực tiếp từ cấu trúc JSON (Fallback)
-    if (response.candidates && response.candidates.length > 0) {
-      const firstCandidate = response.candidates[0];
-      if (firstCandidate.content && firstCandidate.content.parts && firstCandidate.content.parts.length > 0) {
-        return firstCandidate.content.parts[0].text || "";
-      }
+    if (typeof response.text === 'function') return response.text();
+    // Fallback cho cấu trúc JSON sâu
+    if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
+      return response.candidates[0].content.parts[0].text;
     }
     return "";
   } catch (e) {
-    console.error("Lỗi trích xuất text từ response AI:", e);
+    console.error("Lỗi đọc text từ AI:", e);
     return "";
   }
 };
 
 // ==========================================================================
-// 3. CÁC HÀM XỬ LÝ CHÍNH (SỬ DỤNG GEMINI 3.0)
+// 2. CÁC HÀM GỌI API (SỬ DỤNG GEMINI 2.0 FLASH EXP)
 // ==========================================================================
 
-// Hàm 1: Nhận diện từ khóa (Dùng model 3.0 Flash)
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
   const apiKey = getApiKey();
   if (!apiKey) return "";
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    // Cắt header base64 nếu có để tránh lỗi payload
+    // Xử lý base64 header
     const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.0-flash', 
+      // [UPDATE] Dùng bản 2.0 Flash Experimental (Thay vì 1.5)
+      model: 'gemini-2.0-flash-exp', 
       contents: {
         role: 'user',
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-          { text: "Mô tả sản phẩm này trong 3-5 từ khóa tiếng Việt ngắn gọn. Chỉ trả về từ khóa." }
+          { text: "Mô tả sản phẩm này trong 2-3 từ khóa ngắn gọn để tìm kiếm mua bán. Chỉ trả về từ khóa." }
         ]
       }
     });
     
     return safeGetText(response).trim();
   } catch (error) {
-    console.warn("Lỗi nhận diện ảnh tìm kiếm (Bỏ qua):", error);
+    console.error("Lỗi nhận diện ảnh tìm kiếm:", error);
     return "";
   }
 };
 
-// Hàm 2: Phân tích chi tiết & bóc tách thông số (Dùng model 3.0 Flash + Full Schema)
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
-  
-  // Kiểm tra Key trước khi gọi để không crash app
   if (!apiKey) {
     console.log("⚠️ Bỏ qua AI: Chưa cấu hình API Key.");
     return { title: '', description: '', category: '13', suggestedPrice: 0, condition: 'used', isProhibited: false };
@@ -161,14 +148,24 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     }));
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.0-flash', // Dùng Gemini 3.0 cho Key trả phí
+      // [UPDATE] Dùng bản 2.0 Flash Experimental (Mạnh hơn 1.5, đang hoạt động tốt)
+      model: 'gemini-2.0-flash-exp', 
       
       contents: {
         role: 'user',
         parts: [
           ...imageParts,
-          { text: `Phân tích sản phẩm đăng tin rao vặt. ${CATEGORY_MAP_PROMPT}
-          Yêu cầu: Trả về JSON hợp lệ khớp với Schema chi tiết đã định nghĩa.` }
+          { text: `Phân tích sản phẩm chuyên nghiệp để đăng tin rao vặt tương tự Chợ Tốt.
+          ${CATEGORY_MAP_PROMPT}
+          
+          Yêu cầu phân tích sâu:
+          1. Kiểm tra hàng cấm (Vũ khí, chất kích thích, động vật quý hiếm).
+          2. Chọn ID danh mục (1-13) chính xác nhất.
+          3. Đề xuất Tiêu đề hấp dẫn, chuẩn SEO.
+          4. Đề xuất Giá bán (VNĐ) sát thị trường thực tế.
+          5. Xác định Tình trạng (new/used).
+          6. Viết Mô tả đầy đủ ưu điểm, tình trạng.
+          7. TRÍCH XUẤT THÔNG SỐ CHI TIẾT (Mapping vào attributes).` }
         ]
       },
       config: {
@@ -179,63 +176,46 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
             isProhibited: { type: Type.BOOLEAN },
             prohibitedReason: { type: Type.STRING },
             title: { type: Type.STRING },
-            category: { type: Type.STRING, description: "ID danh mục từ 1-13" },
+            category: { type: Type.STRING },
             suggestedPrice: { type: Type.NUMBER },
             condition: { type: Type.STRING },
             description: { type: Type.STRING },
-            
-            // --- FULL SCHEMA ATTRIBUTES (KHỚP 100% VỚI INTERFACE) ---
             attributes: {
               type: Type.OBJECT,
               properties: {
-                // Xe cộ
                 mileage: { type: Type.STRING },
                 year: { type: Type.STRING },
                 gearbox: { type: Type.STRING },
                 fuel: { type: Type.STRING },
                 carType: { type: Type.STRING },
                 seatCount: { type: Type.STRING },
-                
-                // Bất động sản
                 area: { type: Type.STRING },
                 bedrooms: { type: Type.STRING },
                 bathrooms: { type: Type.STRING },
                 direction: { type: Type.STRING },
                 legal: { type: Type.STRING },
                 propertyType: { type: Type.STRING },
-
-                // Đồ điện tử
                 battery: { type: Type.STRING },
                 storage: { type: Type.STRING },
                 ram: { type: Type.STRING },
                 color: { type: Type.STRING },
                 warranty: { type: Type.STRING },
-
-                // Điện lạnh
                 capacity: { type: Type.STRING },
                 inverter: { type: Type.STRING },
-
-                // Thú cưng
                 breed: { type: Type.STRING },
                 age: { type: Type.STRING },
                 gender: { type: Type.STRING },
-
-                // Nội thất/Đồ dùng
                 material: { type: Type.STRING },
                 size: { type: Type.STRING },
-
-                // Thời trang
                 brand: { type: Type.STRING },
                 personalSize: { type: Type.STRING },
-
-                // Việc làm
                 salary: { type: Type.STRING },
                 jobType: { type: Type.STRING },
                 experience: { type: Type.STRING }
               }
             }
           },
-          required: ["title", "category", "suggestedPrice", "condition", "description"]
+          required: ["isProhibited", "title", "category", "suggestedPrice", "condition", "description"]
         }
       }
     });
@@ -243,13 +223,13 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     const rawText = safeGetText(response);
     if (!rawText) throw new Error("AI trả về dữ liệu rỗng");
 
-    // Clean JSON string (xóa markdown ```json nếu có)
-    const cleanJson = rawText.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleanJson) as ListingAnalysis;
-
+    return JSON.parse(rawText || "{}") as ListingAnalysis;
   } catch (error) {
-    console.error("❌ Lỗi phân tích AI:", error);
-    // Trả về dữ liệu an toàn để người dùng vẫn nhập tay được
-    return { title: '', description: '', category: '13', suggestedPrice: 0, condition: 'used', isProhibited: false };
+    console.error("Lỗi phân tích AI:", error);
+    // Trả về fallback để không crash app
+    return { 
+      title: '', description: '', category: '13', suggestedPrice: 0, 
+      condition: 'used', isProhibited: false 
+    };
   }
 };

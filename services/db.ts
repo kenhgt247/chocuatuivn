@@ -1094,7 +1094,7 @@ export const db = {
         title: "Nhận được lời mặc cả mới!",
         message: `Khách muốn mua "${listing.title}" với giá ${offerPrice.toLocaleString()}đ`,
         type: 'offer',
-        link: `/messages/${roomId}` 
+        link: `/chat/${roomId}` 
       });
 
       return { success: true, offerId: offerRef.id };
@@ -1125,7 +1125,7 @@ export const db = {
         title: status === 'accepted' ? "Tin vui! Mặc cả thành công" : "Mặc cả thất bại",
         message: `Người bán đã ${status === 'accepted' ? 'đồng ý' : 'từ chối'} giá bạn đưa ra.`,
         type: status === 'accepted' ? 'success' : 'error',
-        link: `/messages/${roomId}`
+        link: `/chat/${roomId}`
       });
 
       return { success: true };

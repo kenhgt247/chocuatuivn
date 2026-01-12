@@ -103,6 +103,8 @@ const App: React.FC = () => {
           {/* 4. CÁC ROUTE CẦN ĐĂNG NHẬP (PROTECTED ROUTES) */}
           {/* ========================================================= */}
           <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
+          {/* Thêm route sửa tin, dùng chung component với đăng tin */}
+          <Route path="/edit/:id" element={<PostListing user={user} />} />
           <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
           
           {/* Chat System */}

@@ -3,11 +3,11 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
-  // Load toàn bộ biến môi trường (bao gồm cả GEMINI_API_KEY trên Vercel)
+  // Load toàn bộ biến môi trường từ hệ thống
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    // 1. Đường dẫn gốc tuyệt đối
+    // 1. Đường dẫn gốc (Bắt buộc để chạy trên Vercel)
     base: '/',
 
     plugins: [react()],
@@ -17,17 +17,19 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
     },
 
-    // 2. [QUAN TRỌNG] Ánh xạ Key từ Vercel vào code
-    // Code đang tìm "VITE_GEMINI_API_KEY", nhưng trên Vercel bạn đặt là "GEMINI_API_KEY"
-    // Đoạn này sẽ nối chúng lại với nhau.
+    // 2. [QUAN TRỌNG] Cấu hình biến môi trường
+    // Vì bạn đã đặt tên là VITE_GEMINI_API_KEY trên Vercel,
+    // ta cần đảm bảo code đọc đúng biến này.
     define: {
-      'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      // Dòng này đảm bảo biến VITE_ không bị ghi đè bởi undefined
+      'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
+      // Fallback cho các thư viện cũ dùng process.env
+      'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
     },
 
     resolve: {
       alias: {
-        // 3. [QUAN TRỌNG] Vì không có thư mục src, dấu @ phải trỏ về thư mục gốc (.)
+        // 3. Trỏ @ về thư mục gốc (.) vì bạn không dùng thư mục src
         '@': path.resolve(__dirname, '.'), 
       }
     },

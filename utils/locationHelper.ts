@@ -1,62 +1,64 @@
-
-
 export interface LocationInfo {
-  address: string;    // Địa chỉ hiển thị đầy đủ
-  city: string;       // Tên Thành phố/Tỉnh (Dùng để lọc danh sách)
+  address: string;    // Địa chỉ hiển thị (VD: Quận 1, Hồ Chí Minh)
+  city: string;       // Tỉnh/TP để lọc (VD: Hồ Chí Minh)
   lat: number;
   lng: number;
 }
 
-/**
- * Hàm gọi API lấy địa chỉ từ tọa độ (Reverse Geocoding)
- * ĐÃ SỬA: Dùng API BigDataCloud để tránh lỗi CORS của OpenStreetMap
- */
 export const getLocationFromCoords = async (lat: number, lng: number): Promise<LocationInfo> => {
   try {
-    // Sử dụng API BigDataCloud (Miễn phí & Không bị chặn CORS)
     const response = await fetch(
       `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=vi`
     );
 
-    if (!response.ok) throw new Error("Lỗi kết nối đến dịch vụ bản đồ");
+    if (!response.ok) throw new Error("Lỗi kết nối định vị");
 
     const data = await response.json();
     
-    // Logic lấy dữ liệu từ BigDataCloud
     if (data) {
-      // 1. Xác định Thành phố (City) để dùng cho bộ lọc
-      // city: Hà Nội, principalSubdivision: Hà Nội
-      const city = data.city || data.principalSubdivision || data.locality || "Khác";
+      // 1. Lấy Quận/Huyện và Tỉnh/TP
+      const locality = data.locality || ""; // Thường là Quận/Huyện hoặc TP
+      const cityRaw = data.principalSubdivision || ""; // Tỉnh/TP trực thuộc TW
       
-      // 2. Tạo địa chỉ hiển thị chi tiết (Address)
-      // data.locality: Quận/Huyện
-      // data.principalSubdivision: Tỉnh/Thành phố
-      // data.countryName: Quốc gia
-      const parts = [
-        data.locality,              // Quận/Huyện (VD: Quận 1)
-        data.principalSubdivision,  // Tỉnh/Thành (VD: Hồ Chí Minh)
-        data.countryName            // Quốc gia (VD: Việt Nam)
-      ];
+      // 2. Xử lý logic lọc City chuẩn
+      // Loại bỏ các từ thừa như "Tỉnh", "Thành phố" để khớp với Database
+      let cleanCity = (data.city || cityRaw || locality || "Khác")
+        .replace(/^Thành phố\s+/i, "")
+        .replace(/^Tỉnh\s+/i, "");
 
-      // Lọc bỏ các giá trị null/undefined và nối lại
-      const displayAddress = parts.filter(Boolean).join(", ");
+      // Fix cứng một số trường hợp đặc biệt nếu cần
+      if (cleanCity === "Ho Chi Minh") cleanCity = "TPHCM"; // Tuỳ vào data bạn lưu trong DB là gì
+
+      // 3. Tạo địa chỉ hiển thị (Xử lý trùng lặp)
+      // Sử dụng Set để loại bỏ các thành phần trùng nhau (VD: Hà Nội, Hà Nội)
+      const addressParts = [
+        locality,
+        cityRaw,
+        "Việt Nam"
+      ].filter((part) => part && part.trim() !== ""); // Lọc rỗng
+      
+      // Loại bỏ trùng lặp (Dùng Set)
+      const uniqueAddressParts = [...new Set(addressParts)];
+      
+      const displayAddress = uniqueAddressParts.join(", ");
 
       return {
-        address: displayAddress || `${lat.toFixed(4)}, ${lng.toFixed(4)}`, // Nếu rỗng thì hiện tọa độ
-        city: city.replace("Thành phố ", "").replace("Tỉnh ", ""), // Xử lý bớt chữ thừa cho gọn
+        address: displayAddress || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+        city: cleanCity,
         lat,
         lng
       };
     }
 
-    throw new Error("Không tìm thấy địa chỉ");
+    throw new Error("Không tìm thấy dữ liệu");
 
   } catch (error) {
     console.warn("Lỗi Geocoding:", error);
-    // Fallback: Nếu API lỗi thì trả về tọa độ thô để app không bị crash
+    
+    // Fallback an toàn: Trả về "Khác" hoặc để người dùng tự nhập
     return {
-      address: `Vị trí: ${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-      city: lat > 16 ? "Miền Bắc" : (lat > 11 ? "Miền Trung" : "Miền Nam"),
+      address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+      city: "Khác", // Nên để "Khác" hoặc "Toàn quốc" thay vì "Miền Bắc" để tránh lỗi lọc
       lat,
       lng
     };

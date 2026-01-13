@@ -132,10 +132,12 @@ export const db = {
     }
   },
 
+  // [QUAN TRỌNG] HÀM LẤY TIN PHÂN TRANG (HỖ TRỢ PARENT CATEGORY)
   getListingsPaged: async (options: {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
     categoryId?: string,
+    parentCategoryId?: string, // Thêm tham số lọc cha
     sellerId?: string,
     status?: string,
     search?: string,
@@ -146,7 +148,7 @@ export const db = {
       const colRef = collection(firestore, "listings");
       let constraints: any[] = [];
 
-      // 1. LOGIC TÌM KIẾM HYBRID
+      // 1. TÌM KIẾM
       if (options.search && options.search.trim().length > 0) {
          const searchKeywords = generateKeywords(options.search);
          if (searchKeywords.length > 0) {
@@ -155,36 +157,44 @@ export const db = {
          }
       }
 
-      // 2. CÁC ĐIỀU KIỆN LỌC KHÁC
+      // 2. TRẠNG THÁI
       if (options.status) {
           constraints.push(where("status", "==", options.status));
       } else if (!options.sellerId) {
           constraints.push(where("status", "==", "approved"));
       }
 
-      if (options.categoryId) constraints.push(where("category", "==", options.categoryId));
+      // 3. LỌC DANH MỤC
+      if (options.categoryId) {
+          // Lọc chính xác danh mục con
+          constraints.push(where("category", "==", options.categoryId));
+      } else if (options.parentCategoryId) {
+          // Lọc theo danh mục cha
+          constraints.push(where("parentCategory", "==", options.parentCategoryId));
+      }
+
+      // 4. CÁC BỘ LỌC KHÁC
       if (options.sellerId) constraints.push(where("sellerId", "==", options.sellerId));
       if (options.location) constraints.push(where("location", "==", options.location));
       if (options.isVip) constraints.push(where("tier", "==", "pro"));
 
-      // 3. SẮP XẾP
+      // 5. SẮP XẾP
       if (!options.search) {
           constraints.push(orderBy("createdAt", "desc"));
       }
 
-      // 4. PHÂN TRANG
+      // 6. PHÂN TRANG
       constraints.push(limit(options.pageSize));
       if (options.lastDoc) {
         constraints.push(startAfter(options.lastDoc));
       }
 
-      // 5. THỰC THI
       const q = query(colRef, ...constraints);
       const snap = await getDocs(q);
       
       let results = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
 
-      // 6. LỌC TINH (CLIENT-SIDE)
+      // 7. TÌM KIẾM CLIENT SIDE (Độ chính xác cao hơn)
       if (options.search && options.search.trim().length > 0) {
           const queryText = options.search.trim();
           results = results.filter(l => isSearchMatch(l.title, queryText));
@@ -233,16 +243,24 @@ export const db = {
     }
   },
 
-  // [ĐÃ SỬA] Hàm saveListing: Tự động lấy lat/lng từ người bán nếu tin đăng không có
+  // [QUAN TRỌNG] HÀM LƯU TIN ĐĂNG (ĐÃ FIX LOGIC LẤY TỌA ĐỘ)
   saveListing: async (listingData: any) => {
     try {
       // 1. Lấy thông tin người bán
       const seller = await db.getUserById(listingData.sellerId);
 
-      // 2. Logic ưu tiên tọa độ: Lấy từ form -> Lấy từ profile -> Null
+      // 2. Tìm danh mục cha (để lưu vào parentCategory)
+      let parentCategory = null;
+      if (listingData.category) {
+         const catDoc = await getDoc(doc(firestore, "categories", listingData.category));
+         if (catDoc.exists()) {
+             parentCategory = catDoc.data().parentId || null;
+         }
+      }
+
+      // 3. Logic ưu tiên tọa độ: Lấy từ form -> Lấy từ profile -> Null
       const finalLat = listingData.lat || seller?.lat || null;
       const finalLng = listingData.lng || seller?.lng || null;
-      // Logic location/address: Lấy từ form -> Lấy từ profile
       const finalLocation = listingData.location || seller?.location || "Toàn quốc";
       const finalAddress = listingData.address || seller?.address || "";
 
@@ -259,6 +277,9 @@ export const db = {
         lng: finalLng,
         location: finalLocation,
         address: finalAddress,
+
+        // Gán danh mục cha
+        parentCategory: parentCategory,
 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -1191,7 +1212,7 @@ export const db = {
     }
   },
 
-  // --- H. SEED DATA (FULL DATASET VIETNAM) ---
+  // --- H. SEED DATA (FULL DATASET VIETNAM + LOCATION) ---
   seedDatabase: async () => {
     try {
       console.log("🧹 Đang dọn dẹp dữ liệu rác...");
@@ -1381,7 +1402,7 @@ export const db = {
           });
       });
 
-      // 2. TẠO USER GIẢ
+      // 2. TẠO USER GIẢ (KÈM TỌA ĐỘ)
       const firstNames = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Huỳnh", "Phan", "Vũ", "Võ", "Đặng"];
       const middleNames = ["Văn", "Thị", "Hữu", "Đức", "Ngọc", "Minh", "Quốc", "Thanh", "Mỹ", "Anh"];
       const lastNames = ["An", "Bình", "Cường", "Dũng", "Giang", "Hương", "Khánh", "Lan", "Nam", "Tâm", "Tuấn", "Vy"];
@@ -1393,7 +1414,7 @@ export const db = {
         const uid = `seed_user_${i}`;
         const name = `${getRandom(firstNames)} ${getRandom(middleNames)} ${getRandom(lastNames)}`;
         
-        // --- [MỚI] TẠO TỌA ĐỘ GIẢ CHO USER ---
+        // --- TẠO TỌA ĐỘ GIẢ ---
         const cityName = getRandom(cityNames);
         const baseCoords = CITY_COORDS[cityName];
         const fakeLat = baseCoords.lat + (Math.random() - 0.5) * 0.05; 
@@ -1476,11 +1497,10 @@ export const db = {
 
         const listingRef = doc(firestore, "listings", lid);
         
-        // --- [MỚI] TẠO TỌA ĐỘ GIẢ CHO TIN ĐĂNG (DỰA THEO SELLER) ---
+        // --- TẠO TỌA ĐỘ GIẢ CHO TIN ĐĂNG (DỰA THEO SELLER) ---
         // Jitter nhẹ để không trùng khít seller
         const listingLat = (seller.lat || 21.0285) + (Math.random() - 0.5) * 0.01;
         const listingLng = (seller.lng || 105.8542) + (Math.random() - 0.5) * 0.01;
-        // ------------------------------------------------------------
 
         const newListing: Listing = {
           id: lid,
@@ -1491,6 +1511,10 @@ export const db = {
           description: `Cần bán gấp ${title}. Ai có nhu cầu liên hệ ${seller.name}. Xem hàng tại ${seller.location}.`,
           price: basePrice,
           category: cat.id, 
+          
+          // Gán parentCategory
+          parentCategory: cat.parentId,
+
           images: [mainImage, subImage], 
           videoUrl: videoUrl, 
           

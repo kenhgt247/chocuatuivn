@@ -340,12 +340,23 @@ export const db = {
     try {
       let updates: any = { ...data, updatedAt: new Date().toISOString() };
       
+      // 1. Cập nhật Slug và Keyword nếu đổi tiêu đề
       if (data.title) {
           updates.slug = db.toSlug(data.title);
           // @ts-ignore
           updates.keywords = generateKeywords(data.title);
       }
 
+      // 2. [QUAN TRỌNG] Cập nhật Parent Category nếu đổi Category
+      if (data.category) {
+          const catDoc = await getDoc(doc(firestore, "categories", data.category));
+          if (catDoc.exists()) {
+              // Tìm ra cha mới và gán vào updates
+              updates.parentCategory = catDoc.data().parentId || null;
+          }
+      }
+
+      // 3. Làm sạch dữ liệu (xóa undefined)
       const cleanUpdates = Object.entries(updates).reduce((acc, [key, value]) => {
         if (value !== undefined) {
           acc[key] = value;

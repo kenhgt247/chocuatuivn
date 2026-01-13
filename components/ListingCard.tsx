@@ -90,7 +90,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
       </Link>
 
       {/* 2. THÔNG TIN */}
-      <Link to={`/san-pham/${listing.slug}-${listing.id}`} className="space-y-1 px-1">
+      <Link to={`/san-pham/${listing.slug}-${listing.id}`} className="space-y-1.5 px-1">
         <h3 className="text-xs font-medium text-gray-700 line-clamp-2 min-h-[2.5em] leading-relaxed group-hover:text-primary transition-colors">
           {listing.title}
         </h3>
@@ -104,13 +104,27 @@ const ListingCard: React.FC<ListingCardProps> = ({
             )}
         </div>
 
-        <div className="flex items-center gap-2 pt-1 border-t border-dashed border-gray-100 mt-1">
-            <div className="w-4 h-4 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0">
-                <img src={listing.sellerAvatar || 'https://placehold.co/50'} alt="" className="w-full h-full object-cover" />
+        {/* --- PHẦN THÊM ICON VỊ TRÍ VÀ CĂN PHẢI --- */}
+        <div className="flex items-center pt-2 border-t border-gray-100 mt-1">
+            {/* Bên trái: Avatar + Thời gian */}
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                <div className="w-4 h-4 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0">
+                    <img src={listing.sellerAvatar || 'https://placehold.co/50'} alt="" className="w-full h-full object-cover" />
+                </div>
+                <span className="text-[9px] font-bold text-gray-500 truncate flex-shrink-0">
+                    {formatTimeAgo(listing.createdAt)}
+                </span>
             </div>
-            <div className="flex-1 min-w-0 flex flex-col">
-                <span className="text-[9px] text-gray-400 truncate font-bold">{formatTimeAgo(listing.createdAt)}</span>
-                <span className="text-[9px] text-gray-300 truncate">{listing.location}</span>
+            
+            {/* Bên phải: Icon Vị trí + Địa điểm (Sát mép phải) */}
+            <div className="flex items-center gap-0.5 text-gray-500 max-w-[50%]">
+                <svg className="w-2.5 h-2.5 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-[9px] font-bold truncate">
+                    {listing.location}
+                </span>
             </div>
         </div>
       </Link>

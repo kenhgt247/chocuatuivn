@@ -26,7 +26,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
-
+// Khai báo các biến lấy từ URL để Layout có thể hiểu được
+  const minPriceParam = searchParams.get('minPrice');
+  const maxPriceParam = searchParams.get('maxPrice');
+  const locationParam = searchParams.get('location');
   // --- EFFECT: Sync Search Params ---
   useEffect(() => {
     const currentSearch = searchParams.get('search') || '';
@@ -89,14 +92,22 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     setIsSearchingImage(true);
     try {
         const compressedBase64 = await compressAndGetBase64(file);
+        
+        // AI sẽ trả về danh từ ngắn gọn (ví dụ: "áo", "xe máy")
         const keywords = await identifyProductForSearch(compressedBase64);
-        setSearchQuery(keywords);
-        navigate(`/?search=${encodeURIComponent(keywords.trim())}&visual=true`);
+        
+        // Làm sạch chuỗi: bỏ khoảng trắng thừa và chuyển về chữ thường
+        const cleanKeywords = keywords.trim().toLowerCase();
+        setSearchQuery(cleanKeywords);
+        
+        // Điều hướng kèm tham số visual=true để hiện thanh lọc giá bạn vừa làm
+        navigate(`/?search=${encodeURIComponent(cleanKeywords)}&visual=true`);
     } catch (err) {
         console.error("Lỗi tìm kiếm hình ảnh:", err);
         alert("Không thể nhận diện hình ảnh. Vui lòng thử lại với ảnh rõ nét hơn.");
     } finally {
         setIsSearchingImage(false);
+        // Reset input để có thể chọn lại cùng 1 tấm ảnh nếu muốn
         if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -263,7 +274,62 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         </div>
       </header>
 
-      {/* MAIN CONTENT */}
+      {/* FILTER BAR - CĂN THẲNG HÀNG 100% VỚI BANNER VÀ TIN VIP */}
+      {(searchQuery || searchParams.get('visual')) && (
+        <div className="sticky top-20 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 py-3 animate-fade-in shadow-sm">
+          <div className="max-w-[1400px] mx-auto px-2 md:px-4 flex items-center gap-3">
+            
+            {/* Nhãn "Bộ lọc" */}
+            <div className="flex items-center gap-2 flex-shrink-0 pr-3 border-r border-gray-100 hidden md:flex">
+              <div className="w-1.5 h-4 bg-primary rounded-full"></div>
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                Bộ lọc giá
+              </span>
+            </div>
+            
+            {/* Danh mục nút lọc */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+              <button 
+                onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}&maxPrice=2000000`)} 
+                className="flex-shrink-0 px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-bold text-slate-600 hover:border-primary hover:text-primary transition-all shadow-sm active:scale-95"
+              >
+                💰 Dưới 2 Triệu
+              </button>
+
+              <button 
+                onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}&minPrice=2000000&maxPrice=10000000`)}
+                className="flex-shrink-0 px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-bold text-slate-600 hover:border-primary hover:text-primary transition-all shadow-sm active:scale-95"
+              >
+                💎 2 - 10 Triệu
+              </button>
+
+              <button 
+                onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}&minPrice=10000000`)}
+                className="flex-shrink-0 px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-bold text-slate-600 hover:border-primary hover:text-primary transition-all shadow-sm active:scale-95"
+              >
+                🔥 Trên 10 Triệu
+              </button>
+
+              <button 
+                onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}&location=${encodeURIComponent(user?.location || 'TPHCM')}`)}
+                className="flex-shrink-0 px-4 py-2 bg-primary/5 border border-primary/20 rounded-full text-[10px] font-black text-primary uppercase tracking-tight ml-2 hover:bg-primary/10 transition-all shadow-sm"
+              >
+                📍 Gần tôi
+              </button>
+
+              {/* Nút Xóa lọc - Đã đóng ngoặc đúng logic */}
+              {(minPriceParam || maxPriceParam || locationParam) && (
+                <button 
+                  onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}`)}
+                  className="flex-shrink-0 ml-2 px-3 py-2 text-[10px] font-black text-red-500 hover:bg-red-50 rounded-full transition-all uppercase tracking-tighter animate-fade-in"
+                >
+                  ✕ Lọc
+                </button>
+              )}
+            </div> {/* Đóng div "Danh mục nút lọc" */}
+          </div> {/* Đóng div "max-w-[1400px]" */}
+        </div> /* Đóng div "sticky" */
+      )}
       {/* Thêm pb-24 để tránh Mobile Nav che mất nội dung cuối trang */}
       <main className="flex-1 w-full max-w-screen-2xl mx-auto md:px-8 py-6 md:py-10 pb-24 md:pb-10">
         {children}

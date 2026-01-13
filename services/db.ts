@@ -137,12 +137,14 @@ export const db = {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
     categoryId?: string,
-    parentCategoryId?: string, // Thêm tham số lọc cha
+    parentCategoryId?: string,
     sellerId?: string,
     status?: string,
     search?: string,
     location?: string,
-    isVip?: boolean
+    isVip?: boolean,
+    minPrice?: number, // Thêm dòng này
+    maxPrice?: number  // Thêm dòng này
   }) => {
     try {
       const colRef = collection(firestore, "listings");
@@ -166,10 +168,8 @@ export const db = {
 
       // 3. LỌC DANH MỤC
       if (options.categoryId) {
-          // Lọc chính xác danh mục con
           constraints.push(where("category", "==", options.categoryId));
       } else if (options.parentCategoryId) {
-          // Lọc theo danh mục cha
           constraints.push(where("parentCategory", "==", options.parentCategoryId));
       }
 
@@ -178,12 +178,23 @@ export const db = {
       if (options.location) constraints.push(where("location", "==", options.location));
       if (options.isVip) constraints.push(where("tier", "==", "pro"));
 
-      // 5. SẮP XẾP
-      if (!options.search) {
+      // --- 5. MỚI: LỌC KHOẢNG GIÁ ---
+      if (typeof options.minPrice === 'number') {
+        constraints.push(where("price", ">=", options.minPrice));
+      }
+      if (typeof options.maxPrice === 'number') {
+        constraints.push(where("price", "<=", options.maxPrice));
+      }
+
+      // --- 6. SẮP XẾP ---
+      // Nếu có lọc giá, Firebase bắt buộc phải orderBy "price"
+      if (typeof options.minPrice === 'number' || typeof options.maxPrice === 'number') {
+          constraints.push(orderBy("price", "desc"));
+      } else if (!options.search) {
           constraints.push(orderBy("createdAt", "desc"));
       }
 
-      // 6. PHÂN TRANG
+      // 7. PHÂN TRANG
       constraints.push(limit(options.pageSize));
       if (options.lastDoc) {
         constraints.push(startAfter(options.lastDoc));
@@ -194,7 +205,7 @@ export const db = {
       
       let results = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
 
-      // 7. TÌM KIẾM CLIENT SIDE (Độ chính xác cao hơn)
+      // 8. TÌM KIẾM CLIENT SIDE (Hỗ trợ AI Camera & Fuzzy Search)
       if (options.search && options.search.trim().length > 0) {
           const queryText = options.search.trim();
           results = results.filter(l => isSearchMatch(l.title, queryText));

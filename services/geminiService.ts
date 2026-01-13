@@ -67,13 +67,16 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
         role: 'user',
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-          { text: "Mô tả sản phẩm này trong 2-3 từ khóa ngắn gọn (Tiếng Việt) để tìm kiếm. Chỉ trả về text." }
+          { text: "Chỉ trả về 1 hoặc 2 danh từ tiếng Việt ngắn gọn nhất đại diện cho vật thể chính trong ảnh để tìm kiếm. Ví dụ: 'xe máy', 'áo', 'điện thoại', 'tủ lạnh'. Không thêm mô tả, không thêm dấu câu." }
         ]
       }
     });
     
-    return safeGetText(response).trim();
+    // safeGetText sẽ lấy nội dung và .trim() sẽ loại bỏ khoảng trắng dư thừa
+    const result = safeGetText(response).trim().toLowerCase();
+    return result;
   } catch (error) {
+    console.error("Lỗi AI Search:", error);
     return "";
   }
 };

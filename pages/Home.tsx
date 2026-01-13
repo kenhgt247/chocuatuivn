@@ -29,7 +29,8 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const search = searchParams.get('search') || '';
   const typeParam = searchParams.get('type');
   const locationParam = searchParams.get('location');
-
+  const minPriceParam = searchParams.get('minPrice');
+  const maxPriceParam = searchParams.get('maxPrice');
   // --- STATE ---
   const [activeCategoryId, setActiveCategoryId] = useState<string>('');
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
@@ -237,7 +238,10 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
 
         search: search || undefined,
         location: locationParam || undefined,
-        isVip: typeParam === 'vip'
+        isVip: typeParam === 'vip',
+        // --- THÊM 2 DÒNG NÀY ---
+        minPrice: minPriceParam ? Number(minPriceParam) : undefined,
+        maxPrice: maxPriceParam ? Number(maxPriceParam) : undefined,
       });
       if (!result.error) {
         setLatestListings(prev => [...prev, ...result.listings]);

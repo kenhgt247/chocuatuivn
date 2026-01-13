@@ -27,11 +27,13 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
 
+  // --- EFFECT: Sync Search Params ---
   useEffect(() => {
     const currentSearch = searchParams.get('search') || '';
     setSearchQuery(currentSearch);
   }, [searchParams]);
 
+  // --- EFFECT: Real-time Data ---
   useEffect(() => {
     if (user?.id) {
       const unsubNotifs = db.getNotifications(user.id, (notifs) => {
@@ -50,6 +52,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   }, [user?.id]);
 
+  // --- EFFECT: Click Outside Notification ---
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
@@ -60,9 +63,11 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // --- COMPUTED VALUES ---
   const unreadNotifCount = user ? notifications.filter(n => !n.read).length : 0;
   const unreadChatCount = user ? chatRooms.filter(r => r.messages.length > 0 && !r.seenBy?.includes(user?.id || '')).length : 0;
 
+  // --- HANDLERS ---
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanQuery = searchQuery.trim();
@@ -114,6 +119,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   };
 
+  // Helper for notification styles (Giữ nguyên UI)
   const getNotificationStyle = (type: string) => {
     switch (type) {
       case 'review': return { bg: 'bg-yellow-100', text: 'text-yellow-600', icon: <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg> };
@@ -130,7 +136,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
 
   return (
     <div className="min-h-screen flex flex-col bg-bgMain">
-      {/* HEADER: Đã sửa border và background để rõ nét hơn */}
+      {/* HEADER */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 px-3 md:px-6 lg:px-10 h-20 flex items-center justify-between gap-2 md:gap-4 shadow-sm">
         {/* LOGO */}
         <div className="flex items-center flex-shrink-0">
@@ -140,7 +146,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           </Link>
         </div>
 
-        {/* SEARCH BAR: Tăng độ đậm nền và viền */}
+        {/* SEARCH BAR */}
         <form onSubmit={handleSearch} className="flex-1 max-w-2xl relative group px-1 md:px-0">
           <div className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors">
             <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -152,14 +158,13 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             placeholder={window.innerWidth < 768 ? "Tìm kiếm..." : "Tìm gì cũng có..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            // Thay bg-gray-100/60 bằng bg-gray-100 và thêm border rõ hơn
             className="w-full bg-gray-100 border-2 border-transparent hover:border-gray-200 rounded-xl md:rounded-[1.25rem] py-2.5 md:py-3 pl-9 md:pl-12 pr-10 md:pr-14 focus:outline-none focus:ring-0 focus:border-primary focus:bg-white transition-all text-xs md:text-sm font-bold text-slate-700 placeholder:text-gray-400"
           />
           <button 
             type="button"
             onClick={handleImageSearchClick}
             disabled={isSearchingImage}
-            className={`absolute right-2 md:right-3 top-1/2 -translate-y-1/2 p-1.5 md:p-2 rounded-lg md:rounded-xl hover:bg-white text-gray-400 transition-all ${isSearchingImage ? 'animate-pulse text-primary' : 'hover:text-primary hover:shadow-sm'}`}
+            className={`absolute right-2 md:right-3 top-1/2 -translate-y-1/2 p-1.5 md:p-2 rounded-lg md:rounded-xl hover:bg-white text-gray-400 transition-all ${isSearchingImage ? 'animate-pulse text-primary' : 'hover:text-primary hover:text-primary hover:shadow-sm'}`}
             title="Tìm bằng AI"
           >
             <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -170,9 +175,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
         </form>
 
-        {/* ACTIONS: Tăng độ đậm của icon */}
+        {/* ACTIONS */}
         <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
-          {/* Chat Icon */}
+          {/* Chat Icon Desktop */}
           <Link to="/chat" className={`hidden md:flex relative p-2.5 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-gray-100 hover:text-primary'}`}>
             <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -205,7 +210,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             
             {/* NOTIFICATION DROPDOWN */}
             {showNotifs && (
-              <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white border border-gray-200 rounded-[2rem] shadow-2xl overflow-hidden animate-fade-in-up z-50 ring-1 ring-black/5">
+              <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white border border-gray-200 rounded-[2rem] shadow-2xl overflow-hidden animate-fade-in-up z-[60] ring-1 ring-black/5">
                 <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                   <h3 className="font-black text-sm uppercase tracking-tight text-slate-800">Thông báo</h3>
                   <span className="text-[10px] font-black text-primary bg-primary/10 px-2.5 py-1 rounded-lg">{unreadNotifCount} mới</span>
@@ -259,13 +264,15 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
       </header>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 w-full max-w-screen-2xl mx-auto md:px-8 py-6 md:py-10">
+      {/* Thêm pb-24 để tránh Mobile Nav che mất nội dung cuối trang */}
+      <main className="flex-1 w-full max-w-screen-2xl mx-auto md:px-8 py-6 md:py-10 pb-24 md:pb-10">
         {children}
       </main>
 
-      {/* MOBILE NAV BAR */}
+      {/* MOBILE NAV BAR (FIXED BOTTOM) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex items-end justify-between h-[5.5rem] z-50 px-2 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
         
+        {/* Item 1: Trang chủ */}
         <Link to="/" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-4 group transition-all duration-300 ${location.pathname === '/' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
           <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/' ? 'bg-blue-50 shadow-[0_0_15px_rgba(37,99,235,0.2)]' : ''}`}>
             <svg className="w-6 h-6 transition-transform duration-300 group-active:scale-90" fill={location.pathname === '/' ? "currentColor" : "none"} stroke="currentColor" strokeWidth={location.pathname === '/' ? 0 : 2} viewBox="0 0 24 24">
@@ -275,6 +282,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           <span className={`text-[10px] font-bold tracking-tight ${location.pathname === '/' ? 'opacity-100' : 'opacity-70'}`}>Trang chủ</span>
         </Link>
 
+        {/* Item 2: Quản lý */}
         <Link to="/manage-ads" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-4 group transition-all duration-300 ${location.pathname === '/manage-ads' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
           <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/manage-ads' ? 'bg-blue-50 shadow-[0_0_15px_rgba(37,99,235,0.2)]' : ''}`}>
             <svg className="w-6 h-6 transition-transform duration-300 group-active:scale-90" fill={location.pathname === '/manage-ads' ? "currentColor" : "none"} stroke="currentColor" strokeWidth={location.pathname === '/manage-ads' ? 0 : 2} viewBox="0 0 24 24">
@@ -284,6 +292,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           <span className={`text-[10px] font-bold tracking-tight ${location.pathname === '/manage-ads' ? 'opacity-100' : 'opacity-70'}`}>Quản lý</span>
         </Link>
 
+        {/* Item 3: Đăng tin (Nổi bật) */}
         <div className="flex-1 flex flex-col items-center justify-end pb-2 relative z-10">
            <Link to="/post" className="w-14 h-14 mb-1 bg-gradient-to-tr from-blue-600 to-cyan-400 text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(59,130,246,0.5)] border-[4px] border-white transform transition-all duration-300 active:scale-90 hover:scale-105 hover:-translate-y-2">
             <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
@@ -292,6 +301,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           <span className="text-[10px] font-black text-blue-600 tracking-tight">Đăng tin</span>
         </div>
 
+        {/* Item 4: Tin nhắn */}
         <Link to="/chat" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-4 group transition-all duration-300 relative ${location.pathname.startsWith('/chat') ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
           <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname.startsWith('/chat') ? 'bg-blue-50 shadow-[0_0_15px_rgba(37,99,235,0.2)]' : ''}`}>
              <svg className="w-6 h-6 transition-transform duration-300 group-active:scale-90" fill={location.pathname.startsWith('/chat') ? "currentColor" : "none"} stroke="currentColor" strokeWidth={location.pathname.startsWith('/chat') ? 0 : 2} viewBox="0 0 24 24">
@@ -302,6 +312,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           {unreadChatCount > 0 && <span className="absolute top-1 right-2 w-4 h-4 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-bounce">{unreadChatCount}</span>}
         </Link>
 
+        {/* Item 5: Cá nhân */}
         <Link to="/profile" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-4 group transition-all duration-300 ${location.pathname === '/profile' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
           <div className={`p-0.5 rounded-full transition-all duration-300 border-2 ${location.pathname === '/profile' ? 'border-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.3)]' : 'border-transparent'}`}>
              {user ? (

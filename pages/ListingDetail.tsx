@@ -42,32 +42,28 @@ const STATIC_LINKS = [
   { slug: 'meo-mua-ban-an-toan', title: 'An toàn' },
 ];
 
-// --- VECTOR ICONS CHO THUỘC TÍNH ---
-const ATTRIBUTE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
-  mileage: { label: 'Odo (Km)', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-  year: { label: 'Năm SX', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
-  gearbox: { label: 'Hộp số', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg> },
-  fuel: { label: 'Nhiên liệu', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
-  carType: { label: 'Kiểu dáng', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg> },
-  seatCount: { label: 'Số chỗ', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.536 8.464a5 5 0 000 7.072m-2.828-9.9a9 9 0 000 12.728" /></svg> },
-  area: { label: 'Diện tích', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg> },
-  bedrooms: { label: 'Phòng ngủ', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> },
-  bathrooms: { label: 'Số WC', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21H3m18-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14" /></svg> },
-  direction: { label: 'Hướng', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg> },
-  legal: { label: 'Pháp lý', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
-  propertyType: { label: 'Loại hình', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> },
-  battery: { label: 'Pin', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
-  storage: { label: 'Bộ nhớ', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg> },
-  ram: { label: 'RAM', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg> },
-  color: { label: 'Màu sắc', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg> },
-  warranty: { label: 'Bảo hành', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg> },
+// --- HÀM LẤY ICON ĐỘNG DỰA TRÊN KEY (GIỮ LẠI TỪ CODE MỚI) ---
+const getAttributeIcon = (key: string): React.ReactNode => {
+    const k = key.toLowerCase();
+    if (k.includes('area') || k.includes('size')) return <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>;
+    if (k.includes('bed')) return <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>;
+    if (k.includes('bath')) return <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21H3m18-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14" /></svg>;
+    if (k.includes('mileage') || k.includes('odo')) return <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+    if (k.includes('year') || k.includes('age')) return <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+    if (k.includes('fuel') || k.includes('battery')) return <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>;
+    if (k.includes('gear')) return <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>;
+    if (k.includes('storage') || k.includes('ram') || k.includes('cpu')) return <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" /></svg>;
+    if (k.includes('salary') || k.includes('price') || k.includes('deposit')) return <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+    if (k.includes('job') || k.includes('position')) return <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>;
+    
+    return <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>;
 };
 
 const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const { slugWithId } = useParams();
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
-   
+    
   const [listing, setListing] = useState<Listing | null>(null);
   const [seller, setSeller] = useState<User | null>(null);
   const [allListings, setAllListings] = useState<Listing[]>([]);
@@ -119,11 +115,9 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     window.scrollTo(0, 0);
   }, [id, user]);
 
-  // [CẬP NHẬT] THUẬT TOÁN SẮP XẾP: VIP > Basic > Free, rồi mới đến Thời gian
   const similarListings = useMemo(() => {
     if (!listing) return [];
     
-    // Hàm tính điểm ưu tiên (VIP Score)
     const getTierScore = (tier?: string) => {
         if (tier === 'pro') return 3;
         if (tier === 'basic') return 2;
@@ -133,22 +127,17 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     return allListings
       .filter(l => l.id !== listing.id && l.category === listing.category)
       .sort((a, b) => {
-          // 1. So sánh điểm VIP trước
           const scoreA = getTierScore(a.tier);
           const scoreB = getTierScore(b.tier);
-          
-          if (scoreA !== scoreB) {
-              return scoreB - scoreA; // Điểm cao xếp trên
-          }
-          
-          // 2. Nếu cùng điểm VIP, so sánh thời gian (Mới nhất lên đầu)
+          if (scoreA !== scoreB) return scoreB - scoreA;
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       })
       .slice(0, 12);
   }, [allListings, listing]);
 
   if (!listing) return null;
-  const currentCategory = CATEGORIES.find(c => c.id === listing.category);
+
+  const categoryConfig = CATEGORIES.find(c => c.id === listing.category);
   const isVideoActive = listing.videoUrl && activeMedia === 0;
   const isOwner = user && user.id === listing.sellerId;
 
@@ -210,9 +199,9 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
       <nav className="flex items-center gap-2 text-[10px] md:text-xs font-bold uppercase tracking-widest text-gray-400 px-4 md:px-0">
         <Link to="/" className="hover:text-primary transition-colors">Trang chủ</Link>
         <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-        {currentCategory && (
+        {categoryConfig && (
             <>
-                <Link to={`/danh-muc/${currentCategory.slug}`} className="hover:text-primary transition-colors">{currentCategory.name}</Link>
+                <Link to={`/danh-muc/${categoryConfig.slug}`} className="hover:text-primary transition-colors">{categoryConfig.name}</Link>
                 <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
             </>
         )}
@@ -226,7 +215,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           
           {/* MEDIA VIEWER */}
           <div className="relative bg-gray-900 aspect-square md:aspect-video md:rounded-[2rem] overflow-hidden group shadow-2xl border border-gray-800">
-            {/* RENDER VIDEO OR IMAGE */}
             {isVideoActive ? (
                 <div className="relative w-full h-full cursor-pointer" onClick={handleVideoPlayPause}>
                     <video 
@@ -313,28 +301,52 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             ))}
           </div>
 
-          {/* ATTRIBUTES */}
+          {/* [CẬP NHẬT] ATTRIBUTES HIỂN THỊ ĐỘNG 100% */}
           {listing.attributes && Object.keys(listing.attributes).length > 0 && (
             <div className="bg-white md:rounded-[2rem] p-8 border border-gray-100 shadow-sm">
               <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-8 border-l-4 border-primary pl-4 flex items-center gap-2">
                   <span>⚡</span> Thông số kỹ thuật
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-y-8 gap-x-6">
-                {Object.entries(listing.attributes).map(([key, value]) => {
-                  const info = ATTRIBUTE_LABELS[key];
-                  if (!value || !info) return null;
-                  return (
-                    <div key={key} className="flex items-center gap-4 group">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm group-hover:bg-primary group-hover:text-white transition-colors duration-300 border border-blue-100">
-                          {info.icon}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{info.label}</p>
-                        <p className="text-sm font-bold text-gray-800 truncate">{value}{key === 'mileage' ? ' Km' : key === 'area' ? ' m²' : ''}</p>
-                      </div>
-                    </div>
-                  );
+                
+                {/* Lặp qua các thuộc tính đã định nghĩa trong Danh mục (để lấy Label chuẩn) */}
+                {categoryConfig?.attributes?.map((attr) => {
+                    const value = listing.attributes?.[attr.key];
+                    if (!value) return null; // Nếu tin này ko có giá trị đó thì bỏ qua
+
+                    return (
+                        <div key={attr.key} className="flex items-center gap-4 group">
+                            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm group-hover:bg-primary group-hover:text-white transition-colors duration-300 border border-blue-100">
+                                {getAttributeIcon(attr.key)}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{attr.label}</p>
+                                <p className="text-sm font-bold text-gray-800 truncate">
+                                    {value} 
+                                    {attr.suffix ? ` ${attr.suffix}` : ''}
+                                </p>
+                            </div>
+                        </div>
+                    );
                 })}
+
+                {/* Fallback: Nếu có thuộc tính lạ không nằm trong config (dữ liệu cũ) */}
+                {Object.entries(listing.attributes).map(([key, value]) => {
+                    // Nếu đã hiển thị ở trên rồi thì thôi
+                    if (categoryConfig?.attributes?.some(a => a.key === key)) return null;
+                    return (
+                        <div key={key} className="flex items-center gap-4 group">
+                            <div className="w-12 h-12 rounded-2xl bg-gray-50 text-gray-400 flex items-center justify-center shadow-sm border border-gray-200">
+                                {getAttributeIcon(key)}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{key}</p>
+                                <p className="text-sm font-bold text-gray-800 truncate">{value}</p>
+                            </div>
+                        </div>
+                    );
+                })}
+
               </div>
             </div>
           )}
@@ -469,7 +481,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               </button>
             </div>
 
-            {/* MAP SECTION (CỘT PHẢI) */}
+            {/* MAP SECTION (ĐÃ ĐƯỢC THÊM LẠI & SỬA LỖI LINK) */}
             {listing.lat && listing.lng && (
                 <div className="w-full h-48 rounded-2xl overflow-hidden relative border border-gray-200 mt-4 z-0 shadow-sm group">
                     <MapContainer center={[listing.lat, listing.lng]} zoom={13} style={{ height: '100%', width: '100%' }}>
@@ -481,8 +493,13 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                             <Popup>{listing.address || "Vị trí người bán"}</Popup>
                         </Marker>
                     </MapContainer>
-                    {/* Overlay hướng dẫn */}
-                    <a href={`http://maps.google.com/maps?q=${listing.lat},${listing.lng}`} target="_blank" rel="noreferrer" className="absolute top-2 right-2 bg-white/90 backdrop-blur text-blue-600 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm border border-white/50 z-[400] hover:bg-blue-600 hover:text-white transition-colors flex items-center gap-1">
+                    {/* Link chỉ đường đã sửa lỗi */}
+                    <a 
+                        href={`https://www.google.com/maps/search/?api=1&query=${listing.lat},${listing.lng}`} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="absolute top-2 right-2 bg-white/90 backdrop-blur text-blue-600 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm border border-white/50 z-[400] hover:bg-blue-600 hover:text-white transition-colors flex items-center gap-1"
+                    >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         Chỉ đường
                     </a>

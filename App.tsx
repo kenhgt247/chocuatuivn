@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Layout & Pages
 import Layout from './components/Layout';
@@ -23,6 +23,15 @@ import GoogleOneTap from './components/GoogleOneTap';
 // Services & Types
 import { db } from './services/db';
 import { User } from './types';
+
+// Helper: Tự động cuộn lên đầu trang khi chuyển Route
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+};
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -63,6 +72,9 @@ const App: React.FC = () => {
 
   return (
     <Router>
+      {/* Helper ScrollToTop đặt ở đây để hoạt động toàn app */}
+      <ScrollToTop />
+
       {/* ========================================================= */}
       {/* TÍCH HỢP GOOGLE ONE TAP LOGIN */}
       {/* ========================================================= */}
@@ -71,20 +83,28 @@ const App: React.FC = () => {
       <Layout user={user}>
         <Routes>
           {/* ========================================================= */}
-          {/* 1. TRANG CHỦ & TÌM KIẾM */}
+          {/* 1. TRANG CHỦ & DANH MỤC (SEO FRIENDLY) */}
           {/* ========================================================= */}
+          {/* Trang chủ mặc định */}
           <Route path="/" element={<Home user={user} />} />
+          
+          {/* Trang tìm kiếm */}
           <Route path="/search" element={<Home user={user} />} />
+          
+          {/* Trang danh mục cấp 1 (VD: /danh-muc/xe-co) */}
           <Route path="/danh-muc/:slug" element={<Home user={user} />} />
+          
+          {/* [MỚI] Trang danh mục cấp 2 (VD: /danh-muc/xe-co/xe-may) - Chuẩn SEO */}
+          <Route path="/danh-muc/:parentSlug/:childSlug" element={<Home user={user} />} />
 
           {/* ========================================================= */}
           {/* 2. CHI TIẾT SẢN PHẨM & ROUTES HỖ TRỢ THÔNG BÁO */}
           {/* ========================================================= */}
           
-          {/* Route chuẩn SEO */}
+          {/* Route chuẩn SEO: /san-pham/tieu-de-tin-id123 */}
           <Route path="/san-pham/:slugWithId" element={<ListingDetail user={user} />} />
           
-          {/* Route cầu nối (fallback) cho thông báo hệ thống */}
+          {/* Route cầu nối (fallback) cho thông báo hệ thống cũ */}
           <Route path="/listings/:slugWithId" element={<ListingDetail user={user} />} />
           <Route path="/listing/:slugWithId" element={<ListingDetail user={user} />} />
 
@@ -93,7 +113,7 @@ const App: React.FC = () => {
           {/* ========================================================= */}
           
           {/* [QUAN TRỌNG] Đặt Route Profile cá nhân LÊN TRƯỚC để tránh nhầm lẫn với :id */}
-          <Route path="/profile" element={<Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} />} />
+          <Route path="/profile" element={user ? <Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
 
           {/* Sau đó mới đến Route xem Profile người khác */}
           <Route path="/profile/:id" element={<SellerProfile currentUser={user} />} />
@@ -103,8 +123,10 @@ const App: React.FC = () => {
           {/* 4. CÁC ROUTE CẦN ĐĂNG NHẬP (PROTECTED ROUTES) */}
           {/* ========================================================= */}
           <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
+          
           {/* Thêm route sửa tin, dùng chung component với đăng tin */}
-          <Route path="/edit/:id" element={<PostListing user={user} />} />
+          <Route path="/edit/:id" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
+          
           <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
           
           {/* Chat System */}
@@ -112,14 +134,14 @@ const App: React.FC = () => {
           <Route path="/chat/:roomId" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
           
           {/* Wallet & Subscription */}
-          <Route path="/upgrade" element={<Subscription user={user} onUpdateUser={handleUpdateUser} />} />
+          <Route path="/upgrade" element={user ? <Subscription user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
           <Route path="/wallet" element={user ? <Wallet user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
           
           {/* Admin */}
-          <Route path="/admin" element={<Admin user={user} />} />
+          <Route path="/admin" element={user?.role === 'admin' ? <Admin user={user} /> : <Navigate to="/" />} />
 
           {/* ========================================================= */}
-          {/* 5. AUTH & STATIC PAGES (ĐÃ SỬA AUTO REDIRECT) */}
+          {/* 5. AUTH & STATIC PAGES */}
           {/* ========================================================= */}
           
           {/* Nếu chưa có user -> Hiện form Login. Nếu đã có user -> Chuyển về Home ngay lập tức */}

@@ -1,93 +1,44 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 // ==========================================================================
-// 1. ĐỊNH NGHĨA INTERFACE (GIỮ NGUYÊN NHƯ CẤU HÌNH CỦA BẠN)
+// 1. ĐỊNH NGHĨA INTERFACE
 // ==========================================================================
 export interface ListingAnalysis {
-  category: string;
+  category: string; // Quan trọng: Phải là ID danh mục con (vd: xe-may, dien-thoai)
   suggestedPrice: number;
   description: string;
   title: string;
   condition: 'new' | 'used';
   isProhibited: boolean;
   prohibitedReason?: string;
-  attributes?: {
-    // --- Xe cộ ---
-    mileage?: string;      
-    year?: string;         
-    gearbox?: string;      
-    fuel?: string;         
-    carType?: string;      
-    seatCount?: string;    
-    
-    // --- Bất động sản ---
-    area?: string;         
-    bedrooms?: string;     
-    bathrooms?: string;    
-    direction?: string;    
-    legal?: string;        
-    propertyType?: string; 
-
-    // --- Đồ điện tử ---
-    battery?: string;      
-    storage?: string;      
-    ram?: string;          
-    color?: string;        
-    warranty?: string;     
-
-    // --- Điện lạnh ---
-    capacity?: string;     
-    inverter?: string;     
-
-    // --- Thú cưng ---
-    breed?: string;        
-    age?: string;          
-    gender?: string;       
-
-    // --- Đồ gia dụng, Nội thất ---
-    material?: string;     
-    size?: string;         
-
-    // --- Đồ dùng cá nhân ---
-    brand?: string;        
-    personalSize?: string; 
-
-    // --- Việc làm ---
-    salary?: string;       
-    jobType?: string;      
-    experience?: string;   
-
-    [key: string]: any;
-  };
+  attributes?: Record<string, any>; // Lưu dynamic fields
 }
 
+// [QUAN TRỌNG] MAP DANH MỤC KHỚP VỚI CONSTANTS.TS
+// Chúng ta dạy AI biết các ID chính xác của hệ thống
 const CATEGORY_MAP_PROMPT = `
-Danh mục ID và Tên:
-1: Bất động sản
-2: Xe cộ
-3: Đồ điện tử
-4: Đồ gia dụng, nội thất
-5: Giải trí, Thể thao, Sở thích
-6: Đồ dùng cá nhân
-7: Mẹ và bé
-8: Thú cưng
-9: Đồ ăn, thực phẩm
-10: Tủ lạnh, máy lạnh, máy giặt
-11: Việc làm
-12: Dịch vụ, Du lịch
-13: Các loại khác
+HÃY CHỌN CHÍNH XÁC MỘT TRONG CÁC CATEGORY_ID DƯỚI ĐÂY (Ưu tiên danh mục con cụ thể):
+
+- Bất động sản: 'can-ho-chung-cu', 'nha-o', 'dat', 'phong-tro'
+- Xe cộ: 'xe-may', 'o-to', 'xe-dien', 'xe-dap'
+- Đồ điện tử: 'dien-thoai', 'laptop', 'may-tinh-bang', 'tivi-am-thanh'
+- Việc làm: 'ban-hang', 'nhan-vien-phuc-vu', 'tai-xe-giao-hang', 'bao-ve'
+- Thú cưng: 'cho', 'meo', 'ga', 'chim'
+- Điện lạnh: 'tu-lanh', 'may-lanh', 'may-giat'
+- Thời trang: 'quan-ao', 'giay-dep', 'dong-ho', 'tui-xach'
+- Mẹ và bé: 'me-va-be'
+- Nội thất: 'noi-that'
+- Giải trí: 'giai-tri'
+- Khác: 'khac'
 `;
 
-// Lấy API KEY an toàn (Ưu tiên VITE_)
 const getApiKey = () => {
   return (import.meta as any).env?.VITE_GEMINI_API_KEY || (process as any).env?.API_KEY || "";
 };
 
-// Hàm Helper: Trích xuất text an toàn (Tránh lỗi response.text is not a function)
 const safeGetText = (response: any): string => {
   try {
     if (typeof response.text === 'function') return response.text();
-    // Fallback cho cấu trúc JSON sâu
     if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
       return response.candidates[0].content.parts[0].text;
     }
@@ -99,7 +50,7 @@ const safeGetText = (response: any): string => {
 };
 
 // ==========================================================================
-// 2. CÁC HÀM GỌI API (SỬ DỤNG GEMINI 2.0 FLASH EXP)
+// 2. CÁC HÀM GỌI API
 // ==========================================================================
 
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
@@ -108,24 +59,21 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    // Xử lý base64 header
     const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
 
     const response = await ai.models.generateContent({
-      // [UPDATE] Dùng bản 2.0 Flash Experimental (Thay vì 1.5)
       model: 'gemini-2.0-flash-exp', 
       contents: {
         role: 'user',
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-          { text: "Mô tả sản phẩm này trong 2-3 từ khóa ngắn gọn để tìm kiếm mua bán. Chỉ trả về từ khóa." }
+          { text: "Mô tả sản phẩm này trong 2-3 từ khóa ngắn gọn (Tiếng Việt) để tìm kiếm. Chỉ trả về text." }
         ]
       }
     });
     
     return safeGetText(response).trim();
   } catch (error) {
-    console.error("Lỗi nhận diện ảnh tìm kiếm:", error);
     return "";
   }
 };
@@ -133,8 +81,7 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
   if (!apiKey) {
-    console.log("⚠️ Bỏ qua AI: Chưa cấu hình API Key.");
-    return { title: '', description: '', category: '13', suggestedPrice: 0, condition: 'used', isProhibited: false };
+    return { title: '', description: '', category: 'khac', suggestedPrice: 0, condition: 'used', isProhibited: false };
   }
 
   try {
@@ -148,24 +95,21 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     }));
 
     const response = await ai.models.generateContent({
-      // [UPDATE] Dùng bản 2.0 Flash Experimental (Mạnh hơn 1.5, đang hoạt động tốt)
       model: 'gemini-2.0-flash-exp', 
       
       contents: {
         role: 'user',
         parts: [
           ...imageParts,
-          { text: `Phân tích sản phẩm chuyên nghiệp để đăng tin rao vặt tương tự Chợ Tốt.
+          { text: `Phân tích ảnh sản phẩm để đăng tin bán hàng.
           ${CATEGORY_MAP_PROMPT}
           
-          Yêu cầu phân tích sâu:
-          1. Kiểm tra hàng cấm (Vũ khí, chất kích thích, động vật quý hiếm).
-          2. Chọn ID danh mục (1-13) chính xác nhất.
-          3. Đề xuất Tiêu đề hấp dẫn, chuẩn SEO.
-          4. Đề xuất Giá bán (VNĐ) sát thị trường thực tế.
-          5. Xác định Tình trạng (new/used).
-          6. Viết Mô tả đầy đủ ưu điểm, tình trạng.
-          7. TRÍCH XUẤT THÔNG SỐ CHI TIẾT (Mapping vào attributes).` }
+          Yêu cầu:
+          1. Category: BẮT BUỘC trả về đúng chuỗi ID trong danh sách trên (Ví dụ: trả về 'xe-may', KHÔNG trả về 'Xe máy' hay số 2).
+          2. Attributes: Trích xuất thông số kỹ thuật khớp với loại sản phẩm (Ví dụ: Xe thì cần mileage, year, brand. Điện thoại thì cần battery, storage, brand).
+          3. Title: Ngắn gọn, hấp dẫn, bao gồm tên hãng và model.
+          4. Price: Số nguyên VNĐ (ước lượng).
+          ` }
         ]
       },
       config: {
@@ -176,59 +120,45 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
             isProhibited: { type: Type.BOOLEAN },
             prohibitedReason: { type: Type.STRING },
             title: { type: Type.STRING },
-            category: { type: Type.STRING },
+            category: { type: Type.STRING }, // AI sẽ trả về ID dạng string (xe-may)
             suggestedPrice: { type: Type.NUMBER },
             condition: { type: Type.STRING },
             description: { type: Type.STRING },
             attributes: {
               type: Type.OBJECT,
               properties: {
+                // Mapping toàn bộ key có thể có
+                brand: { type: Type.STRING },
+                model: { type: Type.STRING },
+                year: { type: Type.STRING }, // AI trả string để an toàn
                 mileage: { type: Type.STRING },
-                year: { type: Type.STRING },
-                gearbox: { type: Type.STRING },
-                fuel: { type: Type.STRING },
-                carType: { type: Type.STRING },
-                seatCount: { type: Type.STRING },
-                area: { type: Type.STRING },
-                bedrooms: { type: Type.STRING },
-                bathrooms: { type: Type.STRING },
-                direction: { type: Type.STRING },
-                legal: { type: Type.STRING },
-                propertyType: { type: Type.STRING },
-                battery: { type: Type.STRING },
                 storage: { type: Type.STRING },
                 ram: { type: Type.STRING },
                 color: { type: Type.STRING },
-                warranty: { type: Type.STRING },
-                capacity: { type: Type.STRING },
-                inverter: { type: Type.STRING },
-                breed: { type: Type.STRING },
-                age: { type: Type.STRING },
-                gender: { type: Type.STRING },
-                material: { type: Type.STRING },
-                size: { type: Type.STRING },
-                brand: { type: Type.STRING },
-                personalSize: { type: Type.STRING },
+                area: { type: Type.STRING },
+                bedrooms: { type: Type.STRING },
+                direction: { type: Type.STRING },
                 salary: { type: Type.STRING },
                 jobType: { type: Type.STRING },
-                experience: { type: Type.STRING }
+                breed: { type: Type.STRING },
+                age: { type: Type.STRING },
+                capacity: { type: Type.STRING }
               }
             }
           },
-          required: ["isProhibited", "title", "category", "suggestedPrice", "condition", "description"]
+          required: ["title", "category", "suggestedPrice", "description"]
         }
       }
     });
 
     const rawText = safeGetText(response);
-    if (!rawText) throw new Error("AI trả về dữ liệu rỗng");
+    if (!rawText) throw new Error("AI trả về rỗng");
 
-    return JSON.parse(rawText || "{}") as ListingAnalysis;
+    return JSON.parse(rawText) as ListingAnalysis;
   } catch (error) {
-    console.error("Lỗi phân tích AI:", error);
-    // Trả về fallback để không crash app
+    console.error("Lỗi AI:", error);
     return { 
-      title: '', description: '', category: '13', suggestedPrice: 0, 
+      title: '', description: '', category: 'khac', suggestedPrice: 0, 
       condition: 'used', isProhibited: false 
     };
   }

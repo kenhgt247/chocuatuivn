@@ -12,12 +12,12 @@ export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'reject
 // Trạng thái tin đăng
 export type ListingStatus = 'pending' | 'approved' | 'rejected' | 'sold' | 'hidden';
 
-// Loại thông báo (Đã thêm 'offer')
+// Loại thông báo
 export type NotificationType = 
   | 'info' | 'success' | 'warning' | 'error' 
   | 'review' | 'message' | 'approval' | 'follow' | 'offer' | 'system';
 
-// Loại tin nhắn chat (Đã thêm 'offer')
+// Loại tin nhắn chat
 export type MessageType = 'text' | 'image' | 'location' | 'offer';
 
 // Trạng thái của một lời mặc cả
@@ -56,6 +56,28 @@ export interface User {
   verificationStatus?: VerificationStatus; 
   idCardFront?: string; 
   idCardBack?: string;  
+}
+
+// [MỚI] Interface cho Cấu hình Trường nhập liệu động
+export interface CategoryAttribute {
+  key: string;        // Tên biến lưu vào DB (vd: 'odo', 'ram')
+  label: string;      // Tên hiển thị ra màn hình (vd: 'Số Km', 'Dung lượng RAM')
+  type: 'text' | 'number' | 'select'; // Kiểu nhập liệu
+  options?: string[]; // Các lựa chọn (nếu type là 'select')
+  suffix?: string;    // Đơn vị (vd: 'Km', 'm²', 'GB')
+  required?: boolean; // Bắt buộc nhập hay không
+}
+
+// [CẬP NHẬT] Interface Category để hỗ trợ Dynamic Fields & Parent/Child
+export interface Category {
+  id: string;         // Slug (vd: 'bat-dong-san')
+  name: string;
+  icon: string;
+  slug: string;       // Giống id (để tương thích ngược)
+  parentId?: string | null; // ID của danh mục cha (nếu null là danh mục gốc)
+  order?: number;     // Số thứ tự sắp xếp
+  attributes?: CategoryAttribute[]; // Mảng chứa cấu hình các trường nhập liệu
+  subcategories?: string[]; // (Cũ - Giữ lại để tránh lỗi code cũ nếu có)
 }
 
 export interface Listing {
@@ -106,19 +128,10 @@ export interface Listing {
   };
 }
 
-export interface Category {
-  id: string;
-  name: string;
-  icon: string;
-  slug: string;
-  subcategories?: string[];
-}
-
 // ==========================================
 // 3. TƯƠNG TÁC (OFFER, CHAT, REVIEW, NOTIF)
 // ==========================================
 
-// [MỚI] Interface cho Lời mặc cả
 export interface Offer {
   id: string;
   listingId: string;

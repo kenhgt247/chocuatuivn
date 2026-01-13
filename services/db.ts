@@ -19,13 +19,11 @@ import {
   signInWithPopup,
   signInWithCredential
 } from "firebase/auth";
-// Gộp import Storage thành 1 dòng
 import { getStorage, ref, uploadString, getDownloadURL, uploadBytes } from "firebase/storage";
-// Import Functions
 import { getFunctions, httpsCallable } from "firebase/functions";
 
-// [CẬP NHẬT] Thêm Offer vào import
-import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus, Offer } from '../types';
+// Import Types
+import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus, Offer, Category } from '../types';
 
 // IMPORT LOGIC TÌM KIẾM & FORMAT
 import { isSearchMatch, calculateRelevanceScore, generateKeywords } from '../utils/format';
@@ -235,18 +233,32 @@ export const db = {
     }
   },
 
+  // [ĐÃ SỬA] Hàm saveListing: Tự động lấy lat/lng từ người bán nếu tin đăng không có
   saveListing: async (listingData: any) => {
     try {
+      // 1. Lấy thông tin người bán
+      const seller = await db.getUserById(listingData.sellerId);
+
+      // 2. Logic ưu tiên tọa độ: Lấy từ form -> Lấy từ profile -> Null
+      const finalLat = listingData.lat || seller?.lat || null;
+      const finalLng = listingData.lng || seller?.lng || null;
+      // Logic location/address: Lấy từ form -> Lấy từ profile
+      const finalLocation = listingData.location || seller?.location || "Toàn quốc";
+      const finalAddress = listingData.address || seller?.address || "";
+
       const dataToSave = {
         ...listingData,
         slug: db.toSlug(listingData.title),
         keywords: generateKeywords(listingData.title),
         
         viewCount: 0, 
-        
         videoUrl: listingData.videoUrl || null, 
-        lat: listingData.lat || null, 
-        lng: listingData.lng || null,
+        
+        // Gán dữ liệu vị trí đã xử lý
+        lat: finalLat, 
+        lng: finalLng,
+        location: finalLocation,
+        address: finalAddress,
 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -264,8 +276,6 @@ export const db = {
             <h3 style="color: #0066cc;">Có người đăng tin bán hàng mới!</h3>
             <p><strong>Tiêu đề:</strong> ${listingData.title}</p>
             <p><strong>Giá:</strong> ${Number(listingData.price).toLocaleString()} VNĐ</p>
-            <p><strong>Có Video:</strong> ${listingData.videoUrl ? "✅ Có" : "❌ Không"}</p>
-            <p><strong>Vị trí:</strong> ${listingData.lat ? "✅ Có GPS" : "❌ Không GPS"}</p>
             <p><strong>Người bán:</strong> ${listingData.sellerName}</p>
           `
         }
@@ -305,19 +315,16 @@ export const db = {
 
   deleteListing: async (id: string) => await deleteDoc(doc(firestore, "listings", id)),
 
-  // [CẬP NHẬT QUAN TRỌNG] HÀM SỬA TIN AN TOÀN
   updateListingContent: async (listingId: string, data: Partial<Listing>) => {
     try {
       let updates: any = { ...data, updatedAt: new Date().toISOString() };
       
-      // Tự động cập nhật Slug và Keyword nếu tiêu đề thay đổi
       if (data.title) {
           updates.slug = db.toSlug(data.title);
           // @ts-ignore
           updates.keywords = generateKeywords(data.title);
       }
 
-      // [QUAN TRỌNG] Lọc bỏ các trường undefined để tránh lỗi Firestore
       const cleanUpdates = Object.entries(updates).reduce((acc, [key, value]) => {
         if (value !== undefined) {
           acc[key] = value;
@@ -914,12 +921,10 @@ export const db = {
     return await getDownloadURL(storageRef);
   },
 
-  // [QUAN TRỌNG] HÀM UPLOAD VIDEO
   uploadVideo: async (file: File | Blob, userId: string): Promise<string> => {
     try {
       const path = `videos/${userId}/${Date.now()}_short.mp4`;
       const storageRef = ref(storage, path);
-      // Sử dụng uploadBytes thay vì uploadString để không bị lag trình duyệt với file lớn
       const snapshot = await uploadBytes(storageRef, file);
       return await getDownloadURL(snapshot.ref);
     } catch (e) {
@@ -1065,17 +1070,13 @@ export const db = {
   
   createOffer: async (listing: Listing, buyer: User, offerPrice: number) => {
     try {
-      // 1. Tạo bản ghi Offer
       const offerData: Omit<Offer, 'id'> = {
         listingId: listing.id,
         listingTitle: listing.title,
         listingImage: listing.images[0] || "",
-        
         buyerId: buyer.id,
         buyerName: buyer.name,
-        
         sellerId: listing.sellerId,
-        
         originalPrice: listing.price,
         offerPrice: offerPrice,
         status: 'pending',
@@ -1083,11 +1084,8 @@ export const db = {
       };
       
       const offerRef = await addDoc(collection(firestore, "offers"), offerData);
-      
-      // 2. Tạo hoặc Lấy phòng chat
       const roomId = await db.createChatRoom(listing, buyer);
 
-      // 3. Gửi tin nhắn Offer vào Chat
       const message = {
         senderId: buyer.id,
         text: `💰 Đã đề nghị mức giá: ${offerPrice.toLocaleString()} VNĐ`,
@@ -1097,7 +1095,6 @@ export const db = {
       };
       await db.addMessage(roomId, message);
 
-      // 4. Báo cho người bán
       await db.sendNotification({
         userId: listing.sellerId,
         title: "Nhận được lời mặc cả mới!",
@@ -1143,7 +1140,7 @@ export const db = {
     }
   },
 
-  // --- [MỚI] TÍNH NĂNG CRAWLER ẢNH TỪ LINK (CHẠY LOCALHOST) ---
+  // --- CRAWLER LINK ---
   scanLinkToImage: async (url: string) => {
     try {
       const captureFn = httpsCallable(functions, 'captureUrl');
@@ -1151,7 +1148,7 @@ export const db = {
       const result: any = await captureFn({ url });
       
       if (result.data.success) {
-        return result.data.base64; // Trả về ảnh Base64
+        return result.data.base64; 
       }
       return null;
     } catch (e) {
@@ -1160,126 +1157,262 @@ export const db = {
     }
   },
 
-  // --- H. SEED DATA ---
+  // --- DANH MỤC ĐỘNG ---
+  getCategories: async (): Promise<Category[]> => {
+    try {
+      const colRef = collection(firestore, "categories");
+      const q = query(colRef, orderBy("order", "asc")); 
+      const snap = await getDocs(q);
+      
+      if (snap.empty) return []; 
+      
+      return snap.docs.map(d => d.data() as Category);
+    } catch (e) {
+      console.error("Lỗi lấy danh mục:", e);
+      return [];
+    }
+  },
+
+  saveCategory: async (category: Category) => {
+    try {
+      await setDoc(doc(firestore, "categories", category.id), category);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
+  },
+
+  deleteCategory: async (categoryId: string) => {
+    try {
+      await deleteDoc(doc(firestore, "categories", categoryId));
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
+  },
+
+  // --- H. SEED DATA (FULL DATASET VIETNAM) ---
   seedDatabase: async () => {
     try {
       console.log("🧹 Đang dọn dẹp dữ liệu rác...");
       
       const allUsers = await getDocs(collection(firestore, "users"));
       const allListings = await getDocs(collection(firestore, "listings"));
+      const allCategories = await getDocs(collection(firestore, "categories"));
 
+      // Chỉ xóa dữ liệu test (có prefix seed_)
       const seedUserDocs = allUsers.docs.filter(d => d.id.startsWith("seed_"));
       const seedListingDocs = allListings.docs.filter(d => d.id.startsWith("seed_"));
-
+      
+      // Xóa TOÀN BỘ danh mục cũ để nạp danh mục chuẩn mới
       const deleteBatch = writeBatch(firestore);
       let deleteCount = 0;
 
-      seedUserDocs.forEach(d => {
-        deleteBatch.delete(d.ref);
-        deleteCount++;
-      });
-      seedListingDocs.forEach(d => {
-        deleteBatch.delete(d.ref);
-        deleteCount++;
-      });
+      seedUserDocs.forEach(d => { deleteBatch.delete(d.ref); deleteCount++; });
+      seedListingDocs.forEach(d => { deleteBatch.delete(d.ref); deleteCount++; });
+      allCategories.forEach(d => { deleteBatch.delete(d.ref); deleteCount++; }); // Xóa hết category cũ
 
       if (deleteCount > 0) {
         await deleteBatch.commit();
-        console.log(`✅ Đã xóa ${seedUserDocs.length} user giả và ${seedListingDocs.length} tin giả cũ.`);
+        console.log(`✅ Đã xóa ${deleteCount} items cũ.`);
       }
 
       console.log("🌱 Bắt đầu tạo dữ liệu mới...");
       const createBatch = writeBatch(firestore);
 
-      // [QUAN TRỌNG] Tạo Settings mặc định nếu chưa có
-      const settingsRef = doc(firestore, "system", "settings");
-      const defaultSettings: SystemSettings = {
-        pushPrice: 20000,
-        pushDiscount: 0,
-        tierDiscount: 0,
-        bannerSlides: [],
-        tierConfigs: {
-          free: { 
-            name: "Miễn Phí", 
-            price: 0, 
-            maxImages: 3, 
-            postsPerDay: 5, 
-            autoApprove: false, 
-            features: ["Đăng tối đa 5 tin/ngày", "Tối đa 3 ảnh/tin", "Tin chờ duyệt", "Hiển thị tiêu chuẩn"],
-            allowVideo: false 
-          },
-          basic: { 
-            name: "Gói Basic", 
-            price: 50000, 
-            maxImages: 6, 
-            postsPerDay: 15, 
-            autoApprove: true, 
-            features: ["Đăng tối đa 15 tin/ngày", "Tối đa 6 ảnh/tin", "Duyệt tin tự động", "Huy hiệu Bạc"],
-            allowVideo: true
-          },
-          pro: { 
-            name: "Gói Pro VIP", 
-            price: 150000, 
-            maxImages: 10, 
-            postsPerDay: 999, 
-            autoApprove: true, 
-            features: ["Không giới hạn tin đăng", "Tối đa 10 ảnh/tin", "Duyệt tin tự động", "Huy hiệu Vàng", "Ưu tiên hiển thị"],
-            allowVideo: true
-          }
-        },
-        bankName: "MBBANK",
-        accountNumber: "123456789",
-        accountName: "NGUYEN VAN A"
+      // KHAI BÁO TỌA ĐỘ CÁC THÀNH PHỐ LỚN ĐỂ RANDOM
+      const CITY_COORDS: Record<string, { lat: number, lng: number }> = {
+        "Hà Nội": { lat: 21.0285, lng: 105.8542 },
+        "TPHCM": { lat: 10.8231, lng: 106.6297 },
+        "Đà Nẵng": { lat: 16.0544, lng: 108.2022 },
+        "Cần Thơ": { lat: 10.0452, lng: 105.7469 },
+        "Hải Phòng": { lat: 20.8449, lng: 106.6881 },
+        "Bình Dương": { lat: 11.1705, lng: 106.6669 },
+        "Đồng Nai": { lat: 10.9423, lng: 106.8242 }
       };
-      // Dùng setDoc với merge: true để không ghi đè nếu settings đã tồn tại
-      await setDoc(settingsRef, defaultSettings, { merge: true });
+      const cityNames = Object.keys(CITY_COORDS);
 
+      // 1. TẠO CẤU TRÚC DANH MỤC LỚN (12 NHÓM CHA)
+      const RAW_CATEGORIES = [
+        {
+            id: "bat-dong-san", name: "Bất động sản", icon: "🏠",
+            children: [
+                { id: "can-ho", name: "Căn hộ/Chung cư", icon: "🏢", keyword: "apartment" },
+                { id: "nha-o", name: "Nhà ở", icon: "🏡", keyword: "house" },
+                { id: "dat", name: "Đất nền", icon: "🏞️", keyword: "land" },
+                { id: "van-phong", name: "Văn phòng/Mặt bằng", icon: "💼", keyword: "office" },
+                { id: "phong-tro", name: "Phòng trọ", icon: "🛏️", keyword: "room for rent" }
+            ]
+        },
+        {
+            id: "xe-co", name: "Xe cộ", icon: "🚗",
+            children: [
+                { id: "o-to", name: "Ô tô", icon: "🚙", keyword: "car" },
+                { id: "xe-may", name: "Xe máy", icon: "🛵", keyword: "motorcycle" },
+                { id: "xe-tai", name: "Xe tải/Ben", icon: "🚛", keyword: "truck" },
+                { id: "xe-dien", name: "Xe điện", icon: "🛴", keyword: "electric scooter" },
+                { id: "phu-tung-xe", name: "Phụ tùng xe", icon: "🔧", keyword: "spare parts" }
+            ]
+        },
+        {
+            id: "do-dien-tu", name: "Đồ điện tử", icon: "📱",
+            children: [
+                { id: "dien-thoai", name: "Điện thoại", icon: "📱", keyword: "smartphone" },
+                { id: "laptop", name: "Laptop", icon: "💻", keyword: "laptop" },
+                { id: "may-tinh-bang", name: "Máy tính bảng", icon: "📟", keyword: "tablet" },
+                { id: "may-anh", name: "Máy ảnh/Camera", icon: "📷", keyword: "camera" },
+                { id: "tivi", name: "Tivi, Âm thanh", icon: "📺", keyword: "tv audio" },
+                { id: "phu-kien", name: "Phụ kiện số", icon: "🎧", keyword: "accessories" }
+            ]
+        },
+        {
+            id: "viec-lam", name: "Việc làm", icon: "💼",
+            children: [
+                { id: "lao-dong-pho-thong", name: "Lao động phổ thông", icon: "👷", keyword: "worker" },
+                { id: "ban-hang", name: "Bán hàng/CSKH", icon: "💁", keyword: "sales" },
+                { id: "van-phong-hcns", name: "Văn phòng/HCNS", icon: "📂", keyword: "admin job" },
+                { id: "ky-thuat", name: "Kỹ sư/Kỹ thuật", icon: "🛠️", keyword: "engineer" },
+                { id: "it", name: "CNTT/Thiết kế", icon: "👨‍💻", keyword: "developer" }
+            ]
+        },
+        {
+            id: "thu-cung", name: "Thú cưng", icon: "🐶",
+            children: [
+                { id: "cho", name: "Chó", icon: "🐕", keyword: "dog" },
+                { id: "meo", name: "Mèo", icon: "🐈", keyword: "cat" },
+                { id: "chim", name: "Chim cảnh", icon: "🐦", keyword: "bird" },
+                { id: "phu-kien-thu-cung", name: "Phụ kiện/Thức ăn", icon: "🦴", keyword: "pet food" }
+            ]
+        },
+        {
+            id: "dien-lanh", name: "Điện lạnh", icon: "❄️",
+            children: [
+                { id: "may-lanh", name: "Máy lạnh", icon: "❄️", keyword: "air conditioner" },
+                { id: "may-giat", name: "Máy giặt", icon: "🧺", keyword: "washing machine" },
+                { id: "tu-lanh", name: "Tủ lạnh", icon: "🧊", keyword: "fridge" }
+            ]
+        },
+        {
+            id: "thoi-trang", name: "Thời trang", icon: "👗",
+            children: [
+                { id: "quan-ao-nam", name: "Quần áo Nam", icon: "👔", keyword: "men clothes" },
+                { id: "quan-ao-nu", name: "Quần áo Nữ", icon: "👚", keyword: "women clothes" },
+                { id: "giay-dep", name: "Giày dép", icon: "👟", keyword: "shoes" },
+                { id: "dong-ho", name: "Đồng hồ/Trang sức", icon: "⌚", keyword: "watch jewelry" },
+                { id: "tui-xach", name: "Túi xách/Ví", icon: "👜", keyword: "bag" }
+            ]
+        },
+        {
+            id: "me-va-be", name: "Mẹ và Bé", icon: "🍼",
+            children: [
+                { id: "xe-day", name: "Xe đẩy/Nôi", icon: "🛒", keyword: "baby stroller" },
+                { id: "do-choi", name: "Đồ chơi", icon: "🧸", keyword: "toys" },
+                { id: "quan-ao-be", name: "Quần áo bé", icon: "👶", keyword: "baby clothes" }
+            ]
+        },
+        {
+            id: "noi-that", name: "Nội thất", icon: "🛋️",
+            children: [
+                { id: "ban-ghe", name: "Bàn ghế", icon: "🪑", keyword: "table chair" },
+                { id: "giuong-tu", name: "Giường/Tủ", icon: "🛏️", keyword: "bed cabinet" },
+                { id: "bep", name: "Tủ bếp/Đồ bếp", icon: "🍳", keyword: "kitchenware" }
+            ]
+        },
+        {
+            id: "giai-tri", name: "Giải trí", icon: "🎸",
+            children: [
+                { id: "nhac-cu", name: "Nhạc cụ", icon: "🎹", keyword: "musical instrument" },
+                { id: "sach", name: "Sách/Truyện", icon: "📚", keyword: "books" },
+                { id: "the-thao", name: "Đồ thể thao", icon: "⚽", keyword: "sports" }
+            ]
+        },
+        {
+            id: "dich-vu", name: "Dịch vụ", icon: "🔧",
+            children: [
+                { id: "sua-chua", name: "Sửa chữa", icon: "🔨", keyword: "repair service" },
+                { id: "van-tai", name: "Vận tải/Chuyển nhà", icon: "🚚", keyword: "moving service" },
+                { id: "du-lich", name: "Du lịch", icon: "✈️", keyword: "travel" }
+            ]
+        },
+        {
+            id: "thuc-pham", name: "Thực phẩm", icon: "🥦",
+            children: [
+                { id: "trai-cay", name: "Trái cây", icon: "🍎", keyword: "fruit" },
+                { id: "dac-san", name: "Đặc sản", icon: "🍯", keyword: "specialty food" }
+            ]
+        }
+      ];
+
+      // Lưu danh mục vào Firestore
+      let orderCounter = 0;
+      const flatCategoriesForListing: any[] = []; 
+
+      RAW_CATEGORIES.forEach(parent => {
+          // Lưu Parent
+          const parentRef = doc(firestore, "categories", parent.id);
+          createBatch.set(parentRef, {
+              id: parent.id,
+              name: parent.name,
+              icon: parent.icon,
+              slug: db.toSlug(parent.name),
+              order: orderCounter++,
+              parentId: null // Là cha
+          });
+
+          // Lưu Children
+          parent.children.forEach(child => {
+              const childRef = doc(firestore, "categories", child.id);
+              createBatch.set(childRef, {
+                  id: child.id,
+                  name: child.name,
+                  icon: child.icon,
+                  slug: db.toSlug(child.name),
+                  order: orderCounter++,
+                  parentId: parent.id // Link tới cha
+              });
+
+              // Thêm vào mảng tạm để dùng sinh tin đăng
+              flatCategoriesForListing.push({
+                  id: child.id,
+                  name: child.name,
+                  parentId: parent.id,
+                  keyword: child.keyword
+              });
+          });
+      });
+
+      // 2. TẠO USER GIẢ
       const firstNames = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Huỳnh", "Phan", "Vũ", "Võ", "Đặng"];
       const middleNames = ["Văn", "Thị", "Hữu", "Đức", "Ngọc", "Minh", "Quốc", "Thanh", "Mỹ", "Anh"];
       const lastNames = ["An", "Bình", "Cường", "Dũng", "Giang", "Hương", "Khánh", "Lan", "Nam", "Tâm", "Tuấn", "Vy"];
-      const cities = ["Hà Nội", "TPHCM", "Đà Nẵng", "Cần Thơ", "Hải Phòng", "Bình Dương", "Đồng Nai"];
-      
-      const categories = [
-        { id: "xe-co", name: "Xe cộ", keyword: "motorcycle,car", products: [
-            { title: "Honda SH 150i 2022 Chính chủ", price: 85000000 },
-            { title: "Yamaha Exciter 155 VVA Lướt", price: 42000000 },
-            { title: "Mazda 3 Luxury 2021 Màu Đỏ", price: 620000000 },
-            { title: "VinFast Lux A2.0 Bản Cao Cấp", price: 750000000 }
-        ]},
-        { id: "do-dien-tu", name: "Đồ điện tử", keyword: "smartphone,laptop", products: [
-            { title: "iPhone 15 Pro Max 256GB VNA", price: 29500000 },
-            { title: "MacBook Air M2 Midnight Fullbox", price: 24000000 },
-            { title: "Samsung Galaxy S24 Ultra Xám", price: 26000000 },
-            { title: "Tai nghe Sony WH-1000XM5", price: 6500000 }
-        ]},
-        { id: "bat-dong-san", name: "Bất động sản", keyword: "apartment,house", products: [
-            { title: "Chung cư cao cấp Vinhome 2PN", price: 4500000000 },
-            { title: "Nhà phố liền kề Khu đô thị mới", price: 8200000000 },
-            { title: "Phòng trọ khép kín Full nội thất", price: 3500000 }
-        ]},
-        { id: "thoi-trang", name: "Thời trang", keyword: "fashion,shoes", products: [
-            { title: "Giày Nike Jordan 1 High Panda", price: 3200000 },
-            { title: "Áo Hoodie Essentials Chính hãng", price: 1500000 }
-        ]}
-      ];
-
       const getRandom = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
       const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 
       const fakeUsers: User[] = [];
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 40; i++) {
         const uid = `seed_user_${i}`;
         const name = `${getRandom(firstNames)} ${getRandom(middleNames)} ${getRandom(lastNames)}`;
         
+        // --- [MỚI] TẠO TỌA ĐỘ GIẢ CHO USER ---
+        const cityName = getRandom(cityNames);
+        const baseCoords = CITY_COORDS[cityName];
+        const fakeLat = baseCoords.lat + (Math.random() - 0.5) * 0.05; 
+        const fakeLng = baseCoords.lng + (Math.random() - 0.5) * 0.05;
+
         const userRef = doc(firestore, "users", uid);
-        const newUser: User = {
+        const newUser: any = {
           id: uid,
           name: name,
           email: `user${i}@seed.com`,
           avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`,
           role: 'user',
           status: 'active',
-          location: getRandom(cities),
+          
+          location: cityName,
+          lat: fakeLat,
+          lng: fakeLng,
+          address: `Số ${randomInt(1, 999)}, Quận trung tâm, ${cityName}`,
+
           joinedAt: new Date(Date.now() - randomInt(0, 10000000000)).toISOString(),
           walletBalance: randomInt(0, 5000000),
           subscriptionTier: Math.random() > 0.8 ? 'pro' : (Math.random() > 0.5 ? 'basic' : 'free'),
@@ -1287,42 +1420,85 @@ export const db = {
           followers: [],
           following: []
         };
-        
         fakeUsers.push(newUser);
         createBatch.set(userRef, newUser);
       }
 
-      for (let i = 0; i < 100; i++) {
+      // 3. TẠO TIN ĐĂNG GIẢ (LISTINGS) - TĂNG LÊN 200 TIN
+      for (let i = 0; i < 200; i++) {
         const lid = `seed_listing_${i}`;
         const seller = getRandom(fakeUsers);
-        const cat = getRandom(categories);
-        const prod = getRandom(cat.products);
+        const cat = getRandom(flatCategoriesForListing); // Lấy ngẫu nhiên 1 danh mục con
         
-        const isVip = Math.random() > 0.8;
+        const isVip = Math.random() > 0.9; // 10% tin VIP
         const tier = isVip ? 'pro' : 'free';
-        const finalPrice = prod.price + randomInt(-500000, 500000); 
+        const basePrice = randomInt(100000, 50000000); 
+
+        // Sinh tiêu đề & thuộc tính dựa trên loại danh mục
+        let title = "";
+        let attributes: any = {};
+
+        // Logic sinh tên thông minh hơn
+        if (cat.parentId === 'xe-co') {
+            title = `${cat.name} ${getRandom(["Honda", "Yamaha", "VinFast", "Toyota", "Mazda"])} ${randomInt(2018, 2024)} Chính chủ`;
+            attributes = {
+                year: randomInt(2018, 2024),
+                mileage: randomInt(5000, 50000),
+                fuel: getRandom(["Xăng", "Dầu", "Điện"]),
+                gearbox: getRandom(["Tự động", "Số sàn"])
+            };
+        } else if (cat.parentId === 'do-dien-tu') {
+            title = `${cat.name} ${getRandom(["Apple", "Samsung", "Sony", "Dell", "Asus"])} Giá rẻ`;
+            attributes = {
+                storage: getRandom(["64GB", "128GB", "256GB"]),
+                ram: getRandom(["8GB", "16GB"]),
+                color: getRandom(["Đen", "Trắng", "Xám"])
+            };
+        } else if (cat.parentId === 'bat-dong-san') {
+            title = `${cat.name} ${randomInt(30, 100)}m2 tại ${getRandom(["Quận 1", "Cầu Giấy", "Thủ Đức"])}`;
+            attributes = {
+                area: randomInt(30, 150),
+                bedrooms: randomInt(1, 4),
+                bathrooms: randomInt(1, 3)
+            };
+        } else if (cat.parentId === 'viec-lam') {
+            title = `Tuyển dụng ${cat.name} lương cao`;
+            attributes = { salary: `${randomInt(5, 20)} triệu` };
+        } else {
+            title = `Thanh lý ${cat.name} còn mới 90%`;
+            attributes = { status: "Đã qua sử dụng" };
+        }
 
         const mainImage = `https://loremflickr.com/800/600/${cat.keyword}?lock=${i}`;
         const subImage = `https://picsum.photos/seed/${i}/800/600`;
-
-        // [MỚI] Random Video giả lập
-        const hasVideo = Math.random() > 0.7; // 30% có video
+        const hasVideo = Math.random() > 0.8; 
         const videoUrl = hasVideo ? "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4" : null;
 
         const listingRef = doc(firestore, "listings", lid);
+        
+        // --- [MỚI] TẠO TỌA ĐỘ GIẢ CHO TIN ĐĂNG (DỰA THEO SELLER) ---
+        // Jitter nhẹ để không trùng khít seller
+        const listingLat = (seller.lat || 21.0285) + (Math.random() - 0.5) * 0.01;
+        const listingLng = (seller.lng || 105.8542) + (Math.random() - 0.5) * 0.01;
+        // ------------------------------------------------------------
+
         const newListing: Listing = {
           id: lid,
-          title: prod.title,
-          slug: db.toSlug(prod.title), 
-          keywords: generateKeywords(prod.title), 
+          title: title,
+          slug: db.toSlug(title), 
+          keywords: generateKeywords(title), 
           viewCount: randomInt(0, 500), 
-          description: `Cần bán ${prod.title}. Hàng còn mới, sử dụng kỹ. Bao test thoải mái. Liên hệ ${seller.name} để ép giá. Giao dịch trực tiếp tại ${seller.location}.`,
-          price: finalPrice > 0 ? finalPrice : 1000000,
-          category: cat.id,
+          description: `Cần bán gấp ${title}. Ai có nhu cầu liên hệ ${seller.name}. Xem hàng tại ${seller.location}.`,
+          price: basePrice,
+          category: cat.id, 
           images: [mainImage, subImage], 
-          videoUrl: videoUrl, // Gán video URL
-          location: seller.location || "Toàn quốc",
-          address: `Quận ${randomInt(1, 12)}, ${seller.location}`,
+          videoUrl: videoUrl, 
+          
+          location: seller.location,
+          address: seller.address,
+          lat: listingLat, 
+          lng: listingLng,
+
           sellerId: seller.id,
           sellerName: seller.name,
           sellerAvatar: seller.avatar,
@@ -1330,11 +1506,7 @@ export const db = {
           status: Math.random() > 0.1 ? 'approved' : 'pending',
           condition: Math.random() > 0.5 ? 'used' : 'new',
           tier: tier as SubscriptionTier,
-          attributes: {
-             brand: "Chính hãng",
-             origin: "Việt Nam",
-             status: "99%"
-          }
+          attributes: attributes
         };
 
         createBatch.set(listingRef, newListing);
@@ -1342,7 +1514,7 @@ export const db = {
 
       await createBatch.commit();
       
-      return { success: true, message: `Đã Reset: Xóa dữ liệu cũ & Tạo mới ${fakeUsers.length} user, 100 tin đăng!` };
+      return { success: true, message: `Đã Reset: Tạo mới 12 Nhóm danh mục Cha & ~50 danh mục Con!` };
 
     } catch (e: any) {
       console.error("Seed error:", e);

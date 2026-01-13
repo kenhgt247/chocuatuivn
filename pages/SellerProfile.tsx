@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+// [THÊM] useLocation để lấy đường dẫn hiện tại phục vụ việc redirect sau khi login
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { db } from '../services/db';
 import { User, Listing, Review } from '../types';
 import ListingCard from '../components/ListingCard';
@@ -10,6 +11,7 @@ import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation(); // [THÊM] Hook location
   
   // State cơ bản
   const [seller, setSeller] = useState<User | null>(null);
@@ -17,9 +19,10 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [activeTab, setActiveTab] = useState<'listings' | 'reviews'>('listings');
   
-  // State Follow
+  // State Follow & Contact
   const [isFollowing, setIsFollowing] = useState(false);
   const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
+  const [isPhoneVisible, setIsPhoneVisible] = useState(false); // [THÊM] State ẩn/hiện số điện thoại
   
   // State Loading & Error
   const [loading, setLoading] = useState(true);
@@ -58,7 +61,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
             console.warn("Chưa lấy được follow stats", e);
         }
 
-        // 3. Kiểm tra xem mình có đang follow người này không (Chỉ khi không phải chính chủ)
+        // 3. Kiểm tra xem mình có đang follow người này không
         if (currentUser && !isOwner) {
             try {
                 const isF = await db.checkIsFollowing(currentUser.id, id);
@@ -157,7 +160,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
   };
 
   // --- LOGIC CHAT THÔNG MINH ---
- const handleStartChat = async () => {
+  const handleStartChat = async () => {
     if (!currentUser) return navigate('/login');
     if (!seller || isOwner) return;
 
@@ -181,6 +184,27 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
         alert("Không thể khởi tạo cuộc trò chuyện.");
     } finally {
         setChatLoading(false);
+    }
+  };
+
+  // --- [MỚI] LOGIC HIỆN SỐ ĐIỆN THOẠI ---
+  const handlePhoneClick = () => {
+    // 1. Nếu chưa đăng nhập -> Chuyển sang Login, kèm state để quay lại đây
+    if (!currentUser) {
+        if(window.confirm("Bạn cần đăng nhập để xem số điện thoại.")) {
+            // Truyền location hiện tại vào state để trang Login biết đường redirect về
+            navigate('/login', { state: { from: location.pathname } });
+        }
+        return;
+    }
+
+    // 2. Nếu đã đăng nhập:
+    if (isPhoneVisible && seller?.phone) {
+        // Nếu đang hiện số -> Gọi luôn
+        window.location.href = `tel:${seller.phone}`;
+    } else {
+        // Nếu chưa hiện -> Hiện số
+        setIsPhoneVisible(true);
     }
   };
 
@@ -267,7 +291,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
                <div><p className="text-2xl font-black text-green-600">99%</p><p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Phản hồi</p></div>
             </div>
 
-            {/* [SỬA ĐỔI QUAN TRỌNG] LOGIC HIỂN THỊ NÚT BẤM */}
+            {/* ACTION BUTTONS */}
             <div className="flex flex-wrap gap-4 pt-2">
               {isOwner ? (
                   // Nếu là Chính chủ -> Hiện nút Chỉnh sửa
@@ -278,19 +302,32 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
                     ⚙️ Chỉnh sửa hồ sơ
                   </Link>
               ) : (
-                  // Nếu là Khách -> Hiện nút Follow & Chat
+                  // Nếu là Khách
                   <>
+                      {/* Nút Follow */}
                       <button 
                         onClick={handleToggleFollow} 
-                        className={`flex-1 md:flex-none min-w-[160px] px-8 py-4 rounded-2xl font-black text-xs transition-all uppercase tracking-widest ${isFollowing ? 'bg-gray-100 text-gray-400' : 'bg-primary text-white shadow-xl shadow-primary/20 hover:scale-105 active:scale-95'}`}
+                        className={`flex-1 md:flex-none min-w-[140px] px-8 py-4 rounded-2xl font-black text-xs transition-all uppercase tracking-widest ${isFollowing ? 'bg-gray-100 text-gray-400' : 'bg-primary text-white shadow-xl shadow-primary/20 hover:scale-105 active:scale-95'}`}
                       >
                         {isFollowing ? 'Đang theo dõi ✓' : '+ Theo dõi'}
                       </button>
                       
+                      {/* [THÊM] Nút Gọi Điện */}
+                      {seller.phone && (
+                        <button 
+                          onClick={handlePhoneClick}
+                          className="flex-1 md:flex-none min-w-[160px] px-8 py-4 bg-white border-2 border-green-500 text-green-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-green-50 transition-all active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                            {isPhoneVisible ? seller.phone : 'Hiện SĐT'}
+                        </button>
+                      )}
+
+                      {/* Nút Chat */}
                       <button 
                         onClick={handleStartChat} 
                         disabled={chatLoading}
-                        className="flex-1 md:flex-none min-w-[160px] px-8 py-4 bg-white border-2 border-primary text-primary rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary/5 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-wait"
+                        className="flex-1 md:flex-none min-w-[140px] px-8 py-4 bg-white border-2 border-primary text-primary rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary/5 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-wait"
                       >
                         {chatLoading ? 'Đang kết nối...' : 'Nhắn tin'}
                       </button>

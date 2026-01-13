@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
-import { User, Listing, Transaction, Report } from '../types';
+import { User, Listing, Transaction, Report, Category } from '../types';
 import { formatPrice, getListingUrl } from '../utils/format';
 import { QueryDocumentSnapshot, DocumentData, collection, getDocs, getFirestore } from 'firebase/firestore';
-import { compressAndGetBase64 } from '../utils/imageCompression'; 
+import { compressAndGetBase64 } from '../utils/imageCompression';
+import { seedCategoriesToFirebase } from '../utils/seedCategories';
 
-type AdminTab = 'stats' | 'listings' | 'reports' | 'users' | 'payments' | 'settings';
+// [CẬP NHẬT] Thêm 'categories' vào danh sách Tab
+type AdminTab = 'stats' | 'listings' | 'reports' | 'users' | 'payments' | 'settings' | 'categories';
 
 interface ConfirmState { show: boolean; title: string; message: string; onConfirm: () => void; type: 'success' | 'danger' | 'warning'; }
 interface ToastState { show: boolean; message: string; type: 'success' | 'error'; }
@@ -19,6 +21,8 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const [reports, setReports] = useState<Report[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
+  
+  // State cho Listings
   const [listings, setListings] = useState<Listing[]>([]);
   const [listingLastDocs, setListingLastDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
   const [hasMoreListings, setHasMoreListings] = useState(true);
@@ -26,11 +30,18 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const [listingSearch, setListingSearch] = useState('');
   const [listingStatusFilter, setListingStatusFilter] = useState<'all' | 'pending'>('pending');
   const [selectedListings, setSelectedListings] = useState<Set<string>>(new Set());
+  
+  // State cho Users
   const [users, setUsers] = useState<User[]>([]);
   const [userLastDocs, setUserLastDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
   const [hasMoreUsers, setHasMoreUsers] = useState(true);
   const [userPage, setUserPage] = useState(1);
   const [isUserLoading, setIsUserLoading] = useState(false);
+  
+  // [MỚI] State cho Categories
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [editingCat, setEditingCat] = useState<Category | null>(null);
+
   const ITEMS_PER_PAGE = 10;
   const [isLoading, setIsLoading] = useState(false);
   const [confirmModal, setConfirmModal] = useState<ConfirmState>({ show: false, title: '', message: '', type: 'warning', onConfirm: () => {} });
@@ -48,7 +59,11 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
     if (activeTab === 'listings') {
         setListingPage(1); setListingLastDocs([]); loadListings(null);
     }
-  }, [listingStatusFilter]);
+    // [MỚI] Load danh mục khi chuyển tab
+    if (activeTab === 'categories') {
+        db.getCategories().then(setCategories);
+    }
+  }, [listingStatusFilter, activeTab]);
 
   useEffect(() => {
     if (activeTab === 'users' && users.length === 0) loadUsers(null);
@@ -327,7 +342,15 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
          <div className="bg-white border border-borderMain rounded-[2.5rem] p-5 shadow-soft sticky top-24 space-y-6">
             <div className="px-4 py-2"><h2 className="text-xl font-black text-primary">Admin Console</h2></div>
             <nav className="space-y-1">
-               {[{ id: 'stats', label: 'Bàn làm việc', icon: '📊', notify: false }, { id: 'payments', label: 'Duyệt tiền', icon: '💰', notify: pendingPayments.length > 0 }, { id: 'listings', label: 'Duyệt tin', icon: '📦', notify: hasPendingListings }, { id: 'reports', label: 'Báo cáo', icon: '🚨', notify: activeReports.length > 0 }, { id: 'users', label: 'Thành viên', icon: '👥', notify: pendingVerifications.length > 0 }, { id: 'settings', label: 'Cấu hình', icon: '⚙️', notify: false }].map(tab => (
+               {[
+                   { id: 'stats', label: 'Bàn làm việc', icon: '📊', notify: false }, 
+                   { id: 'payments', label: 'Duyệt tiền', icon: '💰', notify: pendingPayments.length > 0 }, 
+                   { id: 'listings', label: 'Duyệt tin', icon: '📦', notify: hasPendingListings }, 
+                   { id: 'categories', label: 'Danh mục', icon: '📂', notify: false }, // [MỚI] Tab Danh mục
+                   { id: 'reports', label: 'Báo cáo', icon: '🚨', notify: activeReports.length > 0 }, 
+                   { id: 'users', label: 'Thành viên', icon: '👥', notify: pendingVerifications.length > 0 }, 
+                   { id: 'settings', label: 'Cấu hình', icon: '⚙️', notify: false }
+               ].map(tab => (
                    <button key={tab.id} onClick={() => setActiveTab(tab.id as AdminTab)} className={`w-full flex items-center justify-between px-5 py-3.5 rounded-2xl text-[11px] font-black uppercase transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}>
                       <div className="flex items-center gap-4"><span className="text-lg">{tab.icon}</span><span>{tab.label}</span></div>
                       <div className="flex items-center gap-2">{(['payments', 'reports'].includes(tab.id) && (tab as any).count > 0) && <span className="bg-red-500 text-white px-2.5 py-1 rounded-full text-[9px] font-black animate-pulse">{(tab as any).count}</span>}{tab.notify && <span className="relative flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-white"></span></span>}</div>
@@ -392,7 +415,6 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                     </td>
                                     <td className="py-4">
                                         <div className="flex items-center gap-3">
-                                            {/* [FIX] THÊM BIỂU TƯỢNG VIDEO Ở ĐÂY */}
                                             <div className="relative w-10 h-10 flex-shrink-0">
                                                 <img src={l.images[0]} className="w-full h-full rounded-lg object-cover bg-gray-100" />
                                                 {l.videoUrl && (
@@ -461,6 +483,145 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                      <div className="flex gap-2">
                          <button onClick={handlePrevListingPage} disabled={listingPage === 1 || isLoading} className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-bold uppercase hover:bg-gray-50 disabled:opacity-50">Trước</button>
                          <button onClick={handleNextListingPage} disabled={!hasMoreListings || isLoading} className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold uppercase hover:bg-primaryHover disabled:opacity-50">Sau</button>
+                     </div>
+                 </div>
+             </div>
+         )}
+
+         {/* [MỚI] TAB QUẢN LÝ DANH MỤC & TRƯỜNG DỮ LIỆU */}
+         {activeTab === 'categories' && (
+             <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft flex flex-col h-[80vh]">
+                 <div className="flex justify-between items-center mb-6">
+                     <h3 className="text-xl font-black">Quản lý Danh mục ({categories.length})</h3>
+                     <div className="flex gap-2">
+                         <button onClick={async () => {
+                             setIsLoading(true);
+                             await seedCategoriesToFirebase();
+                             db.getCategories().then(setCategories);
+                             setIsLoading(false);
+                         }} className="bg-gray-100 text-gray-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-gray-200 uppercase">
+                             🔄 Nạp từ Code
+                         </button>
+                         <button 
+                             onClick={() => setEditingCat({ id: '', name: '', icon: '', parentId: null, attributes: [] } as any)} 
+                             className="bg-primary text-white px-4 py-2 rounded-xl text-xs font-black uppercase shadow-lg hover:bg-primaryHover"
+                         >
+                             + Tạo mới
+                         </button>
+                     </div>
+                 </div>
+
+                 <div className="flex gap-6 flex-1 min-h-0">
+                     {/* CỘT TRÁI: DANH SÁCH (Tree View) */}
+                     <div className="w-1/3 overflow-y-auto pr-2 space-y-2">
+                         {categories.filter(c => !c.parentId).map(parent => (
+                             <div key={parent.id} className="space-y-1">
+                                 <div 
+                                     onClick={() => setEditingCat(parent)}
+                                     className={`p-3 rounded-xl border cursor-pointer flex justify-between items-center transition-all ${editingCat?.id === parent.id ? 'border-primary bg-blue-50 shadow-sm' : 'border-gray-100 hover:bg-gray-50'}`}
+                                 >
+                                     <span className="font-bold text-sm flex items-center gap-2">{parent.icon} {parent.name}</span>
+                                     <span className="text-[9px] bg-gray-200 px-1.5 rounded text-gray-600 font-bold">{parent.attributes?.length || 0} fields</span>
+                                 </div>
+                                 {categories.filter(c => c.parentId === parent.id).map(child => (
+                                     <div 
+                                         key={child.id}
+                                         onClick={() => setEditingCat(child)}
+                                         className={`ml-6 p-2 rounded-lg border-l-2 border-gray-100 cursor-pointer flex justify-between items-center hover:bg-gray-50 ${editingCat?.id === child.id ? 'text-primary font-bold bg-blue-50/50' : 'text-gray-500 text-xs font-medium'}`}
+                                     >
+                                         <span>↳ {child.icon} {child.name}</span>
+                                     </div>
+                                 ))}
+                             </div>
+                         ))}
+                     </div>
+
+                     {/* CỘT PHẢI: FORM CHỈNH SỬA */}
+                     <div className="w-2/3 bg-gray-50 rounded-3xl p-6 border border-gray-200 overflow-y-auto">
+                         {editingCat ? (
+                             <div className="space-y-6">
+                                 <div className="flex justify-between items-center border-b border-gray-200 pb-4">
+                                     <h4 className="font-black text-lg text-primary">{editingCat.id ? 'Chỉnh sửa' : 'Tạo mới'}</h4>
+                                     {editingCat.id && <button onClick={async () => { if(window.confirm("Xóa danh mục này?")) { setIsLoading(true); await db.deleteCategory(editingCat.id); setCategories(prev => prev.filter(c => c.id !== editingCat.id)); setEditingCat(null); setIsLoading(false); }}} className="text-red-500 text-xs font-bold hover:bg-red-100 px-3 py-1.5 rounded-lg uppercase">Xóa bỏ</button>}
+                                 </div>
+
+                                 <div className="grid grid-cols-2 gap-4">
+                                     <div><label className="text-[10px] font-black uppercase text-gray-400">Tên danh mục</label><input type="text" value={editingCat.name} onChange={e => setEditingCat({...editingCat, name: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm font-bold bg-white" /></div>
+                                     <div><label className="text-[10px] font-black uppercase text-gray-400">Icon</label><input type="text" value={editingCat.icon} onChange={e => setEditingCat({...editingCat, icon: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm text-center bg-white" /></div>
+                                     <div><label className="text-[10px] font-black uppercase text-gray-400">ID (Slug)</label><input type="text" value={editingCat.id} onChange={e => setEditingCat({...editingCat, id: e.target.value})} disabled={!!editingCat.id && categories.some(c => c.id === editingCat.id && c !== editingCat)} className="w-full border border-gray-200 rounded-xl p-3 text-sm font-mono bg-white disabled:bg-gray-100" placeholder="vd: xe-co" /></div>
+                                     <div>
+                                         <label className="text-[10px] font-black uppercase text-gray-400">Danh mục Cha</label>
+                                         <select value={editingCat.parentId || ''} onChange={e => setEditingCat({...editingCat, parentId: e.target.value || null})} className="w-full border border-gray-200 rounded-xl p-3 text-sm font-bold bg-white">
+                                             <option value="">-- Là danh mục gốc --</option>
+                                             {categories.filter(c => !c.parentId && c.id !== editingCat.id).map(c => (
+                                                 <option key={c.id} value={c.id}>{c.name}</option>
+                                             ))}
+                                         </select>
+                                     </div>
+                                 </div>
+
+                                 <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-sm">
+                                     <div className="flex justify-between items-center mb-4">
+                                         <label className="text-[10px] font-black uppercase text-blue-500">Các trường nhập liệu đặc thù (Dynamic Fields)</label>
+                                         <button 
+                                             onClick={() => setEditingCat({
+                                                 ...editingCat, 
+                                                 attributes: [...(editingCat.attributes || []), { key: '', label: '', type: 'text' }]
+                                             })}
+                                             className="text-[9px] font-bold bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 uppercase"
+                                         >+ Thêm trường</button>
+                                     </div>
+
+                                     <div className="space-y-3">
+                                         {(editingCat.attributes || []).map((attr, idx) => (
+                                             <div key={idx} className="flex gap-2 items-start p-3 bg-gray-50 rounded-xl border border-gray-100 group hover:border-blue-200 transition-colors">
+                                                 <div className="grid grid-cols-3 gap-2 flex-1">
+                                                     <input type="text" placeholder="Tên hiển thị (VD: Số Km)" value={attr.label} onChange={e => { const attrs = [...(editingCat.attributes || [])]; attrs[idx].label = e.target.value; setEditingCat({...editingCat, attributes: attrs}); }} className="border border-gray-200 rounded-lg p-2 text-xs font-bold" />
+                                                     <input type="text" placeholder="Key (VD: odo)" value={attr.key} onChange={e => { const attrs = [...(editingCat.attributes || [])]; attrs[idx].key = e.target.value; setEditingCat({...editingCat, attributes: attrs}); }} className="border border-gray-200 rounded-lg p-2 text-xs font-mono" />
+                                                     <select value={attr.type} onChange={e => { const attrs = [...(editingCat.attributes || [])]; attrs[idx].type = e.target.value as any; setEditingCat({...editingCat, attributes: attrs}); }} className="border border-gray-200 rounded-lg p-2 text-xs">
+                                                         <option value="text">Chữ (Text)</option>
+                                                         <option value="number">Số (Number)</option>
+                                                         <option value="select">Chọn (Select)</option>
+                                                     </select>
+                                                     {attr.type === 'select' && (
+                                                         <input type="text" placeholder="Options (cách nhau dấu phẩy)" value={attr.options?.join(',') || ''} onChange={e => { const attrs = [...(editingCat.attributes || [])]; attrs[idx].options = e.target.value.split(','); setEditingCat({...editingCat, attributes: attrs}); }} className="col-span-3 border border-gray-200 rounded-lg p-2 text-xs bg-white" />
+                                                     )}
+                                                 </div>
+                                                 <button onClick={() => { const attrs = editingCat.attributes?.filter((_, i) => i !== idx); setEditingCat({...editingCat, attributes: attrs}); }} className="p-2 text-gray-400 hover:text-red-500">✕</button>
+                                             </div>
+                                         ))}
+                                         {(editingCat.attributes?.length === 0) && <p className="text-center text-[10px] text-gray-400 italic">Chưa có trường nào. Nhấn "+ Thêm trường" để tạo.</p>}
+                                     </div>
+                                 </div>
+
+                                 <div className="flex gap-3 pt-4">
+                                     <button onClick={() => setEditingCat(null)} className="flex-1 py-4 bg-white border border-gray-200 rounded-xl font-black uppercase text-xs hover:bg-gray-50">Hủy</button>
+                                     <button 
+                                         onClick={async () => {
+                                             setIsLoading(true);
+                                             const res = await db.saveCategory(editingCat);
+                                             if (res.success) {
+                                                 showToast("✅ Đã lưu danh mục!");
+                                                 db.getCategories().then(setCategories); 
+                                                 setEditingCat(null); 
+                                             } else {
+                                                 showToast("❌ Lỗi: " + res.message, "error");
+                                             }
+                                             setIsLoading(false);
+                                         }}
+                                         className="flex-1 py-4 bg-primary text-white rounded-xl font-black uppercase text-xs shadow-xl hover:scale-[1.01] transition-transform"
+                                     >
+                                         Lưu thay đổi
+                                     </button>
+                                 </div>
+                             </div>
+                         ) : (
+                             <div className="h-full flex flex-col items-center justify-center text-gray-300">
+                                 <span className="text-4xl mb-4">👈</span>
+                                 <p className="text-xs font-bold uppercase">Chọn danh mục để sửa</p>
+                                 <p className="text-[10px]">hoặc bấm nút "Tạo mới"</p>
+                             </div>
+                         )}
                      </div>
                  </div>
              </div>

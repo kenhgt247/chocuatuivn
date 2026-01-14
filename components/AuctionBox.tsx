@@ -25,23 +25,15 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
   const minValidBid = currentPrice + step;
   const isOwner = user?.id === listing.sellerId;
 
-  // 1. Lắng nghe Bids Realtime
-  useEffect(() => {
-    if (typeof db.getBids !== 'function') return;
-    const unsubscribe = db.getBids(listing.id, (data) => {
-      setBids(data);
-    });
-    setBidAmount(minValidBid);
-    return () => unsubscribe();
-  }, [listing.id, listing.price]);
-
-  // 2. Hàm Tự Động Chốt Đấu Giá
+  // 1. Hàm Tự Động Chốt Đấu Giá (Logic gửi tin nhắn)
   const handleFinalizeAuction = async (winnerBid: Bid) => {
     try {
-      // Chỉ chốt nếu tin chưa chuyển sang trạng thái sold
+      // Chỉ chốt nếu trạng thái hiện tại chưa phải là 'sold'
       if (listing.status === 'sold') return;
 
-      // A. Cập nhật trạng thái tin đăng
+      console.log("🚀 Đang thực hiện chốt đơn tự động...");
+
+      // A. Cập nhật trạng thái tin đăng sang 'sold'
       await db.updateListingStatus(listing.id, 'sold');
 
       // B. Tạo phòng chat giữa người bán và người thắng
@@ -53,7 +45,7 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
 
       const roomId = await db.createChatRoom(listing, winnerUser);
 
-      // C. Gửi tin nhắn chốt đơn tự động (Nhân danh người bán)
+      // C. Gửi tin nhắn tự động (Nhân danh người bán)
       await db.addMessage(roomId, {
         senderId: listing.sellerId,
         text: `🎉 CHÚC MỪNG! Bạn đã thắng đấu giá sản phẩm "${listing.title}" với mức giá ${formatPrice(winnerBid.amount)}. Tôi sẽ liên hệ với bạn để giao dịch sớm nhất!`,
@@ -61,7 +53,7 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
         isSystem: true
       });
 
-      // D. Gửi thông báo hệ thống cho người thắng
+      // D. Gửi thông báo thông qua quả chuông cho người thắng
       await db.sendNotification({
         userId: winnerBid.userId,
         title: "🏆 THẮNG ĐẤU GIÁ!",
@@ -70,13 +62,32 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
         link: `/chat/${roomId}`
       });
 
-      console.log("✅ Đã tự động chốt đấu giá và gửi tin nhắn.");
     } catch (error) {
       console.error("Lỗi khi tự động chốt đấu giá:", error);
     }
   };
 
-  // 3. Đồng hồ đếm ngược & Kích hoạt chốt đơn
+  // 2. Lắng nghe Bids Realtime & [QUAN TRỌNG] Tự động chốt bù
+  useEffect(() => {
+    if (typeof db.getBids !== 'function') return;
+
+    const unsubscribe = db.getBids(listing.id, (data) => {
+      setBids(data);
+      
+      // LOGIC CHỐT BÙ: Nếu thấy đã hết giờ mà chưa được chốt 'sold'
+      const now = new Date().getTime();
+      const endTime = new Date(listing.auctionEndAt || "").getTime();
+
+      if (now >= endTime && data.length > 0 && listing.status !== 'sold') {
+          handleFinalizeAuction(data[0]);
+      }
+    });
+
+    setBidAmount(minValidBid);
+    return () => unsubscribe();
+  }, [listing.id, listing.status, listing.auctionEndAt]);
+
+  // 3. Đồng hồ đếm ngược
   useEffect(() => {
     const calculateTimeLeft = () => {
       const end = new Date(listing.auctionEndAt || "").getTime();
@@ -87,9 +98,8 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
         if (!isEnded) {
           setIsEnded(true);
           setTimeLeft("ĐÃ KẾT THÚC");
-          
-          // Nếu có người đấu giá, người thắng là bids[0]
-          if (bids.length > 0) {
+          // Kích hoạt chốt ngay nếu đang mở trang
+          if (bids.length > 0 && listing.status !== 'sold') {
             handleFinalizeAuction(bids[0]);
           }
         }
@@ -107,7 +117,7 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
     calculateTimeLeft();
     const timer = setInterval(calculateTimeLeft, 1000);
     return () => clearInterval(timer);
-  }, [listing.auctionEndAt, bids, isEnded]);
+  }, [listing.auctionEndAt, bids, isEnded, listing.status]);
 
   // --- HÀM XỬ LÝ ĐẶT GIÁ ---
   const handlePlaceBid = async () => {
@@ -125,7 +135,7 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
     try {
       const result = await db.placeBid(listing.id, user.id, bidAmount);
       await db.notifyBidSuccess({ ...result, id: listing.id }, user.id, bidAmount);
-      alert("🎉 Trả giá thành công! Bạn đang dẫn đầu.");
+      alert("🎉 Trả giá thành công!");
     } catch (error: any) {
       alert(error.message || "Lỗi đấu giá.");
     } finally {
@@ -135,10 +145,6 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
 
   return (
     <div className="bg-white border-2 border-indigo-100 rounded-[2.5rem] p-6 shadow-2xl relative overflow-hidden">
-      {/* Nền trang trí */}
-      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl -mr-10 -mt-10 opacity-60"></div>
-
-      {/* Thời gian */}
       <div className="text-center mb-8 relative z-10">
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">
             {isEnded ? "Phiên đấu giá" : "Kết thúc sau"}
@@ -153,7 +159,6 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
         )}
       </div>
 
-      {/* Đặt giá */}
       <div className="bg-slate-50 rounded-3xl p-6 mb-6 border border-slate-100 relative z-10">
         <div className="flex justify-between items-center mb-5">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Giá hiện tại</span>
@@ -177,52 +182,32 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
                    onChange={(e) => setBidAmount(Number(e.target.value))}
                    className="flex-1 min-w-0 bg-white border-2 border-indigo-100 rounded-2xl px-5 py-3.5 font-black text-slate-800 focus:border-blue-500 outline-none text-xl shadow-inner"
                  />
-                 <button 
-                   onClick={handlePlaceBid}
-                   disabled={isBidding}
-                   className="shrink-0 bg-blue-600 text-white font-black px-8 py-3.5 rounded-2xl hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-blue-200 uppercase text-sm tracking-widest"
-                 >
+                 <button onClick={handlePlaceBid} disabled={isBidding} className="shrink-0 bg-blue-600 text-white font-black px-8 py-3.5 rounded-2xl hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-200 uppercase text-sm tracking-widest">
                    {isBidding ? '...' : 'ĐẤU'}
                  </button>
              </div>
-             <p className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-tight">
-                Bước giá tối thiểu: <span className="text-blue-500">+{formatPrice(step)}</span>
-             </p>
           </div>
         )}
       </div>
 
-      {/* Lịch sử */}
       <div className="relative z-10 px-1">
         <h4 className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 mb-4 flex items-center justify-between">
           <span>🔨 Lịch sử lượt trả</span>
           <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[9px]">{bids.length}</span>
         </h4>
-        
-        <div className="max-h-52 overflow-y-auto space-y-2.5 no-scrollbar">
-          {bids.length > 0 ? bids.map((bid, index) => (
+        <div className="max-h-52 overflow-y-auto space-y-2.5">
+          {bids.map((bid, index) => (
             <div key={bid.id} className={`flex items-center justify-between p-3.5 rounded-2xl border ${index === 0 ? 'bg-yellow-50/50 border-yellow-200 shadow-sm' : 'bg-white border-slate-50'}`}>
               <div className="flex items-center gap-3">
-                <div className="relative">
-                    <img src={bid.userAvatar || "https://placehold.co/50"} className="w-9 h-9 rounded-xl object-cover border-2 border-white shadow-sm" alt="" />
-                    {index === 0 && <span className="absolute -top-2.5 -right-2 text-base">👑</span>}
-                </div>
+                <img src={bid.userAvatar || "https://placehold.co/50"} className="w-9 h-9 rounded-xl object-cover" alt="" />
                 <div className="min-w-0">
-                  <p className={`text-[11px] font-black truncate ${index === 0 ? 'text-slate-900' : 'text-slate-600'}`}>
-                      {bid.userName} {user?.id === bid.userId && <span className="text-blue-500 ml-1">●</span>}
-                  </p>
+                  <p className="text-[11px] font-black truncate">{bid.userName}</p>
                   <p className="text-[9px] text-slate-400 font-bold uppercase">{formatTimeAgo(bid.createdAt)}</p>
                 </div>
               </div>
-              <span className={`text-sm font-black tracking-tight ${index === 0 ? 'text-orange-600' : 'text-slate-500'}`}>
-                {formatPrice(bid.amount)}
-              </span>
+              <span className="text-sm font-black text-orange-600">{formatPrice(bid.amount)}</span>
             </div>
-          )) : (
-            <div className="text-center py-10 opacity-30">
-                <p className="text-xs font-black uppercase tracking-widest">Chưa có lượt trả giá</p>
-            </div>
-          )}
+          ))}
         </div>
       </div>
     </div>

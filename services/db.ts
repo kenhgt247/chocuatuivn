@@ -396,30 +396,70 @@ export const db = {
     }
   },
 
+  // --- BẮT ĐẦU ĐOẠN COPY ---
+
   pushListing: async (listingId: string, userId: string) => {
-    const settings: any = await db.getSettings();
-    const user = await db.getUserById(userId);
-    
-    const rawPrice = settings?.pushPrice || 20000;
-    const discount = settings?.pushDiscount || 0; 
-    const price = rawPrice * (1 - discount / 100);
+    try {
+      // 1. Lấy thông tin Cài đặt, User và Tin đăng (để lấy tiêu đề cho thông báo)
+      const [settings, user, listingSnap] = await Promise.all([
+        db.getSettings(),
+        db.getUserById(userId),
+        getDoc(doc(firestore, "listings", listingId))
+      ]);
+      
+      const listingData = listingSnap.exists() ? listingSnap.data() : null;
+      const listingTitle = listingData ? listingData.title : "Sản phẩm";
+      const listingSlug = listingData ? listingData.slug : "san-pham";
 
-    if (!user || (user.walletBalance || 0) < price) return { success: false, message: "Ví không đủ tiền." };
-    
-    await updateDoc(doc(firestore, "users", userId), { walletBalance: (user.walletBalance || 0) - price });
-    await updateDoc(doc(firestore, "listings", listingId), { createdAt: new Date().toISOString() });
+      // 2. Tính toán giá tiền
+      const rawPrice = settings?.pushPrice || 20000;
+      const discount = settings?.pushDiscount || 0; 
+      const price = rawPrice * (1 - discount / 100);
 
-    await addDoc(collection(firestore, "mail"), {
-        to: [ADMIN_EMAIL],
-        message: {
-          subject: `[DOANH THU] User đẩy tin`,
-          html: `User ${userId} vừa đẩy tin ${listingId}. Doanh thu: ${price} VNĐ.`
-        }
-    });
+      // 3. Kiểm tra số dư
+      if (!user || (user.walletBalance || 0) < price) {
+        return { success: false, message: "Ví không đủ tiền. Vui lòng nạp thêm." };
+      }
+      
+      // 4. Thực hiện trừ tiền và cập nhật thời gian tin đăng
+      // Dùng batch để đảm bảo cả 2 hành động cùng thành công hoặc cùng thất bại
+      const batch = writeBatch(firestore);
+      
+      const userRef = doc(firestore, "users", userId);
+      const listingRef = doc(firestore, "listings", listingId);
 
-    return { success: true };
+      batch.update(userRef, { walletBalance: (user.walletBalance || 0) - price });
+      batch.update(listingRef, { createdAt: new Date().toISOString() });
+      
+      await batch.commit();
+
+      // 5. [MỚI] Gửi thông báo về quả chuông (Notification)
+      await db.sendNotification({
+          userId: userId,
+          title: "⚡ Đẩy tin thành công",
+          message: `Tài khoản bị trừ -${price.toLocaleString()}đ phí đẩy tin "${listingTitle}" lên đầu trang.`,
+          type: 'system', // Icon màu xanh tím
+          link: `/san-pham/${listingSlug}-${listingId}`
+      });
+
+      // 6. Gửi email báo cáo cho Admin
+      await addDoc(collection(firestore, "mail"), {
+          to: [ADMIN_EMAIL],
+          message: {
+            subject: `[DOANH THU] User đẩy tin`,
+            html: `User ${userId} vừa đẩy tin: <strong>${listingTitle}</strong>.<br>Doanh thu: <strong>${price.toLocaleString()} VNĐ</strong>.`
+          }
+      });
+
+      return { success: true };
+
+    } catch (e: any) {
+      console.error("Lỗi đẩy tin:", e);
+      return { success: false, message: e.message };
+    }
   },
 
+  // --- KẾT THÚC ĐOẠN COPY ---
   // --- C. GIAO DỊCH & VÍ ---
 
   requestDeposit: async (userId: string, amount: number, method: string) => {
@@ -511,57 +551,97 @@ export const db = {
     }
   },
 
+  // --- BẮT ĐẦU ĐOẠN COPY ---
+
   approveTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
     try {
+      // 1. Khai báo biến bên ngoài để hứng dữ liệu
       let targetUserId = "";
       let amount = 0;
       let type = "";
 
+      // 2. Chạy Transaction (Đảm bảo an toàn dữ liệu)
       await runTransaction(firestore, async (transaction) => {
         const txRef = doc(firestore, "transactions", txId);
         const txSnap = await transaction.get(txRef);
-        if (!txSnap.exists()) throw new Error("Transaction not found");
+        
+        if (!txSnap.exists()) throw new Error("Giao dịch không tồn tại");
         
         const txData = txSnap.data() as Transaction & { metadata?: any };
-        if (txData.status !== 'pending') throw new Error("Transaction already processed");
+        
+        // Chỉ xử lý nếu trạng thái là 'pending'
+        if (txData.status !== 'pending') throw new Error("Giao dịch này đã được xử lý trước đó");
 
+        // [QUAN TRỌNG] Lấy dữ liệu ra ngoài để dùng cho Notification
+        targetUserId = txData.userId;
+        amount = txData.amount;
+        type = txData.type;
+
+        // Lấy thông tin User
         const userRef = doc(firestore, "users", txData.userId);
         const userSnap = await transaction.get(userRef);
-        if (!userSnap.exists()) throw new Error("User not found");
+        
+        if (!userSnap.exists()) throw new Error("Không tìm thấy User");
         
         const userData = userSnap.data() as User;
 
+        // Xử lý cộng tiền hoặc kích hoạt gói
         if (txData.type === 'deposit') {
-          transaction.update(userRef, { walletBalance: (userData.walletBalance || 0) + txData.amount });
+          // Cộng tiền vào ví
+          const currentBalance = userData.walletBalance || 0;
+          transaction.update(userRef, { walletBalance: currentBalance + txData.amount });
         } else if (txData.type === 'payment' && txData.metadata?.targetTier) {
+          // Kích hoạt gói VIP
           const expires = new Date();
-          expires.setDate(expires.getDate() + 30);
-          transaction.update(userRef, { subscriptionTier: txData.metadata.targetTier, subscriptionExpires: expires.toISOString() });
+          expires.setDate(expires.getDate() + 30); // Cộng 30 ngày
+          transaction.update(userRef, { 
+            subscriptionTier: txData.metadata.targetTier, 
+            subscriptionExpires: expires.toISOString() 
+          });
         }
+        
+        // Cập nhật trạng thái giao dịch thành công
         transaction.update(txRef, { status: 'success' });
       });
 
+      // 3. Gửi thông báo (Notification) - Chạy sau khi Transaction thành công
       if (targetUserId) {
          await db.sendNotification({
            userId: targetUserId,
-           title: type === 'deposit' ? 'Nạp tiền thành công' : 'Gói dịch vụ đã kích hoạt',
+           title: type === 'deposit' ? '💰 Nạp tiền thành công' : '✅ Gói dịch vụ đã kích hoạt',
            message: type === 'deposit' 
              ? `Hệ thống đã cộng ${amount.toLocaleString()} VNĐ vào ví của bạn.` 
              : `Gói thành viên của bạn đã được nâng cấp thành công.`,
-           type: 'success',
+           type: 'success', // Icon màu xanh
            link: '/wallet'
          });
       }
       
       return { success: true };
     } catch (e: any) {
+      console.error("Lỗi duyệt giao dịch:", e);
       return { success: false, message: e.message };
     }
   },
 
   rejectTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
     try {
+      // Cập nhật trạng thái thất bại
       await updateDoc(doc(firestore, "transactions", txId), { status: 'failed' });
+      
+      // Lấy thông tin để gửi thông báo từ chối (Tuỳ chọn, nhưng nên có)
+      const txSnap = await getDoc(doc(firestore, "transactions", txId));
+      if (txSnap.exists()) {
+          const txData = txSnap.data() as Transaction;
+          await db.sendNotification({
+              userId: txData.userId,
+              title: "⚠️ Giao dịch bị từ chối",
+              message: `Yêu cầu giao dịch ${txData.amount.toLocaleString()}đ của bạn không được duyệt. Vui lòng liên hệ Admin.`,
+              type: 'error',
+              link: '/wallet'
+          });
+      }
+
       return { success: true };
     } catch (e: any) {
       return { success: false, message: e.message };
@@ -569,11 +649,22 @@ export const db = {
   },
 
   getTransactions: async (userId?: string): Promise<Transaction[]> => {
-    const q = userId ? query(collection(firestore, "transactions"), where("userId", "==", userId)) : collection(firestore, "transactions");
+    const colRef = collection(firestore, "transactions");
+    let q;
+    
+    if (userId) {
+        // Lấy giao dịch của 1 user
+        q = query(colRef, where("userId", "==", userId), orderBy("createdAt", "desc"));
+    } else {
+        // Lấy tất cả (cho Admin)
+        q = query(colRef, orderBy("createdAt", "desc"));
+    }
+
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ ...d.data(), id: d.id } as Transaction)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return snap.docs.map(d => ({ ...d.data(), id: d.id } as Transaction));
   },
 
+  // --- KẾT THÚC ĐOẠN COPY ---
   // --- D. NGƯỜI DÙNG (USERS & AUTH) ---
   
   getUsersPaged: async (options: {

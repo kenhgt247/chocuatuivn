@@ -7,6 +7,7 @@ import ListingCard from '../components/ListingCard';
 import ShareModal from '../components/ShareModal';
 import ReviewSection from '../components/ReviewSection';
 import OfferModal from '../components/OfferModal';
+import AuctionBox from '../components/AuctionBox'; // [MỚI] Import AuctionBox
 import { CATEGORIES } from '../constants';
 
 // --- IMPORT LEAFLET MAP ---
@@ -42,7 +43,7 @@ const STATIC_LINKS = [
   { slug: 'meo-mua-ban-an-toan', title: 'An toàn' },
 ];
 
-// --- HÀM LẤY ICON ĐỘNG DỰA TRÊN KEY (GIỮ LẠI TỪ CODE MỚI) ---
+// --- HÀM LẤY ICON ĐỘNG DỰA TRÊN KEY ---
 const getAttributeIcon = (key: string): React.ReactNode => {
     const k = key.toLowerCase();
     if (k.includes('area') || k.includes('size')) return <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>;
@@ -218,7 +219,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             
           {/* --- [START] WATERMARK BẢN QUYỀN (Đã chỉnh sửa: Nhỏ, không khung, mờ) --- */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden select-none">
-                {/* Đã bỏ border, padding và backdrop-blur để loại bỏ khung */}
                 <div className="transform -rotate-45 leading-none pointer-events-none">
                     <span className="text-white/10 text-sm md:text-lg font-black uppercase tracking-widest whitespace-nowrap px-4 py-2">
                         Chợ Của Tui
@@ -231,7 +231,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                 <div className="relative w-full h-full cursor-pointer" onClick={handleVideoPlayPause}>
                     <video 
                         ref={videoRef}
-                        src={listing.videoUrl} 
+                        src={listing.videoUrl || ""} 
                         poster={listing.images[0] || ""} 
                         className="w-full h-full object-contain bg-black"
                         autoPlay 
@@ -313,7 +313,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             ))}
           </div>
 
-          {/* [CẬP NHẬT] ATTRIBUTES HIỂN THỊ ĐỘNG 100% */}
+          {/* ATTRIBUTES */}
           {listing.attributes && Object.keys(listing.attributes).length > 0 && (
             <div className="bg-white md:rounded-[2rem] p-8 border border-gray-100 shadow-sm">
               <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-8 border-l-4 border-primary pl-4 flex items-center gap-2">
@@ -321,10 +321,9 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-y-8 gap-x-6">
                 
-                {/* Lặp qua các thuộc tính đã định nghĩa trong Danh mục (để lấy Label chuẩn) */}
                 {categoryConfig?.attributes?.map((attr) => {
                     const value = listing.attributes?.[attr.key];
-                    if (!value) return null; // Nếu tin này ko có giá trị đó thì bỏ qua
+                    if (!value) return null;
 
                     return (
                         <div key={attr.key} className="flex items-center gap-4 group">
@@ -342,9 +341,8 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                     );
                 })}
 
-                {/* Fallback: Nếu có thuộc tính lạ không nằm trong config (dữ liệu cũ) */}
+                {/* Fallback Attributes */}
                 {Object.entries(listing.attributes).map(([key, value]) => {
-                    // Nếu đã hiển thị ở trên rồi thì thôi
                     if (categoryConfig?.attributes?.some(a => a.key === key)) return null;
                     return (
                         <div key={key} className="flex items-center gap-4 group">
@@ -386,10 +384,19 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             
             {/* Header Info */}
             <div className="space-y-4">
-              <p className={`text-4xl font-black tracking-tighter ${listing.affiliateLink ? 'text-orange-600' : 'text-primary'}`}>
-                  {listing.price > 0 ? formatPrice(listing.price) : 'Liên hệ'}
-              </p>
+              {/* Tên sản phẩm đưa lên đầu cho dễ đọc */}
               <h1 className="text-xl font-bold text-gray-800 leading-snug uppercase tracking-tight">{listing.title}</h1>
+              
+              {/* [ĐIỀU KHIỂN HIỂN THỊ] NẾU LÀ ĐẤU GIÁ -> HIỆN AUCTION BOX, NGƯỢC LẠI HIỆN GIÁ THƯỜNG */}
+              {listing.isAuction ? (
+                  <div className="animate-fade-in-up">
+                      <AuctionBox listing={listing} user={user} />
+                  </div>
+              ) : (
+                  <p className={`text-4xl font-black tracking-tighter ${listing.affiliateLink ? 'text-orange-600' : 'text-primary'}`}>
+                      {listing.price > 0 ? formatPrice(listing.price) : 'Liên hệ'}
+                  </p>
+              )}
               
               <div className="flex flex-col gap-3 pt-4 border-t border-gray-50">
                 <div className="flex items-start gap-3 text-gray-500">
@@ -426,7 +433,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
             </Link>
 
-            {/* CTA BUTTONS - LOGIC SỬA TIN */}
+            {/* CTA BUTTONS - LOGIC SỬA TIN & MUA HÀNG */}
             <div className="space-y-3">
               {/* Nếu là Chủ sở hữu hoặc Admin -> Hiện nút Sửa */}
               {(isOwner || user?.role === 'admin') ? (
@@ -438,8 +445,9 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                     Chỉnh sửa tin này
                   </Link>
               ) : (
-                  // Nếu là Khách -> Hiện nút Mua
-                  <>
+                  // Nếu là Khách và KHÔNG PHẢI ĐẤU GIÁ -> Hiện nút Mua/Chat
+                  !listing.isAuction && (
+                    <>
                       {listing.affiliateLink ? (
                         <a href={listing.affiliateLink} target="_blank" rel="nofollow" className="w-full bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-black text-xs shadow-xl shadow-orange-200 flex items-center justify-center gap-2 animate-bounce">
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
@@ -478,7 +486,8 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                             {isPhoneVisible ? seller.phone : 'Hiện số điện thoại'}
                         </button>
                       )}
-                  </>
+                    </>
+                  )
               )}
             </div>
 
@@ -493,7 +502,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               </button>
             </div>
 
-            {/* MAP SECTION (ĐÃ ĐƯỢC THÊM LẠI & SỬA LỖI LINK) */}
+            {/* MAP SECTION */}
             {listing.lat && listing.lng && (
                 <div className="w-full h-48 rounded-2xl overflow-hidden relative border border-gray-200 mt-4 z-0 shadow-sm group">
                     <MapContainer center={[listing.lat, listing.lng]} zoom={13} style={{ height: '100%', width: '100%' }}>
@@ -505,9 +514,8 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                             <Popup>{listing.address || "Vị trí người bán"}</Popup>
                         </Marker>
                     </MapContainer>
-                    {/* Link chỉ đường đã sửa lỗi */}
                     <a 
-                        href={`https://www.google.com/maps/search/?api=1&query=${listing.lat},${listing.lng}`} 
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${listing.lat},${listing.lng}`} 
                         target="_blank" 
                         rel="noreferrer" 
                         className="absolute top-2 right-2 bg-white/90 backdrop-blur text-blue-600 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm border border-white/50 z-[400] hover:bg-blue-600 hover:text-white transition-colors flex items-center gap-1"

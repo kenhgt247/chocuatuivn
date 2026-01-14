@@ -23,7 +23,7 @@ import { getStorage, ref, uploadString, getDownloadURL, uploadBytes } from "fire
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 // Import Types
-import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus, Offer, Category } from '../types';
+import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus, Offer, Category, Bid } from '../types';
 
 // IMPORT LOGIC TÌM KIẾM & FORMAT
 import { isSearchMatch, calculateRelevanceScore, generateKeywords } from '../utils/format';
@@ -1301,6 +1301,7 @@ export const db = {
     }
   },
 
+
   // --- DANH MỤC ĐỘNG ---
   getCategories: async (): Promise<Category[]> => {
     try {
@@ -1333,6 +1334,88 @@ export const db = {
     } catch (e: any) {
       return { success: false, message: e.message };
     }
+  },
+  // --- H. ĐẤU GIÁ (AUCTION) --- [MỚI THÊM]
+
+  // Lấy danh sách người đấu giá (Realtime)
+  getBids: (listingId: string, callback: (bids: Bid[]) => void) => {
+    const q = query(
+      collection(firestore, "bids"), 
+      where("listingId", "==", listingId), 
+      orderBy("amount", "desc")
+    );
+    return onSnapshot(q, (snap) => {
+      const bids = snap.docs.map(d => ({ id: d.id, ...d.data() } as Bid));
+      callback(bids);
+    });
+  },
+
+  // Thực hiện đặt giá (Transaction an toàn)
+  placeBid: async (listingId: string, userId: string, amount: number) => {
+    try {
+      return await runTransaction(firestore, async (transaction) => {
+        // 1. Lấy thông tin tin đăng & user
+        const listingRef = doc(firestore, "listings", listingId);
+        const userRef = doc(firestore, "users", userId);
+        
+        const listingSnap = await transaction.get(listingRef);
+        const userSnap = await transaction.get(userRef);
+
+        if (!listingSnap.exists()) throw new Error("Tin không tồn tại");
+        if (!userSnap.exists()) throw new Error("User không tồn tại");
+
+        const listing = listingSnap.data() as Listing;
+        const user = userSnap.data() as User;
+
+        // 2. Validate logic đấu giá
+        if (!listing.isAuction) throw new Error("Tin này không phải đấu giá");
+        if (new Date(listing.auctionEndAt!) < new Date()) throw new Error("Đã hết thời gian đấu giá");
+        
+        // Giá đặt phải cao hơn giá hiện tại (hoặc giá khởi điểm nếu chưa ai đặt)
+        const currentPrice = listing.price || 0;
+        if (amount <= currentPrice) throw new Error(`Giá đặt phải cao hơn ${currentPrice.toLocaleString()}đ`);
+        
+        // 3. Lưu người cũ để báo tin
+        const previousBidderId = listing.highestBidderId;
+
+        // 4. Cập nhật giá mới cho Listing
+        transaction.update(listingRef, { 
+          price: amount,
+          highestBidderId: userId,
+          bidsCount: increment(1)
+        });
+
+        // 5. Tạo lịch sử Bid
+        const newBidRef = doc(collection(firestore, "bids"));
+        transaction.set(newBidRef, {
+          listingId,
+          userId,
+          userName: user.name,
+          userAvatar: user.avatar || "https://placehold.co/50",
+          amount,
+          createdAt: new Date().toISOString()
+        });
+
+        // Trả về dữ liệu để gửi thông báo
+        return { previousBidderId, listingTitle: listing.title, slug: listing.slug || 'san-pham' };
+      });
+    } catch (e: any) {
+      console.error("Lỗi đấu giá:", e);
+      throw e;
+    }
+  },
+
+  // Gửi thông báo cho người bị vượt mặt
+  notifyBidSuccess: async (data: any, currentUserId: string, amount: number) => {
+      if (data.previousBidderId && data.previousBidderId !== currentUserId) {
+          await db.sendNotification({
+              userId: data.previousBidderId,
+              title: "⚡ BẠN ĐÃ BỊ VƯỢT GIÁ!",
+              message: `Ai đó vừa trả ${amount.toLocaleString()}đ cho tin "${data.listingTitle}". Vào đấu lại ngay!`,
+              type: 'warning',
+              link: `/san-pham/${data.slug}-${data.id}`
+          });
+      }
   },
 // --- HÀM DỌN DẸP CHUẨN XÁC THEO ID CỦA BẠN ---
   clearDatabase: async () => {

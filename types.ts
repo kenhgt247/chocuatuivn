@@ -31,7 +31,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  avatar: string;
+  avatar?: string; // Đã sửa thành optional để tránh lỗi nếu null
   role: UserRole;
   status: UserStatus;
   phone?: string;
@@ -58,7 +58,7 @@ export interface User {
   idCardBack?: string;  
 }
 
-// [MỚI] Interface cho Cấu hình Trường nhập liệu động
+// Interface cho Cấu hình Trường nhập liệu động
 export interface CategoryAttribute {
   key: string;        // Tên biến lưu vào DB (vd: 'odo', 'ram')
   label: string;      // Tên hiển thị ra màn hình (vd: 'Số Km', 'Dung lượng RAM')
@@ -68,18 +68,19 @@ export interface CategoryAttribute {
   required?: boolean; // Bắt buộc nhập hay không
 }
 
-// [CẬP NHẬT] Interface Category để hỗ trợ Dynamic Fields & Parent/Child
+// Interface Category để hỗ trợ Dynamic Fields & Parent/Child
 export interface Category {
   id: string;         // Slug (vd: 'bat-dong-san')
   name: string;
-  icon: string;
-  slug: string;       // Giống id (để tương thích ngược)
+  icon?: string;      // Optional
+  slug?: string;      // Optional
   parentId?: string | null; // ID của danh mục cha (nếu null là danh mục gốc)
   order?: number;     // Số thứ tự sắp xếp
   attributes?: CategoryAttribute[]; // Mảng chứa cấu hình các trường nhập liệu
   subcategories?: string[]; // (Cũ - Giữ lại để tránh lỗi code cũ nếu có)
 }
 
+// [CẬP NHẬT] Thêm trường cho Đấu giá vào Listing
 export interface Listing {
   id: string;
   title: string;
@@ -87,8 +88,8 @@ export interface Listing {
   price: number;
   category: string;
   images: string[];
-  videoUrl?: string;     // Link video ngắn sản phẩm
-  affiliateLink?: string;
+  videoUrl?: string | null;     // Link video ngắn sản phẩm
+  affiliateLink?: string | null;
   
   // --- SEO & TÌM KIẾM ---
   slug?: string;         
@@ -98,8 +99,8 @@ export interface Listing {
   // --- THÔNG TIN VỊ TRÍ ---
   location: string; 
   address?: string; 
-  lat?: number;      
-  lng?: number;      
+  lat?: number | null;      
+  lng?: number | null;      
 
   // --- NGƯỜI BÁN ---
   sellerId: string;
@@ -112,20 +113,28 @@ export interface Listing {
   
   status: ListingStatus;
   condition: 'new' | 'used';
-  tier: SubscriptionTier; 
+  tier?: SubscriptionTier; 
   
   // --- THÔNG SỐ KỸ THUẬT ---
-  attributes?: {
-    brand?: string;
-    color?: string;
-    warranty?: string;
-    battery?: string;  
-    mileage?: string;  
-    area?: string;     
-    year?: string;     
-    storage?: string;  
-    [key: string]: any; 
-  };
+  attributes?: Record<string, any>;
+  
+  // --- [MỚI] TÍNH NĂNG ĐẤU GIÁ ---
+  isAuction?: boolean;          // Có phải tin đấu giá không?
+  auctionEndAt?: string;        // Thời gian kết thúc (ISO String)
+  bidIncrement?: number;        // Bước giá tối thiểu
+  bidsCount?: number;           // Tổng số lượt đấu giá
+  highestBidderId?: string;     // ID người đang trả giá cao nhất
+}
+
+// [MỚI] Interface cho Lịch sử Đấu giá (Bid)
+export interface Bid {
+  id: string;
+  listingId: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  amount: number;
+  createdAt: string;
 }
 
 // ==========================================

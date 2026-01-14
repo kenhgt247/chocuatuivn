@@ -3,8 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Listing } from '../types';
 import ListingCard from '../components/ListingCard';
-import { LOCATIONS, TIER_CONFIG } from '../constants';
-import { formatPrice } from '../utils/format';
+import { LOCATIONS } from '../constants';
+import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
 import { getLocationFromCoords } from '../utils/locationHelper'; 
 import { compressAndGetBase64 } from '../utils/imageCompression';
 
@@ -53,6 +53,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     const [myFavs, setMyFavs] = useState<Listing[]>([]);
     const [settings, setSettings] = useState<SystemSettings | null>(null);
     const [isPushing, setIsPushing] = useState<string | null>(null);
+    const [isFindingChat, setIsFindingChat] = useState<string | null>(null); // Trạng thái tìm phòng chat
     const [modal, setModal] = useState<ModalState>({ show: false, title: '', message: '', type: 'alert', onConfirm: () => {} });
 
     const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -76,7 +77,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
         if (!user) { navigate('/login'); return; }
         const loadProfileData = async () => {
             const [all, s] = await Promise.all([db.getListings(true), db.getSettings()]);
-            setMyListings(all.filter(l => l.sellerId === user.id));
+            setMyListings(all.filter(l => String(l.sellerId) === String(user.id)));
             setSettings(s);
             const favIds = await db.getFavorites(user.id);
             setMyFavs(all.filter(l => favIds.includes(l.id)));
@@ -105,6 +106,17 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     }, [user]);
 
     if (!user) return null;
+
+    // --- LOGIC CHUYỂN HƯỚNG CHÁT ---
+    const handleGoToChat = async (listingId: string) => {
+        setIsFindingChat(listingId);
+        try {
+            const roomId = await db.findChatRoomByListing(listingId);
+            if (roomId) { navigate(`/chat/${roomId}`); } 
+            else { alert("Hiện chưa có cuộc hội thoại nào cho tin đăng này."); }
+        } catch (error) { alert("Lỗi khi tìm phòng chat."); } 
+        finally { setIsFindingChat(null); }
+    };
 
     // --- AVATAR LOGIC ---
     const handleAvatarClick = () => avatarInputRef.current?.click();
@@ -155,7 +167,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
         finally { setIsSubmittingKyc(false); }
     };
 
-    // --- ĐẨY TIN LOGIC (Đã cập nhật chiết khấu) ---
+    // --- ĐẨY TIN LOGIC ---
     const handlePushListing = (listingId: string, title: string) => {
         if (!user || !settings) return;
         const originalPrice = settings.pushPrice;
@@ -172,16 +184,14 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
         }
         setModal({
             show: true, title: "Xác nhận đẩy tin",
-            message: discount > 0 
-                ? `Đẩy tin "${title}" với giá ưu đãi ${formatPrice(finalPrice)} (Giảm ${discount}% từ ${formatPrice(originalPrice)})?`
-                : `Đẩy tin "${title}" với phí ${formatPrice(finalPrice)}?`,
+            message: `Xác nhận đẩy tin "${title}" với phí ${formatPrice(finalPrice)}?`,
             type: 'push',
             onConfirm: async () => {
                 setModal(prev => ({ ...prev, show: false })); setIsPushing(listingId);
                 try {
                     const res = await db.pushListing(listingId, user.id);
                     if (res.success) {
-                        const all = await db.getListings(true); setMyListings(all.filter(l => l.sellerId === user.id));
+                        const all = await db.getListings(true); setMyListings(all.filter(l => String(l.sellerId) === String(user.id)));
                         const updated = await db.getCurrentUser(); if (updated) onUpdateUser(updated);
                         alert("Đẩy tin thành công!");
                     }
@@ -256,11 +266,11 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                 <div className="flex flex-col md:flex-row items-center gap-10 relative z-10">
                     <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
                         <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
-                        <img src={user.avatar} className="w-28 h-28 md:w-40 md:h-40 rounded-[2.5rem] border-4 border-white shadow-2xl object-cover transition-all group-hover:brightness-90" />
+                        <img src={user.avatar} className="w-28 h-28 md:w-40 md:h-40 rounded-[2.5rem] border-4 border-white shadow-2xl object-cover transition-all group-hover:brightness-90" alt="" />
                         {isUploadingAvatar ? (
                             <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-[2.5rem]"><div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div></div>
                         ) : (
-                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-[2.5rem]"><span className="text-white text-3xl">📷</span></div>
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-[2.5rem]"><span className="text-white text-3xl">📸</span></div>
                         )}
                         <div className="absolute -bottom-2 -right-2 bg-primary text-white p-3 rounded-2xl shadow-xl border-4 border-white"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></div>
                     </div>
@@ -269,8 +279,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
                             <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter">{user.name}</h1>
                             {renderVerificationStatus()}
-                            
-                            {/* [ĐÃ THÊM LẠI] NÚT ADMIN DASHBOARD */}
                             {user.role === 'admin' && (
                                 <Link to="/admin" className="bg-red-500 text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest shadow-lg shadow-red-200 hover:scale-105 transition-transform flex items-center gap-2">
                                     <span>⚡</span> Admin Panel
@@ -289,9 +297,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                                     <span className="text-3xl">{subscriptionData.effectiveTier === 'pro' ? '👑' : '💎'}</span>
                                 </div>
                                 <div className="mt-6 flex items-center justify-between">
-                                    <div>
-                                        {!subscriptionData.isExpired ? <p className="text-xs font-bold opacity-80">Còn {subscriptionData.daysRemaining} ngày</p> : <p className="text-xs font-bold opacity-80">Trải nghiệm VIP ngay</p>}
-                                    </div>
+                                    {!subscriptionData.isExpired ? <p className="text-xs font-bold opacity-80">Còn {subscriptionData.daysRemaining} ngày</p> : <p className="text-xs font-bold opacity-80">Trải nghiệm VIP ngay</p>}
                                     <Link to="/upgrade" className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${subscriptionData.effectiveTier === 'free' ? 'bg-primary text-white shadow-lg' : 'bg-white/20 border border-white/30 text-white hover:bg-white/30'}`}>Nâng cấp</Link>
                                 </div>
                             </div>
@@ -321,7 +327,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                 {activeTab === 'listings' && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
                         {myListings.map(listing => {
-                            // LOGIC TÍNH GIÁ ĐẨY TIN ĐỂ HIỂN THỊ
                             const originalPush = settings?.pushPrice || 0;
                             const discPush = settings?.pushDiscount || 0;
                             const finalPush = originalPush * (1 - discPush/100);
@@ -330,42 +335,56 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                                 <div key={listing.id} className="flex flex-col gap-3 group animate-fade-in-up">
                                     <div className="relative">
                                         <ListingCard listing={listing} />
-                                        {listing.status !== 'approved' && (
-                                            <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center rounded-[2rem] z-20 backdrop-blur-[2px]">
-                                                <span className="bg-white text-slate-900 text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl">
-                                                    {listing.status === 'pending' ? '⏳ Chờ duyệt' : '❌ Từ chối'}
-                                                </span>
+                                        
+                                        {/* HIỆN NHÃN TRẠNG THÁI - Không che nút bấm */}
+                                        {listing.status === 'sold' && (
+                                            <div className="absolute top-2 right-2 z-30 pointer-events-none">
+                                                <span className="bg-blue-600 text-white text-[7px] font-black px-2 py-1 rounded-lg uppercase shadow-lg border border-white">🏆 Thành công</span>
+                                            </div>
+                                        )}
+                                        {listing.status === 'pending' && (
+                                            <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center rounded-lg z-20 backdrop-blur-[1px]">
+                                                <span className="bg-white text-slate-900 text-[10px] font-black px-3 py-1.5 rounded-full uppercase shadow-xl">⏳ Chờ duyệt</span>
+                                            </div>
+                                        )}
+                                        {listing.status === 'rejected' && (
+                                            <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center rounded-lg z-20 backdrop-blur-[1px]">
+                                                <span className="bg-white text-red-500 text-[10px] font-black px-3 py-1.5 rounded-full uppercase shadow-xl">❌ Từ chối</span>
                                             </div>
                                         )}
                                     </div>
-                                    <div className="flex flex-col gap-2">
-                                        {/* NÚT ĐẨY TIN CHUYÊN NGHIỆP CÓ GIẢM GIÁ */}
-                                        <button 
-                                            onClick={() => handlePushListing(listing.id, listing.title)} 
-                                            disabled={isPushing !== null || listing.status !== 'approved'} 
-                                            className={`relative overflow-hidden py-3 rounded-2xl text-[10px] font-black uppercase transition-all flex flex-col items-center justify-center gap-0.5 border-2 shadow-sm
-                                                ${listing.status === 'approved' ? 'bg-white border-green-100 text-green-600 hover:border-green-500 hover:bg-green-50' : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'}
-                                            `}
-                                        >
-                                            {isPushing === listing.id ? (
-                                                <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-                                            ) : (
-                                                <>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span>⚡ Đẩy tin</span>
-                                                        {discPush > 0 && listing.status === 'approved' && (
-                                                            <span className="bg-red-500 text-white text-[7px] px-1.5 py-0.5 rounded-md animate-pulse">-{discPush}%</span>
-                                                        )}
-                                                    </div>
-                                                    {listing.status === 'approved' && (
-                                                        <div className="flex items-center gap-1 opacity-70">
-                                                            {discPush > 0 && <span className="text-[8px] line-through">{formatPrice(originalPush)}</span>}
-                                                            <span className="text-[9px] font-bold">{formatPrice(finalPush)}</span>
+                                    
+                                    <div className="flex flex-col gap-2 relative z-40">
+                                        {/* NÚT CHỨC NĂNG THAY ĐỔI THEO TRẠNG THÁI SOLD */}
+                                        {listing.status === 'sold' ? (
+                                            <button 
+                                                onClick={() => handleGoToChat(listing.id)}
+                                                disabled={isFindingChat === listing.id}
+                                                className="bg-green-50 text-green-600 border-2 border-green-100 hover:border-green-500 py-3 rounded-2xl text-[10px] font-black uppercase transition-all shadow-sm flex items-center justify-center gap-2"
+                                            >
+                                                {isFindingChat === listing.id ? <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div> : <>💬 Nhắn tin</>}
+                                            </button>
+                                        ) : (
+                                            <button 
+                                                onClick={() => handlePushListing(listing.id, listing.title)} 
+                                                disabled={isPushing !== null || listing.status !== 'approved'} 
+                                                className={`relative overflow-hidden py-3 rounded-2xl text-[10px] font-black uppercase transition-all flex flex-col items-center justify-center gap-0.5 border-2 shadow-sm
+                                                    ${listing.status === 'approved' ? 'bg-white border-green-100 text-green-600 hover:border-green-500 hover:bg-green-50' : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'}
+                                                `}
+                                            >
+                                                {isPushing === listing.id ? (
+                                                    <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                                                ) : (
+                                                    <>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span>⚡ Đẩy tin</span>
+                                                            {discPush > 0 && listing.status === 'approved' && <span className="bg-red-500 text-white text-[7px] px-1.5 py-0.5 rounded-md">-{discPush}%</span>}
                                                         </div>
-                                                    )}
-                                                </>
-                                            )}
-                                        </button>
+                                                        {listing.status === 'approved' && <div className="text-[9px] font-bold opacity-70">{formatPrice(finalPush)}</div>}
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
                                         <button onClick={() => handleDelete(listing.id)} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white py-3 rounded-2xl text-[10px] font-black uppercase transition-all shadow-sm">🗑 Xóa tin</button>
                                     </div>
                                 </div>
@@ -415,7 +434,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                             <div className="flex justify-end"><button type="submit" disabled={isSaving} className="px-16 py-5 bg-primary text-white font-black rounded-[1.5rem] shadow-2xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all uppercase tracking-widest text-xs">{isSaving ? 'Đang cập nhật...' : 'Lưu tất cả thay đổi'}</button></div>
                         </form>
 
-                        {/* KYC SECTION */}
                         <div className="pt-16 border-t-4 border-dashed border-slate-50 space-y-10">
                             <h3 className="text-2xl font-black text-slate-900 flex items-center gap-4"><span className="w-12 h-12 bg-purple-50 text-purple-500 rounded-[1.2rem] flex items-center justify-center text-xl">🛡️</span> Xác thực danh tính</h3>
                             {((user as any).verificationStatus === 'verified') ? (
@@ -440,7 +458,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                                                 <div className="relative aspect-video bg-slate-50 border-4 border-dashed border-slate-100 rounded-[2.5rem] overflow-hidden group cursor-pointer">
                                                     <input type="file" className="absolute inset-0 opacity-0 z-10 cursor-pointer" onChange={(e) => handleKycFileChange(side as any, e)} accept="image/*" />
                                                     {(kycPreviews as any)[side] ? (
-                                                        <img src={(kycPreviews as any)[side]} className="w-full h-full object-cover" />
+                                                        <img src={(kycPreviews as any)[side]} className="w-full h-full object-cover" alt="" />
                                                     ) : (
                                                         <div className="flex flex-col items-center justify-center h-full text-slate-300 group-hover:text-primary transition-colors"><span className="text-5xl mb-2">📸</span><span className="text-[10px] font-black uppercase tracking-widest">Chọn ảnh</span></div>
                                                     )}

@@ -216,11 +216,11 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           {/* MEDIA VIEWER */}
           <div className="relative bg-gray-900 aspect-square md:aspect-video md:rounded-[2rem] overflow-hidden group shadow-2xl border border-gray-800">
             
-            {/* --- [START] WATERMARK BẢN QUYỀN --- */}
-            {/* Lớp phủ này nằm đè lên ảnh/video (z-10) nhưng dưới các nút điều khiển (z-30) */}
+          {/* --- [START] WATERMARK BẢN QUYỀN (Đã chỉnh sửa: Nhỏ, không khung, mờ) --- */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden select-none">
-                <div className="transform -rotate-45 border-[3px] border-white/20 px-6 py-2 rounded-2xl backdrop-blur-[1px]">
-                    <span className="text-white/20 text-xl md:text-4xl font-black uppercase tracking-[0.3em] whitespace-nowrap drop-shadow-lg">
+                {/* Đã bỏ border, padding và backdrop-blur để loại bỏ khung */}
+                <div className="transform -rotate-45 leading-none pointer-events-none">
+                    <span className="text-white/10 text-sm md:text-lg font-black uppercase tracking-widest whitespace-nowrap px-4 py-2">
                         Chợ Của Tui
                     </span>
                 </div>

@@ -1233,32 +1233,63 @@ export const db = {
       return { success: false, message: e.message };
     }
   },
-// --- THÊM HÀM NÀY VÀO db.ts ---
+// --- HÀM DỌN DẸP THÔNG MINH (CHỈ XÓA ĐỒ GIẢ - GIỮ ĐỒ THẬT) ---
   clearDatabase: async () => {
     try {
-      console.log("🔥 Đang xóa sạch dữ liệu...");
-      
-      // Danh sách các collection cần xóa
-      const collections = ["listings", "users", "categories", "transactions", "notifications", "reviews", "reports", "chats", "offers", "follows"];
+      console.log("🧹 Đang quét rác (Dữ liệu mẫu)...");
+      const currentUser = auth.currentUser;
+
+      // Các collection cần quét
+      const collections = ["listings", "users", "transactions", "notifications", "reviews", "reports", "chats", "offers", "favorites"];
       
       const batch = writeBatch(firestore);
       let count = 0;
+      let batchCount = 0;
+
+      // HÀM KIỂM TRA: Cái ID này có phải đồ giả không?
+      // Logic: 
+      // 1. Bắt đầu bằng "seed_" (Code cũ)
+      // 2. Hoặc bắt đầu bằng chữ "l" hoặc "u" theo sau là số (vd: l1, l100, u2...) (Code mới)
+      const isFakeData = (id: string) => {
+        const isSeed = id.startsWith("seed_");
+        const isShortId = /^[lu]\d+$/.test(id); // Regex: l hoặc u + số
+        return isSeed || isShortId;
+      };
 
       for (const colName of collections) {
         const snap = await getDocs(collection(firestore, colName));
-        snap.docs.forEach(doc => {
-          batch.delete(doc.ref);
-          count++;
-        });
+        
+        for (const d of snap.docs) {
+          // 1. BẢO VỆ TUYỆT ĐỐI TÀI KHOẢN HIỆN TẠI (Dù tên gì cũng không xóa)
+          if (colName === 'users' && currentUser && d.id === currentUser.uid) {
+            continue;
+          }
+
+          // 2. CHỈ XÓA NẾU LÀ "ĐỒ GIẢ"
+          if (isFakeData(d.id)) {
+             batch.delete(d.ref);
+             count++;
+             batchCount++;
+             // console.log(`🗑 Sẽ xóa: ${colName}/${d.id}`); // Bật dòng này nếu muốn soi kỹ
+          } else {
+             // console.log(`🛡️ Giữ lại dữ liệu thật: ${colName}/${d.id}`);
+          }
+
+          // Xử lý giới hạn Batch 500 của Firebase
+          if (batchCount >= 450) {
+            await batch.commit();
+            batchCount = 0;
+          }
+        }
       }
 
-      if (count > 0) {
+      if (batchCount > 0) {
         await batch.commit();
       }
       
-      return { success: true, message: `Đã xóa sạch ${count} dòng dữ liệu!` };
+      return { success: true, message: `Đã dọn dẹp ${count} tin/user ảo (Dữ liệu thật vẫn an toàn)!` };
     } catch (e: any) {
-      console.error("Lỗi xóa data:", e);
+      console.error("Lỗi dọn dẹp:", e);
       return { success: false, message: e.message };
     }
   },

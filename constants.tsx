@@ -3,7 +3,7 @@ import { Category, Listing, User } from './types';
 export const PUSH_LISTING_PRICE = 20000;
 
 // ============================================================
-// BỘ DỮ LIỆU DANH MỤC & TRƯỜNG DỮ LIỆU (CHUẨN CHỢ TỐT)
+// BỘ DỮ LIỆU DANH MỤC & TRƯỜNG DỮ LIỆU 
 // ============================================================
 export const CATEGORIES: Category[] = [
   
@@ -296,22 +296,96 @@ export const MOCK_USERS: User[] = [
     walletBalance: 50000
   },
 ];
+// --- 1. KHO DỮ LIỆU MẪU THEO DANH MỤC ---
+const REALISTIC_DATA: Record<string, { titles: string[], priceRange: [number, number], keywords: string[] }> = {
+  // Bất động sản
+  'can-ho-chung-cu': {
+    titles: ['Căn hộ Vinhome Grand Park 2PN view đẹp', 'Chung cư Masteri Thảo Điền full nội thất', 'Căn hộ Ecopark xanh mát, giá ngộp', 'Chung cư mini quận Cầu Giấy cho thuê', 'Penthouse Landmark 81 view sông'],
+    priceRange: [1500000000, 10000000000],
+    keywords: ['apartment', 'condo', 'living room']
+  },
+  'nha-o': {
+    titles: ['Nhà phố liền kề 3 tầng, sổ đỏ chính chủ', 'Bán nhà hẻm xe hơi quận Tân Bình', 'Nhà cấp 4 có gác lửng, tiện xây mới', 'Biệt thự sân vườn ngoại ô', 'Nhà mặt tiền kinh doanh sầm uất'],
+    priceRange: [2000000000, 25000000000],
+    keywords: ['house', 'villa', 'modern house']
+  },
+  'phong-tro': {
+    titles: ['Phòng trọ giá rẻ sinh viên', 'Căn hộ dịch vụ full đồ', 'Phòng trọ gác xép, giờ giấc tự do', 'Sleepbox cao cấp trung tâm Q1', 'Nhà trọ an ninh, có camera'],
+    priceRange: [1500000, 6000000],
+    keywords: ['bedroom', 'small room', 'dorm']
+  },
 
+  // Xe cộ
+  'xe-may': {
+    titles: ['Honda Vision 2021 chính chủ nữ đi', 'SH 150i ABS đời 2022 lướt', 'Exciter 150 kiểng nhẹ, máy zin', 'Yamaha Grande Hybrid biển số đẹp', 'Wave Alpha máy êm, giá sinh viên'],
+    priceRange: [10000000, 90000000],
+    keywords: ['scooter', 'motorcycle', 'vespa']
+  },
+  'o-to': {
+    titles: ['Mazda 3 2020 Luxury màu đỏ', 'VinFast Lux A2.0 bản cao cấp', 'Hyundai Accent 2023 lướt 5000km', 'Toyota Vios E CVT bền bỉ', 'Kia Carnival Signature máy dầu'],
+    priceRange: [400000000, 1500000000],
+    keywords: ['car', 'sedan', 'suv']
+  },
+
+  // Điện tử
+  'dien-thoai': {
+    titles: ['iPhone 14 Pro Max 256GB Tím VNA', 'Samsung S23 Ultra mới 99%', 'Xiaomi 13 Pro chính hãng fullbox', 'iPhone 11 64GB Quốc tế pin 90%', 'Oppo Reno 8Z chụp ảnh đẹp'],
+    priceRange: [3000000, 30000000],
+    keywords: ['smartphone', 'iphone', 'samsung phone']
+  },
+  'laptop': {
+    titles: ['MacBook Air M1 8GB/256GB sạc ít', 'Dell XPS 13 viền mỏng, sang trọng', 'Asus TUF Gaming chiến game mượt', 'Lenovo ThinkPad bền bỉ cho coder', 'HP Pavilion văn phòng mỏng nhẹ'],
+    priceRange: [8000000, 40000000],
+    keywords: ['laptop', 'macbook', 'computer office']
+  },
+
+  // Mặc định cho các cái khác
+  'default': {
+    titles: ['Thanh lý đồ cũ giá rẻ', 'Dọn nhà cần pass lại', 'Hàng xách tay chưa qua sử dụng', 'Cần bán gấp để về quê', 'Đồ sưu tầm hiếm có'],
+    priceRange: [50000, 2000000],
+    keywords: ['box', 'shopping', 'product']
+  }
+};
+
+// --- 2. HÀM SINH DỮ LIỆU THÔNG MINH ---
 export const generateMockListings = (count: number): Listing[] => {
-  return Array.from({ length: count }).map((_, i) => ({
-    id: `l${i + 1}`,
-    title: `Sản phẩm mẫu ${i + 1}`,
-    description: `Mô tả chi tiết sản phẩm chất lượng cao, giá cả phải chăng cho sản phẩm thứ ${i + 1}.`,
-    price: Math.floor(Math.random() * 500) * 10000 + 50000,
-    category: CATEGORIES[i % CATEGORIES.length].id, 
-    images: [`https://picsum.photos/seed/list${i + 1}/800/600`],
-    location: LOCATIONS[(i % (LOCATIONS.length - 1)) + 1],
-    sellerId: `u${(i % 2) + 1}`,
-    sellerName: i % 2 === 0 ? 'Admin Chợ của tui' : 'Nguyễn Văn A',
-    sellerAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=user${(i % 2) + 1}`,
-    createdAt: new Date(Date.now() - i * 3600000).toISOString(),
-    status: 'approved',
-    condition: i % 2 === 0 ? 'new' : 'used',
-    tier: i < 5 ? 'pro' : (i < 15 ? 'basic' : 'free'),
-  }));
+  return Array.from({ length: count }).map((_, i) => {
+    // 1. Chọn ngẫu nhiên danh mục
+    const category = CATEGORIES[i % CATEGORIES.length];
+    
+    // 2. Lấy bộ dữ liệu mẫu tương ứng (nếu không có thì dùng default)
+    const data = REALISTIC_DATA[category.id] || REALISTIC_DATA['default'];
+    
+    // 3. Random dữ liệu
+    const title = data.titles[Math.floor(Math.random() * data.titles.length)];
+    const price = Math.floor(Math.random() * (data.priceRange[1] - data.priceRange[0])) + data.priceRange[0];
+    const keyword = data.keywords[Math.floor(Math.random() * data.keywords.length)];
+    
+    // 4. Tạo ảnh "xịn" hơn dùng LoremFlickr (theo keyword)
+    // Thêm ?lock=i để ảnh không bị đổi mỗi lần reload, nhưng khác nhau giữa các tin
+    const image = `https://loremflickr.com/800/600/${keyword}?lock=${i}`;
+
+    return {
+      id: `l${i + 1}`,
+      title: title,
+      description: `Cần bán ${title}. Tình trạng còn rất tốt, xem hàng trực tiếp để kiểm tra. Fix nhẹ cho anh em thiện chí nhanh gọn. Liên hệ ngay!`,
+      price: price - (price % 10000), // Làm tròn số tiền cho đẹp (vd: 12.500.000)
+      category: category.id, 
+      parentCategory: category.parentId || null, // Tự động gán cha nếu có
+      images: [image, `https://loremflickr.com/800/600/${keyword}?lock=${i + 1000}`], // 2 ảnh khác nhau
+      location: LOCATIONS[(i % (LOCATIONS.length - 1)) + 1],
+      
+      sellerId: `u${(i % 2) + 1}`,
+      sellerName: i % 2 === 0 ? 'Admin Chợ' : 'Người dùng mẫu',
+      sellerAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=user${(i % 2) + 1}`,
+      
+      createdAt: new Date(Date.now() - Math.floor(Math.random() * 10 * 24 * 60 * 60 * 1000)).toISOString(), // Random trong 10 ngày qua
+      status: 'approved',
+      condition: i % 3 === 0 ? 'new' : 'used',
+      tier: i < 5 ? 'pro' : (i < 15 ? 'basic' : 'free'),
+      
+      // Tạo slug giả để link đẹp
+      slug: title.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '')
+    };
+  });
 };

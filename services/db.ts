@@ -551,7 +551,7 @@ export const db = {
     }
   },
 
-  // --- BẮT ĐẦU ĐOẠN COPY ---
+ // --- BẮT ĐẦU ĐOẠN COPY ---
 
   approveTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
     try {

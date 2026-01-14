@@ -15,15 +15,18 @@ root.render(
   </React.StrictMode>
 );
 
-// Đăng ký Service Worker cho PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(registration => {
-        console.log('SW registered: ', registration);
-      })
-      .catch(registrationError => {
-        console.log('SW registration failed: ', registrationError);
-      });
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      reg.onupdatefound = () => {
+        const installingWorker = reg.installing;
+        installingWorker.onstatechange = () => {
+          if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // Có bản cập nhật mới, tự động reload trang để áp dụng
+            window.location.reload();
+          }
+        };
+      };
+    });
   });
 }

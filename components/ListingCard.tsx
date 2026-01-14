@@ -23,9 +23,10 @@ const ListingCard: React.FC<ListingCardProps> = ({
   const navigate = useNavigate();
   const [isPushing, setIsPushing] = useState(false);
   
-  // State lưu cấu hình giá đẩy tin
+  // State to store push configuration (price and discount)
   const [pushConfig, setPushConfig] = useState<{ price: number, discount: number }>({ price: 5000, discount: 0 });
 
+  // Load Settings once when component mounts to get the correct price
   useEffect(() => {
       const loadSettings = async () => {
           try {
@@ -37,7 +38,8 @@ const ListingCard: React.FC<ListingCardProps> = ({
                 });
             }
           } catch (error) {
-            // Fallback nếu lỗi
+            // Fallback if settings fail to load
+            console.error("Failed to load settings", error);
           }
       };
       loadSettings();
@@ -51,7 +53,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
     }
   };
 
-  // --- LOGIC ĐẨY TIN ---
+  // --- PUSH LISTING LOGIC ---
   const handlePushClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -61,10 +63,10 @@ const ListingCard: React.FC<ListingCardProps> = ({
         return;
     }
 
-    // Tính giá sau chiết khấu
+    // Calculate final price after discount
     const finalPrice = pushConfig.price * (1 - pushConfig.discount / 100);
 
-    // Kiểm tra số dư
+    // Check wallet balance
     if (currentUser.walletBalance < finalPrice) {
         if (window.confirm(`⚠️ Số dư không đủ (${formatPrice(currentUser.walletBalance)} < ${formatPrice(finalPrice)}).\nNạp tiền ngay?`)) {
             navigate('/wallet');
@@ -72,7 +74,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
         return;
     }
 
-    // Xác nhận
+    // Confirm action
     if (window.confirm(`Trừ ${formatPrice(finalPrice)} để đẩy tin "${listing.title}" lên đầu?`)) {
         setIsPushing(true);
         try {
@@ -92,24 +94,27 @@ const ListingCard: React.FC<ListingCardProps> = ({
     }
   };
 
-  // Logic kiểm tra chủ sở hữu
-  const isOwner = currentUser && (currentUser.id === listing.sellerId);
+  // Logic to check ownership
+  // Ensure we are comparing strings or numbers consistently
+  const isOwner = currentUser && (String(currentUser.id) === String(listing.sellerId));
   
-  // [QUAN TRỌNG] Kiểm tra status: Chấp nhận 'approved' HOẶC nếu không có status (tin cũ) thì tạm coi là approved để hiện nút
-  const isApproved = listing.status === 'approved' || !listing.status; 
+  // [CRITICAL] Check status: Accept 'approved' OR if status is missing/undefined (for legacy listings)
+  // Also allow admins to see the button for testing purposes if needed
+  const isApproved = listing.status === 'approved' || !listing.status || currentUser?.role === 'admin'; 
 
-  // DEBUG: Bật F12 -> Console để xem tại sao nút ẩn
+  // DEBUG: Open F12 -> Console to see why the button might be hidden
+  // This will only log if you are the owner but the button is NOT showing
   if (currentUser && isOwner && !isApproved) {
-      console.log(`[DEBUG] Tin "${listing.title}" bị ẩn nút Đẩy tin vì Status = "${listing.status}"`);
+      console.log(`[DEBUG] Tin "${listing.title}" hidden. UserID: ${currentUser.id}, SellerID: ${listing.sellerId}, Status: "${listing.status}"`);
   }
 
   return (
     <div className="group relative flex flex-col gap-2 cursor-pointer h-full">
       
-      {/* 1. KHUNG ẢNH (Dùng thẻ div relative để chứa cả Link và Button) */}
+      {/* 1. IMAGE FRAME (Use a relative div to contain both Link and Button) */}
       <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
         
-        {/* Link bao trọn ảnh */}
+        {/* Link wraps the image */}
         <Link to={`/san-pham/${listing.slug}-${listing.id}`} className="block w-full h-full">
             <img 
               src={listing.images[0] || 'https://placehold.co/400'} 
@@ -117,11 +122,11 @@ const ListingCard: React.FC<ListingCardProps> = ({
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
               loading="lazy"
             />
-            {/* Overlay đen mờ khi hover */}
+            {/* Dark overlay on hover */}
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none"></div>
         </Link>
         
-        {/* Badge VIP/MỚI */}
+        {/* Badges VIP/NEW */}
         <div className="absolute top-2 left-2 flex flex-col gap-1 z-10 pointer-events-none">
             {listing.tier === 'pro' && (
                 <span className="bg-yellow-400 text-white text-[9px] font-black px-2 py-1 rounded-md uppercase shadow-sm tracking-wider">VIP</span>
@@ -131,7 +136,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
             )}
         </div>
 
-        {/* NÚT TIM (GÓC PHẢI TRÊN) */}
+        {/* FAVORITE BUTTON (Top Right) */}
         <button 
           onClick={handleFavoriteClick}
           className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-all active:scale-90 z-20 ${isFavorite ? 'bg-red-500 text-white' : 'bg-white/80 text-gray-400 hover:bg-white hover:text-red-500'}`}
@@ -140,8 +145,8 @@ const ListingCard: React.FC<ListingCardProps> = ({
           <svg className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
         </button>
 
-        {/* --- NÚT ĐẨY TIN (GÓC PHẢI DƯỚI) --- */}
-        {/* Đã tách ra khỏi thẻ Link để đảm bảo hiển thị */}
+        {/* --- PUSH BUTTON (Bottom Right - Green Arrow) --- */}
+        {/* Separated from Link tag to ensure visibility and clickability */}
         {isOwner && isApproved && (
             <button 
                 onClick={handlePushClick}
@@ -158,7 +163,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
         )}
       </div>
 
-      {/* 2. THÔNG TIN */}
+      {/* 2. INFO */}
       <Link to={`/san-pham/${listing.slug}-${listing.id}`} className="space-y-1.5 px-1 block flex-1">
         <h3 className="text-xs font-medium text-gray-700 line-clamp-2 min-h-[2.5em] leading-relaxed group-hover:text-primary transition-colors">
           {listing.title}
@@ -173,7 +178,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
             )}
         </div>
 
-        {/* --- ICON VỊ TRÍ & THỜI GIAN --- */}
+        {/* --- LOCATION & TIME ICON --- */}
         <div className="flex items-center pt-2 border-t border-gray-100 mt-1">
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 <div className="w-4 h-4 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0">

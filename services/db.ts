@@ -1233,7 +1233,35 @@ export const db = {
       return { success: false, message: e.message };
     }
   },
+// --- THÊM HÀM NÀY VÀO db.ts ---
+  clearDatabase: async () => {
+    try {
+      console.log("🔥 Đang xóa sạch dữ liệu...");
+      
+      // Danh sách các collection cần xóa
+      const collections = ["listings", "users", "categories", "transactions", "notifications", "reviews", "reports", "chats", "offers", "follows"];
+      
+      const batch = writeBatch(firestore);
+      let count = 0;
 
+      for (const colName of collections) {
+        const snap = await getDocs(collection(firestore, colName));
+        snap.docs.forEach(doc => {
+          batch.delete(doc.ref);
+          count++;
+        });
+      }
+
+      if (count > 0) {
+        await batch.commit();
+      }
+      
+      return { success: true, message: `Đã xóa sạch ${count} dòng dữ liệu!` };
+    } catch (e: any) {
+      console.error("Lỗi xóa data:", e);
+      return { success: false, message: e.message };
+    }
+  },
   // --- H. SEED DATA (FULL DATASET VIETNAM + LOCATION) ---
   seedDatabase: async () => {
     try {

@@ -195,7 +195,9 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
 
         search: search || undefined,
         location: locationParam || undefined,
-        isVip: typeParam === 'vip'
+        isVip: typeParam === 'vip',
+        minPrice: minPriceParam ? Number(minPriceParam) : undefined,
+        maxPrice: maxPriceParam ? Number(maxPriceParam) : undefined,
       });
 
       if (!result.error) {

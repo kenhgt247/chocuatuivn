@@ -14,22 +14,106 @@ export interface ListingAnalysis {
   attributes?: Record<string, any>; // Lưu dynamic fields
 }
 
-// [QUAN TRỌNG] MAP DANH MỤC KHỚP VỚI CONSTANTS.TS
-// Chúng ta dạy AI biết các ID chính xác của hệ thống
+// [CẬP NHẬT] MAP DANH MỤC KHỚP VỚI CẤU TRÚC MỚI CỦA BẠN
 const CATEGORY_MAP_PROMPT = `
-HÃY CHỌN CHÍNH XÁC MỘT TRONG CÁC CATEGORY_ID DƯỚI ĐÂY (Ưu tiên danh mục con cụ thể):
+HÃY PHÂN TÍCH ẢNH VÀ CHỌN CHÍNH XÁC MỘT TRONG CÁC ID (SLUG) DƯỚI ĐÂY.
+Cố gắng chọn danh mục con cụ thể nhất.
 
-- Bất động sản: 'can-ho-chung-cu', 'nha-o', 'dat', 'phong-tro'
-- Xe cộ: 'xe-may', 'o-to', 'xe-dien', 'xe-dap'
-- Đồ điện tử: 'dien-thoai', 'laptop', 'may-tinh-bang', 'tivi-am-thanh'
-- Việc làm: 'ban-hang', 'nhan-vien-phuc-vu', 'tai-xe-giao-hang', 'bao-ve'
-- Thú cưng: 'cho', 'meo', 'ga', 'chim'
-- Điện lạnh: 'tu-lanh', 'may-lanh', 'may-giat'
-- Thời trang: 'quan-ao', 'giay-dep', 'dong-ho', 'tui-xach'
-- Mẹ và bé: 'me-va-be'
-- Nội thất: 'noi-that'
-- Giải trí: 'giai-tri'
-- Khác: 'khac'
+1. Bất động sản:
+   - 'can-ho-chung-cu' (Căn hộ/Chung cư)
+   - 'dat' (Đất)
+   - 'nha-o' (Nhà ở)
+   - 'phong-tro' (Phòng trọ)
+   - 'van-phong-mat-bang' (Văn phòng, Mặt bằng)
+
+2. Xe cộ:
+   - 'o-to' (Ô tô)
+   - 'phu-tung-xe' (Phụ tùng xe)
+   - 'xe-dap' (Xe đạp)
+   - 'xe-dien' (Xe điện)
+   - 'xe-may' (Xe máy)
+   - 'xe-tai-ben' (Xe tải, Xe ben)
+
+3. Đồ điện tử:
+   - 'tivi-am-thanh' (Tivi, Loa, Amply)
+   - 'phu-kien-so' (Tai nghe, Sạc, Cáp)
+   - 'dien-thoai' (Điện thoại)
+   - 'laptop' (Laptop)
+   - 'linh-kien' (RAM, CPU, VGA...)
+   - 'may-anh' (Máy ảnh, Máy quay)
+   - 'may-tinh-bang' (Tablet)
+   - 'may-tinh-de-ban' (PC, Màn hình)
+   - 'thiet-bi-deo' (Smartwatch)
+
+4. Việc làm:
+   - 'lao-dong-pho-thong' (Lao động phổ thông)
+   - 'van-phong-hcns' (Văn phòng/Hành chính nhân sự)
+   - 'ky-su-ky-thuat' (Kỹ sư/Kỹ thuật)
+   - 'cntt-thiet-ke' (IT/Design)
+   - 'ban-hang' (Nhân viên bán hàng)
+   - 'bao-ve' (Bảo vệ)
+   - 'cong-nhan' (Công nhân)
+   - 'nhan-vien-kinh-doanh' (Sale)
+   - 'nhan-vien-phuc-vu' (Phục vụ)
+   - 'pha-che' (Bartender/Barista)
+   - 'phu-bep' (Phụ bếp)
+   - 'lai-xe-giao-hang' (Tài xế/Shipper)
+   - 'tap-vu' (Tạp vụ/Giúp việc)
+
+5. Thú cưng:
+   - 'chim' (Chim cảnh)
+   - 'cho' (Chó)
+   - 'ga' (Gà)
+   - 'meo' (Mèo)
+   - 'phu-kien-thu-cung' (Thức ăn, phụ kiện)
+   - 'thu-cung-khac' (Hamster, Cá, bò sát...)
+
+6. Điện lạnh (Tủ lạnh, Máy lạnh, Máy giặt):
+   - 'may-giat' (Máy giặt)
+   - 'may-lanh' (Máy lạnh/Điều hòa)
+   - 'tu-lanh' (Tủ lạnh)
+
+7. Đồ gia dụng, Nội thất, Cây cảnh:
+   - 'giuong-chan-ga' (Giường, Chăn ga gối nệm)
+   - 'tu-bep' (Tủ bếp)
+   - 'ban-ghe' (Bàn ghế)
+   - 'thiet-bi-nha-bep' (Bếp, Lò vi sóng, Nồi cơm)
+   - 'cay-canh-trang-tri' (Cây cảnh, Decor)
+   - 'dung-cu-nha-bep' (Dao, thớt, xoong nồi)
+   - 'tu-ke' (Tủ quần áo, Kệ sách)
+
+8. Thời trang, Đồ dùng cá nhân:
+   - 'quan-ao-nam' (Quần áo Nam)
+   - 'quan-ao-nu' (Quần áo Nữ)
+   - 'dong-ho' (Đồng hồ)
+   - 'giay-dep' (Giày dép)
+   - 'nuoc-hoa' (Nước hoa/Mỹ phẩm)
+   - 'tui-xach' (Túi xách/Ví)
+
+9. Giải trí, Thể thao:
+   - 'do-the-thao' (Dụng cụ thể thao)
+   - 'da-ngoai' (Đồ dã ngoại/Cắm trại)
+   - 'nhac-cu' (Đàn, Trống...)
+   - 'sach' (Sách báo)
+   - 'do-suu-tam' (Đồ cổ, Tem, Tiền xu)
+
+10. Mẹ và Bé:
+    - 'xe-day-noi' (Xe đẩy, Nôi)
+    - 'do-choi' (Đồ chơi)
+    - 'quan-ao-be' (Quần áo trẻ em)
+
+11. Dịch vụ, Du lịch:
+    - 'dich-vu-sua-chua' (Thợ sửa chữa)
+    - 'van-tai' (Vận tải, Chở hàng)
+    - 'du-lich' (Tour, Vé máy bay)
+    - 'dich-vu-don-dep' (Dọn nhà)
+
+12. Thực phẩm:
+    - 'trai-cay' (Trái cây)
+    - 'dac-san' (Đặc sản vùng miền)
+
+13. Khác:
+    - 'cac-loai-khac'
 `;
 
 const getApiKey = () => {

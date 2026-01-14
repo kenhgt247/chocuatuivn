@@ -240,7 +240,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         location: locationParam || undefined,
         isVip: typeParam === 'vip',
         // --- THÊM 2 DÒNG NÀY ---
-        minPrice: minPriceParam ? Number(minPriceParam) : undefined,
+       minPrice: minPriceParam ? Number(minPriceParam) : undefined,
         maxPrice: maxPriceParam ? Number(maxPriceParam) : undefined,
       });
       if (!result.error) {

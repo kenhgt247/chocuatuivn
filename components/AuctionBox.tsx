@@ -15,7 +15,7 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
   // --- STATE ---
   const [bids, setBids] = useState<Bid[]>([]);
   const [timeLeft, setTimeLeft] = useState<string>("");
-  const [isEnded, setIsEnded] = useState(false);
+  const [isEnded, setIsEnded] = useState(listing.status === 'sold');
   const [bidAmount, setBidAmount] = useState<number>(0);
   const [isBidding, setIsBidding] = useState(false);
 
@@ -23,33 +23,76 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
   const currentPrice = listing.price || 0;
   const step = listing.bidIncrement || 50000;
   const minValidBid = currentPrice + step;
-  
-  // Kiểm tra chủ sở hữu
   const isOwner = user?.id === listing.sellerId;
 
   // 1. Lắng nghe Bids Realtime
   useEffect(() => {
     if (typeof db.getBids !== 'function') return;
-
     const unsubscribe = db.getBids(listing.id, (data) => {
       setBids(data);
     });
-    
     setBidAmount(minValidBid);
-
     return () => unsubscribe();
   }, [listing.id, listing.price]);
 
-  // 2. Đồng hồ đếm ngược
+  // 2. Hàm Tự Động Chốt Đấu Giá
+  const handleFinalizeAuction = async (winnerBid: Bid) => {
+    try {
+      // Chỉ chốt nếu tin chưa chuyển sang trạng thái sold
+      if (listing.status === 'sold') return;
+
+      // A. Cập nhật trạng thái tin đăng
+      await db.updateListingStatus(listing.id, 'sold');
+
+      // B. Tạo phòng chat giữa người bán và người thắng
+      const winnerUser = {
+        id: winnerBid.userId,
+        name: winnerBid.userName,
+        avatar: winnerBid.userAvatar
+      } as User;
+
+      const roomId = await db.createChatRoom(listing, winnerUser);
+
+      // C. Gửi tin nhắn chốt đơn tự động (Nhân danh người bán)
+      await db.addMessage(roomId, {
+        senderId: listing.sellerId,
+        text: `🎉 CHÚC MỪNG! Bạn đã thắng đấu giá sản phẩm "${listing.title}" với mức giá ${formatPrice(winnerBid.amount)}. Tôi sẽ liên hệ với bạn để giao dịch sớm nhất!`,
+        type: 'text',
+        isSystem: true
+      });
+
+      // D. Gửi thông báo hệ thống cho người thắng
+      await db.sendNotification({
+        userId: winnerBid.userId,
+        title: "🏆 THẮNG ĐẤU GIÁ!",
+        message: `Bạn đã thắng phiên đấu giá "${listing.title}". Kiểm tra tin nhắn ngay!`,
+        type: 'success',
+        link: `/chat/${roomId}`
+      });
+
+      console.log("✅ Đã tự động chốt đấu giá và gửi tin nhắn.");
+    } catch (error) {
+      console.error("Lỗi khi tự động chốt đấu giá:", error);
+    }
+  };
+
+  // 3. Đồng hồ đếm ngược & Kích hoạt chốt đơn
   useEffect(() => {
     const calculateTimeLeft = () => {
       const end = new Date(listing.auctionEndAt || "").getTime();
       const now = new Date().getTime();
       const distance = end - now;
 
-      if (distance < 0) {
-        setIsEnded(true);
-        setTimeLeft("ĐÃ KẾT THÚC");
+      if (distance <= 0) {
+        if (!isEnded) {
+          setIsEnded(true);
+          setTimeLeft("ĐÃ KẾT THÚC");
+          
+          // Nếu có người đấu giá, người thắng là bids[0]
+          if (bids.length > 0) {
+            handleFinalizeAuction(bids[0]);
+          }
+        }
         return;
       }
 
@@ -64,125 +107,120 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
     calculateTimeLeft();
     const timer = setInterval(calculateTimeLeft, 1000);
     return () => clearInterval(timer);
-  }, [listing.auctionEndAt]);
+  }, [listing.auctionEndAt, bids, isEnded]);
 
   // --- HÀM XỬ LÝ ĐẶT GIÁ ---
   const handlePlaceBid = async () => {
     if (!user) {
-        if(window.confirm("Bạn cần đăng nhập để tham gia đấu giá.")) {
-            navigate('/login');
-        }
-        return;
+      if(window.confirm("Vui lòng đăng nhập để đấu giá.")) navigate('/login');
+      return;
     }
-
-    if (isOwner) return alert("Bạn không thể tự đấu giá sản phẩm của mình!");
+    if (isOwner) return alert("Bạn không thể tự đấu giá sản phẩm của mình.");
     if (isEnded) return alert("Phiên đấu giá đã kết thúc.");
-    if (bidAmount < minValidBid) return alert(`Giá đặt phải tối thiểu là ${formatPrice(minValidBid)}`);
+    if (bidAmount < minValidBid) return alert(`Giá tối thiểu: ${formatPrice(minValidBid)}`);
 
-    if (!window.confirm(`Xác nhận đặt giá: ${formatPrice(bidAmount)}?`)) return;
+    if (!window.confirm(`Xác nhận trả giá: ${formatPrice(bidAmount)}?`)) return;
 
     setIsBidding(true);
     try {
-        const result = await db.placeBid(listing.id, user.id, bidAmount);
-        await db.notifyBidSuccess({ ...result, id: listing.id }, user.id, bidAmount);
-        alert("🎉 Đặt giá thành công!");
+      const result = await db.placeBid(listing.id, user.id, bidAmount);
+      await db.notifyBidSuccess({ ...result, id: listing.id }, user.id, bidAmount);
+      alert("🎉 Trả giá thành công! Bạn đang dẫn đầu.");
     } catch (error: any) {
-        console.error(error);
-        alert(error.message || "Lỗi khi đặt giá.");
+      alert(error.message || "Lỗi đấu giá.");
     } finally {
-        setIsBidding(false);
+      setIsBidding(false);
     }
   };
 
   return (
-    <div className="bg-white border-2 border-indigo-100 rounded-[2rem] p-6 shadow-xl relative overflow-hidden">
-      
-      {/* Header */}
+    <div className="bg-white border-2 border-indigo-100 rounded-[2.5rem] p-6 shadow-2xl relative overflow-hidden">
+      {/* Nền trang trí */}
+      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl -mr-10 -mt-10 opacity-60"></div>
+
+      {/* Thời gian */}
       <div className="text-center mb-8 relative z-10">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-            {isEnded ? "Trạng thái" : "Thời gian còn lại"}
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">
+            {isEnded ? "Phiên đấu giá" : "Kết thúc sau"}
         </p>
-        <div className={`text-3xl md:text-4xl font-black tracking-tight ${isEnded ? 'text-red-500' : 'text-slate-800'}`}>
+        <div className={`text-3xl md:text-4xl font-black tracking-tighter ${isEnded ? 'text-red-500' : 'text-slate-800'}`}>
           {timeLeft}
         </div>
         {isEnded && bids.length > 0 && (
-            <div className="mt-2 inline-block bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-bold uppercase">
-                👑 Người thắng: {bids[0].userName}
+            <div className="mt-3 inline-flex items-center gap-2 bg-yellow-100 text-yellow-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm">
+                <span>🏆</span> Người thắng: {bids[0].userName}
             </div>
         )}
       </div>
 
-      {/* Box đặt giá */}
-      <div className="bg-slate-50 rounded-2xl p-5 mb-6 border border-slate-200 relative z-10">
-        <div className="flex justify-between items-end mb-4">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Giá hiện tại</span>
-          <span className="text-2xl font-black text-blue-600">{formatPrice(currentPrice)}</span>
+      {/* Đặt giá */}
+      <div className="bg-slate-50 rounded-3xl p-6 mb-6 border border-slate-100 relative z-10">
+        <div className="flex justify-between items-center mb-5">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Giá hiện tại</span>
+          <span className="text-3xl font-black text-blue-600 tracking-tight">{formatPrice(currentPrice)}</span>
         </div>
         
-        {/* Logic hiển thị: Nếu Hết giờ -> Báo hết. Nếu là Chủ -> Báo chủ. Nếu Khách -> Hiện Input */}
         {isEnded ? (
-            <div className="text-center py-3 bg-gray-200 rounded-xl font-bold text-gray-500 uppercase text-sm">
-                ⛔️ Đã chốt sổ
+            <div className="text-center py-4 bg-slate-200/50 rounded-2xl font-black text-slate-500 uppercase text-xs tracking-widest">
+                🔒 Phiên đã đóng
             </div>
         ) : isOwner ? (
-            <div className="text-center py-3 bg-yellow-50 border border-yellow-200 rounded-xl font-bold text-yellow-700 uppercase text-xs flex flex-col items-center justify-center gap-1">
-                <span className="text-xl">🏠</span>
-                Đây là sản phẩm của bạn
+            <div className="text-center py-4 bg-yellow-50 border border-yellow-100 rounded-2xl font-bold text-yellow-600 uppercase text-[10px] tracking-wider">
+                🏠 Sản phẩm của bạn
             </div>
         ) : (
-          <div className="space-y-3">
-             <div className="flex gap-2 items-center">
+          <div className="space-y-4">
+             <div className="flex gap-2">
                  <input 
                    type="number" 
                    value={bidAmount}
                    onChange={(e) => setBidAmount(Number(e.target.value))}
-                   className="flex-1 w-full bg-white border-2 border-indigo-100 rounded-xl px-4 py-3 font-bold text-slate-800 focus:border-blue-500 focus:ring-0 outline-none text-lg transition-all"
+                   className="flex-1 min-w-0 bg-white border-2 border-indigo-100 rounded-2xl px-5 py-3.5 font-black text-slate-800 focus:border-blue-500 outline-none text-xl shadow-inner"
                  />
                  <button 
                    onClick={handlePlaceBid}
                    disabled={isBidding}
-                   className="shrink-0 bg-blue-600 text-white font-black px-6 py-3.5 rounded-xl hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-200 uppercase text-sm tracking-wide whitespace-nowrap"
+                   className="shrink-0 bg-blue-600 text-white font-black px-8 py-3.5 rounded-2xl hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-blue-200 uppercase text-sm tracking-widest"
                  >
-                   {isBidding ? '...' : 'ĐẤU GIÁ'}
+                   {isBidding ? '...' : 'ĐẤU'}
                  </button>
              </div>
-             <p className="text-[10px] text-center text-slate-400 font-bold">
-                Bước giá tối thiểu: +{formatPrice(step)}
+             <p className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-tight">
+                Bước giá tối thiểu: <span className="text-blue-500">+{formatPrice(step)}</span>
              </p>
           </div>
         )}
       </div>
 
-      {/* Lịch sử đấu giá */}
-      <div className="relative z-10">
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
-          <span>🔨 Lịch sử đấu giá</span>
-          <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[9px]">{bids.length} lượt</span>
+      {/* Lịch sử */}
+      <div className="relative z-10 px-1">
+        <h4 className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 mb-4 flex items-center justify-between">
+          <span>🔨 Lịch sử lượt trả</span>
+          <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[9px]">{bids.length}</span>
         </h4>
         
-        <div className="max-h-48 overflow-y-auto pr-1 space-y-2 no-scrollbar">
+        <div className="max-h-52 overflow-y-auto space-y-2.5 no-scrollbar">
           {bids.length > 0 ? bids.map((bid, index) => (
-            <div key={bid.id} className={`flex items-center justify-between p-3 rounded-xl border ${index === 0 ? 'bg-yellow-50 border-yellow-200 shadow-sm' : 'bg-white border-slate-50'}`}>
+            <div key={bid.id} className={`flex items-center justify-between p-3.5 rounded-2xl border ${index === 0 ? 'bg-yellow-50/50 border-yellow-200 shadow-sm' : 'bg-white border-slate-50'}`}>
               <div className="flex items-center gap-3">
                 <div className="relative">
-                    <img src={bid.userAvatar || "https://placehold.co/50"} className="w-8 h-8 rounded-full object-cover border border-white shadow-sm" alt="User" />
-                    {index === 0 && <span className="absolute -top-2 -right-1 text-xs">👑</span>}
+                    <img src={bid.userAvatar || "https://placehold.co/50"} className="w-9 h-9 rounded-xl object-cover border-2 border-white shadow-sm" alt="" />
+                    {index === 0 && <span className="absolute -top-2.5 -right-2 text-base">👑</span>}
                 </div>
-                <div>
-                  <p className={`text-xs font-bold ${index === 0 ? 'text-slate-900' : 'text-slate-600'}`}>
-                      {bid.userName} {user?.id === bid.userId && <span className="text-[9px] text-blue-500">(Bạn)</span>}
+                <div className="min-w-0">
+                  <p className={`text-[11px] font-black truncate ${index === 0 ? 'text-slate-900' : 'text-slate-600'}`}>
+                      {bid.userName} {user?.id === bid.userId && <span className="text-blue-500 ml-1">●</span>}
                   </p>
-                  <p className="text-[9px] text-slate-400 font-medium">{formatTimeAgo(bid.createdAt)}</p>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase">{formatTimeAgo(bid.createdAt)}</p>
                 </div>
               </div>
-              <span className={`text-sm font-black ${index === 0 ? 'text-orange-600' : 'text-slate-500'}`}>
+              <span className={`text-sm font-black tracking-tight ${index === 0 ? 'text-orange-600' : 'text-slate-500'}`}>
                 {formatPrice(bid.amount)}
               </span>
             </div>
           )) : (
-            <div className="text-center py-8 opacity-40">
-                <div className="text-3xl mb-2">👋</div>
-                <p className="text-xs font-bold">Chưa có ai trả giá.<br/>Hãy là người đầu tiên!</p>
+            <div className="text-center py-10 opacity-30">
+                <p className="text-xs font-black uppercase tracking-widest">Chưa có lượt trả giá</p>
             </div>
           )}
         </div>

@@ -1299,9 +1299,10 @@ export const db = {
       console.log("🌱 Bắt đầu tạo dữ liệu mẫu cao cấp...");
       const batch = writeBatch(firestore);
 
-      // 1. TẠO USER GIẢ (Để làm người bán)
+      // --- 1. TẠO USER GIẢ (NGƯỜI BÁN UY TÍN) ---
       const sellerId = "seed_user_vip";
       const sellerRef = doc(firestore, "users", sellerId);
+      
       batch.set(sellerRef, {
         id: sellerId,
         name: "Cửa Hàng Uy Tín ⭐️",
@@ -1311,11 +1312,14 @@ export const db = {
         status: "active",
         joinedAt: new Date().toISOString(),
         location: "TP.HCM",
+        address: "Quận 1, TP.HCM",
+        lat: 10.7769, 
+        lng: 106.7009,
         verificationStatus: "verified",
         walletBalance: 5000000
       });
 
-      // 2. BỘ DỮ LIỆU TUYỂN CHỌN (12 TIN ĐĂNG ĐẸP NHẤT)
+      // --- 2. BỘ DỮ LIỆU TUYỂN CHỌN (12 TIN ĐĂNG ĐẸP NHẤT) ---
       const SHOWCASE_ITEMS = [
         {
           title: "iPhone 15 Pro Max Titan Tự nhiên 256GB VNA Fullbox",
@@ -1415,9 +1419,9 @@ export const db = {
         }
       ];
 
-      // 3. LƯU VÀO FIRESTORE
+      // --- 3. LƯU VÀO FIRESTORE ---
       SHOWCASE_ITEMS.forEach((item, index) => {
-        const lid = `seed_listing_${index + 1}`; // ID ngắn để dễ xóa sau này
+        const lid = `seed_listing_${index + 1}`;
         const listingRef = doc(firestore, "listings", lid);
         
         const listingData: Listing = {
@@ -1427,10 +1431,10 @@ export const db = {
           price: item.price,
           category: item.category,
           parentCategory: item.parent,
-          images: [item.image, "https://images.unsplash.com/photo-1550989460-0adf9ea622e2?w=800&q=80"], // Ảnh 2 là ảnh hộp quà generic
+          images: [item.image, "https://images.unsplash.com/photo-1550989460-0adf9ea622e2?w=800&q=80"],
           location: item.location,
           address: `Quận trung tâm, ${item.location}`,
-          lat: 10.8231, // Tọa độ giả định
+          lat: 10.8231, // Tọa độ giả định HCM
           lng: 106.6297,
           
           sellerId: sellerId,
@@ -1442,10 +1446,10 @@ export const db = {
           condition: index % 2 === 0 ? 'used' : 'new',
           tier: index < 4 ? 'pro' : 'free', // 4 tin đầu là VIP
           
-          // Tạo slug & keyword cho tìm kiếm
           slug: db.toSlug(item.title),
           keywords: generateKeywords(item.title),
-          viewCount: Math.floor(Math.random() * 500) + 50
+          viewCount: Math.floor(Math.random() * 500) + 50,
+          attributes: {}
         };
 
         batch.set(listingRef, listingData);
@@ -1456,149 +1460,6 @@ export const db = {
 
     } catch (e: any) {
       console.error("Lỗi seed:", e);
-      return { success: false, message: e.message };
-    }
-  },
-      // 2. TẠO USER GIẢ (KÈM TỌA ĐỘ)
-      const firstNames = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Huỳnh", "Phan", "Vũ", "Võ", "Đặng"];
-      const middleNames = ["Văn", "Thị", "Hữu", "Đức", "Ngọc", "Minh", "Quốc", "Thanh", "Mỹ", "Anh"];
-      const lastNames = ["An", "Bình", "Cường", "Dũng", "Giang", "Hương", "Khánh", "Lan", "Nam", "Tâm", "Tuấn", "Vy"];
-      const getRandom = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
-      const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-      const fakeUsers: User[] = [];
-      for (let i = 0; i < 40; i++) {
-        const uid = `seed_user_${i}`;
-        const name = `${getRandom(firstNames)} ${getRandom(middleNames)} ${getRandom(lastNames)}`;
-        
-        // --- TẠO TỌA ĐỘ GIẢ ---
-        const cityName = getRandom(cityNames);
-        const baseCoords = CITY_COORDS[cityName];
-        const fakeLat = baseCoords.lat + (Math.random() - 0.5) * 0.05; 
-        const fakeLng = baseCoords.lng + (Math.random() - 0.5) * 0.05;
-
-        const userRef = doc(firestore, "users", uid);
-        const newUser: any = {
-          id: uid,
-          name: name,
-          email: `user${i}@seed.com`,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`,
-          role: 'user',
-          status: 'active',
-          
-          location: cityName,
-          lat: fakeLat,
-          lng: fakeLng,
-          address: `Số ${randomInt(1, 999)}, Quận trung tâm, ${cityName}`,
-
-          joinedAt: new Date(Date.now() - randomInt(0, 10000000000)).toISOString(),
-          walletBalance: randomInt(0, 5000000),
-          subscriptionTier: Math.random() > 0.8 ? 'pro' : (Math.random() > 0.5 ? 'basic' : 'free'),
-          verificationStatus: Math.random() > 0.7 ? 'verified' : 'unverified',
-          followers: [],
-          following: []
-        };
-        fakeUsers.push(newUser);
-        createBatch.set(userRef, newUser);
-      }
-
-      // 3. TẠO TIN ĐĂNG GIẢ (LISTINGS) - TĂNG LÊN 200 TIN
-      for (let i = 0; i < 200; i++) {
-        const lid = `seed_listing_${i}`;
-        const seller = getRandom(fakeUsers);
-        const cat = getRandom(flatCategoriesForListing); // Lấy ngẫu nhiên 1 danh mục con
-        
-        const isVip = Math.random() > 0.9; // 10% tin VIP
-        const tier = isVip ? 'pro' : 'free';
-        const basePrice = randomInt(100000, 50000000); 
-
-        // Sinh tiêu đề & thuộc tính dựa trên loại danh mục
-        let title = "";
-        let attributes: any = {};
-
-        // Logic sinh tên thông minh hơn
-        if (cat.parentId === 'xe-co') {
-            title = `${cat.name} ${getRandom(["Honda", "Yamaha", "VinFast", "Toyota", "Mazda"])} ${randomInt(2018, 2024)} Chính chủ`;
-            attributes = {
-                year: randomInt(2018, 2024),
-                mileage: randomInt(5000, 50000),
-                fuel: getRandom(["Xăng", "Dầu", "Điện"]),
-                gearbox: getRandom(["Tự động", "Số sàn"])
-            };
-        } else if (cat.parentId === 'do-dien-tu') {
-            title = `${cat.name} ${getRandom(["Apple", "Samsung", "Sony", "Dell", "Asus"])} Giá rẻ`;
-            attributes = {
-                storage: getRandom(["64GB", "128GB", "256GB"]),
-                ram: getRandom(["8GB", "16GB"]),
-                color: getRandom(["Đen", "Trắng", "Xám"])
-            };
-        } else if (cat.parentId === 'bat-dong-san') {
-            title = `${cat.name} ${randomInt(30, 100)}m2 tại ${getRandom(["Quận 1", "Cầu Giấy", "Thủ Đức"])}`;
-            attributes = {
-                area: randomInt(30, 150),
-                bedrooms: randomInt(1, 4),
-                bathrooms: randomInt(1, 3)
-            };
-        } else if (cat.parentId === 'viec-lam') {
-            title = `Tuyển dụng ${cat.name} lương cao`;
-            attributes = { salary: `${randomInt(5, 20)} triệu` };
-        } else {
-            title = `Thanh lý ${cat.name} còn mới 90%`;
-            attributes = { status: "Đã qua sử dụng" };
-        }
-
-        const mainImage = `https://loremflickr.com/800/600/${cat.keyword}?lock=${i}`;
-        const subImage = `https://picsum.photos/seed/${i}/800/600`;
-        const hasVideo = Math.random() > 0.8; 
-        const videoUrl = hasVideo ? "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4" : null;
-
-        const listingRef = doc(firestore, "listings", lid);
-        
-        // --- TẠO TỌA ĐỘ GIẢ CHO TIN ĐĂNG (DỰA THEO SELLER) ---
-        // Jitter nhẹ để không trùng khít seller
-        const listingLat = (seller.lat || 21.0285) + (Math.random() - 0.5) * 0.01;
-        const listingLng = (seller.lng || 105.8542) + (Math.random() - 0.5) * 0.01;
-
-        const newListing: Listing = {
-          id: lid,
-          title: title,
-          slug: db.toSlug(title), 
-          keywords: generateKeywords(title), 
-          viewCount: randomInt(0, 500), 
-          description: `Cần bán gấp ${title}. Ai có nhu cầu liên hệ ${seller.name}. Xem hàng tại ${seller.location}.`,
-          price: basePrice,
-          category: cat.id, 
-          
-          // Gán parentCategory
-          parentCategory: cat.parentId,
-
-          images: [mainImage, subImage], 
-          videoUrl: videoUrl, 
-          
-          location: seller.location,
-          address: seller.address,
-          lat: listingLat, 
-          lng: listingLng,
-
-          sellerId: seller.id,
-          sellerName: seller.name,
-          sellerAvatar: seller.avatar,
-          createdAt: new Date(Date.now() - randomInt(0, 604800000)).toISOString(),
-          status: Math.random() > 0.1 ? 'approved' : 'pending',
-          condition: Math.random() > 0.5 ? 'used' : 'new',
-          tier: tier as SubscriptionTier,
-          attributes: attributes
-        };
-
-        createBatch.set(listingRef, newListing);
-      }
-
-      await createBatch.commit();
-      
-      return { success: true, message: `Đã Reset: Tạo mới 12 Nhóm danh mục Cha & ~50 danh mục Con!` };
-
-    } catch (e: any) {
-      console.error("Seed error:", e);
       return { success: false, message: e.message };
     }
   },

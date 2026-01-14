@@ -22,7 +22,7 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
   const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'expired'>('active');
   const [listings, setListings] = useState<Listing[]>([]);
   const [isPushing, setIsPushing] = useState<string | null>(null);
-  const [isFindingChat, setIsFindingChat] = useState<string | null>(null); // Trạng thái tìm phòng chat
+  const [isFindingChat, setIsFindingChat] = useState<string | null>(null);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   
   const [modal, setModal] = useState<ModalState>({
@@ -34,7 +34,6 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
     const loadData = async () => {
       const [s, all] = await Promise.all([db.getSettings(), db.getListings(true)]);
       setSettings(s);
-      // Lọc tin của đúng người dùng hiện tại
       setListings(all.filter(l => String(l.sellerId) === String(user.id)));
     };
     loadData();
@@ -97,7 +96,6 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
     });
   };
 
-  // Logic dẫn hướng vào phòng chat của tin đấu giá thành công
   const handleGoToChat = async (listingId: string) => {
     setIsFindingChat(listingId);
     try {
@@ -115,7 +113,6 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
     }
   };
 
-  // [SỬA LOGIC LỌC TIN]: Không cho status 'sold' vào tab 'Từ chối'
   const filteredListings = listings.filter(l => {
     if (activeTab === 'active') return l.status === 'approved' || l.status === 'sold';
     if (activeTab === 'pending') return l.status === 'pending';
@@ -132,7 +129,7 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
 
   return (
     <div className="max-w-2xl mx-auto pb-24 md:pb-10 px-4 relative font-sans">
-      {/* Custom Modal Overlay */}
+      {/* Modal */}
       {modal.show && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModal(prev => ({ ...prev, show: false }))}></div>
@@ -147,7 +144,7 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
         </div>
       )}
 
-      {/* Header Section */}
+      {/* Header */}
       <div className="sticky top-20 z-40 bg-bgMain/90 backdrop-blur-md pt-4 pb-2">
         <div className="flex items-center justify-between mb-6">
           <div className="space-y-1">
@@ -162,7 +159,6 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
           </Link>
         </div>
 
-        {/* Tab Navigation */}
         <div className="bg-gray-200/50 p-1 rounded-2xl flex gap-1 mb-4">
           {[
             { id: 'active', label: 'Đang đăng', icon: '✅' },
@@ -177,30 +173,32 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
         </div>
       </div>
 
-      {/* Listings List */}
+      {/* Danh sách tin đăng */}
       <div className="mt-2 space-y-4">
         {filteredListings.length > 0 ? filteredListings.map(listing => (
           <div key={listing.id} className="bg-white border border-borderMain rounded-3xl overflow-hidden shadow-soft flex flex-col group relative hover:border-primary/30 transition-all duration-300">
             
-            {/* [OVERLAY] Xử lý hiển thị Tin Đã Chốt/Từ chối */}
+            {/* Nhãn Đấu giá thành công - Đưa vào góc để không che nút */}
             {listing.status === 'sold' && (
-              <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] z-20 flex items-center justify-center pointer-events-none">
-                <div className="bg-blue-600 text-white px-4 py-1.5 rounded-full font-black text-[9px] uppercase tracking-widest shadow-lg flex items-center gap-1">
-                  <span>🏆</span> Đấu giá thành công
+              <div className="absolute top-3 right-3 z-30 pointer-events-none">
+                <div className="bg-blue-600 text-white px-3 py-1.5 rounded-xl font-black text-[8px] uppercase tracking-widest shadow-xl flex items-center gap-1 border-2 border-white">
+                  <span>🏆</span> Thành công
                 </div>
               </div>
             )}
+
+            {/* Nhãn Tin bị từ chối */}
             {listing.status === 'rejected' && (
-              <div className="absolute inset-0 bg-black/5 flex items-center justify-center z-20 pointer-events-none">
-                <div className="bg-white px-4 py-2 rounded-xl shadow-xl border border-red-100 flex flex-col items-center">
-                  <span className="text-red-500 font-black text-[10px] uppercase">Tin bị từ chối</span>
+              <div className="absolute top-3 right-3 z-30 pointer-events-none">
+                <div className="bg-red-500 text-white px-3 py-1.5 rounded-xl font-black text-[8px] uppercase tracking-widest shadow-xl flex items-center gap-1 border-2 border-white">
+                  <span>❌</span> Từ chối
                 </div>
               </div>
             )}
 
             <div className="flex p-4 gap-4">
               <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-gray-50 border border-gray-100 relative">
-                <img src={listing.images[0]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={listing.title} />
+                <img src={listing.images[0]} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ${listing.status === 'sold' ? 'opacity-60 grayscale-[40%]' : ''}`} alt={listing.title} />
                 {listing.tier !== 'free' && (
                   <div className="absolute top-1 left-1 bg-yellow-400 text-white text-[7px] font-black px-1.5 py-0.5 rounded shadow-sm uppercase">VIP</div>
                 )}
@@ -208,9 +206,12 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
               <div className="flex-1 min-w-0 flex flex-col justify-between">
                 <div>
                   <h3 className="text-sm font-black text-textMain truncate leading-tight mb-1 group-hover:text-primary transition-colors">{listing.title}</h3>
-                  <p className="text-primary font-black text-base">
-                    {listing.status === 'sold' ? 'Giá chốt: ' : ''}{formatPrice(listing.price)}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-primary font-black text-base">{formatPrice(listing.price)}</p>
+                    {listing.status === 'sold' && (
+                      <span className="text-[9px] font-black text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md uppercase tracking-tighter">Giá chốt</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 text-[9px] text-gray-400 font-bold uppercase tracking-tight">
                   <span className="flex items-center gap-1">📍 {listing.location}</span>
@@ -220,11 +221,10 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
               </div>
             </div>
             
-            {/* Bottom Actions */}
-            <div className="grid grid-cols-3 border-t border-gray-50 bg-gray-50/30">
+            {/* Thanh điều hướng và nút chức năng */}
+            <div className="grid grid-cols-3 border-t border-gray-50 bg-gray-50/30 relative z-40">
               <Link to={getListingUrl(listing)} className="py-4 text-[10px] font-black text-center uppercase text-gray-500 hover:bg-white hover:text-primary transition-all border-r border-gray-50">Xem tin</Link>
               
-              {/* [NÚT GIỮA]: Nếu đã bán thì hiện NHẮN TIN, ngược lại hiện ĐẨY TIN */}
               {listing.status === 'sold' ? (
                  <button 
                   onClick={() => handleGoToChat(listing.id)}

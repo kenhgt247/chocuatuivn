@@ -1293,196 +1293,172 @@ export const db = {
       return { success: false, message: e.message };
     }
   },
-  // --- H. SEED DATA (FULL DATASET VIETNAM + LOCATION) ---
+  // --- HÀM TẠO DỮ LIỆU MẪU "XỊN" (ĐẸP & CHUẨN) ---
   seedDatabase: async () => {
     try {
-      console.log("🧹 Đang dọn dẹp dữ liệu rác...");
-      
-      const allUsers = await getDocs(collection(firestore, "users"));
-      const allListings = await getDocs(collection(firestore, "listings"));
-      const allCategories = await getDocs(collection(firestore, "categories"));
+      console.log("🌱 Bắt đầu tạo dữ liệu mẫu cao cấp...");
+      const batch = writeBatch(firestore);
 
-      // Chỉ xóa dữ liệu test (có prefix seed_)
-      const seedUserDocs = allUsers.docs.filter(d => d.id.startsWith("seed_"));
-      const seedListingDocs = allListings.docs.filter(d => d.id.startsWith("seed_"));
-      
-      // Xóa TOÀN BỘ danh mục cũ để nạp danh mục chuẩn mới
-      const deleteBatch = writeBatch(firestore);
-      let deleteCount = 0;
+      // 1. TẠO USER GIẢ (Để làm người bán)
+      const sellerId = "seed_user_vip";
+      const sellerRef = doc(firestore, "users", sellerId);
+      batch.set(sellerRef, {
+        id: sellerId,
+        name: "Cửa Hàng Uy Tín ⭐️",
+        email: "store@chocuatui.vn",
+        avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&h=200&fit=crop",
+        role: "user",
+        status: "active",
+        joinedAt: new Date().toISOString(),
+        location: "TP.HCM",
+        verificationStatus: "verified",
+        walletBalance: 5000000
+      });
 
-      seedUserDocs.forEach(d => { deleteBatch.delete(d.ref); deleteCount++; });
-      seedListingDocs.forEach(d => { deleteBatch.delete(d.ref); deleteCount++; });
-      allCategories.forEach(d => { deleteBatch.delete(d.ref); deleteCount++; }); // Xóa hết category cũ
-
-      if (deleteCount > 0) {
-        await deleteBatch.commit();
-        console.log(`✅ Đã xóa ${deleteCount} items cũ.`);
-      }
-
-      console.log("🌱 Bắt đầu tạo dữ liệu mới...");
-      const createBatch = writeBatch(firestore);
-
-      // KHAI BÁO TỌA ĐỘ CÁC THÀNH PHỐ LỚN ĐỂ RANDOM
-      const CITY_COORDS: Record<string, { lat: number, lng: number }> = {
-        "Hà Nội": { lat: 21.0285, lng: 105.8542 },
-        "TPHCM": { lat: 10.8231, lng: 106.6297 },
-        "Đà Nẵng": { lat: 16.0544, lng: 108.2022 },
-        "Cần Thơ": { lat: 10.0452, lng: 105.7469 },
-        "Hải Phòng": { lat: 20.8449, lng: 106.6881 },
-        "Bình Dương": { lat: 11.1705, lng: 106.6669 },
-        "Đồng Nai": { lat: 10.9423, lng: 106.8242 }
-      };
-      const cityNames = Object.keys(CITY_COORDS);
-
-      // 1. TẠO CẤU TRÚC DANH MỤC LỚN (12 NHÓM CHA)
-      const RAW_CATEGORIES = [
+      // 2. BỘ DỮ LIỆU TUYỂN CHỌN (12 TIN ĐĂNG ĐẸP NHẤT)
+      const SHOWCASE_ITEMS = [
         {
-            id: "bat-dong-san", name: "Bất động sản", icon: "🏠",
-            children: [
-                { id: "can-ho", name: "Căn hộ/Chung cư", icon: "🏢", keyword: "apartment" },
-                { id: "nha-o", name: "Nhà ở", icon: "🏡", keyword: "house" },
-                { id: "dat", name: "Đất nền", icon: "🏞️", keyword: "land" },
-                { id: "van-phong", name: "Văn phòng/Mặt bằng", icon: "💼", keyword: "office" },
-                { id: "phong-tro", name: "Phòng trọ", icon: "🛏️", keyword: "room for rent" }
-            ]
+          title: "iPhone 15 Pro Max Titan Tự nhiên 256GB VNA Fullbox",
+          price: 28500000,
+          category: "dien-thoai",
+          parent: "do-dien-tu",
+          image: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800&q=80",
+          location: "TP.HCM"
         },
         {
-            id: "xe-co", name: "Xe cộ", icon: "🚗",
-            children: [
-                { id: "o-to", name: "Ô tô", icon: "🚙", keyword: "car" },
-                { id: "xe-may", name: "Xe máy", icon: "🛵", keyword: "motorcycle" },
-                { id: "xe-tai", name: "Xe tải/Ben", icon: "🚛", keyword: "truck" },
-                { id: "xe-dien", name: "Xe điện", icon: "🛴", keyword: "electric scooter" },
-                { id: "phu-tung-xe", name: "Phụ tùng xe", icon: "🔧", keyword: "spare parts" }
-            ]
+          title: "Honda SH 150i ABS 2023 Màu Xám Xi Măng Lướt 2000km",
+          price: 98000000,
+          category: "xe-may",
+          parent: "xe-co",
+          image: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=800&q=80",
+          location: "Hà Nội"
         },
         {
-            id: "do-dien-tu", name: "Đồ điện tử", icon: "📱",
-            children: [
-                { id: "dien-thoai", name: "Điện thoại", icon: "📱", keyword: "smartphone" },
-                { id: "laptop", name: "Laptop", icon: "💻", keyword: "laptop" },
-                { id: "may-tinh-bang", name: "Máy tính bảng", icon: "📟", keyword: "tablet" },
-                { id: "may-anh", name: "Máy ảnh/Camera", icon: "📷", keyword: "camera" },
-                { id: "tivi", name: "Tivi, Âm thanh", icon: "📺", keyword: "tv audio" },
-                { id: "phu-kien", name: "Phụ kiện số", icon: "🎧", keyword: "accessories" }
-            ]
+          title: "Căn hộ Vinhome Central Park 2PN View Sông - Nội thất cao cấp",
+          price: 5200000000,
+          category: "can-ho-chung-cu",
+          parent: "bat-dong-san",
+          image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&q=80",
+          location: "TP.HCM"
         },
         {
-            id: "viec-lam", name: "Việc làm", icon: "💼",
-            children: [
-                { id: "lao-dong-pho-thong", name: "Lao động phổ thông", icon: "👷", keyword: "worker" },
-                { id: "ban-hang", name: "Bán hàng/CSKH", icon: "💁", keyword: "sales" },
-                { id: "van-phong-hcns", name: "Văn phòng/HCNS", icon: "📂", keyword: "admin job" },
-                { id: "ky-thuat", name: "Kỹ sư/Kỹ thuật", icon: "🛠️", keyword: "engineer" },
-                { id: "it", name: "CNTT/Thiết kế", icon: "👨‍💻", keyword: "developer" }
-            ]
+          title: "MacBook Air M2 Midnight 8GB/256GB Sạc 10 lần",
+          price: 21500000,
+          category: "laptop",
+          parent: "do-dien-tu",
+          image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca4?w=800&q=80",
+          location: "Đà Nẵng"
         },
         {
-            id: "thu-cung", name: "Thú cưng", icon: "🐶",
-            children: [
-                { id: "cho", name: "Chó", icon: "🐕", keyword: "dog" },
-                { id: "meo", name: "Mèo", icon: "🐈", keyword: "cat" },
-                { id: "chim", name: "Chim cảnh", icon: "🐦", keyword: "bird" },
-                { id: "phu-kien-thu-cung", name: "Phụ kiện/Thức ăn", icon: "🦴", keyword: "pet food" }
-            ]
+          title: "Mèo Anh Lông Ngắn Bicolor - Mập ú nu, đã tiêm phòng",
+          price: 3500000,
+          category: "meo",
+          parent: "thu-cung",
+          image: "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=800&q=80",
+          location: "Hải Phòng"
         },
         {
-            id: "dien-lanh", name: "Điện lạnh", icon: "❄️",
-            children: [
-                { id: "may-lanh", name: "Máy lạnh", icon: "❄️", keyword: "air conditioner" },
-                { id: "may-giat", name: "Máy giặt", icon: "🧺", keyword: "washing machine" },
-                { id: "tu-lanh", name: "Tủ lạnh", icon: "🧊", keyword: "fridge" }
-            ]
+          title: "VinFast Lux A2.0 Bản Cao Cấp - Xe Gia Đình Giữ Kỹ",
+          price: 550000000,
+          category: "o-to",
+          parent: "xe-co",
+          image: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&q=80",
+          location: "TP.HCM"
         },
         {
-            id: "thoi-trang", name: "Thời trang", icon: "👗",
-            children: [
-                { id: "quan-ao-nam", name: "Quần áo Nam", icon: "👔", keyword: "men clothes" },
-                { id: "quan-ao-nu", name: "Quần áo Nữ", icon: "👚", keyword: "women clothes" },
-                { id: "giay-dep", name: "Giày dép", icon: "👟", keyword: "shoes" },
-                { id: "dong-ho", name: "Đồng hồ/Trang sức", icon: "⌚", keyword: "watch jewelry" },
-                { id: "tui-xach", name: "Túi xách/Ví", icon: "👜", keyword: "bag" }
-            ]
+          title: "Tuyển Nhân Viên Bán Hàng Cửa Hàng Tiện Lợi (Ca Xoay)",
+          price: 7000000, // Lương
+          category: "ban-hang",
+          parent: "viec-lam",
+          image: "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?w=800&q=80",
+          location: "Hà Nội"
         },
         {
-            id: "me-va-be", name: "Mẹ và Bé", icon: "🍼",
-            children: [
-                { id: "xe-day", name: "Xe đẩy/Nôi", icon: "🛒", keyword: "baby stroller" },
-                { id: "do-choi", name: "Đồ chơi", icon: "🧸", keyword: "toys" },
-                { id: "quan-ao-be", name: "Quần áo bé", icon: "👶", keyword: "baby clothes" }
-            ]
+          title: "Thanh lý Sofa Da Bò Thật Nhập Khẩu Ý - Còn mới 95%",
+          price: 12000000,
+          category: "ban-ghe",
+          parent: "noi-that",
+          image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80",
+          location: "TP.HCM"
         },
         {
-            id: "noi-that", name: "Nội thất", icon: "🛋️",
-            children: [
-                { id: "ban-ghe", name: "Bàn ghế", icon: "🪑", keyword: "table chair" },
-                { id: "giuong-tu", name: "Giường/Tủ", icon: "🛏️", keyword: "bed cabinet" },
-                { id: "bep", name: "Tủ bếp/Đồ bếp", icon: "🍳", keyword: "kitchenware" }
-            ]
+          title: "Giày Nike Jordan 1 High Panda Auth - Size 42 Cond 9/10",
+          price: 2800000,
+          category: "giay-dep",
+          parent: "thoi-trang",
+          image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+          location: "Cần Thơ"
         },
         {
-            id: "giai-tri", name: "Giải trí", icon: "🎸",
-            children: [
-                { id: "nhac-cu", name: "Nhạc cụ", icon: "🎹", keyword: "musical instrument" },
-                { id: "sach", name: "Sách/Truyện", icon: "📚", keyword: "books" },
-                { id: "the-thao", name: "Đồ thể thao", icon: "⚽", keyword: "sports" }
-            ]
+          title: "Tủ Lạnh Hitachi Inverter 4 Cánh 540L - Bảo hành 1 năm",
+          price: 15500000,
+          category: "tu-lanh",
+          parent: "dien-lanh",
+          image: "https://images.unsplash.com/photo-1584622050111-993a426fbf0a?w=800&q=80",
+          location: "Đồng Nai"
         },
         {
-            id: "dich-vu", name: "Dịch vụ", icon: "🔧",
-            children: [
-                { id: "sua-chua", name: "Sửa chữa", icon: "🔨", keyword: "repair service" },
-                { id: "van-tai", name: "Vận tải/Chuyển nhà", icon: "🚚", keyword: "moving service" },
-                { id: "du-lich", name: "Du lịch", icon: "✈️", keyword: "travel" }
-            ]
+          title: "Chó Corgi Mông Trái Tim 3 Tháng Tuổi - Giấy tờ VKA",
+          price: 8000000,
+          category: "cho",
+          parent: "thu-cung",
+          image: "https://images.unsplash.com/photo-1612536053381-696179b53685?w=800&q=80",
+          location: "TP.HCM"
         },
         {
-            id: "thuc-pham", name: "Thực phẩm", icon: "🥦",
-            children: [
-                { id: "trai-cay", name: "Trái cây", icon: "🍎", keyword: "fruit" },
-                { id: "dac-san", name: "Đặc sản", icon: "🍯", keyword: "specialty food" }
-            ]
+          title: "Đồng Hồ Apple Watch Series 8 45mm Nhôm GPS - Fullbox",
+          price: 6500000,
+          category: "dong-ho",
+          parent: "thoi-trang",
+          image: "https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=800&q=80",
+          location: "Bình Dương"
         }
       ];
 
-      // Lưu danh mục vào Firestore
-      let orderCounter = 0;
-      const flatCategoriesForListing: any[] = []; 
+      // 3. LƯU VÀO FIRESTORE
+      SHOWCASE_ITEMS.forEach((item, index) => {
+        const lid = `seed_listing_${index + 1}`; // ID ngắn để dễ xóa sau này
+        const listingRef = doc(firestore, "listings", lid);
+        
+        const listingData: Listing = {
+          id: lid,
+          title: item.title,
+          description: `Cần bán gấp ${item.title}. Sản phẩm chính chủ, bao test thoải mái. Giao dịch trực tiếp tại nhà cho an tâm. Fix nhẹ tiền xăng cho anh em thiện chí.`,
+          price: item.price,
+          category: item.category,
+          parentCategory: item.parent,
+          images: [item.image, "https://images.unsplash.com/photo-1550989460-0adf9ea622e2?w=800&q=80"], // Ảnh 2 là ảnh hộp quà generic
+          location: item.location,
+          address: `Quận trung tâm, ${item.location}`,
+          lat: 10.8231, // Tọa độ giả định
+          lng: 106.6297,
+          
+          sellerId: sellerId,
+          sellerName: "Cửa Hàng Uy Tín ⭐️",
+          sellerAvatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&h=100&fit=crop",
+          
+          createdAt: new Date().toISOString(),
+          status: 'approved',
+          condition: index % 2 === 0 ? 'used' : 'new',
+          tier: index < 4 ? 'pro' : 'free', // 4 tin đầu là VIP
+          
+          // Tạo slug & keyword cho tìm kiếm
+          slug: db.toSlug(item.title),
+          keywords: generateKeywords(item.title),
+          viewCount: Math.floor(Math.random() * 500) + 50
+        };
 
-      RAW_CATEGORIES.forEach(parent => {
-          // Lưu Parent
-          const parentRef = doc(firestore, "categories", parent.id);
-          createBatch.set(parentRef, {
-              id: parent.id,
-              name: parent.name,
-              icon: parent.icon,
-              slug: db.toSlug(parent.name),
-              order: orderCounter++,
-              parentId: null // Là cha
-          });
-
-          // Lưu Children
-          parent.children.forEach(child => {
-              const childRef = doc(firestore, "categories", child.id);
-              createBatch.set(childRef, {
-                  id: child.id,
-                  name: child.name,
-                  icon: child.icon,
-                  slug: db.toSlug(child.name),
-                  order: orderCounter++,
-                  parentId: parent.id // Link tới cha
-              });
-
-              // Thêm vào mảng tạm để dùng sinh tin đăng
-              flatCategoriesForListing.push({
-                  id: child.id,
-                  name: child.name,
-                  parentId: parent.id,
-                  keyword: child.keyword
-              });
-          });
+        batch.set(listingRef, listingData);
       });
 
+      await batch.commit();
+      return { success: true, message: "Đã tạo 12 tin mẫu VIP đẹp lung linh!" };
+
+    } catch (e: any) {
+      console.error("Lỗi seed:", e);
+      return { success: false, message: e.message };
+    }
+  },
       // 2. TẠO USER GIẢ (KÈM TỌA ĐỘ)
       const firstNames = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Huỳnh", "Phan", "Vũ", "Võ", "Đặng"];
       const middleNames = ["Văn", "Thị", "Hữu", "Đức", "Ngọc", "Minh", "Quốc", "Thanh", "Mỹ", "Anh"];

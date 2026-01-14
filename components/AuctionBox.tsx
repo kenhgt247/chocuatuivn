@@ -23,20 +23,18 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
   const currentPrice = listing.price || 0;
   const step = listing.bidIncrement || 50000;
   const minValidBid = currentPrice + step;
+  
+  // Kiểm tra chủ sở hữu
+  const isOwner = user?.id === listing.sellerId;
 
   // 1. Lắng nghe Bids Realtime
   useEffect(() => {
-    // Kiểm tra hàm getBids có tồn tại không để tránh lỗi crash trang
-    if (typeof db.getBids !== 'function') {
-        console.error("Lỗi: db.getBids chưa được định nghĩa trong services/db.ts");
-        return;
-    }
+    if (typeof db.getBids !== 'function') return;
 
     const unsubscribe = db.getBids(listing.id, (data) => {
       setBids(data);
     });
     
-    // Reset giá đặt về mức tối thiểu khi giá hiện tại thay đổi
     setBidAmount(minValidBid);
 
     return () => unsubscribe();
@@ -77,6 +75,7 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
         return;
     }
 
+    if (isOwner) return alert("Bạn không thể tự đấu giá sản phẩm của mình!");
     if (isEnded) return alert("Phiên đấu giá đã kết thúc.");
     if (bidAmount < minValidBid) return alert(`Giá đặt phải tối thiểu là ${formatPrice(minValidBid)}`);
 
@@ -120,18 +119,25 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
           <span className="text-2xl font-black text-blue-600">{formatPrice(currentPrice)}</span>
         </div>
         
-        {!isEnded ? (
+        {/* Logic hiển thị: Nếu Hết giờ -> Báo hết. Nếu là Chủ -> Báo chủ. Nếu Khách -> Hiện Input */}
+        {isEnded ? (
+            <div className="text-center py-3 bg-gray-200 rounded-xl font-bold text-gray-500 uppercase text-sm">
+                ⛔️ Đã chốt sổ
+            </div>
+        ) : isOwner ? (
+            <div className="text-center py-3 bg-yellow-50 border border-yellow-200 rounded-xl font-bold text-yellow-700 uppercase text-xs flex flex-col items-center justify-center gap-1">
+                <span className="text-xl">🏠</span>
+                Đây là sản phẩm của bạn
+            </div>
+        ) : (
           <div className="space-y-3">
              <div className="flex gap-2 items-center">
-                 {/* Input giá */}
                  <input 
                    type="number" 
                    value={bidAmount}
                    onChange={(e) => setBidAmount(Number(e.target.value))}
                    className="flex-1 w-full bg-white border-2 border-indigo-100 rounded-xl px-4 py-3 font-bold text-slate-800 focus:border-blue-500 focus:ring-0 outline-none text-lg transition-all"
                  />
-                 
-                 {/* Nút đấu giá (Sửa màu sắc & thêm shrink-0) */}
                  <button 
                    onClick={handlePlaceBid}
                    disabled={isBidding}
@@ -144,10 +150,6 @@ const AuctionBox: React.FC<AuctionBoxProps> = ({ listing, user }) => {
                 Bước giá tối thiểu: +{formatPrice(step)}
              </p>
           </div>
-        ) : (
-            <div className="text-center py-3 bg-gray-200 rounded-xl font-bold text-gray-500 uppercase text-sm">
-                ⛔️ Đã chốt sổ
-            </div>
         )}
       </div>
 

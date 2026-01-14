@@ -1367,6 +1367,11 @@ export const db = {
         const listing = listingSnap.data() as Listing;
         const user = userSnap.data() as User;
 
+        // --- [QUAN TRỌNG] CHẶN CHỦ SHOP TỰ ĐẤU GIÁ ---
+        if (listing.sellerId === userId) {
+            throw new Error("🚫 Bạn không thể tự đấu giá sản phẩm của chính mình!");
+        }
+
         // 2. Validate logic đấu giá
         if (!listing.isAuction) throw new Error("Tin này không phải đấu giá");
         if (listing.auctionEndAt && new Date(listing.auctionEndAt) < new Date()) throw new Error("Đã hết thời gian đấu giá");

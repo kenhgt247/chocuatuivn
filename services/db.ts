@@ -1161,7 +1161,28 @@ export const db = {
   markRoomAsSeen: async (id: string, userId: string) => {
     await updateDoc(doc(firestore, "chats", id), { seenBy: arrayUnion(userId) });
   },
-  
+    // --- HÀM TÌM PHÒNG CHÁT THEO TIN ĐĂNG (Dùng cho nút Nhắn tin ở Quản lý tin) ---
+  findChatRoomByListing: async (listingId: string) => {
+    try {
+      // Lưu ý: Collection của bạn đặt tên là "chats"
+      const q = query(
+        collection(firestore, "chats"),
+        where("listingId", "==", listingId),
+        limit(1)
+      );
+      const snapshot = await getDocs(q);
+      
+      // Nếu tìm thấy phòng chat, trả về ID của document đó
+      if (!snapshot.empty) {
+        return snapshot.docs[0].id;
+      }
+      return null;
+    } catch (e) {
+      console.error("Lỗi tìm phòng chat:", e);
+      return null;
+    }
+  },
+
   createChatRoom: async (l: any, buyer: User) => {
     try {
         if (!l?.id) throw new Error("Listing ID is missing");

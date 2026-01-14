@@ -213,7 +213,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [activeCategoryId, allCategories, search, typeParam, locationParam, user, loadSpecialSections, detectedLocation, isUrlCategory, isCatsLoading]);
+  }, [activeCategoryId, allCategories, search, typeParam, locationParam, user, loadSpecialSections, detectedLocation, isUrlCategory, isCatsLoading, minPriceParam, maxPriceParam]);
 
   // Trigger fetch khi activeCategoryId thay đổi
   useEffect(() => {

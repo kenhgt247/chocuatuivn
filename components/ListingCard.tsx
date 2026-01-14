@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Listing, User } from '../types';
 import { formatPrice, formatTimeAgo } from '../utils/format';
@@ -22,8 +22,25 @@ const ListingCard: React.FC<ListingCardProps> = ({
   
   const navigate = useNavigate();
   const [isPushing, setIsPushing] = useState(false);
+  
+  // State lưu cấu hình giá đẩy tin (lấy từ DB cho chuẩn xác)
+  const [pushConfig, setPushConfig] = useState<{ price: number, discount: number }>({ price: 5000, discount: 0 });
 
-  // Xử lý sự kiện click nút Tim (Yêu thích)
+  // Load Settings 1 lần khi component mount để lấy giá chuẩn
+  useEffect(() => {
+      const loadSettings = async () => {
+          const settings = await db.getSettings();
+          if (settings) {
+              setPushConfig({
+                  price: settings.pushPrice || 5000,
+                  discount: settings.pushDiscount || 0
+              });
+          }
+      };
+      loadSettings();
+  }, []);
+
+  // Xử lý sự kiện click nút Tim
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.preventDefault(); 
     e.stopPropagation();
@@ -32,7 +49,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
     }
   };
 
-  // --- [LOGIC ĐẨY TIN: ĐÃ KIỂM TRA SỐ DƯ VÍ] ---
+  // --- LOGIC ĐẨY TIN (ĐỒNG BỘ VỚI PROFILE.TSX) ---
   const handlePushClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -45,45 +62,49 @@ const ListingCard: React.FC<ListingCardProps> = ({
         return;
     }
 
-    // 2. Cấu hình giá đẩy tin (Nên lấy từ Settings nếu có, ở đây ví dụ 5k)
-    const PUSH_PRICE = 5000;
+    // 2. Tính giá cuối cùng (sau chiết khấu)
+    const finalPrice = pushConfig.price * (1 - pushConfig.discount / 100);
 
-    // 3. KIỂM TRA SỐ DƯ VÍ (QUAN TRỌNG)
-    if (currentUser.walletBalance < PUSH_PRICE) {
+    // 3. Kiểm tra số dư ví
+    if (currentUser.walletBalance < finalPrice) {
         const confirm = window.confirm(
             `⚠️ Số dư không đủ!\n\n` +
-            `Chi phí: ${formatPrice(PUSH_PRICE)}\n` +
-            `Số dư ví: ${formatPrice(currentUser.walletBalance)}\n\n` +
+            `💎 Phí đẩy tin: ${formatPrice(finalPrice)}\n` +
+            `👛 Số dư hiện tại: ${formatPrice(currentUser.walletBalance)}\n\n` +
             `Bạn có muốn nạp tiền ngay không?`
         );
         
         if (confirm) {
-            navigate('/wallet'); // Chuyển sang trang nạp tiền
+            navigate('/wallet');
         }
-        return; // Dừng lại, không chạy tiếp
+        return; // DỪNG
     }
 
-    // 4. Nếu đủ tiền -> Xác nhận lần cuối & Trừ tiền
-    if (window.confirm(`Xác nhận trừ ${formatPrice(PUSH_PRICE)} để đẩy tin "${listing.title}" lên đầu?`)) {
+    // 4. Xác nhận & Thực hiện
+    const message = pushConfig.discount > 0 
+        ? `Đẩy tin lên đầu với giá ưu đãi ${formatPrice(finalPrice)} (Giảm ${pushConfig.discount}%)?`
+        : `Xác nhận trừ ${formatPrice(finalPrice)} để đẩy tin lên đầu?`;
+
+    if (window.confirm(message)) {
         setIsPushing(true);
         try {
             const res = await db.pushListing(listing.id, currentUser.id);
             if (res.success) {
-                alert(`🚀 Đẩy tin thành công! (Đã trừ ${formatPrice(PUSH_PRICE)})`);
-                window.location.reload(); // Reload để thấy tin lên top
+                alert(`🚀 Đẩy tin thành công!`);
+                window.location.reload(); 
             } else {
                 alert("Lỗi: " + res.message);
             }
         } catch (error) {
             console.error(error);
-            alert("Có lỗi xảy ra, vui lòng thử lại.");
+            alert("Có lỗi xảy ra.");
         } finally {
             setIsPushing(false);
         }
     }
   };
 
-  // Kiểm tra quyền chủ sở hữu (để hiện nút đẩy tin)
+  // Kiểm tra quyền chủ sở hữu
   const isOwner = currentUser && currentUser.id === listing.sellerId;
 
   return (
@@ -112,7 +133,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
             )}
         </div>
 
-        {/* NÚT TIM (GÓC PHẢI TRÊN) */}
+        {/* NÚT TIM */}
         <button 
           onClick={handleFavoriteClick}
           className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-all active:scale-90 z-20 ${isFavorite ? 'bg-red-500 text-white' : 'bg-white/80 text-gray-400 hover:bg-white hover:text-red-500'}`}
@@ -123,14 +144,13 @@ const ListingCard: React.FC<ListingCardProps> = ({
           </svg>
         </button>
 
-        {/* --- [NÚT ĐẨY TIN] MŨI TÊN XANH (GÓC PHẢI DƯỚI) --- */}
-        {/* Chỉ hiện nếu là chủ sở hữu và tin đã được duyệt */}
+        {/* --- NÚT ĐẨY TIN (GÓC PHẢI DƯỚI - MŨI TÊN XANH) --- */}
         {isOwner && listing.status === 'approved' && (
             <button 
                 onClick={handlePushClick}
                 disabled={isPushing}
                 className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg hover:bg-green-600 transition-all active:scale-90 animate-bounce-slow z-20 disabled:opacity-50 disabled:animate-none"
-                title="Đẩy tin lên đầu"
+                title={`Đẩy tin (${formatPrice(pushConfig.price * (1 - pushConfig.discount/100))})`}
             >
                 {isPushing ? (
                     <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -161,7 +181,6 @@ const ListingCard: React.FC<ListingCardProps> = ({
 
         {/* --- ICON VỊ TRÍ & THỜI GIAN --- */}
         <div className="flex items-center pt-2 border-t border-gray-100 mt-1">
-            {/* Trái: Avatar + Thời gian */}
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 <div className="w-4 h-4 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0">
                     <img src={listing.sellerAvatar || 'https://placehold.co/50'} alt="" className="w-full h-full object-cover" />
@@ -171,7 +190,6 @@ const ListingCard: React.FC<ListingCardProps> = ({
                 </span>
             </div>
             
-            {/* Phải: Icon Vị trí + Địa điểm */}
             <div className="flex items-center gap-0.5 text-gray-500 max-w-[50%]">
                 <svg className="w-2.5 h-2.5 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />

@@ -1233,49 +1233,49 @@ export const db = {
       return { success: false, message: e.message };
     }
   },
-// --- HÀM DỌN DẸP THÔNG MINH (CHỈ XÓA ĐỒ GIẢ - GIỮ ĐỒ THẬT) ---
+// --- HÀM DỌN DẸP CHUẨN XÁC THEO ID CỦA BẠN ---
   clearDatabase: async () => {
     try {
-      console.log("🧹 Đang quét rác (Dữ liệu mẫu)...");
+      console.log("🧹 Đang quét rác (seed_user, seed_listing)...");
       const currentUser = auth.currentUser;
 
-      // Các collection cần quét
+      // Danh sách các bảng cần quét
       const collections = ["listings", "users", "transactions", "notifications", "reviews", "reports", "chats", "offers", "favorites"];
       
       const batch = writeBatch(firestore);
       let count = 0;
       let batchCount = 0;
 
-      // HÀM KIỂM TRA: Cái ID này có phải đồ giả không?
-      // Logic: 
-      // 1. Bắt đầu bằng "seed_" (Code cũ)
-      // 2. Hoặc bắt đầu bằng chữ "l" hoặc "u" theo sau là số (vd: l1, l100, u2...) (Code mới)
+      // --- LOGIC NHẬN DIỆN DỮ LIỆU GIẢ ---
       const isFakeData = (id: string) => {
-        const isSeed = id.startsWith("seed_");
-        const isShortId = /^[lu]\d+$/.test(id); // Regex: l hoặc u + số
-        return isSeed || isShortId;
+        // 1. Dạng Seed chuẩn của bạn: "seed_user_21", "seed_listing_117"
+        if (id.startsWith("seed_")) return true;
+
+        // 2. Dạng Mock ngắn (đề phòng các tin cũ): "l1", "l2", "u1", "u2"
+        if (/^[lu]\d+$/.test(id)) return true;
+
+        return false; 
       };
 
       for (const colName of collections) {
         const snap = await getDocs(collection(firestore, colName));
         
         for (const d of snap.docs) {
-          // 1. BẢO VỆ TUYỆT ĐỐI TÀI KHOẢN HIỆN TẠI (Dù tên gì cũng không xóa)
+          // 🛡️ BẢO VỆ TÀI KHOẢN ADMIN ĐANG ĐĂNG NHẬP (QUAN TRỌNG NHẤT)
           if (colName === 'users' && currentUser && d.id === currentUser.uid) {
+            console.log(`🛡️ Giữ lại Admin: ${d.id}`);
             continue;
           }
 
-          // 2. CHỈ XÓA NẾU LÀ "ĐỒ GIẢ"
+          // 🗑️ CHỈ XÓA NẾU LÀ "SEED"
           if (isFakeData(d.id)) {
              batch.delete(d.ref);
              count++;
              batchCount++;
-             // console.log(`🗑 Sẽ xóa: ${colName}/${d.id}`); // Bật dòng này nếu muốn soi kỹ
-          } else {
-             // console.log(`🛡️ Giữ lại dữ liệu thật: ${colName}/${d.id}`);
-          }
-
-          // Xử lý giới hạn Batch 500 của Firebase
+          } 
+          // Dữ liệu thật (ID ngẫu nhiên kiểu "7f8a9s...") sẽ tự động bị bỏ qua
+          
+          // Xử lý giới hạn Batch 500
           if (batchCount >= 450) {
             await batch.commit();
             batchCount = 0;
@@ -1287,7 +1287,7 @@ export const db = {
         await batch.commit();
       }
       
-      return { success: true, message: `Đã dọn dẹp ${count} tin/user ảo (Dữ liệu thật vẫn an toàn)!` };
+      return { success: true, message: `Đã dọn dẹp ${count} dữ liệu mẫu (seed_*)!` };
     } catch (e: any) {
       console.error("Lỗi dọn dẹp:", e);
       return { success: false, message: e.message };

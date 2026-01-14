@@ -285,7 +285,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       {/* 2. BANNER (Chỉ hiện khi ở trang chủ gốc) */}
       {!search && !isUrlCategory && !typeParam && !locationParam && <HomeBanner />}
 
-      {/* 3. TIN VIP (Chỉ hiện khi ở trang chủ gốc) */}
+     {/* 3. TIN VIP */}
       {!search && !isUrlCategory && !typeParam && !locationParam && vipListings.length > 0 && (
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
@@ -298,15 +298,19 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {vipListings.map(l => (
               <ListingCard 
-                key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} 
-                onPushListing={user && user.id === l.sellerId ? handlePushListing : undefined} hideViews={true} 
+                key={l.id} 
+                listing={l} 
+                isFavorite={favorites.includes(l.id)} 
+                onToggleFavorite={toggleFav} 
+                currentUser={user} // [ĐÃ SỬA] Truyền currentUser thay vì onPushListing
+                hideViews={true} 
               />
             ))}
           </div>
         </section>
       )}
 
-      {/* 4. TIN QUANH ĐÂY (Chỉ hiện khi ở trang chủ gốc) */}
+      {/* 4. TIN QUANH ĐÂY */}
       {!search && !isUrlCategory && !typeParam && !locationParam && (
         <section className="space-y-4 animate-fade-in-up">
           <div className="flex items-center justify-between px-2">
@@ -318,7 +322,16 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           </div>
           {nearbyListings.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {nearbyListings.map(l => <ListingCard key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} hideViews={true} />)}
+                {nearbyListings.map(l => (
+                    <ListingCard 
+                        key={l.id} 
+                        listing={l} 
+                        isFavorite={favorites.includes(l.id)} 
+                        onToggleFavorite={toggleFav} 
+                        currentUser={user} // [ĐÃ SỬA]
+                        hideViews={true} 
+                    />
+                ))}
               </div>
           ) : (
              <div className="text-center py-4 text-xs text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">Chưa có tin đăng nào gần bạn.</div>
@@ -326,7 +339,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 5. DANH SÁCH CHÍNH (Kết quả tìm kiếm / Danh mục / Mới nhất) */}
+      {/* 5. DANH SÁCH CHÍNH */}
       <section className="space-y-4">
         <div className="flex items-center justify-between px-2">
            <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
@@ -360,8 +373,12 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {latestListings.map(l => (
                 <ListingCard 
-                    key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} 
-                    onPushListing={user && user.id === l.sellerId ? handlePushListing : undefined} hideViews={true} 
+                    key={l.id} 
+                    listing={l} 
+                    isFavorite={favorites.includes(l.id)} 
+                    onToggleFavorite={toggleFav} 
+                    currentUser={user} // [ĐÃ SỬA]
+                    hideViews={true} 
                 />
               ))}
             </div>

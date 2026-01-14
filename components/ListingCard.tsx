@@ -1,41 +1,86 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { Listing } from '../types';
+import { Link, useNavigate } from 'react-router-dom';
+import { Listing, User } from '../types';
 import { formatPrice, formatTimeAgo } from '../utils/format';
+import { db } from '../services/db';
 
 interface ListingCardProps {
   listing: Listing;
+  currentUser?: User | null; // [NEW] Cần thông tin user để check ví
   isFavorite?: boolean;
   onToggleFavorite?: (id: string) => void;
-  onPushListing?: (id: string) => void; // Hàm đẩy tin (chỉ có nếu là chủ sở hữu)
+  // onPushListing không cần nữa vì ta sẽ xử lý trực tiếp trong component này luôn cho tiện
   hideViews?: boolean;
 }
 
 const ListingCard: React.FC<ListingCardProps> = ({ 
   listing, 
+  currentUser,
   isFavorite = false, 
   onToggleFavorite, 
-  onPushListing,
   hideViews = false 
 }) => {
   
-  // Xử lý sự kiện click nút Tim để không bị nhảy trang
+  const navigate = useNavigate();
+
+  // Xử lý sự kiện click nút Tim
   const handleFavoriteClick = (e: React.MouseEvent) => {
-    e.preventDefault(); // Chặn Link nhảy trang
+    e.preventDefault(); 
     e.stopPropagation();
     if (onToggleFavorite) {
       onToggleFavorite(listing.id);
     }
   };
 
-  // Xử lý sự kiện click nút Đẩy tin
-  const handlePushClick = (e: React.MouseEvent) => {
+  // --- [QUAN TRỌNG] Xử lý sự kiện click nút Đẩy tin ---
+  const handlePushClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (onPushListing) {
-      onPushListing(listing.id);
+
+    // 1. Kiểm tra đăng nhập
+    if (!currentUser) {
+        if(window.confirm("Bạn cần đăng nhập để sử dụng tính năng này.")) {
+            navigate('/login');
+        }
+        return;
+    }
+
+    // 2. Cấu hình giá đẩy tin (Nên lấy từ settings, ở đây fix cứng 5k ví dụ)
+    const PUSH_PRICE = 5000;
+
+    // 3. Kiểm tra số dư
+    if (currentUser.walletBalance < PUSH_PRICE) {
+        const confirm = window.confirm(
+            `⚠️ Số dư không đủ!\n\n` +
+            `Chi phí: ${formatPrice(PUSH_PRICE)}\n` +
+            `Số dư hiện tại: ${formatPrice(currentUser.walletBalance)}\n\n` +
+            `Bạn có muốn nạp tiền ngay không?`
+        );
+        if (confirm) {
+            navigate('/wallet');
+        }
+        return; // Dừng lại, không chạy tiếp
+    }
+
+    // 4. Nếu đủ tiền -> Xác nhận lần cuối
+    if (window.confirm(`Xác nhận trừ ${formatPrice(PUSH_PRICE)} để đẩy tin lên đầu?`)) {
+        try {
+            const res = await db.pushListing(listing.id, currentUser.id);
+            if (res.success) {
+                alert(`🚀 Đẩy tin thành công! (Đã trừ ${formatPrice(PUSH_PRICE)})`);
+                window.location.reload(); // Load lại trang để thấy tin lên top
+            } else {
+                alert("Lỗi: " + res.message);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Có lỗi xảy ra.");
+        }
     }
   };
+
+  // Kiểm tra xem có phải chủ sở hữu không (để hiện nút đẩy tin)
+  const isOwner = currentUser && currentUser.id === listing.sellerId;
 
   return (
     <div className="group relative flex flex-col gap-2 cursor-pointer">
@@ -62,7 +107,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
             )}
         </div>
 
-        {/* --- [QUAN TRỌNG] NÚT TIM (GÓC PHẢI TRÊN) --- */}
+        {/* NÚT TIM */}
         <button 
           onClick={handleFavoriteClick}
           className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-all active:scale-90 ${isFavorite ? 'bg-red-500 text-white' : 'bg-white/80 text-gray-400 hover:bg-white hover:text-red-500'}`}
@@ -73,9 +118,9 @@ const ListingCard: React.FC<ListingCardProps> = ({
           </svg>
         </button>
 
-        {/* --- [QUAN TRỌNG] NÚT ĐẨY TIN (MŨI TÊN XANH - GÓC PHẢI DƯỚI) --- */}
-        {/* Chỉ hiện nếu có hàm onPushListing (tức là chủ sở hữu) */}
-        {onPushListing && (
+        {/* --- [QUAN TRỌNG] NÚT ĐẨY TIN (MŨI TÊN XANH) --- */}
+        {/* Chỉ hiện nếu là chủ sở hữu và tin đã được duyệt */}
+        {isOwner && listing.status === 'approved' && (
             <button 
                 onClick={handlePushClick}
                 className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg hover:bg-green-600 transition-all active:scale-90 animate-bounce-slow z-20"

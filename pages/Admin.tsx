@@ -896,61 +896,68 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                         </div>
                     </div>
 
-                    {/* 5. SEO & Công cụ */}
+                  {/* 5. SEO & Công cụ */}
                     <div className="space-y-6 pt-6 border-t border-gray-100">
                         <h4 className="text-sm font-black uppercase tracking-widest text-gray-800 flex items-center gap-2">
                             <span className="w-2 h-2 bg-gray-800 rounded-full"></span> Công cụ Developer
                         </h4>
-                        {/* --- TÌM ĐOẠN NÀY TRONG ADMIN.TSX VÀ THAY THẾ --- */}
-                  <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
-                      <h5 className="font-black text-sm text-red-700">Dữ liệu hệ thống</h5>
-                      <p className="text-[11px] text-red-600/70 mb-4 font-medium">Quản lý dữ liệu mẫu để test ứng dụng.</p>
-                      
-                      <div className="flex flex-col gap-3">
-                        {/* Nút Seed cũ của bạn */}
-                        <button 
-                          type="button" 
-                          onClick={async () => {
-                            if(window.confirm("CẢNH BÁO: Hành động này sẽ xóa dữ liệu cũ và TẠO MỚI 100 tin mẫu. Tiếp tục?")){
-                              setIsLoading(true); 
-                              await db.seedDatabase(); 
-                              setIsLoading(false); 
-                              loadInitialData();
-                              showToast("Đã Reset và tạo dữ liệu mẫu!");
-                            }
-                          }} 
-                          className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-red-200 hover:bg-red-600 transition-colors"
-                        >
-                          🔄 Reset & Tạo Sample
-                        </button>
+                        
+                        {/* --- BẮT ĐẦU GRID --- */}
+                        <div className="grid md:grid-cols-2 gap-6">
+                            
+                            {/* Cột 1: Dữ liệu hệ thống (Đỏ) */}
+                            <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
+                                <h5 className="font-black text-sm text-red-700">Dữ liệu hệ thống</h5>
+                                <p className="text-[11px] text-red-600/70 mb-4 font-medium">Quản lý dữ liệu mẫu để test ứng dụng.</p>
+                                
+                                <div className="flex flex-col gap-3">
+                                    {/* Nút Reset & Seed */}
+                                    <button 
+                                        type="button" 
+                                        onClick={async () => {
+                                            if(window.confirm("CẢNH BÁO: Hành động này sẽ xóa dữ liệu cũ và TẠO MỚI 100 tin mẫu. Tiếp tục?")){
+                                                setIsLoading(true); 
+                                                await db.seedDatabase(); 
+                                                setIsLoading(false); 
+                                                loadInitialData();
+                                                showToast("Đã Reset và tạo dữ liệu mẫu!");
+                                            }
+                                        }} 
+                                        className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-red-200 hover:bg-red-600 transition-colors"
+                                    >
+                                        🔄 Reset & Tạo Sample
+                                    </button>
 
-                        {/* --- NÚT MỚI: CHỈ XÓA SẠCH --- */}
-                        <button 
-                          type="button" 
-                          onClick={async () => {
-                            if(window.confirm("NGUY HIỂM: Hành động này sẽ XÓA SẠCH toàn bộ dữ liệu và KHÔNG tạo lại. Web sẽ trắng trơn. Bạn chắc chắn chứ?")){
-                              setIsLoading(true); 
-                              // Gọi hàm clearDatabase chúng ta vừa viết ở Bước 1
-                              await db.clearDatabase(); 
-                              setIsLoading(false); 
-                              loadInitialData();
-                              showToast("🗑 Đã xóa sạch trơn dữ liệu!");
-                            }
-                          }} 
-                          className="bg-white border-2 border-red-200 text-red-500 px-6 py-3 rounded-xl text-[10px] font-black uppercase hover:bg-red-50 transition-colors"
-                        >
-                          🗑 Xóa sạch (Về 0)
-                        </button>
-                      </div>
-                  </div>
+                                    {/* Nút Xóa sạch (Mới) */}
+                                    <button 
+                                        type="button" 
+                                        onClick={async () => {
+                                            if(window.confirm("NGUY HIỂM: Hành động này sẽ XÓA SẠCH toàn bộ dữ liệu và KHÔNG tạo lại. Web sẽ trắng trơn. Bạn chắc chắn chứ?")){
+                                                setIsLoading(true); 
+                                                await db.clearDatabase(); 
+                                                setIsLoading(false); 
+                                                loadInitialData();
+                                                showToast("🗑 Đã xóa sạch trơn dữ liệu!");
+                                            }
+                                        }} 
+                                        className="bg-white border-2 border-red-200 text-red-500 px-6 py-3 rounded-xl text-[10px] font-black uppercase hover:bg-red-50 transition-colors"
+                                    >
+                                        🗑 Xóa sạch (Về 0)
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Cột 2: Sitemap SEO (Xanh) */}
                             <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
                                 <h5 className="font-black text-sm text-blue-700">Sitemap SEO</h5>
                                 <p className="text-[11px] text-blue-600/70 mb-4 font-medium">Tạo file sitemap.xml chứa toàn bộ link sản phẩm cho Google.</p>
-                                <button type="button" onClick={handleDownloadSitemap} className="bg-blue-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-blue-200">Tải Sitemap.xml</button>
+                                <button type="button" onClick={handleDownloadSitemap} className="bg-blue-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-blue-200 w-full">Tải Sitemap.xml</button>
                             </div>
-                        </div>
+
+                        </div> {/* --- KẾT THÚC GRID --- */}
                     </div>
 
+                    {/* --- NÚT LƯU CẤU HÌNH (QUAN TRỌNG: PHẢI CÓ) --- */}
                     <button type="submit" disabled={isLoading} className="w-full bg-primary text-white font-black py-5 rounded-[2rem] shadow-2xl shadow-primary/30 hover:scale-[1.01] active:scale-95 transition-all uppercase tracking-widest text-xs">
                         {isLoading ? 'Đang lưu hệ thống...' : 'Lưu tất cả cấu hình'}
                     </button>

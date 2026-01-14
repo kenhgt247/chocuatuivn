@@ -474,31 +474,32 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 <input type="file" ref={videoInputRef} onChange={handleVideoChange} accept="video/*" className="hidden" />
               </div>
            )}
-         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-6 rounded-3xl relative overflow-hidden">
-    {/* Decor background */}
-    <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-blue-100 rounded-full opacity-50 blur-2xl"></div>
 
-    <div className="relative z-10">
-        <h3 className="flex items-center gap-2 font-black text-xs md:text-sm uppercase text-blue-600 mb-4 tracking-wider">
-            <span className="text-lg">🛡️</span> Quy tắc & Mẹo Bán Nhanh
-        </h3>
-        <ul className="space-y-3">
-            {[
-                { icon: "🚫", text: "Không đăng hàng cấm, hàng giả." },
-                { icon: "📸", text: "Hình ảnh tự chụp, rõ nét, không mờ." },
-                { icon: "📝", text: "Mô tả chi tiết tình trạng, xuất xứ." },
-                { icon: "💬", text: "Trả lời khách hàng lịch sự, nhanh chóng." }
-            ].map((rule, i) => (
-                <li key={i} className="flex items-start gap-3 text-xs text-gray-700 font-medium">
-                    <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center bg-white rounded-full shadow-sm text-[10px] border border-blue-100">
-                        {rule.icon}
-                    </span>
-                    <span className="pt-0.5">{rule.text}</span>
-                </li>
-            ))}
-        </ul>
-    </div>
-</div>
+           {/* --- KHỐI QUY TẮC ĐẸP MẮT (ĐÃ THÊM VÀO ĐÚNG CHỖ) --- */}
+           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-6 rounded-3xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-blue-100 rounded-full opacity-50 blur-2xl"></div>
+                <div className="relative z-10">
+                    <h3 className="flex items-center gap-2 font-black text-xs md:text-sm uppercase text-blue-600 mb-4 tracking-wider">
+                        <span className="text-lg">🛡️</span> Quy tắc & Mẹo Bán Nhanh
+                    </h3>
+                    <ul className="space-y-3">
+                        {[
+                            { icon: "🚫", text: "Không đăng hàng cấm, hàng giả." },
+                            { icon: "📸", text: "Hình ảnh tự chụp, rõ nét, không mờ." },
+                            { icon: "📝", text: "Mô tả chi tiết tình trạng, xuất xứ." },
+                            { icon: "💬", text: "Trả lời khách hàng lịch sự, nhanh chóng." }
+                        ].map((rule, i) => (
+                            <li key={i} className="flex items-start gap-3 text-xs text-gray-700 font-medium">
+                                <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center bg-white rounded-full shadow-sm text-[10px] border border-blue-100">
+                                    {rule.icon}
+                                </span>
+                                <span className="pt-0.5">{rule.text}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
+        </div>
 
         {/* CỘT PHẢI: FORM */}
         <div className="lg:col-span-8">

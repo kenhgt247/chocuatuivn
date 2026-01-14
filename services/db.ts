@@ -27,7 +27,6 @@ import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notific
 
 // IMPORT LOGIC TÌM KIẾM & FORMAT
 import { isSearchMatch, calculateRelevanceScore, generateKeywords } from '../utils/format';
-
 // 2. CẤU HÌNH ADMIN EMAIL
 const ADMIN_EMAIL = "buivanbac@gmail.com"; 
 
@@ -643,7 +642,18 @@ export const db = {
     const d = await getDoc(doc(firestore, "users", id));
     return d.exists() ? { id: d.id, ...d.data() } as User : undefined;
   },
-
+// [INSERT HERE]
+  onUserChange: (userId: string, callback: (user: User) => void) => {
+    const userRef = doc(firestore, "users", userId);
+    const unsubscribe = onSnapshot(userRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const userData = { id: docSnap.id, ...docSnap.data() } as User;
+        callback(userData);
+      }
+    });
+    return unsubscribe;
+  },
+  // [END INSERT]
   updateUserProfile: async (userId: string, updates: Partial<User>): Promise<User> => {
     const userRef = doc(firestore, "users", userId);
     await updateDoc(userRef, updates);

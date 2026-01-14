@@ -17,103 +17,40 @@ export interface ListingAnalysis {
 // [CẬP NHẬT] MAP DANH MỤC KHỚP VỚI CẤU TRÚC MỚI CỦA BẠN
 const CATEGORY_MAP_PROMPT = `
 HÃY PHÂN TÍCH ẢNH VÀ CHỌN CHÍNH XÁC MỘT TRONG CÁC ID (SLUG) DƯỚI ĐÂY.
-Cố gắng chọn danh mục con cụ thể nhất.
+Cố gắng chọn danh mục con cụ thể nhất có thể.
 
-1. Bất động sản:
-   - 'can-ho-chung-cu' (Căn hộ/Chung cư)
-   - 'dat' (Đất)
-   - 'nha-o' (Nhà ở)
-   - 'phong-tro' (Phòng trọ)
-   - 'van-phong-mat-bang' (Văn phòng, Mặt bằng)
+1. Bất động sản: 'can-ho-chung-cu', 'nha-o', 'dat', 'phong-tro', 'van-phong'
 
-2. Xe cộ:
-   - 'o-to' (Ô tô)
-   - 'phu-tung-xe' (Phụ tùng xe)
-   - 'xe-dap' (Xe đạp)
-   - 'xe-dien' (Xe điện)
-   - 'xe-may' (Xe máy)
-   - 'xe-tai-ben' (Xe tải, Xe ben)
+2. Xe cộ: 'o-to', 'xe-may', 'xe-dien', 'xe-tai', 'xe-dap', 'phu-tung-xe'
 
 3. Đồ điện tử:
-   - 'tivi-am-thanh' (Tivi, Loa, Amply)
-   - 'phu-kien-so' (Tai nghe, Sạc, Cáp)
-   - 'dien-thoai' (Điện thoại)
-   - 'laptop' (Laptop)
-   - 'linh-kien' (RAM, CPU, VGA...)
-   - 'may-anh' (Máy ảnh, Máy quay)
-   - 'may-tinh-bang' (Tablet)
-   - 'may-tinh-de-ban' (PC, Màn hình)
-   - 'thiet-bi-deo' (Smartwatch)
+   - 'dien-thoai'
+   - 'may-tinh-bang'
+   - 'laptop'
+   - 'may-tinh-de-ban'
+   - 'may-anh'
+   - 'tivi-am-thanh'
+   - 'thiet-bi-thong-minh' (Smartwatch)
+   - 'phu-kien-dt' (Tai nghe, Sạc, Chuột...)
+   - 'linh-kien' (RAM, CPU...)
 
-4. Việc làm:
-   - 'lao-dong-pho-thong' (Lao động phổ thông)
-   - 'van-phong-hcns' (Văn phòng/Hành chính nhân sự)
-   - 'ky-su-ky-thuat' (Kỹ sư/Kỹ thuật)
-   - 'cntt-thiet-ke' (IT/Design)
-   - 'ban-hang' (Nhân viên bán hàng)
-   - 'bao-ve' (Bảo vệ)
-   - 'cong-nhan' (Công nhân)
-   - 'nhan-vien-kinh-doanh' (Sale)
-   - 'nhan-vien-phuc-vu' (Phục vụ)
-   - 'pha-che' (Bartender/Barista)
-   - 'phu-bep' (Phụ bếp)
-   - 'lai-xe-giao-hang' (Tài xế/Shipper)
-   - 'tap-vu' (Tạp vụ/Giúp việc)
+4. Việc làm: 'ban-hang', 'nhan-vien-phuc-vu', 'tai-xe-giao-hang', 'tap-vu', 'pha-che', 'phu-bep', 'nhan-vien-kinh-doanh', 'cong-nhan', 'bao-ve'
 
-5. Thú cưng:
-   - 'chim' (Chim cảnh)
-   - 'cho' (Chó)
-   - 'ga' (Gà)
-   - 'meo' (Mèo)
-   - 'phu-kien-thu-cung' (Thức ăn, phụ kiện)
-   - 'thu-cung-khac' (Hamster, Cá, bò sát...)
+5. Thú cưng: 'ga', 'cho', 'chim', 'meo', 'thu-cung-khac', 'phu-kien-thu-cung'
 
-6. Điện lạnh (Tủ lạnh, Máy lạnh, Máy giặt):
-   - 'may-giat' (Máy giặt)
-   - 'may-lanh' (Máy lạnh/Điều hòa)
-   - 'tu-lanh' (Tủ lạnh)
+6. Điện lạnh: 'tu-lanh', 'may-lanh', 'may-giat'
 
-7. Đồ gia dụng, Nội thất, Cây cảnh:
-   - 'giuong-chan-ga' (Giường, Chăn ga gối nệm)
-   - 'tu-bep' (Tủ bếp)
-   - 'ban-ghe' (Bàn ghế)
-   - 'thiet-bi-nha-bep' (Bếp, Lò vi sóng, Nồi cơm)
-   - 'cay-canh-trang-tri' (Cây cảnh, Decor)
-   - 'dung-cu-nha-bep' (Dao, thớt, xoong nồi)
-   - 'tu-ke' (Tủ quần áo, Kệ sách)
+7. Nội thất & Gia dụng: 'ban-ghe', 'tu-ke', 'giuong-nem', 'bep-lo', 'dung-cu-bep', 'cay-canh'
 
-8. Thời trang, Đồ dùng cá nhân:
-   - 'quan-ao-nam' (Quần áo Nam)
-   - 'quan-ao-nu' (Quần áo Nữ)
-   - 'dong-ho' (Đồng hồ)
-   - 'giay-dep' (Giày dép)
-   - 'nuoc-hoa' (Nước hoa/Mỹ phẩm)
-   - 'tui-xach' (Túi xách/Ví)
+8. Thời trang: 'quan-ao', 'dong-ho', 'giay-dep', 'tui-xach', 'nuoc-hoa'
 
-9. Giải trí, Thể thao:
-   - 'do-the-thao' (Dụng cụ thể thao)
-   - 'da-ngoai' (Đồ dã ngoại/Cắm trại)
-   - 'nhac-cu' (Đàn, Trống...)
-   - 'sach' (Sách báo)
-   - 'do-suu-tam' (Đồ cổ, Tem, Tiền xu)
+9. Giải trí & Thể thao: 'nhac-cu', 'sach', 'do-the-thao', 'suu-tam'
 
-10. Mẹ và Bé:
-    - 'xe-day-noi' (Xe đẩy, Nôi)
-    - 'do-choi' (Đồ chơi)
-    - 'quan-ao-be' (Quần áo trẻ em)
+10. Mẹ và Bé: 'me-va-be'
 
-11. Dịch vụ, Du lịch:
-    - 'dich-vu-sua-chua' (Thợ sửa chữa)
-    - 'van-tai' (Vận tải, Chở hàng)
-    - 'du-lich' (Tour, Vé máy bay)
-    - 'dich-vu-don-dep' (Dọn nhà)
+11. Dịch vụ: 'dich-vu-don-nha', 'dich-vu-chuyen-nha', 'dich-vu-sua-chua'
 
-12. Thực phẩm:
-    - 'trai-cay' (Trái cây)
-    - 'dac-san' (Đặc sản vùng miền)
-
-13. Khác:
-    - 'cac-loai-khac'
+12. Khác: 'khac'
 `;
 
 const getApiKey = () => {

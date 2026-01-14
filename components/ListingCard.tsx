@@ -6,7 +6,7 @@ import { db } from '../services/db';
 
 interface ListingCardProps {
   listing: Listing;
-  currentUser?: User | null; // Cần user để check ví
+  currentUser?: User | null; 
   isFavorite?: boolean;
   onToggleFavorite?: (id: string) => void;
   hideViews?: boolean;
@@ -23,24 +23,26 @@ const ListingCard: React.FC<ListingCardProps> = ({
   const navigate = useNavigate();
   const [isPushing, setIsPushing] = useState(false);
   
-  // State lưu cấu hình giá đẩy tin (lấy từ DB cho chuẩn xác)
+  // State lưu cấu hình giá đẩy tin
   const [pushConfig, setPushConfig] = useState<{ price: number, discount: number }>({ price: 5000, discount: 0 });
 
-  // Load Settings 1 lần khi component mount để lấy giá chuẩn
   useEffect(() => {
       const loadSettings = async () => {
-          const settings = await db.getSettings();
-          if (settings) {
-              setPushConfig({
-                  price: settings.pushPrice || 5000,
-                  discount: settings.pushDiscount || 0
-              });
+          try {
+            const settings = await db.getSettings();
+            if (settings) {
+                setPushConfig({
+                    price: settings.pushPrice || 5000,
+                    discount: settings.pushDiscount || 0
+                });
+            }
+          } catch (error) {
+            // Fallback nếu lỗi
           }
       };
       loadSettings();
   }, []);
 
-  // Xử lý sự kiện click nút Tim
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.preventDefault(); 
     e.stopPropagation();
@@ -49,43 +51,29 @@ const ListingCard: React.FC<ListingCardProps> = ({
     }
   };
 
-  // --- LOGIC ĐẨY TIN (ĐỒNG BỘ VỚI PROFILE.TSX) ---
+  // --- LOGIC ĐẨY TIN ---
   const handlePushClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // 1. Kiểm tra đăng nhập
     if (!currentUser) {
-        if(window.confirm("Bạn cần đăng nhập để sử dụng tính năng này.")) {
-            navigate('/login');
+        if(window.confirm("Bạn cần đăng nhập để sử dụng tính năng này.")) navigate('/login');
+        return;
+    }
+
+    // Tính giá sau chiết khấu
+    const finalPrice = pushConfig.price * (1 - pushConfig.discount / 100);
+
+    // Kiểm tra số dư
+    if (currentUser.walletBalance < finalPrice) {
+        if (window.confirm(`⚠️ Số dư không đủ (${formatPrice(currentUser.walletBalance)} < ${formatPrice(finalPrice)}).\nNạp tiền ngay?`)) {
+            navigate('/wallet');
         }
         return;
     }
 
-    // 2. Tính giá cuối cùng (sau chiết khấu)
-    const finalPrice = pushConfig.price * (1 - pushConfig.discount / 100);
-
-    // 3. Kiểm tra số dư ví
-    if (currentUser.walletBalance < finalPrice) {
-        const confirm = window.confirm(
-            `⚠️ Số dư không đủ!\n\n` +
-            `💎 Phí đẩy tin: ${formatPrice(finalPrice)}\n` +
-            `👛 Số dư hiện tại: ${formatPrice(currentUser.walletBalance)}\n\n` +
-            `Bạn có muốn nạp tiền ngay không?`
-        );
-        
-        if (confirm) {
-            navigate('/wallet');
-        }
-        return; // DỪNG
-    }
-
-    // 4. Xác nhận & Thực hiện
-    const message = pushConfig.discount > 0 
-        ? `Đẩy tin lên đầu với giá ưu đãi ${formatPrice(finalPrice)} (Giảm ${pushConfig.discount}%)?`
-        : `Xác nhận trừ ${formatPrice(finalPrice)} để đẩy tin lên đầu?`;
-
-    if (window.confirm(message)) {
+    // Xác nhận
+    if (window.confirm(`Trừ ${formatPrice(finalPrice)} để đẩy tin "${listing.title}" lên đầu?`)) {
         setIsPushing(true);
         try {
             const res = await db.pushListing(listing.id, currentUser.id);
@@ -104,52 +92,61 @@ const ListingCard: React.FC<ListingCardProps> = ({
     }
   };
 
-  // Kiểm tra quyền chủ sở hữu
-  const isOwner = currentUser && currentUser.id === listing.sellerId;
+  // Logic kiểm tra chủ sở hữu
+  const isOwner = currentUser && (currentUser.id === listing.sellerId);
+  
+  // [QUAN TRỌNG] Kiểm tra status: Chấp nhận 'approved' HOẶC nếu không có status (tin cũ) thì tạm coi là approved để hiện nút
+  const isApproved = listing.status === 'approved' || !listing.status; 
+
+  // DEBUG: Bật F12 -> Console để xem tại sao nút ẩn
+  if (currentUser && isOwner && !isApproved) {
+      console.log(`[DEBUG] Tin "${listing.title}" bị ẩn nút Đẩy tin vì Status = "${listing.status}"`);
+  }
 
   return (
-    <div className="group relative flex flex-col gap-2 cursor-pointer">
+    <div className="group relative flex flex-col gap-2 cursor-pointer h-full">
       
-      {/* 1. KHUNG ẢNH */}
-      <Link to={`/san-pham/${listing.slug}-${listing.id}`} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
-        <img 
-          src={listing.images[0] || 'https://placehold.co/400'} 
-          alt={listing.title} 
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-          loading="lazy"
-        />
+      {/* 1. KHUNG ẢNH (Dùng thẻ div relative để chứa cả Link và Button) */}
+      <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
+        
+        {/* Link bao trọn ảnh */}
+        <Link to={`/san-pham/${listing.slug}-${listing.id}`} className="block w-full h-full">
+            <img 
+              src={listing.images[0] || 'https://placehold.co/400'} 
+              alt={listing.title} 
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+              loading="lazy"
+            />
+            {/* Overlay đen mờ khi hover */}
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none"></div>
+        </Link>
         
         {/* Badge VIP/MỚI */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10 pointer-events-none">
             {listing.tier === 'pro' && (
-                <span className="bg-yellow-400 text-white text-[9px] font-black px-2 py-1 rounded-md uppercase shadow-sm tracking-wider">
-                    VIP
-                </span>
+                <span className="bg-yellow-400 text-white text-[9px] font-black px-2 py-1 rounded-md uppercase shadow-sm tracking-wider">VIP</span>
             )}
             {listing.condition === 'new' && (
-                <span className="bg-blue-500 text-white text-[9px] font-black px-2 py-1 rounded-md uppercase shadow-sm tracking-wider">
-                    Mới
-                </span>
+                <span className="bg-blue-500 text-white text-[9px] font-black px-2 py-1 rounded-md uppercase shadow-sm tracking-wider">Mới</span>
             )}
         </div>
 
-        {/* NÚT TIM */}
+        {/* NÚT TIM (GÓC PHẢI TRÊN) */}
         <button 
           onClick={handleFavoriteClick}
           className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-all active:scale-90 z-20 ${isFavorite ? 'bg-red-500 text-white' : 'bg-white/80 text-gray-400 hover:bg-white hover:text-red-500'}`}
           title={isFavorite ? "Bỏ lưu" : "Lưu tin"}
         >
-          <svg className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-          </svg>
+          <svg className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
         </button>
 
-        {/* --- NÚT ĐẨY TIN (GÓC PHẢI DƯỚI - MŨI TÊN XANH) --- */}
-        {isOwner && listing.status === 'approved' && (
+        {/* --- NÚT ĐẨY TIN (GÓC PHẢI DƯỚI) --- */}
+        {/* Đã tách ra khỏi thẻ Link để đảm bảo hiển thị */}
+        {isOwner && isApproved && (
             <button 
                 onClick={handlePushClick}
                 disabled={isPushing}
-                className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg hover:bg-green-600 transition-all active:scale-90 animate-bounce-slow z-20 disabled:opacity-50 disabled:animate-none"
+                className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg hover:bg-green-600 transition-all active:scale-90 animate-bounce-slow z-30 disabled:opacity-50 disabled:animate-none border-2 border-white"
                 title={`Đẩy tin (${formatPrice(pushConfig.price * (1 - pushConfig.discount/100))})`}
             >
                 {isPushing ? (
@@ -159,13 +156,10 @@ const ListingCard: React.FC<ListingCardProps> = ({
                 )}
             </button>
         )}
-
-        {/* Overlay đen mờ khi hover */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none"></div>
-      </Link>
+      </div>
 
       {/* 2. THÔNG TIN */}
-      <Link to={`/san-pham/${listing.slug}-${listing.id}`} className="space-y-1.5 px-1">
+      <Link to={`/san-pham/${listing.slug}-${listing.id}`} className="space-y-1.5 px-1 block flex-1">
         <h3 className="text-xs font-medium text-gray-700 line-clamp-2 min-h-[2.5em] leading-relaxed group-hover:text-primary transition-colors">
           {listing.title}
         </h3>

@@ -1335,7 +1335,7 @@ export const db = {
       return { success: false, message: e.message };
     }
   },
-  // --- H. ĐẤU GIÁ (AUCTION) --- [MỚI THÊM]
+  // --- H. ĐẤU GIÁ (AUCTION) ---
 
   // Lấy danh sách người đấu giá (Realtime)
   getBids: (listingId: string, callback: (bids: Bid[]) => void) => {
@@ -1369,7 +1369,7 @@ export const db = {
 
         // 2. Validate logic đấu giá
         if (!listing.isAuction) throw new Error("Tin này không phải đấu giá");
-        if (new Date(listing.auctionEndAt!) < new Date()) throw new Error("Đã hết thời gian đấu giá");
+        if (listing.auctionEndAt && new Date(listing.auctionEndAt) < new Date()) throw new Error("Đã hết thời gian đấu giá");
         
         // Giá đặt phải cao hơn giá hiện tại (hoặc giá khởi điểm nếu chưa ai đặt)
         const currentPrice = listing.price || 0;
@@ -1396,8 +1396,13 @@ export const db = {
           createdAt: new Date().toISOString()
         });
 
-        // Trả về dữ liệu để gửi thông báo
-        return { previousBidderId, listingTitle: listing.title, slug: listing.slug || 'san-pham' };
+        // [QUAN TRỌNG] Trả về dữ liệu cần thiết để gửi thông báo (bao gồm sellerId)
+        return { 
+            previousBidderId, 
+            listingTitle: listing.title, 
+            slug: listing.slug || 'san-pham',
+            sellerId: listing.sellerId 
+        };
       });
     } catch (e: any) {
       console.error("Lỗi đấu giá:", e);
@@ -1405,14 +1410,26 @@ export const db = {
     }
   },
 
-  // Gửi thông báo cho người bị vượt mặt
+  // Gửi thông báo (Báo cho người bị vượt mặt VÀ Chủ shop)
   notifyBidSuccess: async (data: any, currentUserId: string, amount: number) => {
+      // 1. Báo cho người cũ bị vượt mặt
       if (data.previousBidderId && data.previousBidderId !== currentUserId) {
           await db.sendNotification({
               userId: data.previousBidderId,
               title: "⚡ BẠN ĐÃ BỊ VƯỢT GIÁ!",
               message: `Ai đó vừa trả ${amount.toLocaleString()}đ cho tin "${data.listingTitle}". Vào đấu lại ngay!`,
               type: 'warning',
+              link: `/san-pham/${data.slug}-${data.id}`
+          });
+      }
+
+      // 2. Báo cho Chủ Shop (Người bán) biết có khách trả giá
+      if (data.sellerId && data.sellerId !== currentUserId) {
+           await db.sendNotification({
+              userId: data.sellerId,
+              title: "💰 Có lượt trả giá mới!",
+              message: `Khách vừa trả ${amount.toLocaleString()}đ cho sản phẩm "${data.listingTitle}" của bạn.`,
+              type: 'success', // Icon màu xanh
               link: `/san-pham/${data.slug}-${data.id}`
           });
       }

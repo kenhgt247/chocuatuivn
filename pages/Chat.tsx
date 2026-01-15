@@ -6,6 +6,16 @@ import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
 
 const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=random&color=fff&name=User";
 
+// [BỔ SUNG] Danh sách tin nhắn mẫu để người dùng bấm nhanh
+const QUICK_REPLIES = [
+  "Sản phẩm này còn không bạn?",
+  "Hàng chuẩn như hình không ạ?",
+  "Bạn cho mình xin địa chỉ xem hàng nhé.",
+  "Sản phẩm còn mới bao nhiêu % vậy?",
+  "Cảm ơn bạn, mình sẽ chốt đơn sớm.",
+  "Giá này có bớt thêm được không?"
+];
+
 const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -23,7 +33,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     e.currentTarget.onerror = null;
   };
 
-  // 1. Load Rooms
+  // 1. Load Rooms (Giữ nguyên logic gốc)
   useEffect(() => {
     if (user) {
       const unsubscribe = db.getChatRooms(user.id, (loadedRooms) => {
@@ -33,7 +43,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     }
   }, [user]);
 
-  // 2. Fetch missing partner info
+  // 2. Fetch missing partner info (Giữ nguyên logic gốc)
   useEffect(() => {
     if (!user || rooms.length === 0) return;
     rooms.forEach(async (room) => {
@@ -52,7 +62,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     });
   }, [rooms, user, fetchedPartners]);
 
-  // 3. Load Active Room
+  // 3. Load Active Room (Giữ nguyên logic gốc)
   useEffect(() => {
     const loadActiveRoom = async () => {
       if (user && roomId) {
@@ -76,6 +86,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeRoom?.messages]);
 
+  // Gửi tin nhắn thường
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() || !activeRoom || !user) return;
@@ -84,7 +95,17 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     await db.addMessage(activeRoom.id, {
       senderId: user.id,
       text: textToSend,
-      type: 'text' // Mặc định là text
+      type: 'text'
+    });
+  };
+
+  // [MỚI] Hàm gửi tin nhắn nhanh khi nhấn vào nút mẫu
+  const handleSendQuickReply = async (text: string) => {
+    if (!activeRoom || !user) return;
+    await db.addMessage(activeRoom.id, {
+      senderId: user.id,
+      text: text,
+      type: 'text'
     });
   };
 
@@ -102,16 +123,13 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     } catch (error) { alert("Lỗi xóa phòng chat."); }
   };
 
-  // [MỚI] Xử lý Offer (Chấp nhận/Từ chối)
   const handleRespondOffer = async (offerId: string, status: 'accepted' | 'rejected') => {
     if (!activeRoom || !offerId) return;
     if (!window.confirm(`Bạn có chắc muốn ${status === 'accepted' ? 'ĐỒNG Ý' : 'TỪ CHỐI'} mức giá này?`)) return;
-    
     const result = await db.respondToOffer(offerId, status, activeRoom.id);
     if (!result.success) alert("Lỗi: " + result.message);
   };
 
-  // Helper Info
   const getPartnerInfo = (room: any, currentUserId: string) => {
     const partnerId = room.participantIds.find((id: string) => id !== currentUserId) || '';
     if (room.participantsData && room.participantsData[partnerId]) {
@@ -123,28 +141,10 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     return { name: room.listingTitle, avatar: room.listingImage, isProductAvatar: true };
   };
 
-  // [MỚI] Component hiển thị tin nhắn Offer
   const renderOfferMessage = (msg: Message, isMe: boolean) => {
-    // Parse giá tiền từ text (Vì text lưu dạng "💰 Đã đề nghị mức giá: 500.000 VNĐ")
-    // Cách tốt hơn là lưu offerPrice vào msg object, nhưng ở đây ta parse tạm
     const priceMatch = msg.text.match(/[\d,.]+/);
     const priceStr = priceMatch ? priceMatch[0] : "???";
-
-    // Kiểm tra xem tin nhắn này đã được phản hồi chưa (bằng cách check các tin nhắn sau nó)
-    // *Lưu ý: Đây là cách đơn giản. Cách chuẩn là check status trong DB Offers collection*
-    // Nhưng để UI phản hồi nhanh, ta tạm thời hiển thị nút bấm.
-    
-    // Nếu là người bán (isMe = true tức là người bán nhận được offer từ người mua nếu msg là của người mua)
-    // Logic: 
-    // - msg.senderId là người mua -> isMe = false (Mình là người bán) -> Hiện nút Duyệt
-    // - msg.senderId là người bán -> isMe = true (Mình gửi offer? Không, người bán k gửi offer) -> Logic ngược lại
-    
-    // Đúng logic:
-    // User hiện tại = user.id.
-    // Người gửi msg = msg.senderId.
-    // Nếu user.id !== msg.senderId => Mình nhận được offer.
-    
-    const canRespond = !isMe; // Chỉ người nhận mới được quyền Accept/Reject
+    const canRespond = !isMe;
 
     return (
         <div className="bg-white border-2 border-green-100 rounded-2xl p-4 shadow-sm w-64 space-y-3">
@@ -156,29 +156,13 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                 <p className="text-[10px] text-gray-400 font-bold uppercase">Khách trả giá</p>
                 <p className="text-2xl font-black text-green-600">{priceStr} <span className="text-xs text-gray-400">VNĐ</span></p>
             </div>
-            
             {canRespond && msg.offerId && (
                 <div className="grid grid-cols-2 gap-2">
-                    <button 
-                        onClick={() => handleRespondOffer(msg.offerId!, 'rejected')}
-                        className="py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs rounded-xl transition-colors"
-                    >
-                        Từ chối
-                    </button>
-                    <button 
-                        onClick={() => handleRespondOffer(msg.offerId!, 'accepted')}
-                        className="py-2 bg-green-500 hover:bg-green-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-green-200 transition-colors"
-                    >
-                        Đồng ý
-                    </button>
+                    <button onClick={() => handleRespondOffer(msg.offerId!, 'rejected')} className="py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs rounded-xl transition-colors">Từ chối</button>
+                    <button onClick={() => handleRespondOffer(msg.offerId!, 'accepted')} className="py-2 bg-green-500 hover:bg-green-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-green-200 transition-colors">Đồng ý</button>
                 </div>
             )}
-            
-            {!canRespond && (
-                <div className="text-center text-[10px] text-gray-400 italic bg-gray-50 py-1 rounded-lg">
-                    Đang chờ phản hồi...
-                </div>
-            )}
+            {!canRespond && <div className="text-center text-[10px] text-gray-400 italic bg-gray-50 py-1 rounded-lg">Đang chờ phản hồi...</div>}
         </div>
     );
   };
@@ -209,7 +193,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                     </div>
                     <p className="text-[10px] text-gray-500 truncate font-medium bg-gray-100 px-1.5 py-0.5 rounded w-fit max-w-full mt-0.5">{room.listingTitle}</p>
                     <p className={`text-xs truncate mt-1 ${isUnread ? 'font-black text-primary' : 'text-gray-400'}`}>
-                      {/* Hiển thị icon nếu tin nhắn cuối là offer */}
                       {room.lastMessage?.includes('💰') ? '💰 Có lời mặc cả mới' : (room.lastMessage || 'Bắt đầu cuộc trò chuyện')}
                     </p>
                   </div>
@@ -259,10 +242,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                                 {showAvatar && <img src={activePartner.avatar || DEFAULT_AVATAR} className="w-full h-full object-cover" alt="" onError={(e) => handleImageError(e, DEFAULT_AVATAR)} />}
                             </div>
                         )}
-
-                        {/* MESSAGE BUBBLE */}
                         <div className={`relative max-w-[85%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                            {/* Nếu là loại offer thì render khung đặc biệt */}
                             {msg.type === 'offer' ? (
                                 renderOfferMessage(msg, isMe)
                             ) : (
@@ -270,7 +250,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                                   {msg.text}
                                 </div>
                             )}
-                            
                             <div className="flex items-center gap-1 mt-1 opacity-60">
                                 {isMe && (
                                     <button onClick={() => handleDeleteMessage(msg.id)} className="text-[9px] text-red-400 hover:underline mr-1 opacity-0 group-hover:opacity-100 transition-opacity">Thu hồi</button>
@@ -287,6 +266,19 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                 <div className="py-20 text-center text-gray-400 space-y-2"><div className="text-4xl animate-bounce">👋</div><p className="text-sm font-bold uppercase tracking-widest">Gửi lời chào tới {activePartner.name}!</p></div>
               )}
               <div ref={scrollRef} className="h-2" />
+            </div>
+
+            {/* [MỚI] Khối tin nhắn nhanh */}
+            <div className="bg-white border-t border-borderMain/50 px-4 py-2 flex gap-2 overflow-x-auto no-scrollbar whitespace-nowrap">
+                {QUICK_REPLIES.map((text, idx) => (
+                    <button
+                        key={idx}
+                        onClick={() => handleSendQuickReply(text)}
+                        className="bg-gray-100 hover:bg-primary/10 hover:text-primary text-[10px] font-black uppercase px-4 py-2 rounded-full border border-gray-200 transition-all active:scale-95 shadow-sm"
+                    >
+                        {text}
+                    </button>
+                ))}
             </div>
 
             {/* Input Form */}

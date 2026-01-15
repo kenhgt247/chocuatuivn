@@ -23,10 +23,11 @@ import { getStorage, ref, uploadString, getDownloadURL, uploadBytes } from "fire
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 // Import Types
-import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus, Offer, Category, Bid } from '../types';
+import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus, Offer, Category, Bid, Message } from '../types';
 
 // IMPORT LOGIC TÌM KIẾM & FORMAT
 import { isSearchMatch, calculateRelevanceScore, generateKeywords } from '../utils/format';
+
 // 2. CẤU HÌNH ADMIN EMAIL
 const ADMIN_EMAIL = "buivanbac@gmail.com"; 
 
@@ -131,7 +132,6 @@ export const db = {
     }
   },
 
-  // [QUAN TRỌNG] HÀM LẤY TIN PHÂN TRANG (HỖ TRỢ PARENT CATEGORY)
   getListingsPaged: async (options: {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
@@ -142,8 +142,8 @@ export const db = {
     search?: string,
     location?: string,
     isVip?: boolean,
-    minPrice?: number, // Thêm dòng này
-    maxPrice?: number  // Thêm dòng này
+    minPrice?: number, 
+    maxPrice?: number  
   }) => {
     try {
       const colRef = collection(firestore, "listings");
@@ -177,7 +177,7 @@ export const db = {
       if (options.location) constraints.push(where("location", "==", options.location));
       if (options.isVip) constraints.push(where("tier", "==", "pro"));
 
-      // --- 5. MỚI: LỌC KHOẢNG GIÁ ---
+      // 5. LỌC KHOẢNG GIÁ
       if (typeof options.minPrice === 'number') {
         constraints.push(where("price", ">=", options.minPrice));
       }
@@ -185,8 +185,7 @@ export const db = {
         constraints.push(where("price", "<=", options.maxPrice));
       }
 
-      // --- 6. SẮP XẾP ---
-      // Nếu có lọc giá, Firebase bắt buộc phải orderBy "price"
+      // 6. SẮP XẾP
       if (typeof options.minPrice === 'number' || typeof options.maxPrice === 'number') {
           constraints.push(orderBy("price", "desc"));
       } else if (!options.search) {
@@ -204,7 +203,7 @@ export const db = {
       
       let results = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
 
-      // 8. TÌM KIẾM CLIENT SIDE (Hỗ trợ AI Camera & Fuzzy Search)
+      // 8. TÌM KIẾM CLIENT SIDE
       if (options.search && options.search.trim().length > 0) {
           const queryText = options.search.trim();
           results = results.filter(l => isSearchMatch(l.title, queryText));
@@ -253,13 +252,10 @@ export const db = {
     }
   },
 
-  // [QUAN TRỌNG] HÀM LƯU TIN ĐĂNG (ĐÃ FIX LOGIC LẤY TỌA ĐỘ)
   saveListing: async (listingData: any) => {
     try {
-      // 1. Lấy thông tin người bán
       const seller = await db.getUserById(listingData.sellerId);
 
-      // 2. Tìm danh mục cha (để lưu vào parentCategory)
       let parentCategory = null;
       if (listingData.category) {
          const catDoc = await getDoc(doc(firestore, "categories", listingData.category));
@@ -268,7 +264,6 @@ export const db = {
          }
       }
 
-      // 3. Logic ưu tiên tọa độ: Lấy từ form -> Lấy từ profile -> Null
       const finalLat = listingData.lat || seller?.lat || null;
       const finalLng = listingData.lng || seller?.lng || null;
       const finalLocation = listingData.location || seller?.location || "Toàn quốc";
@@ -278,19 +273,13 @@ export const db = {
         ...listingData,
         slug: db.toSlug(listingData.title),
         keywords: generateKeywords(listingData.title),
-        
         viewCount: 0, 
         videoUrl: listingData.videoUrl || null, 
-        
-        // Gán dữ liệu vị trí đã xử lý
         lat: finalLat, 
         lng: finalLng,
         location: finalLocation,
         address: finalAddress,
-
-        // Gán danh mục cha
         parentCategory: parentCategory,
-
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         status: listingData.status || 'pending', 
@@ -350,23 +339,19 @@ export const db = {
     try {
       let updates: any = { ...data, updatedAt: new Date().toISOString() };
       
-      // 1. Cập nhật Slug và Keyword nếu đổi tiêu đề
       if (data.title) {
           updates.slug = db.toSlug(data.title);
           // @ts-ignore
           updates.keywords = generateKeywords(data.title);
       }
 
-      // 2. [QUAN TRỌNG] Cập nhật Parent Category nếu đổi Category
       if (data.category) {
           const catDoc = await getDoc(doc(firestore, "categories", data.category));
           if (catDoc.exists()) {
-              // Tìm ra cha mới và gán vào updates
               updates.parentCategory = catDoc.data().parentId || null;
           }
       }
 
-      // 3. Làm sạch dữ liệu (xóa undefined)
       const cleanUpdates = Object.entries(updates).reduce((acc, [key, value]) => {
         if (value !== undefined) {
           acc[key] = value;
@@ -396,11 +381,8 @@ export const db = {
     }
   },
 
-  // --- BẮT ĐẦU ĐOẠN COPY ---
-
   pushListing: async (listingId: string, userId: string) => {
     try {
-      // 1. Lấy thông tin Cài đặt, User và Tin đăng (để lấy tiêu đề cho thông báo)
       const [settings, user, listingSnap] = await Promise.all([
         db.getSettings(),
         db.getUserById(userId),
@@ -411,20 +393,15 @@ export const db = {
       const listingTitle = listingData ? listingData.title : "Sản phẩm";
       const listingSlug = listingData ? listingData.slug : "san-pham";
 
-      // 2. Tính toán giá tiền
       const rawPrice = settings?.pushPrice || 20000;
       const discount = settings?.pushDiscount || 0; 
       const price = rawPrice * (1 - discount / 100);
 
-      // 3. Kiểm tra số dư
       if (!user || (user.walletBalance || 0) < price) {
         return { success: false, message: "Ví không đủ tiền. Vui lòng nạp thêm." };
       }
       
-      // 4. Thực hiện trừ tiền và cập nhật thời gian tin đăng
-      // Dùng batch để đảm bảo cả 2 hành động cùng thành công hoặc cùng thất bại
       const batch = writeBatch(firestore);
-      
       const userRef = doc(firestore, "users", userId);
       const listingRef = doc(firestore, "listings", listingId);
 
@@ -433,16 +410,14 @@ export const db = {
       
       await batch.commit();
 
-      // 5. [MỚI] Gửi thông báo về quả chuông (Notification)
       await db.sendNotification({
           userId: userId,
           title: "⚡ Đẩy tin thành công",
           message: `Tài khoản bị trừ -${price.toLocaleString()}đ phí đẩy tin "${listingTitle}" lên đầu trang.`,
-          type: 'system', // Icon màu xanh tím
+          type: 'system', 
           link: `/san-pham/${listingSlug}-${listingId}`
       });
 
-      // 6. Gửi email báo cáo cho Admin
       await addDoc(collection(firestore, "mail"), {
           to: [ADMIN_EMAIL],
           message: {
@@ -459,7 +434,6 @@ export const db = {
     }
   },
 
-  // --- KẾT THÚC ĐOẠN COPY ---
   // --- C. GIAO DỊCH & VÍ ---
 
   requestDeposit: async (userId: string, amount: number, method: string) => {
@@ -551,16 +525,12 @@ export const db = {
     }
   },
 
- // --- BẮT ĐẦU ĐOẠN COPY ---
-
   approveTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
     try {
-      // 1. Khai báo biến bên ngoài để hứng dữ liệu
       let targetUserId = "";
       let amount = 0;
       let type = "";
 
-      // 2. Chạy Transaction (Đảm bảo an toàn dữ liệu)
       await runTransaction(firestore, async (transaction) => {
         const txRef = doc(firestore, "transactions", txId);
         const txSnap = await transaction.get(txRef);
@@ -569,15 +539,12 @@ export const db = {
         
         const txData = txSnap.data() as Transaction & { metadata?: any };
         
-        // Chỉ xử lý nếu trạng thái là 'pending'
         if (txData.status !== 'pending') throw new Error("Giao dịch này đã được xử lý trước đó");
 
-        // [QUAN TRỌNG] Lấy dữ liệu ra ngoài để dùng cho Notification
         targetUserId = txData.userId;
         amount = txData.amount;
         type = txData.type;
 
-        // Lấy thông tin User
         const userRef = doc(firestore, "users", txData.userId);
         const userSnap = await transaction.get(userRef);
         
@@ -585,26 +552,21 @@ export const db = {
         
         const userData = userSnap.data() as User;
 
-        // Xử lý cộng tiền hoặc kích hoạt gói
         if (txData.type === 'deposit') {
-          // Cộng tiền vào ví
           const currentBalance = userData.walletBalance || 0;
           transaction.update(userRef, { walletBalance: currentBalance + txData.amount });
         } else if (txData.type === 'payment' && txData.metadata?.targetTier) {
-          // Kích hoạt gói VIP
           const expires = new Date();
-          expires.setDate(expires.getDate() + 30); // Cộng 30 ngày
+          expires.setDate(expires.getDate() + 30); 
           transaction.update(userRef, { 
             subscriptionTier: txData.metadata.targetTier, 
             subscriptionExpires: expires.toISOString() 
           });
         }
         
-        // Cập nhật trạng thái giao dịch thành công
         transaction.update(txRef, { status: 'success' });
       });
 
-      // 3. Gửi thông báo (Notification) - Chạy sau khi Transaction thành công
       if (targetUserId) {
          await db.sendNotification({
            userId: targetUserId,
@@ -612,7 +574,7 @@ export const db = {
            message: type === 'deposit' 
              ? `Hệ thống đã cộng ${amount.toLocaleString()} VNĐ vào ví của bạn.` 
              : `Gói thành viên của bạn đã được nâng cấp thành công.`,
-           type: 'success', // Icon màu xanh
+           type: 'success', 
            link: '/wallet'
          });
       }
@@ -626,10 +588,8 @@ export const db = {
 
   rejectTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
     try {
-      // Cập nhật trạng thái thất bại
       await updateDoc(doc(firestore, "transactions", txId), { status: 'failed' });
       
-      // Lấy thông tin để gửi thông báo từ chối (Tuỳ chọn, nhưng nên có)
       const txSnap = await getDoc(doc(firestore, "transactions", txId));
       if (txSnap.exists()) {
           const txData = txSnap.data() as Transaction;
@@ -653,10 +613,8 @@ export const db = {
     let q;
     
     if (userId) {
-        // Lấy giao dịch của 1 user
         q = query(colRef, where("userId", "==", userId), orderBy("createdAt", "desc"));
     } else {
-        // Lấy tất cả (cho Admin)
         q = query(colRef, orderBy("createdAt", "desc"));
     }
 
@@ -664,7 +622,6 @@ export const db = {
     return snap.docs.map(d => ({ ...d.data(), id: d.id } as Transaction));
   },
 
-  // --- KẾT THÚC ĐOẠN COPY ---
   // --- D. NGƯỜI DÙNG (USERS & AUTH) ---
   
   getUsersPaged: async (options: {
@@ -733,18 +690,18 @@ export const db = {
     const d = await getDoc(doc(firestore, "users", id));
     return d.exists() ? { id: d.id, ...d.data() } as User : undefined;
   },
-// [INSERT HERE]
+
+  // [HÀM MỚI CHÈN VÀO] - Lắng nghe thay đổi user (cho ví tự cập nhật)
   onUserChange: (userId: string, callback: (user: User) => void) => {
     const userRef = doc(firestore, "users", userId);
-    const unsubscribe = onSnapshot(userRef, (docSnap) => {
+    return onSnapshot(userRef, (docSnap) => {
       if (docSnap.exists()) {
         const userData = { id: docSnap.id, ...docSnap.data() } as User;
         callback(userData);
       }
     });
-    return unsubscribe;
   },
-  // [END INSERT]
+
   updateUserProfile: async (userId: string, updates: Partial<User>): Promise<User> => {
     const userRef = doc(firestore, "users", userId);
     await updateDoc(userRef, updates);
@@ -1136,10 +1093,45 @@ export const db = {
     }
   },
   
-  addMessage: async (id: string, m: any) => {
-    const ref = doc(firestore, "chats", id);
-    const msg = { id: Date.now().toString(), ...m, timestamp: new Date().toISOString() };
-    await updateDoc(ref, { messages: arrayUnion(msg), lastMessage: m.text, lastUpdate: msg.timestamp, seenBy: [m.senderId] });
+  // [FIXED] Sửa lại logic gửi tin nhắn để tránh lỗi "No document to update"
+  addMessage: async (roomId: string, message: Omit<Message, 'id' | 'timestamp'>) => {
+    const roomRef = doc(firestore, "chats", roomId);
+    
+    // 1. Tạo tin nhắn mới
+    const newMessage = {
+      ...message,
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString()
+    };
+
+    try {
+      // 2. Kiểm tra phòng tồn tại chưa
+      const roomSnap = await getDoc(roomRef);
+      
+      if (!roomSnap.exists()) {
+         // Nếu chưa có phòng (phòng bị lỗi hoặc xóa), tự tạo lại
+         console.warn("Phòng chat không tồn tại, đang tự tạo lại...");
+         await setDoc(roomRef, {
+             id: roomId,
+             lastUpdate: new Date().toISOString(),
+             lastMessage: message.text || 'Tin nhắn mới',
+             messages: [newMessage],
+             participantIds: [message.senderId], 
+             seenBy: [message.senderId]
+         }, { merge: true });
+      } else {
+          // 3. Nếu có rồi thì update bình thường
+          await updateDoc(roomRef, {
+            messages: arrayUnion(newMessage),
+            lastMessage: message.type === 'image' ? '📷 Hình ảnh' : (message.type === 'offer' ? '💸 Đề nghị giá' : (message.type === 'swap' ? '🔄 Đề nghị đổi đồ' : message.text)),
+            lastUpdate: new Date().toISOString(),
+            seenBy: [message.senderId] 
+          });
+      }
+    } catch (error) {
+      console.error("Lỗi gửi tin nhắn:", error);
+      throw error;
+    }
   },
 
   deleteMessage: async (roomId: string, messageId: string) => {
@@ -1161,18 +1153,15 @@ export const db = {
   markRoomAsSeen: async (id: string, userId: string) => {
     await updateDoc(doc(firestore, "chats", id), { seenBy: arrayUnion(userId) });
   },
-    // --- HÀM TÌM PHÒNG CHÁT THEO TIN ĐĂNG (Dùng cho nút Nhắn tin ở Quản lý tin) ---
+
   findChatRoomByListing: async (listingId: string) => {
     try {
-      // Lưu ý: Collection của bạn đặt tên là "chats"
       const q = query(
         collection(firestore, "chats"),
         where("listingId", "==", listingId),
         limit(1)
       );
       const snapshot = await getDocs(q);
-      
-      // Nếu tìm thấy phòng chat, trả về ID của document đó
       if (!snapshot.empty) {
         return snapshot.docs[0].id;
       }
@@ -1183,51 +1172,82 @@ export const db = {
     }
   },
 
-  createChatRoom: async (l: any, buyer: User) => {
+  // [FIXED] Đảm bảo dùng setDoc để tạo phòng
+  createChatRoom: async (l: Listing, buyer: User): Promise<string> => {
     try {
-        if (!l?.id) throw new Error("Listing ID is missing");
-        if (!buyer?.id) throw new Error("Buyer ID is missing");
+        const roomId = `${buyer.id}_${l.id}`;
+        const roomRef = doc(firestore, "chats", roomId);
+        const roomSnap = await getDoc(roomRef);
 
-        const q = query(
-            collection(firestore, "chats"), 
-            where("listingId", "==", l.id), 
-            where("participantIds", "array-contains", buyer.id)
-        );
-        
-        const s = await getDocs(q);
-        if (!s.empty) return s.docs[0].id;
+        if (!roomSnap.exists()) {
+            const sellerName = l.sellerName || "Người bán";
+            const sellerAvatar = l.sellerAvatar || "https://placehold.co/100?text=Seller";
 
-        const sellerName = l.sellerName || "Người bán";
-        const sellerAvatar = l.sellerAvatar || "https://placehold.co/100?text=Seller";
-
-        const participantsData = {
-            [buyer.id]: {
-                name: buyer.name,
-                avatar: buyer.avatar
-            },
-            [l.sellerId]: {
-                name: sellerName,
-                avatar: sellerAvatar
-            }
-        };
-
-        const res = await addDoc(collection(firestore, "chats"), {
-            listingId: l.id, 
-            listingTitle: l.title, 
-            listingImage: l.images && l.images.length > 0 ? l.images[0] : 'https://placehold.co/100x100?text=Chat', 
-            listingPrice: l.price || 0,
-            
-            participantIds: [buyer.id, l.sellerId], 
-            participantsData: participantsData, 
-            
-            messages: [], 
-            lastUpdate: new Date().toISOString(), 
-            seenBy: [buyer.id]
-        });
-        return res.id;
+            const newRoom: ChatRoom = {
+                id: roomId,
+                participantIds: [buyer.id, l.sellerId],
+                participantsData: {
+                  [buyer.id]: { name: buyer.name, avatar: buyer.avatar },
+                  [l.sellerId]: { name: sellerName, avatar: sellerAvatar }
+                },
+                listingId: l.id,
+                listingTitle: l.title,
+                listingImage: l.images && l.images.length > 0 ? l.images[0] : 'https://placehold.co/100x100?text=Chat',
+                listingPrice: l.price || 0,
+                lastMessage: "Bắt đầu cuộc trò chuyện",
+                lastUpdate: new Date().toISOString(),
+                messages: [],
+                seenBy: [buyer.id]
+            };
+            await setDoc(roomRef, newRoom);
+        }
+        return roomId;
     } catch (e) {
         console.error("Error creating chat room:", e);
         throw e;
+    }
+  },
+  
+  // Hàm xử lý Đồng ý/Từ chối đổi đồ
+  respondToSwap: async (roomId: string, messageId: string, status: 'accepted' | 'rejected') => {
+    const roomRef = doc(firestore, "chats", roomId);
+    try {
+      const roomSnap = await getDoc(roomRef);
+      if (!roomSnap.exists()) throw new Error("Phòng chat không tồn tại");
+
+      const roomData = roomSnap.data() as ChatRoom;
+      
+      const updatedMessages = roomData.messages.map(msg => {
+        if (msg.id === messageId && msg.type === 'swap' && msg.swapData) {
+          return {
+            ...msg,
+            swapData: {
+              ...msg.swapData,
+              status: status 
+            }
+          };
+        }
+        return msg;
+      });
+
+      await updateDoc(roomRef, {
+        messages: updatedMessages
+      });
+
+      const resultText = status === 'accepted' 
+        ? "✅ Đã ĐỒNG Ý yêu cầu đổi đồ! Hãy trao đổi chi tiết địa điểm giao dịch."
+        : "❌ Đã TỪ CHỐI yêu cầu đổi đồ.";
+        
+      await db.addMessage(roomId, {
+        senderId: 'system', 
+        text: resultText,
+        type: 'text'
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error("Lỗi respondToSwap:", error);
+      return { success: false, message: "Lỗi kết nối database" };
     }
   },
 
@@ -1388,30 +1408,24 @@ export const db = {
         const listing = listingSnap.data() as Listing;
         const user = userSnap.data() as User;
 
-        // --- [QUAN TRỌNG] CHẶN CHỦ SHOP TỰ ĐẤU GIÁ ---
         if (listing.sellerId === userId) {
             throw new Error("🚫 Bạn không thể tự đấu giá sản phẩm của chính mình!");
         }
 
-        // 2. Validate logic đấu giá
         if (!listing.isAuction) throw new Error("Tin này không phải đấu giá");
         if (listing.auctionEndAt && new Date(listing.auctionEndAt) < new Date()) throw new Error("Đã hết thời gian đấu giá");
         
-        // Giá đặt phải cao hơn giá hiện tại (hoặc giá khởi điểm nếu chưa ai đặt)
         const currentPrice = listing.price || 0;
         if (amount <= currentPrice) throw new Error(`Giá đặt phải cao hơn ${currentPrice.toLocaleString()}đ`);
         
-        // 3. Lưu người cũ để báo tin
         const previousBidderId = listing.highestBidderId;
 
-        // 4. Cập nhật giá mới cho Listing
         transaction.update(listingRef, { 
           price: amount,
           highestBidderId: userId,
           bidsCount: increment(1)
         });
 
-        // 5. Tạo lịch sử Bid
         const newBidRef = doc(collection(firestore, "bids"));
         transaction.set(newBidRef, {
           listingId,
@@ -1422,7 +1436,6 @@ export const db = {
           createdAt: new Date().toISOString()
         });
 
-        // [QUAN TRỌNG] Trả về dữ liệu cần thiết để gửi thông báo (bao gồm sellerId)
         return { 
             previousBidderId, 
             listingTitle: listing.title, 
@@ -1436,9 +1449,7 @@ export const db = {
     }
   },
 
-  // Gửi thông báo (Báo cho người bị vượt mặt VÀ Chủ shop)
   notifyBidSuccess: async (data: any, currentUserId: string, amount: number) => {
-      // 1. Báo cho người cũ bị vượt mặt
       if (data.previousBidderId && data.previousBidderId !== currentUserId) {
           await db.sendNotification({
               userId: data.previousBidderId,
@@ -1449,38 +1460,31 @@ export const db = {
           });
       }
 
-      // 2. Báo cho Chủ Shop (Người bán) biết có khách trả giá
       if (data.sellerId && data.sellerId !== currentUserId) {
            await db.sendNotification({
               userId: data.sellerId,
               title: "💰 Có lượt trả giá mới!",
               message: `Khách vừa trả ${amount.toLocaleString()}đ cho sản phẩm "${data.listingTitle}" của bạn.`,
-              type: 'success', // Icon màu xanh
+              type: 'success', 
               link: `/san-pham/${data.slug}-${data.id}`
           });
       }
   },
-// --- HÀM DỌN DẸP CHUẨN XÁC THEO ID CỦA BẠN ---
+
   clearDatabase: async () => {
     try {
       console.log("🧹 Đang quét rác (seed_user, seed_listing)...");
       const currentUser = auth.currentUser;
 
-      // Danh sách các bảng cần quét
       const collections = ["listings", "users", "transactions", "notifications", "reviews", "reports", "chats", "offers", "favorites"];
       
       const batch = writeBatch(firestore);
       let count = 0;
       let batchCount = 0;
 
-      // --- LOGIC NHẬN DIỆN DỮ LIỆU GIẢ ---
       const isFakeData = (id: string) => {
-        // 1. Dạng Seed chuẩn của bạn: "seed_user_21", "seed_listing_117"
         if (id.startsWith("seed_")) return true;
-
-        // 2. Dạng Mock ngắn (đề phòng các tin cũ): "l1", "l2", "u1", "u2"
         if (/^[lu]\d+$/.test(id)) return true;
-
         return false; 
       };
 
@@ -1488,21 +1492,17 @@ export const db = {
         const snap = await getDocs(collection(firestore, colName));
         
         for (const d of snap.docs) {
-          // 🛡️ BẢO VỆ TÀI KHOẢN ADMIN ĐANG ĐĂNG NHẬP (QUAN TRỌNG NHẤT)
           if (colName === 'users' && currentUser && d.id === currentUser.uid) {
             console.log(`🛡️ Giữ lại Admin: ${d.id}`);
             continue;
           }
 
-          // 🗑️ CHỈ XÓA NẾU LÀ "SEED"
           if (isFakeData(d.id)) {
              batch.delete(d.ref);
              count++;
              batchCount++;
           } 
-          // Dữ liệu thật (ID ngẫu nhiên kiểu "7f8a9s...") sẽ tự động bị bỏ qua
           
-          // Xử lý giới hạn Batch 500
           if (batchCount >= 450) {
             await batch.commit();
             batchCount = 0;
@@ -1520,13 +1520,12 @@ export const db = {
       return { success: false, message: e.message };
     }
   },
-  // --- HÀM TẠO DỮ LIỆU MẪU "XỊN" (ĐẸP & CHUẨN) ---
+
   seedDatabase: async () => {
     try {
       console.log("🌱 Bắt đầu tạo dữ liệu mẫu cao cấp...");
       const batch = writeBatch(firestore);
 
-      // --- 1. TẠO USER GIẢ (NGƯỜI BÁN UY TÍN) ---
       const sellerId = "seed_user_vip";
       const sellerRef = doc(firestore, "users", sellerId);
       
@@ -1546,7 +1545,6 @@ export const db = {
         walletBalance: 5000000
       });
 
-      // --- 2. BỘ DỮ LIỆU TUYỂN CHỌN (12 TIN ĐĂNG ĐẸP NHẤT) ---
       const SHOWCASE_ITEMS = [
         {
           title: "iPhone 15 Pro Max Titan Tự nhiên 256GB VNA Fullbox",
@@ -1598,7 +1596,7 @@ export const db = {
         },
         {
           title: "Tuyển Nhân Viên Bán Hàng Cửa Hàng Tiện Lợi (Ca Xoay)",
-          price: 7000000, // Lương
+          price: 7000000, 
           category: "ban-hang",
           parent: "viec-lam",
           image: "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?w=800&q=80",
@@ -1646,7 +1644,6 @@ export const db = {
         }
       ];
 
-      // --- 3. LƯU VÀO FIRESTORE ---
       SHOWCASE_ITEMS.forEach((item, index) => {
         const lid = `seed_listing_${index + 1}`;
         const listingRef = doc(firestore, "listings", lid);
@@ -1661,7 +1658,7 @@ export const db = {
           images: [item.image, "https://images.unsplash.com/photo-1550989460-0adf9ea622e2?w=800&q=80"],
           location: item.location,
           address: `Quận trung tâm, ${item.location}`,
-          lat: 10.8231, // Tọa độ giả định HCM
+          lat: 10.8231, 
           lng: 106.6297,
           
           sellerId: sellerId,
@@ -1671,7 +1668,7 @@ export const db = {
           createdAt: new Date().toISOString(),
           status: 'approved',
           condition: index % 2 === 0 ? 'used' : 'new',
-          tier: index < 4 ? 'pro' : 'free', // 4 tin đầu là VIP
+          tier: index < 4 ? 'pro' : 'free',
           
           slug: db.toSlug(item.title),
           keywords: generateKeywords(item.title),

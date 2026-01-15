@@ -1,18 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../services/db'; // Giả lập hàm lấy noti
+import { db } from '../services/db'; 
 import { formatTimeAgo } from '../utils/format';
-
-// Định nghĩa kiểu dữ liệu cho thông báo
-interface Notification {
-  id: string;
-  type: 'wallet' | 'swap' | 'system' | 'order' | 'promotion';
-  title: string;
-  message: string;
-  isRead: boolean;
-  createdAt: string; // ISO string
-  link?: string; // Link để chuyển hướng khi bấm vào
-}
+import { Notification } from '../types'; // Import type chuẩn từ file types
 
 const NotificationMenu: React.FC<{ userId: string }> = ({ userId }) => {
   const navigate = useNavigate();
@@ -21,16 +11,16 @@ const NotificationMenu: React.FC<{ userId: string }> = ({ userId }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Giả lập dữ liệu (Sau này bạn thay bằng db.getNotifications(userId))
+  // --- KẾT NỐI DỮ LIỆU THẬT (REALTIME) ---
   useEffect(() => {
-    // Dữ liệu mẫu test giao diện
-    const MOCK_NOTIS: Notification[] = [
-      { id: '1', type: 'wallet', title: 'Nạp tiền thành công', message: 'Tài khoản của bạn đã được cộng +500.000đ.', isRead: false, createdAt: new Date().toISOString() },
-      { id: '2', type: 'swap', title: 'Đề nghị đổi đồ mới', message: 'User123 muốn đổi "iPad Air" lấy "iPhone 12" của bạn.', isRead: false, createdAt: new Date(Date.now() - 3600000).toISOString(), link: '/chat/123' },
-      { id: '3', type: 'system', title: 'Đẩy tin lên TOP', message: 'Tin đăng "Macbook Pro M1" đang ở vị trí #1.', isRead: true, createdAt: new Date(Date.now() - 86400000).toISOString() },
-    ];
-    setNotifications(MOCK_NOTIS);
-    setUnreadCount(MOCK_NOTIS.filter(n => !n.isRead).length);
+    if (!userId) return;
+
+    // Gọi hàm lắng nghe thông báo từ Firebase
+    const unsubscribe = db.getNotifications(userId, (realNotifs) => {
+      setNotifications(realNotifs);
+      // Đếm số lượng chưa đọc (Lưu ý: trong DB trường là 'read' hay 'isRead' tùy bạn định nghĩa, ở đây tôi dùng 'read' theo chuẩn cũ của bạn)
+      setUnreadCount(realNotifs.filter(n => !n.read).length);
+    });
 
     // Đóng menu khi click ra ngoài
     const handleClickOutside = (event: MouseEvent) => {
@@ -39,24 +29,34 @@ const NotificationMenu: React.FC<{ userId: string }> = ({ userId }) => {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+
+    return () => {
+        unsubscribe(); // Hủy lắng nghe khi thoát
+        document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, [userId]);
 
-  const handleRead = (noti: Notification) => {
-    // 1. Đánh dấu đã đọc (Gọi API/DB)
-    const newNotis = notifications.map(n => n.id === noti.id ? { ...n, isRead: true } : n);
-    setNotifications(newNotis);
-    setUnreadCount(newNotis.filter(n => !n.isRead).length);
+  const handleRead = async (noti: Notification) => {
+    // 1. Đánh dấu đã đọc trên Server
+    if (!noti.read) {
+        await db.markNotificationAsRead(noti.id);
+    }
     
-    // 2. Chuyển hướng nếu có link
+    // 2. Chuyển hướng
     setIsOpen(false);
-    if (noti.link) navigate(noti.link);
-    else if (noti.type === 'wallet') navigate('/wallet');
+    if (noti.link) {
+        navigate(noti.link);
+    } else {
+        // Nếu không có link, tùy loại mà chuyển hướng
+        if (noti.type === 'wallet') navigate('/wallet');
+        else if (noti.type === 'order') navigate('/manage-ads');
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
-    setUnreadCount(0);
+  const markAllAsRead = async () => {
+    // Lặp qua các thông báo chưa đọc và đánh dấu (Hoặc viết hàm markAll trong db.ts để tối ưu hơn)
+    const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+    unreadIds.forEach(id => db.markNotificationAsRead(id));
   };
 
   // Icon theo loại thông báo
@@ -65,6 +65,7 @@ const NotificationMenu: React.FC<{ userId: string }> = ({ userId }) => {
         case 'wallet': return <span className="bg-green-100 text-green-600 p-2 rounded-full">💰</span>;
         case 'swap': return <span className="bg-purple-100 text-purple-600 p-2 rounded-full">🔄</span>;
         case 'system': return <span className="bg-blue-100 text-blue-600 p-2 rounded-full">⚡</span>;
+        case 'review': return <span className="bg-yellow-100 text-yellow-600 p-2 rounded-full">⭐</span>;
         default: return <span className="bg-gray-100 text-gray-600 p-2 rounded-full">🔔</span>;
     }
   };
@@ -112,15 +113,15 @@ const NotificationMenu: React.FC<{ userId: string }> = ({ userId }) => {
                         <div 
                             key={noti.id} 
                             onClick={() => handleRead(noti)}
-                            className={`p-4 flex gap-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0 ${noti.isRead ? 'bg-white hover:bg-gray-50' : 'bg-blue-50/50 hover:bg-blue-50'}`}
+                            className={`p-4 flex gap-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0 ${!noti.read ? 'bg-blue-50/50 hover:bg-blue-50' : 'bg-white hover:bg-gray-50'}`}
                         >
                             <div className="flex-shrink-0 mt-1">
                                 {getIcon(noti.type)}
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start mb-0.5">
-                                    <h4 className={`text-sm truncate pr-2 ${noti.isRead ? 'font-bold text-gray-700' : 'font-black text-gray-900'}`}>{noti.title}</h4>
-                                    {!noti.isRead && <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-1.5"></span>}
+                                    <h4 className={`text-sm truncate pr-2 ${!noti.read ? 'font-black text-gray-900' : 'font-bold text-gray-700'}`}>{noti.title}</h4>
+                                    {!noti.read && <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-1.5"></span>}
                                 </div>
                                 <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{noti.message}</p>
                                 <p className="text-[10px] text-gray-400 font-bold mt-2">{formatTimeAgo(noti.createdAt)}</p>

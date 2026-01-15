@@ -594,26 +594,43 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                      </div>
                                  </div>
 
-                                 <div className="flex gap-3 pt-4">
-                                     <button onClick={() => setEditingCat(null)} className="flex-1 py-4 bg-white border border-gray-200 rounded-xl font-black uppercase text-xs hover:bg-gray-50">Hủy</button>
-                                     <button 
-                                         onClick={async () => {
-                                             setIsLoading(true);
-                                             const res = await db.saveCategory(editingCat);
-                                             if (res.success) {
-                                                 showToast("✅ Đã lưu danh mục!");
-                                                 db.getCategories().then(setCategories); 
-                                                 setEditingCat(null); 
-                                             } else {
-                                                 showToast("❌ Lỗi: " + res.message, "error");
-                                             }
-                                             setIsLoading(false);
-                                         }}
-                                         className="flex-1 py-4 bg-primary text-white rounded-xl font-black uppercase text-xs shadow-xl hover:scale-[1.01] transition-transform"
-                                     >
-                                         Lưu thay đổi
-                                     </button>
-                                 </div>
+                                <div className="flex gap-3 pt-4">
+    <button onClick={() => setEditingCat(null)} className="flex-1 py-4 bg-white border border-gray-200 rounded-xl font-black uppercase text-xs hover:bg-gray-50">Hủy</button>
+    
+    <button 
+        onClick={async () => {
+            setIsLoading(true);
+            
+            // 1. KIỂM TRA DỮ LIỆU ĐẦU VÀO (VALIDATION)
+            if (!editingCat?.id || !editingCat?.name) {
+                setIsLoading(false);
+                return showToast("❌ Vui lòng nhập Tên và ID (Slug)!", "error");
+            }
+
+            // 2. BỔ SUNG TRƯỜNG 'ORDER' (ĐỂ KHÔNG BỊ ẨN)
+            const catToSave = {
+                ...editingCat,
+                // Nếu đang sửa (đã có order) thì giữ nguyên, nếu tạo mới thì lấy thời gian làm số thứ tự
+                order: editingCat.order !== undefined ? editingCat.order : Date.now() 
+            };
+            
+            // 3. LƯU VÀO DB
+            const res = await db.saveCategory(catToSave);
+
+            if (res.success) {
+                showToast("✅ Đã lưu danh mục!");
+                db.getCategories().then(setCategories); 
+                setEditingCat(null); 
+            } else {
+                showToast("❌ Lỗi: " + res.message, "error");
+            }
+            setIsLoading(false);
+        }}
+        className="flex-1 py-4 bg-primary text-white rounded-xl font-black uppercase text-xs shadow-xl hover:scale-[1.01] transition-transform"
+    >
+        Lưu thay đổi
+    </button>
+</div>
                              </div>
                          ) : (
                              <div className="h-full flex flex-col items-center justify-center text-gray-300">

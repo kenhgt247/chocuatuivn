@@ -388,6 +388,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     }
   };
 
+  // --- HÀM RENDER DYNAMIC FIELDS (BỔ SUNG VÀO ĐÂY ĐỂ FIX LỖI) ---
   const renderDynamicFields = () => {
     if (currentAttributes.length === 0) return null;
     return (

@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { User, Notification, ChatRoom } from '../types'; 
+import { User, ChatRoom } from '../types'; 
 import { identifyProductForSearch } from '../services/geminiService';
-import { formatTimeAgo } from '../utils/format';
 import { db } from '../services/db';
 import UniversalInstallPrompt from './UniversalInstallPrompt';
 import { compressAndGetBase64 } from '../utils/imageCompression';
+// [MỚI] Import Component Thông báo xịn xò
+import NotificationMenu from '../components/NotificationMenu';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,56 +19,40 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [searchParams] = useSearchParams(); 
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const notifRef = useRef<HTMLDivElement>(null);
   
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [isSearchingImage, setIsSearchingImage] = useState(false);
   
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  // Chỉ giữ lại state Chat (Thông báo đã được NotificationMenu tự lo)
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
-  const [showNotifs, setShowNotifs] = useState(false);
-// Khai báo các biến lấy từ URL để Layout có thể hiểu được
+
+  // Khai báo các biến lấy từ URL để Layout có thể hiểu được
   const minPriceParam = searchParams.get('minPrice');
   const maxPriceParam = searchParams.get('maxPrice');
   const locationParam = searchParams.get('location');
+
   // --- EFFECT: Sync Search Params ---
   useEffect(() => {
     const currentSearch = searchParams.get('search') || '';
     setSearchQuery(currentSearch);
   }, [searchParams]);
 
-  // --- EFFECT: Real-time Data ---
+  // --- EFFECT: Real-time Data (Chỉ còn Chat) ---
   useEffect(() => {
     if (user?.id) {
-      const unsubNotifs = db.getNotifications(user.id, (notifs) => {
-        setNotifications(notifs);
-      });
+      // NotificationMenu tự fetch thông báo nên ở đây bỏ đi cho nhẹ
       const unsubChats = db.getChatRooms(user.id, (rooms) => {
         setChatRooms(rooms);
       });
       return () => {
-        unsubNotifs();
         unsubChats();
       };
     } else {
-      setNotifications([]);
       setChatRooms([]);
     }
   }, [user?.id]);
 
-  // --- EFFECT: Click Outside Notification ---
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
-        setShowNotifs(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   // --- COMPUTED VALUES ---
-  const unreadNotifCount = user ? notifications.filter(n => !n.read).length : 0;
   const unreadChatCount = user ? chatRooms.filter(r => r.messages.length > 0 && !r.seenBy?.includes(user?.id || '')).length : 0;
 
   // --- HANDLERS ---
@@ -92,56 +77,16 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     setIsSearchingImage(true);
     try {
         const compressedBase64 = await compressAndGetBase64(file);
-        
-        // AI sẽ trả về danh từ ngắn gọn (ví dụ: "áo", "xe máy")
         const keywords = await identifyProductForSearch(compressedBase64);
-        
-        // Làm sạch chuỗi: bỏ khoảng trắng thừa và chuyển về chữ thường
         const cleanKeywords = keywords.trim().toLowerCase();
         setSearchQuery(cleanKeywords);
-        
-        // Điều hướng kèm tham số visual=true để hiện thanh lọc giá bạn vừa làm
         navigate(`/?search=${encodeURIComponent(cleanKeywords)}&visual=true`);
     } catch (err) {
         console.error("Lỗi tìm kiếm hình ảnh:", err);
         alert("Không thể nhận diện hình ảnh. Vui lòng thử lại với ảnh rõ nét hơn.");
     } finally {
         setIsSearchingImage(false);
-        // Reset input để có thể chọn lại cùng 1 tấm ảnh nếu muốn
         if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  const handleMarkAsRead = async (notif: Notification) => {
-    if (!notif.read) {
-      await db.markNotificationAsRead(notif.id);
-    }
-    setShowNotifs(false);
-    if (notif.link) {
-      navigate(notif.link);
-    }
-  };
-
-  const handleNotifClick = () => {
-    if (!user) {
-      navigate('/login');
-    } else {
-      setShowNotifs(!showNotifs);
-    }
-  };
-
-  // Helper for notification styles (Giữ nguyên UI)
-  const getNotificationStyle = (type: string) => {
-    switch (type) {
-      case 'review': return { bg: 'bg-yellow-100', text: 'text-yellow-600', icon: <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg> };
-      case 'message': return { bg: 'bg-blue-100', text: 'text-blue-600', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg> };
-      case 'approval':
-      case 'success': return { bg: 'bg-green-100', text: 'text-green-600', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> };
-      case 'follow': return { bg: 'bg-purple-100', text: 'text-purple-600', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg> };
-      case 'error':
-      case 'warning': return { bg: 'bg-red-100', text: 'text-red-600', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> };
-      case 'system': return { bg: 'bg-indigo-100', text: 'text-indigo-600', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> };
-      default: return { bg: 'bg-gray-100', text: 'text-gray-600', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> };
     }
   };
 
@@ -200,58 +145,15 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             )}
           </Link>
 
-          {/* Notification Icon */}
-          <div className="relative" ref={notifRef}>
-            <button 
-              onClick={handleNotifClick}
-              className={`relative p-2.5 rounded-2xl transition-all ${showNotifs ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-gray-100 hover:text-primary'}`}
-            >
-              <div className={unreadNotifCount > 0 ? "animate-pulse origin-top" : ""}>
-                 <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                 </svg>
-              </div>
-              
-              {unreadNotifCount > 0 && (
-                <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-pulse">
-                  {unreadNotifCount}
-                </span>
-              )}
-            </button>
-            
-            {/* NOTIFICATION DROPDOWN */}
-            {showNotifs && (
-              <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white border border-gray-200 rounded-[2rem] shadow-2xl overflow-hidden animate-fade-in-up z-[60] ring-1 ring-black/5">
-                <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                  <h3 className="font-black text-sm uppercase tracking-tight text-slate-800">Thông báo</h3>
-                  <span className="text-[10px] font-black text-primary bg-primary/10 px-2.5 py-1 rounded-lg">{unreadNotifCount} mới</span>
-                </div>
-                <div className="max-h-96 overflow-y-auto no-scrollbar">
-                  {notifications.length > 0 ? notifications.map(notif => {
-                    const style = getNotificationStyle(notif.type);
-                    return (
-                      <button key={notif.id} onClick={() => handleMarkAsRead(notif)} className={`w-full text-left p-4 hover:bg-gray-50 transition-colors flex gap-4 border-b border-gray-50 last:border-0 ${!notif.read ? 'bg-primary/5' : ''}`}>
-                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-xl ${style.bg} ${style.text}`}>
-                            {style.icon}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className={`text-xs font-black truncate ${!notif.read ? 'text-primary' : 'text-slate-800'}`}>{notif.title}</p>
-                            <p className="text-[11px] text-gray-500 line-clamp-2 font-medium mt-0.5">{notif.message}</p>
-                            <p className="text-[9px] text-gray-400 font-bold uppercase mt-1.5">{formatTimeAgo(notif.createdAt)}</p>
-                          </div>
-                          {!notif.read && <div className="w-2 h-2 bg-primary rounded-full mt-2"></div>}
-                      </button>
-                    )
-                  }) : (
-                    <div className="p-16 text-center opacity-30">
-                      <div className="text-4xl mb-4">📭</div>
-                      <p className="text-gray-400 text-[10px] font-black uppercase">Không có thông báo mới</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+          {/* [THAY THẾ] Notification Menu XỊN XÒ */}
+          {user ? (
+             <NotificationMenu userId={user.id} />
+          ) : (
+            // Nếu chưa đăng nhập thì hiện chuông tĩnh dẫn đến login
+             <Link to="/login" className="relative p-2.5 rounded-2xl text-slate-600 hover:bg-gray-100 hover:text-primary transition-all">
+                <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+             </Link>
+          )}
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-4">
@@ -274,7 +176,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         </div>
       </header>
 
-      {/* FILTER BAR - CĂN THẲNG HÀNG 100% VỚI BANNER VÀ TIN VIP */}
+      {/* FILTER BAR */}
       {(searchQuery || searchParams.get('visual')) && (
         <div className="sticky top-20 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 py-3 animate-fade-in shadow-sm">
           <div className="max-w-[1400px] mx-auto px-2 md:px-4 flex items-center gap-3">
@@ -317,7 +219,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
                 📍 Gần tôi
               </button>
 
-              {/* Nút Xóa lọc - Đã đóng ngoặc đúng logic */}
               {(minPriceParam || maxPriceParam || locationParam) && (
                 <button 
                   onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}`)}
@@ -326,11 +227,12 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
                   ✕ Lọc
                 </button>
               )}
-            </div> {/* Đóng div "Danh mục nút lọc" */}
-          </div> {/* Đóng div "max-w-[1400px]" */}
-        </div> /* Đóng div "sticky" */
+            </div>
+          </div>
+        </div>
       )}
-      {/* Thêm pb-24 để tránh Mobile Nav che mất nội dung cuối trang */}
+
+      {/* MAIN CONTENT */}
       <main className="flex-1 w-full max-w-screen-2xl mx-auto md:px-8 py-6 md:py-10 pb-24 md:pb-10">
         {children}
       </main>

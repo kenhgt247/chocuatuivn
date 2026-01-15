@@ -414,28 +414,53 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
 
             <div className="space-y-3">
               {(isOwner || user?.role === 'admin') ? (
-                  <Link to={`/edit/${listing.id}`} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all">Chỉnh sửa tin này</Link>
+                  <Link to={`/edit/${listing.id}`} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                      Chỉnh sửa tin này
+                  </Link>
               ) : (
                   !listing.isAuction && (
                     <>
                       {listing.affiliateLink ? (
-                        <a href={listing.affiliateLink} target="_blank" rel="nofollow" className="w-full bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-black text-xs shadow-xl animate-bounce flex justify-center">MUA NGAY</a>
+                        <a href={listing.affiliateLink} target="_blank" rel="nofollow" className="w-full bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-black text-xs shadow-xl animate-bounce flex items-center justify-center gap-2">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+                            MUA NGAY
+                        </a>
                       ) : (
-                        <div className="flex gap-3">
-                            <button onClick={() => setShowOfferModal(true)} className="flex-1 bg-green-50 text-green-600 border border-green-200 py-4 rounded-2xl font-black text-xs uppercase">Trả giá</button>
-                            {/* Nút Đổi đồ - Style Gradient Sang Chảnh */}
-<button 
-    onClick={() => { if(!user) return navigate('/login'); setShowSwapModal(true); }} 
-    className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-none py-3 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-purple-200 hover:shadow-purple-400 hover:scale-[1.02] active:scale-95 transition-all duration-300 flex flex-col items-center justify-center leading-none group"
->
-    <span className="text-sm mb-0.5 group-hover:rotate-180 transition-transform duration-500">🔄</span>
-    <span>Đổi đồ</span>
-</button>
-                            <button onClick={handleStartChat} disabled={isChatLoading} className="flex-[2] bg-primary hover:bg-primaryHover text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl">{isChatLoading ? '...' : 'Chat ngay'}</button>
+                        // --- KHỐI 3 NÚT HÀNH ĐỘNG (CÓ ICON VECTOR) ---
+                        <div className="flex gap-2">
+                            {/* 1. Nút Trả giá */}
+                            <button onClick={() => setShowOfferModal(true)} className="flex-1 bg-green-50 text-green-600 border border-green-200 py-3 rounded-xl font-black text-[10px] uppercase hover:bg-green-100 transition-colors flex flex-col items-center justify-center gap-1">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                                <span>Trả giá</span>
+                            </button>
+                            
+                            {/* 2. Nút Đổi đồ (Gradient + Vector Icon) */}
+                            <button 
+                                onClick={() => { if(!user) return navigate('/login'); setShowSwapModal(true); }} 
+                                className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-none py-3 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-purple-200 hover:shadow-purple-400 hover:scale-[1.02] active:scale-95 transition-all duration-300 flex flex-col items-center justify-center gap-1 group"
+                            >
+                                {/* Icon 2 mũi tên xoay chiều (Refresh/Swap) */}
+                                <svg className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                <span>Đổi đồ</span>
+                            </button>
+
+                            {/* 3. Nút Chat */}
+                            <button onClick={handleStartChat} disabled={isChatLoading} className="flex-[1.5] bg-primary hover:bg-primaryHover text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-primary/30 flex flex-col items-center justify-center gap-1">
+                                {isChatLoading ? (
+                                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                ) : (
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                                )}
+                                <span>{isChatLoading ? 'Đang kết nối...' : 'Chat ngay'}</span>
+                            </button>
                         </div>
                       )}
                       {!listing.affiliateLink && seller?.phone && (
-                        <button onClick={() => isPhoneVisible ? window.location.href=`tel:${seller.phone}` : setIsPhoneVisible(true)} className="w-full bg-white border-2 border-green-500 text-green-600 py-4 rounded-2xl font-black text-xs uppercase">{isPhoneVisible ? seller.phone : 'Hiện số điện thoại'}</button>
+                        <button onClick={() => isPhoneVisible ? window.location.href=`tel:${seller.phone}` : setIsPhoneVisible(true)} className="w-full bg-white border-2 border-green-500 text-green-600 py-4 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-2 hover:bg-green-50 transition-colors">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                            {isPhoneVisible ? seller.phone : 'Hiện số điện thoại'}
+                        </button>
                       )}
                     </>
                   )

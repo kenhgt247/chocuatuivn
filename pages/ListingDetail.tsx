@@ -65,7 +65,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const { slugWithId } = useParams();
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
-    
+ const [isLightboxOpen, setIsLightboxOpen] = useState(false); // Thêm dòng này
   const [listing, setListing] = useState<Listing | null>(null);
   const [seller, setSeller] = useState<User | null>(null);
   const [allListings, setAllListings] = useState<Listing[]>([]);
@@ -250,7 +250,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         {/* LEFT: MEDIA GALLERY & DETAILS */}
         <div className="lg:col-span-8 space-y-6">
           
-          {/* Main Media (Video/Image) */}
+         {/* Main Media (Video/Image) */}
           <div className={`relative aspect-square md:aspect-video md:rounded-xl group shadow-sm border border-gray-100 z-20 ${isVideoActive ? 'bg-gray-900 border-gray-800 overflow-hidden' : 'bg-white'}`}>
             
             {/* Watermark (Logo chìm) */}
@@ -270,15 +270,29 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                     </div>
                 </div>
             ) : (
-                // --- TRƯỜNG HỢP LÀ ẢNH (Dùng ProductZoom mới) ---
-                <ProductZoom src={mediaList[activeMedia]} alt={listing.title} />
+                // --- TRƯỜNG HỢP LÀ ẢNH (XỬ LÝ RIÊNG MOBILE/PC) ---
+                <>
+                    {/* 1. MOBILE VIEW (Hiện dưới md): Ảnh thường, Click mở Lightbox */}
+                    <div className="md:hidden w-full h-full relative" onClick={() => setIsLightboxOpen(true)}>
+                        <img src={mediaList[activeMedia]} className="w-full h-full object-contain" alt={listing.title} />
+                        {/* Icon gợi ý bấm vào để xem to */}
+                        <div className="absolute bottom-4 right-4 bg-black/50 text-white p-2 rounded-full pointer-events-none backdrop-blur-sm">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                        </div>
+                    </div>
+
+                    {/* 2. DESKTOP VIEW (Hiện từ md trở lên): ProductZoom xịn xò */}
+                    <div className="hidden md:block w-full h-full">
+                        <ProductZoom src={mediaList[activeMedia]} alt={listing.title} />
+                    </div>
+                </>
             )}
             
             {/* Nút Prev/Next chuyển ảnh */}
             {mediaList.length > 1 && (
               <>
-                <button onClick={() => setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-30 shadow-xl opacity-0 group-hover:opacity-100"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg></button>
-                <button onClick={() => setActiveMedia(prev => prev < mediaList.length - 1 ? prev + 1 : 0)} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-30 shadow-xl opacity-0 group-hover:opacity-100"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg></button>
+                <button onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1); }} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-30 shadow-xl opacity-0 group-hover:opacity-100"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg></button>
+                <button onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev < mediaList.length - 1 ? prev + 1 : 0); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-30 shadow-xl opacity-0 group-hover:opacity-100"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg></button>
               </>
             )}
           </div>
@@ -436,7 +450,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
          </div>
       </footer>
 
-      {/* MODALS */}
+     {/* MODALS */}
       {showReportModal && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowReportModal(false)}></div>
@@ -456,6 +470,36 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           </div>
         </div>
       )}
+
+      {/* --- BẮT ĐẦU ĐOẠN CODE LIGHTBOX (THÊM VÀO ĐÂY) --- */}
+      {isLightboxOpen && (
+        <div className="fixed inset-0 z-[200] bg-black flex items-center justify-center" onClick={() => setIsLightboxOpen(false)}>
+            {/* Nút đóng */}
+            <button className="absolute top-4 right-4 text-white p-4 z-50 bg-white/10 rounded-full" onClick={() => setIsLightboxOpen(false)}>
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+
+            {/* Ảnh Fullscreen */}
+            <img 
+                src={mediaList[activeMedia]} 
+                className="max-w-full max-h-full object-contain transition-transform duration-200"
+                alt="Fullscreen"
+                onClick={(e) => e.stopPropagation()} // Chặn click vào ảnh bị đóng modal
+            />
+            
+            {/* Nút chuyển ảnh trong Lightbox */}
+            {mediaList.length > 1 && (
+                <>
+                    <button onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1); }} className="absolute left-2 top-1/2 -translate-y-1/2 p-3 text-white bg-white/10 rounded-full"><svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg></button>
+                    <button onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev < mediaList.length - 1 ? prev + 1 : 0); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-3 text-white bg-white/10 rounded-full"><svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg></button>
+                </>
+            )}
+            
+            <p className="absolute bottom-8 text-white font-bold text-sm bg-black/50 px-4 py-2 rounded-full">{activeMedia + 1} / {mediaList.length}</p>
+        </div>
+      )}
+      {/* --- KẾT THÚC ĐOẠN CODE LIGHTBOX --- */}
+
       {listing && <OfferModal isOpen={showOfferModal} onClose={() => setShowOfferModal(false)} onSubmit={handleMakeOffer} originalPrice={listing.price} productName={listing.title} />}
       <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} url={getListingUrl(listing)} title={listing.title} />
     </div>

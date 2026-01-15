@@ -90,7 +90,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
   const canPush = isOwner && (listing.status === 'approved');
 
   return (
-    <div className="group relative flex flex-col bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden h-full">
+    <div className="group relative flex flex-col bg-white border border-gray-100 rounded shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden h-full">
       
       {/* --- PHẦN HÌNH ẢNH --- */}
       <div className="relative aspect-square overflow-hidden bg-gray-100">

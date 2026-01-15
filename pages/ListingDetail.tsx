@@ -278,27 +278,33 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             )}
           </div>
 
-          {/* Thumbnails */}
+        {/* Thumbnails - Giữ nguyên (Đã đẹp) */}
           <div className="hidden md:flex gap-3 overflow-x-auto no-scrollbar py-2">
             {mediaList.map((item, idx) => (
-              <button key={idx} onClick={() => setActiveMedia(idx)} className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 relative ${activeMedia === idx ? 'border-primary shadow-lg scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}>
+              <button key={idx} onClick={() => setActiveMedia(idx)} className={`w-20 h-20 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 relative ${activeMedia === idx ? 'border-primary shadow-lg scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}>
                 <img src={listing.videoUrl && idx === 0 ? listing.images[0] : item} className="w-full h-full object-cover" alt="" />
               </button>
             ))}
           </div>
 
-          {/* Attributes */}
+          {/* Attributes - Đã sửa lỗi dư thẻ đóng div */}
           {listing.attributes && Object.keys(listing.attributes).length > 0 && (
-            <div className="bg-white md:rounded-2xl p-8 border border-gray-100 shadow-sm">
-              <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-8 border-l-4 border-primary pl-4">⚡ Thông số kỹ thuật</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-y-8 gap-x-6">
+            <div className="bg-white md:rounded-xl p-6 border border-gray-100 shadow-sm">
+              <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-6 border-l-4 border-primary pl-4">⚡ Thông số kỹ thuật</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
                 {categoryConfig?.attributes?.map((attr) => {
                     const value = listing.attributes?.[attr.key];
                     if (!value) return null;
                     return (
-                        <div key={attr.key} className="flex items-center gap-4 group">
-                            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:bg-primary group-hover:text-white transition-colors">{getAttributeIcon(attr.key)}</div>
-                            <div className="min-w-0"><p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{attr.label}</p><p className="text-sm font-bold text-gray-800 truncate">{value} {attr.suffix || ''}</p></div>
+                        <div key={attr.key} className="flex items-center gap-3 group">
+                            {/* Icon: w-10 h-10 và rounded-xl (nhỏ và tinh tế hơn) */}
+                            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex-shrink-0 flex items-center justify-center border border-blue-100 group-hover:bg-primary group-hover:text-white transition-colors">
+                                {getAttributeIcon(attr.key)}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{attr.label}</p>
+                                <p className="text-sm font-bold text-gray-800 truncate" title={String(value)}>{value} {attr.suffix || ''}</p>
+                            </div>
                         </div>
                     );
                 })}

@@ -70,6 +70,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
         if (existingRoom) {
           setActiveRoom(existingRoom);
         } else {
+          // Nếu không tìm thấy trong list (vd: reload trang), thử fetch lẻ
           const room = await db.getChatRoom(roomId);
           if (room) setActiveRoom(room);
         }
@@ -131,19 +132,23 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     if (!result.success) alert("Lỗi: " + result.message);
   };
 
-  // --- [MỚI] XỬ LÝ ĐỔI ĐỒ (SWAP) ---
-  const handleRespondSwap = async (swapId: string, status: 'accepted' | 'rejected') => {
-    if (!activeRoom || !swapId) return;
-    if (!window.confirm(`Bạn có chắc muốn ${status === 'accepted' ? 'ĐỒNG Ý' : 'TỪ CHỐI'} lời đề nghị đổi đồ này?`)) return;
+  // --- [FIXED] XỬ LÝ ĐỔI ĐỒ (SWAP) ---
+  const handleRespondSwap = async (messageId: string, status: 'accepted' | 'rejected') => {
+    if (!activeRoom || !messageId) return;
     
-    // Gọi API xử lý đổi đồ (Bạn cần đảm bảo db.respondToSwap đã được cài đặt hoặc dùng chung logic)
-    // Ở đây giả lập dùng chung logic respondToOffer hoặc gọi hàm riêng
+    // Hỏi xác nhận trước khi bấm
+    if (!window.confirm(`Bạn có chắc muốn ${status === 'accepted' ? 'ĐỒNG Ý' : 'TỪ CHỐI'} lời đề nghị này?`)) return;
+    
     try {
-        // Giả lập cập nhật trạng thái tin nhắn trong DB
-        console.log(`Swap ${swapId} -> ${status}`);
-        // Cập nhật UI tạm thời (Thực tế nên dùng db.updateMessageStatus)
-        alert(`Đã ${status === 'accepted' ? 'đồng ý' : 'từ chối'} yêu cầu đổi đồ!`);
+        // Gọi hàm DB thật (đã được thêm ở bước trước)
+        const result = await db.respondToSwap(activeRoom.id, messageId, status);
+        
+        if (!result.success) {
+            alert("Lỗi: " + result.message);
+        }
+        // Nếu thành công, UI sẽ tự cập nhật nhờ realtime snapshot
     } catch (e) {
+        console.error(e);
         alert("Lỗi kết nối.");
     }
   };
@@ -163,7 +168,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   const renderOfferMessage = (msg: Message, isMe: boolean) => {
     const priceMatch = msg.text.match(/[\d,.]+/);
     const priceStr = priceMatch ? priceMatch[0] : "???";
-    const canRespond = !isMe; // Chỉ người nhận mới được bấm Đồng ý/Từ chối
+    const canRespond = !isMe;
 
     return (
         <div className="bg-white border-2 border-green-100 rounded-2xl p-4 shadow-sm w-64 space-y-3">
@@ -186,32 +191,38 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     );
   };
 
-  // --- [MỚI] RENDER: Tin nhắn Đổi đồ (Swap) ---
+  // --- RENDER: Tin nhắn Đổi đồ (Swap) ---
   const renderSwapMessage = (msg: Message, isMe: boolean) => {
-    // Giả sử msg.swapData chứa thông tin món đồ được offer
-    // Nếu chưa có trong DB, ta parse tạm từ text hoặc structure giả định
     const swapData = msg.swapData || {
         offeredItemName: "Sản phẩm đổi",
         offeredItemImage: DEFAULT_AVATAR,
-        cashTopUp: 0
+        cashTopUp: 0,
+        status: undefined
     };
 
-    const canRespond = !isMe;
+    // Kiểm tra trạng thái
+    const status = swapData.status; 
+    const isPending = !status;
+    
+    // Chỉ người nhận mới được bấm nút (và chỉ khi đang pending)
+    const canRespond = !isMe && isPending;
 
     return (
-        <div className="bg-white border-2 border-purple-100 rounded-2xl p-4 shadow-sm w-72 space-y-3 relative overflow-hidden">
+        <div className={`bg-white border-2 rounded-2xl p-4 shadow-sm w-72 space-y-3 relative overflow-hidden ${status === 'accepted' ? 'border-green-500 bg-green-50' : (status === 'rejected' ? 'border-gray-200 opacity-75' : 'border-purple-100')}`}>
             {/* Header */}
-            <div className="flex items-center gap-2 border-b border-purple-50 pb-2 relative z-10">
-                <span className="text-xl">🔄</span>
-                <span className="font-black text-xs text-purple-700 uppercase">Đề nghị đổi đồ</span>
+            <div className="flex items-center gap-2 border-b border-black/5 pb-2 relative z-10">
+                <span className="text-xl">{status === 'accepted' ? '✅' : (status === 'rejected' ? '❌' : '🔄')}</span>
+                <span className={`font-black text-xs uppercase ${status === 'accepted' ? 'text-green-700' : (status === 'rejected' ? 'text-gray-500' : 'text-purple-700')}`}>
+                    {status === 'accepted' ? 'Giao kèo thành công' : (status === 'rejected' ? 'Đã từ chối' : 'Đề nghị đổi đồ')}
+                </span>
             </div>
             
             {/* Background Decoration */}
-            <div className="absolute -right-4 -top-4 w-20 h-20 bg-purple-50 rounded-full blur-2xl z-0"></div>
+            {isPending && <div className="absolute -right-4 -top-4 w-20 h-20 bg-purple-50 rounded-full blur-2xl z-0"></div>}
 
             {/* Nội dung đổi */}
             <div className="relative z-10">
-                <div className="flex items-center gap-3 bg-purple-50/50 p-2 rounded-xl border border-purple-100">
+                <div className="flex items-center gap-3 bg-white/60 p-2 rounded-xl border border-black/5">
                     <img src={swapData.offeredItemImage} className="w-12 h-12 rounded-lg object-cover bg-white" alt="" />
                     <div className="min-w-0">
                         <p className="text-[9px] text-gray-400 font-bold uppercase">Đổi lấy món:</p>
@@ -219,16 +230,15 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                     </div>
                 </div>
 
-                {/* Phần bù tiền */}
                 <div className="mt-3 text-center">
                     {swapData.cashTopUp > 0 ? (
                         <>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">Sẽ bù thêm</p>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase">Bù thêm</p>
                             <p className="text-xl font-black text-purple-600">+{formatPrice(swapData.cashTopUp)}</p>
                         </>
                     ) : swapData.cashTopUp < 0 ? (
                         <>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">Muốn nhận lại</p>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase">Nhận lại</p>
                             <p className="text-xl font-black text-orange-500">+{formatPrice(Math.abs(swapData.cashTopUp))}</p>
                         </>
                     ) : (
@@ -237,14 +247,22 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
             </div>
 
-            {/* Actions */}
+            {/* Actions: Chỉ hiện khi CHƯA xử lý */}
             {canRespond && (
                 <div className="grid grid-cols-2 gap-2 relative z-10">
                     <button onClick={() => handleRespondSwap(msg.id, 'rejected')} className="py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs rounded-xl transition-colors">Từ chối</button>
                     <button onClick={() => handleRespondSwap(msg.id, 'accepted')} className="py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-200 transition-colors">Đồng ý</button>
                 </div>
             )}
-             {!canRespond && <div className="text-center text-[10px] text-gray-400 italic bg-gray-50 py-1 rounded-lg">Đang chờ phản hồi...</div>}
+            
+            {/* Trạng thái text: Hiện khi ĐÃ xử lý */}
+            {!isPending && (
+                <div className={`text-center text-[10px] font-bold uppercase py-1 rounded-lg ${status === 'accepted' ? 'text-green-600 bg-green-100' : 'text-red-500 bg-red-100'}`}>
+                    {status === 'accepted' ? 'Hai bên đã chốt kèo' : 'Đề nghị đã bị hủy'}
+                </div>
+            )}
+            
+            {!canRespond && isPending && <div className="text-center text-[10px] text-gray-400 italic bg-gray-50 py-1 rounded-lg">Đang chờ phản hồi...</div>}
         </div>
     );
   };

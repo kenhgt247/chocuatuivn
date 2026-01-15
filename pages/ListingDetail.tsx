@@ -423,10 +423,14 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
                       ) : (
                         <div className="flex gap-3">
                             <button onClick={() => setShowOfferModal(true)} className="flex-1 bg-green-50 text-green-600 border border-green-200 py-4 rounded-2xl font-black text-xs uppercase">Trả giá</button>
-                            <button onClick={() => { if(!user) return navigate('/login'); setShowSwapModal(true); }} className="flex-1 bg-purple-50 text-purple-600 border border-purple-200 py-3 rounded-xl font-black text-[10px] uppercase hover:bg-purple-100 transition-colors flex flex-col items-center justify-center leading-none">
-                                <span className="text-sm">🔄</span>
-                                <span>Đổi đồ</span>
-                            </button>
+                            {/* Nút Đổi đồ - Style Gradient Sang Chảnh */}
+<button 
+    onClick={() => { if(!user) return navigate('/login'); setShowSwapModal(true); }} 
+    className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-none py-3 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-purple-200 hover:shadow-purple-400 hover:scale-[1.02] active:scale-95 transition-all duration-300 flex flex-col items-center justify-center leading-none group"
+>
+    <span className="text-sm mb-0.5 group-hover:rotate-180 transition-transform duration-500">🔄</span>
+    <span>Đổi đồ</span>
+</button>
                             <button onClick={handleStartChat} disabled={isChatLoading} className="flex-[2] bg-primary hover:bg-primaryHover text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl">{isChatLoading ? '...' : 'Chat ngay'}</button>
                         </div>
                       )}

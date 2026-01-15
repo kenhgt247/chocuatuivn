@@ -117,28 +117,43 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     window.scrollTo(0, 0);
   }, [id, user]);
 
-  // --- LOGIC GỢI Ý: VIP > Kim cương > Quanh đây ---
+ // --- LOGIC GỢI Ý THÔNG MINH (VIP > GẦN ĐÂY > KHÁC DANH MỤC NHƯNG GẦN NHÀ) ---
   const similarListings = useMemo(() => {
     if (!listing) return [];
+    const LIMIT = 12;
+
+    // Helper tính điểm ưu tiên
+    const getScore = (item: Listing, isSameCategory: boolean) => {
+        let score = 0;
+        
+        // 1. Điểm Danh mục (Quan trọng nhất)
+        if (isSameCategory) score += 1000;
+
+        // 2. Điểm Vị trí (Quan trọng nhì - để lấp đầy nếu thiếu cùng loại)
+        if (item.location === listing.location) score += 500;
+
+        // 3. Điểm Hạng VIP
+        if (item.tier === 'pro') score += 50;
+        else if (item.tier === 'basic') score += 20;
+
+        // 4. Điểm Thời gian (Mới nhất lên đầu)
+        // Chia nhỏ timestamp để không ảnh hưởng quá lớn tới các điểm chính
+        score += new Date(item.createdAt).getTime() / 10000000000000; 
+
+        return score;
+    };
     
-    return allListings
-      .filter(l => l.id !== listing.id && l.category === listing.category && l.status === 'approved')
-      .sort((a, b) => {
-          // 1. Ưu tiên Hạng (VIP = pro, Kim Cương = basic)
-          const getTierScore = (tier?: string) => (tier === 'pro' ? 3 : tier === 'basic' ? 2 : 1);
-          const scoreA = getTierScore(a.tier);
-          const scoreB = getTierScore(b.tier);
-          if (scoreA !== scoreB) return scoreB - scoreA;
+    // Lọc ra danh sách (loại bỏ tin hiện tại)
+    const candidates = allListings.filter(l => l.id !== listing.id && l.status === 'approved');
 
-          // 2. Ưu tiên cùng Vị trí (Quanh đây)
-          const locScoreA = a.location === listing.location ? 1 : 0;
-          const locScoreB = b.location === listing.location ? 1 : 0;
-          if (locScoreA !== locScoreB) return locScoreB - locScoreA;
+    // Sắp xếp theo điểm
+    const sorted = candidates.sort((a, b) => {
+        const scoreA = getScore(a, a.category === listing.category);
+        const scoreB = getScore(b, b.category === listing.category);
+        return scoreB - scoreA; // Giảm dần
+    });
 
-          // 3. Ưu tiên tin mới nhất
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      })
-      .slice(0, 12);
+    return sorted.slice(0, LIMIT);
   }, [allListings, listing]);
 
   if (!listing) return null;

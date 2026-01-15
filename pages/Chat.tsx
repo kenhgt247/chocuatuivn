@@ -6,7 +6,7 @@ import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
 
 const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=random&color=fff&name=User";
 
-// [BỔ SUNG] Danh sách tin nhắn mẫu để người dùng bấm nhanh
+// Danh sách tin nhắn mẫu
 const QUICK_REPLIES = [
   "Sản phẩm này còn không bạn?",
   "Hàng chuẩn như hình không ạ?",
@@ -33,7 +33,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     e.currentTarget.onerror = null;
   };
 
-  // 1. Load Rooms (Giữ nguyên logic gốc)
+  // 1. Load Rooms
   useEffect(() => {
     if (user) {
       const unsubscribe = db.getChatRooms(user.id, (loadedRooms) => {
@@ -43,7 +43,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     }
   }, [user]);
 
-  // 2. Fetch missing partner info (Giữ nguyên logic gốc)
+  // 2. Fetch missing partner info
   useEffect(() => {
     if (!user || rooms.length === 0) return;
     rooms.forEach(async (room) => {
@@ -62,7 +62,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     });
   }, [rooms, user, fetchedPartners]);
 
-  // 3. Load Active Room (Giữ nguyên logic gốc)
+  // 3. Load Active Room
   useEffect(() => {
     const loadActiveRoom = async () => {
       if (user && roomId) {
@@ -99,7 +99,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     });
   };
 
-  // [MỚI] Hàm gửi tin nhắn nhanh khi nhấn vào nút mẫu
+  // Hàm gửi tin nhắn nhanh
   const handleSendQuickReply = async (text: string) => {
     if (!activeRoom || !user) return;
     await db.addMessage(activeRoom.id, {
@@ -123,11 +123,29 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     } catch (error) { alert("Lỗi xóa phòng chat."); }
   };
 
+  // --- XỬ LÝ TRẢ GIÁ (OFFER) ---
   const handleRespondOffer = async (offerId: string, status: 'accepted' | 'rejected') => {
     if (!activeRoom || !offerId) return;
     if (!window.confirm(`Bạn có chắc muốn ${status === 'accepted' ? 'ĐỒNG Ý' : 'TỪ CHỐI'} mức giá này?`)) return;
     const result = await db.respondToOffer(offerId, status, activeRoom.id);
     if (!result.success) alert("Lỗi: " + result.message);
+  };
+
+  // --- [MỚI] XỬ LÝ ĐỔI ĐỒ (SWAP) ---
+  const handleRespondSwap = async (swapId: string, status: 'accepted' | 'rejected') => {
+    if (!activeRoom || !swapId) return;
+    if (!window.confirm(`Bạn có chắc muốn ${status === 'accepted' ? 'ĐỒNG Ý' : 'TỪ CHỐI'} lời đề nghị đổi đồ này?`)) return;
+    
+    // Gọi API xử lý đổi đồ (Bạn cần đảm bảo db.respondToSwap đã được cài đặt hoặc dùng chung logic)
+    // Ở đây giả lập dùng chung logic respondToOffer hoặc gọi hàm riêng
+    try {
+        // Giả lập cập nhật trạng thái tin nhắn trong DB
+        console.log(`Swap ${swapId} -> ${status}`);
+        // Cập nhật UI tạm thời (Thực tế nên dùng db.updateMessageStatus)
+        alert(`Đã ${status === 'accepted' ? 'đồng ý' : 'từ chối'} yêu cầu đổi đồ!`);
+    } catch (e) {
+        alert("Lỗi kết nối.");
+    }
   };
 
   const getPartnerInfo = (room: any, currentUserId: string) => {
@@ -141,10 +159,11 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     return { name: room.listingTitle, avatar: room.listingImage, isProductAvatar: true };
   };
 
+  // --- RENDER: Tin nhắn Trả giá (Mặc cả) ---
   const renderOfferMessage = (msg: Message, isMe: boolean) => {
     const priceMatch = msg.text.match(/[\d,.]+/);
     const priceStr = priceMatch ? priceMatch[0] : "???";
-    const canRespond = !isMe;
+    const canRespond = !isMe; // Chỉ người nhận mới được bấm Đồng ý/Từ chối
 
     return (
         <div className="bg-white border-2 border-green-100 rounded-2xl p-4 shadow-sm w-64 space-y-3">
@@ -163,6 +182,69 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
             )}
             {!canRespond && <div className="text-center text-[10px] text-gray-400 italic bg-gray-50 py-1 rounded-lg">Đang chờ phản hồi...</div>}
+        </div>
+    );
+  };
+
+  // --- [MỚI] RENDER: Tin nhắn Đổi đồ (Swap) ---
+  const renderSwapMessage = (msg: Message, isMe: boolean) => {
+    // Giả sử msg.swapData chứa thông tin món đồ được offer
+    // Nếu chưa có trong DB, ta parse tạm từ text hoặc structure giả định
+    const swapData = msg.swapData || {
+        offeredItemName: "Sản phẩm đổi",
+        offeredItemImage: DEFAULT_AVATAR,
+        cashTopUp: 0
+    };
+
+    const canRespond = !isMe;
+
+    return (
+        <div className="bg-white border-2 border-purple-100 rounded-2xl p-4 shadow-sm w-72 space-y-3 relative overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center gap-2 border-b border-purple-50 pb-2 relative z-10">
+                <span className="text-xl">🔄</span>
+                <span className="font-black text-xs text-purple-700 uppercase">Đề nghị đổi đồ</span>
+            </div>
+            
+            {/* Background Decoration */}
+            <div className="absolute -right-4 -top-4 w-20 h-20 bg-purple-50 rounded-full blur-2xl z-0"></div>
+
+            {/* Nội dung đổi */}
+            <div className="relative z-10">
+                <div className="flex items-center gap-3 bg-purple-50/50 p-2 rounded-xl border border-purple-100">
+                    <img src={swapData.offeredItemImage} className="w-12 h-12 rounded-lg object-cover bg-white" alt="" />
+                    <div className="min-w-0">
+                        <p className="text-[9px] text-gray-400 font-bold uppercase">Đổi lấy món:</p>
+                        <p className="text-xs font-bold text-gray-800 truncate">{swapData.offeredItemName}</p>
+                    </div>
+                </div>
+
+                {/* Phần bù tiền */}
+                <div className="mt-3 text-center">
+                    {swapData.cashTopUp > 0 ? (
+                        <>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase">Sẽ bù thêm</p>
+                            <p className="text-xl font-black text-purple-600">+{formatPrice(swapData.cashTopUp)}</p>
+                        </>
+                    ) : swapData.cashTopUp < 0 ? (
+                        <>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase">Muốn nhận lại</p>
+                            <p className="text-xl font-black text-orange-500">+{formatPrice(Math.abs(swapData.cashTopUp))}</p>
+                        </>
+                    ) : (
+                        <p className="text-xs font-bold text-gray-500 py-1">🤝 Trao đổi ngang giá</p>
+                    )}
+                </div>
+            </div>
+
+            {/* Actions */}
+            {canRespond && (
+                <div className="grid grid-cols-2 gap-2 relative z-10">
+                    <button onClick={() => handleRespondSwap(msg.id, 'rejected')} className="py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs rounded-xl transition-colors">Từ chối</button>
+                    <button onClick={() => handleRespondSwap(msg.id, 'accepted')} className="py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-200 transition-colors">Đồng ý</button>
+                </div>
+            )}
+             {!canRespond && <div className="text-center text-[10px] text-gray-400 italic bg-gray-50 py-1 rounded-lg">Đang chờ phản hồi...</div>}
         </div>
     );
   };
@@ -193,7 +275,10 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                     </div>
                     <p className="text-[10px] text-gray-500 truncate font-medium bg-gray-100 px-1.5 py-0.5 rounded w-fit max-w-full mt-0.5">{room.listingTitle}</p>
                     <p className={`text-xs truncate mt-1 ${isUnread ? 'font-black text-primary' : 'text-gray-400'}`}>
-                      {room.lastMessage?.includes('💰') ? '💰 Có lời mặc cả mới' : (room.lastMessage || 'Bắt đầu cuộc trò chuyện')}
+                      {/* Hiển thị preview tin nhắn thông minh hơn */}
+                      {room.lastMessage?.includes('💰') ? '💰 Có lời mặc cả mới' : 
+                       room.lastMessage?.includes('🔄') ? '🔄 Có đề nghị đổi đồ' : 
+                       (room.lastMessage || 'Bắt đầu cuộc trò chuyện')}
                     </p>
                   </div>
                   {isUnread && <div className="absolute top-1/2 -translate-y-1/2 right-2 w-2.5 h-2.5 bg-primary rounded-full shadow-sm group-hover:opacity-0 transition-opacity"></div>}
@@ -243,8 +328,11 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                             </div>
                         )}
                         <div className={`relative max-w-[85%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+                            {/* LOGIC RENDER TIN NHẮN THEO LOẠI */}
                             {msg.type === 'offer' ? (
                                 renderOfferMessage(msg, isMe)
+                            ) : msg.type === 'swap' ? (
+                                renderSwapMessage(msg, isMe) // [MỚI] Render thẻ đổi đồ
                             ) : (
                                 <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm leading-relaxed ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm'}`}>
                                   {msg.text}
@@ -268,7 +356,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
               <div ref={scrollRef} className="h-2" />
             </div>
 
-            {/* [MỚI] Khối tin nhắn nhanh */}
+            {/* Quick Replies */}
             <div className="bg-white border-t border-borderMain/50 px-4 py-2 flex gap-2 overflow-x-auto no-scrollbar whitespace-nowrap">
                 {QUICK_REPLIES.map((text, idx) => (
                     <button

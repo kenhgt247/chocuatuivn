@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async'; // Thêm để SEO FB/Zalo
+import { Helmet } from 'react-helmet-async';
 import { db } from '../services/db';
 import { Listing, User } from '../types';
 import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
@@ -8,7 +8,7 @@ import ListingCard from '../components/ListingCard';
 import ShareModal from '../components/ShareModal';
 import ReviewSection from '../components/ReviewSection';
 import OfferModal from '../components/OfferModal';
-import AuctionBox from '../components/AuctionBox'; 
+import AuctionBox from '../components/AuctionBox';
 import { CATEGORIES } from '../constants';
 
 // --- IMPORT LEAFLET MAP ---
@@ -44,7 +44,7 @@ const STATIC_LINKS = [
   { slug: 'meo-mua-ban-an-toan', title: 'An toàn' },
 ];
 
-// --- HÀM LẤY ICON ĐỘNG DỰA TRÊN KEY (GIỮ NGUYÊN) ---
+// --- HÀM LẤY ICON ĐỘNG DỰA TRÊN KEY ---
 const getAttributeIcon = (key: string): React.ReactNode => {
     const k = key.toLowerCase();
     if (k.includes('area') || k.includes('size')) return <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>;
@@ -147,10 +147,16 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const isVideoActive = listing.videoUrl && activeMedia === 0;
   const isOwner = user && user.id === listing.sellerId;
 
-  // --- ACTIONS ---
-  const handleToggleFav = async () => {
+  // --- ACTIONS (FIXED LOGIC) ---
+  
+  // Hàm Toggle Fav nhận thêm targetId tùy chọn (để dùng cho list gợi ý)
+  const handleToggleFav = async (targetId?: string) => {
     if (!user) return navigate('/login');
-    await db.toggleFavorite(user.id, listing.id);
+    
+    // Nếu targetId truyền vào thì dùng nó, không thì dùng listing.id (sản phẩm chính)
+    const idToToggle = (typeof targetId === 'string') ? targetId : listing.id;
+
+    await db.toggleFavorite(user.id, idToToggle);
     db.getFavorites(user.id).then(setUserFavorites);
   };
 
@@ -201,7 +207,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   return (
     <div className="max-w-7xl mx-auto md:px-4 lg:px-8 py-0 md:py-8 space-y-6 pb-24 font-sans">
       
-      {/* [MỚI] SEO HELMET CHO FB/ZALO */}
+      {/* SEO HELMET */}
       <Helmet>
         <title>{listing.title} | Chợ Của Tui</title>
         <meta property="og:title" content={listing.title} />
@@ -211,7 +217,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         <meta property="og:type" content="product" />
       </Helmet>
 
-      {/* BREADCRUMB (GIỮ NGUYÊN) */}
+      {/* BREADCRUMB */}
       <nav className="flex items-center gap-2 text-[10px] md:text-xs font-bold uppercase tracking-widest text-gray-400 px-4 md:px-0">
         <Link to="/" className="hover:text-primary transition-colors">Trang chủ</Link>
         <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -226,9 +232,11 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
       <div className="grid lg:grid-cols-12 gap-0 md:gap-8">
         
-        {/* LEFT: MEDIA GALLERY & DETAILS (GIỮ NGUYÊN) */}
+        {/* LEFT: MEDIA GALLERY & DETAILS */}
         <div className="lg:col-span-8 space-y-6">
-          <div className="relative bg-gray-900 aspect-square md:aspect-video md:rounded-[2rem] overflow-hidden group shadow-2xl border border-gray-800">
+          
+          {/* Main Media (Video/Image) */}
+          <div className="relative bg-gray-900 aspect-square md:aspect-video md:rounded-xl overflow-hidden group shadow-2xl border border-gray-800">
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden select-none">
                 <div className="transform -rotate-45 leading-none pointer-events-none">
                     <span className="text-white/10 text-sm md:text-lg font-black uppercase tracking-widest whitespace-nowrap px-4 py-2">Chợ Của Tui</span>
@@ -255,7 +263,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             )}
           </div>
 
-          {/* THUMBNAILS & ATTRIBUTES & DESCRIPTION (GIỮ NGUYÊN) */}
+          {/* Thumbnails */}
           <div className="hidden md:flex gap-3 overflow-x-auto no-scrollbar py-2">
             {mediaList.map((item, idx) => (
               <button key={idx} onClick={() => setActiveMedia(idx)} className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 relative ${activeMedia === idx ? 'border-primary shadow-lg scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}>
@@ -264,8 +272,9 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             ))}
           </div>
 
+          {/* Attributes */}
           {listing.attributes && Object.keys(listing.attributes).length > 0 && (
-            <div className="bg-white md:rounded-[2rem] p-8 border border-gray-100 shadow-sm">
+            <div className="bg-white md:rounded-2xl p-8 border border-gray-100 shadow-sm">
               <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-8 border-l-4 border-primary pl-4">⚡ Thông số kỹ thuật</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-y-8 gap-x-6">
                 {categoryConfig?.attributes?.map((attr) => {
@@ -282,19 +291,21 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
           )}
 
-          <div className="bg-white md:rounded-[2rem] p-8 border border-gray-100 shadow-sm space-y-4">
+          {/* Description */}
+          <div className="bg-white md:rounded-2xl p-8 border border-gray-100 shadow-sm space-y-4">
             <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest">📝 Mô tả sản phẩm</h2>
             <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm font-medium border-l-4 border-gray-100 pl-6 py-2">{listing.description}</p>
           </div>
 
-          <div className="bg-white md:rounded-[2rem] p-8 border border-gray-100 shadow-sm">
+          {/* Reviews */}
+          <div className="bg-white md:rounded-2xl p-8 border border-gray-100 shadow-sm">
             <ReviewSection targetId={listing.id} targetType="listing" currentUser={user} />
           </div>
         </div>
 
-        {/* RIGHT: SIDEBAR (GIỮ NGUYÊN) */}
+        {/* RIGHT: SIDEBAR */}
         <div className="lg:col-span-4 p-4 md:p-0">
-          <div className="bg-white md:rounded-[2.5rem] p-8 border border-gray-100 shadow-xl space-y-8 sticky top-24">
+          <div className="bg-white md:rounded-3xl p-8 border border-gray-100 shadow-xl space-y-8 sticky top-24">
             <div className="space-y-4">
               <h1 className="text-xl font-bold text-gray-800 leading-snug uppercase">{listing.title}</h1>
               {listing.isAuction ? (
@@ -342,7 +353,15 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
 
             <div className="flex gap-3">
-              <button onClick={handleToggleFav} className="flex-1 py-4 border border-gray-200 bg-gray-50 rounded-2xl text-[10px] font-black uppercase text-gray-500 hover:text-red-500 transition-colors flex items-center justify-center gap-2"><svg className={`w-5 h-5 ${userFavorites.includes(listing.id) ? 'text-red-500 fill-current' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg> {userFavorites.includes(listing.id) ? 'Đã lưu' : 'Lưu tin'}</button>
+              {/* NÚT YÊU THÍCH (CHO TIN CHÍNH) */}
+              <button 
+                onClick={() => handleToggleFav(listing.id)} 
+                className="flex-1 py-4 border border-gray-200 bg-gray-50 rounded-2xl text-[10px] font-black uppercase text-gray-500 hover:text-red-500 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className={`w-5 h-5 ${userFavorites.includes(listing.id) ? 'text-red-500 fill-current' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg> 
+                {userFavorites.includes(listing.id) ? 'Đã lưu' : 'Lưu tin'}
+              </button>
+              
               <button onClick={() => setIsShareModalOpen(true)} className="flex-1 py-4 border border-gray-200 bg-gray-50 rounded-2xl text-[10px] font-black uppercase text-gray-500 hover:text-blue-500 transition-colors">Chia sẻ</button>
             </div>
 
@@ -360,7 +379,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       </div>
 
-      {/* SIMILAR LISTINGS (LOGIC ƯU TIÊN VIP > KIM CƯƠNG > QUANH ĐÂY) */}
+      {/* SIMILAR LISTINGS */}
       <div className="px-4 md:px-0 pt-10">
         <div className="flex items-center justify-between mb-8 px-2 border-b border-gray-100 pb-4">
           <h2 className="text-xl font-black text-gray-800 uppercase flex items-center gap-2">🔥 Có thể bạn thích</h2>
@@ -368,12 +387,17 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-5">
           {similarListings.map(l => (
-            <ListingCard key={l.id} listing={l} isFavorite={userFavorites.includes(l.id)} onToggleFavorite={handleToggleFav} />
+            <ListingCard 
+                key={l.id} 
+                listing={l} 
+                isFavorite={userFavorites.includes(l.id)} 
+                onToggleFavorite={() => handleToggleFav(l.id)} // QUAN TRỌNG: Truyền ID của tin gợi ý vào hàm
+            />
           ))}
         </div>
       </div>
 
-      {/* FOOTER (KHÔI PHỤC MÀU SẮC NGUYÊN BẢN CỦA BẠN) */}
+      {/* FOOTER */}
       <footer className="hidden md:block pt-20 border-t border-dashed border-gray-200 mt-20">
          <div className="bg-white border border-gray-100 rounded-[3rem] p-12 shadow-sm">
             <div className="flex items-center justify-between mb-10">
@@ -386,7 +410,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
          </div>
       </footer>
 
-      {/* MODALS & OTHERS (GIỮ NGUYÊN) */}
+      {/* MODALS */}
       {showReportModal && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowReportModal(false)}></div>

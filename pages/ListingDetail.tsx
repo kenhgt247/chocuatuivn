@@ -10,7 +10,7 @@ import ReviewSection from '../components/ReviewSection';
 import OfferModal from '../components/OfferModal';
 import AuctionBox from '../components/AuctionBox';
 import { CATEGORIES } from '../constants';
-
+import ImageMagnifier from '../components/ImageMagnifier';
 // --- IMPORT LEAFLET MAP ---
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -266,9 +266,21 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                         <div className="bg-primary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest animate-pulse shadow-lg flex items-center gap-1">Video</div>
                     </div>
                 </div>
-            ) : (
-                <img src={mediaList[activeMedia]} className="w-full h-full object-contain bg-gray-100" alt={listing.title} />
-            )}
+           ) : (
+    // Dùng kính lúp thay cho ảnh thường
+    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+        <ImageMagnifier 
+            src={mediaList[activeMedia]} 
+            width="100%"
+            height="100%"
+            className="w-full h-full object-contain"
+            zoomLevel={2.5} 
+            magnifierHeight={200}
+            magnifieWidth={200}
+            alt={listing.title}
+        />
+    </div>
+)}
             
             {mediaList.length > 1 && (
               <>

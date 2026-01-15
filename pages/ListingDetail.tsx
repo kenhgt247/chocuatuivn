@@ -10,7 +10,7 @@ import ReviewSection from '../components/ReviewSection';
 import OfferModal from '../components/OfferModal';
 import AuctionBox from '../components/AuctionBox';
 import { CATEGORIES } from '../constants';
-import ImageMagnifier from '../components/ImageMagnifier';
+import ProductZoom from '../components/ProductZoom';
 // --- IMPORT LEAFLET MAP ---
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -251,7 +251,9 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         <div className="lg:col-span-8 space-y-6">
           
           {/* Main Media (Video/Image) */}
-          <div className="relative bg-gray-900 aspect-square md:aspect-video md:rounded-xl overflow-hidden group shadow-2xl border border-gray-800">
+          <div className={`relative aspect-square md:aspect-video md:rounded-xl group shadow-sm border border-gray-100 z-20 ${isVideoActive ? 'bg-gray-900 border-gray-800 overflow-hidden' : 'bg-white'}`}>
+            
+            {/* Watermark (Logo chìm) */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden select-none">
                 <div className="transform -rotate-45 leading-none pointer-events-none">
                     <span className="text-white/10 text-sm md:text-lg font-black uppercase tracking-widest whitespace-nowrap px-4 py-2">Chợ Của Tui</span>
@@ -259,6 +261,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
 
             {isVideoActive ? (
+                // --- TRƯỜNG HỢP LÀ VIDEO ---
                 <div className="relative w-full h-full cursor-pointer" onClick={handleVideoPlayPause}>
                     <video ref={videoRef} src={listing.videoUrl || ""} poster={listing.images[0] || ""} className="w-full h-full object-contain bg-black" autoPlay loop muted={isMuted} playsInline />
                     <div className="absolute bottom-6 left-6 right-6 z-30 flex justify-between items-end">
@@ -266,30 +269,19 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                         <div className="bg-primary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest animate-pulse shadow-lg flex items-center gap-1">Video</div>
                     </div>
                 </div>
-           ) : (
-    // Dùng kính lúp thay cho ảnh thường
-    <div className="w-full h-full flex items-center justify-center bg-gray-100">
-        <ImageMagnifier 
-            src={mediaList[activeMedia]} 
-            width="100%"
-            height="100%"
-            className="w-full h-full object-contain"
-            zoomLevel={2.5} 
-            magnifierHeight={200}
-            magnifieWidth={200}
-            alt={listing.title}
-        />
-    </div>
-)}
+            ) : (
+                // --- TRƯỜNG HỢP LÀ ẢNH (Dùng ProductZoom mới) ---
+                <ProductZoom src={mediaList[activeMedia]} alt={listing.title} />
+            )}
             
+            {/* Nút Prev/Next chuyển ảnh */}
             {mediaList.length > 1 && (
               <>
-                <button onClick={() => setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-40 shadow-xl opacity-0 group-hover:opacity-100"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg></button>
-                <button onClick={() => setActiveMedia(prev => prev < mediaList.length - 1 ? prev + 1 : 0)} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-40 shadow-xl opacity-0 group-hover:opacity-100"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg></button>
+                <button onClick={() => setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-30 shadow-xl opacity-0 group-hover:opacity-100"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg></button>
+                <button onClick={() => setActiveMedia(prev => prev < mediaList.length - 1 ? prev + 1 : 0)} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-30 shadow-xl opacity-0 group-hover:opacity-100"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg></button>
               </>
             )}
           </div>
-
         {/* Thumbnails - Giữ nguyên (Đã đẹp) */}
           <div className="hidden md:flex gap-3 overflow-x-auto no-scrollbar py-2">
             {mediaList.map((item, idx) => (

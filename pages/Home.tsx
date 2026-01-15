@@ -256,7 +256,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       {/* 2. BANNER */}
       {!search && !isUrlCategory && !typeParam && !locationParam && <HomeBanner />}
 
-      {/* 3. TIN VIP */}
+     {/* 3. TIN VIP */}
       {!search && !isUrlCategory && !typeParam && !locationParam && vipListings.length > 0 && (
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
@@ -268,7 +268,14 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {vipListings.map(l => (
-              <ListingCard key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} currentUser={user} />
+              <ListingCard 
+                key={l.id} 
+                listing={l} 
+                isFavorite={favorites.includes(l.id)} 
+                onToggleFavorite={toggleFav} 
+                currentUser={user} 
+                // Đã xóa hideViews={true} để hiện lượt xem
+              />
             ))}
           </div>
         </section>
@@ -287,7 +294,14 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           {nearbyListings.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {nearbyListings.map(l => (
-                    <ListingCard key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} currentUser={user} />
+                    <ListingCard 
+                        key={l.id} 
+                        listing={l} 
+                        isFavorite={favorites.includes(l.id)} 
+                        onToggleFavorite={toggleFav} 
+                        currentUser={user} 
+                        // Đã xóa hideViews={true}
+                    />
                 ))}
               </div>
           ) : (
@@ -327,7 +341,14 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {latestListings.map(l => (
-                <ListingCard key={l.id} listing={l} isFavorite={favorites.includes(l.id)} onToggleFavorite={toggleFav} currentUser={user} } />
+                <ListingCard 
+                    key={l.id} 
+                    listing={l} 
+                    isFavorite={favorites.includes(l.id)} 
+                    onToggleFavorite={toggleFav} 
+                    currentUser={user} 
+                    // Đã xóa hideViews={true}
+                />
               ))}
             </div>
             {hasMore && !search && (

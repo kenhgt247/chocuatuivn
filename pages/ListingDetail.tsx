@@ -11,6 +11,7 @@ import OfferModal from '../components/OfferModal';
 import AuctionBox from '../components/AuctionBox';
 import { CATEGORIES } from '../constants';
 import ProductZoom from '../components/ProductZoom';
+import SwapModal from '../components/SwapModal';
 // --- IMPORT LEAFLET MAP ---
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -76,7 +77,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showOfferModal, setShowOfferModal] = useState(false);
-
+const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt modal đổi đồ
   const [reportReason, setReportReason] = useState("");
   const [reportDetails, setReportDetails] = useState("");
   const [isPhoneVisible, setIsPhoneVisible] = useState(false);
@@ -198,7 +199,48 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         alert("Lỗi: " + result.message);
     }
   };
+// --- [MỚI] LOGIC XỬ LÝ ĐỔI ĐỒ ---
+  const handleSwapSubmit = async (selectedItem: Listing, cashTopUp: number) => {
+    if (!user) return;
+    setIsChatLoading(true);
 
+    try {
+        // 1. Tạo phòng chat (nếu chưa có)
+        const roomId = await db.createChatRoom(listing, user);
+
+        // 2. Tạo nội dung text tóm tắt
+        const cashText = cashTopUp > 0 
+            ? ` (bù ${formatPrice(cashTopUp)})` 
+            : (cashTopUp < 0 ? ` (nhận lại ${formatPrice(Math.abs(cashTopUp))})` : "");
+        const textSummary = `🔄 Đề nghị đổi: ${selectedItem.title}${cashText}`;
+
+        // 3. Cấu trúc tin nhắn đặc biệt cho Chat.tsx hiển thị
+        const messageData = {
+            senderId: user.id,
+            text: textSummary, 
+            type: 'swap', 
+            swapData: {
+                offeredItemName: selectedItem.title,
+                offeredItemImage: selectedItem.images[0],
+                cashTopUp: cashTopUp
+            }
+        };
+
+        // 4. Gửi tin nhắn (Lưu ý: db.addMessage cần nhận object này, ép kiểu as any nếu cần)
+        await db.addMessage(roomId, messageData as any);
+
+        // 5. Điều hướng
+        setShowSwapModal(false);
+        alert("✅ Đã gửi đề nghị đổi đồ thành công!");
+        navigate(`/chat/${roomId}`);
+
+    } catch (e) {
+        console.error(e);
+        alert("Có lỗi xảy ra, vui lòng thử lại.");
+    } finally {
+        setIsChatLoading(false);
+    }
+  };
   const handleReport = async () => {
     if (!user) return navigate('/login');
     if (!reportReason) return alert("Vui lòng chọn lý do báo cáo");
@@ -381,6 +423,10 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                       ) : (
                         <div className="flex gap-3">
                             <button onClick={() => setShowOfferModal(true)} className="flex-1 bg-green-50 text-green-600 border border-green-200 py-4 rounded-2xl font-black text-xs uppercase">Trả giá</button>
+                            <button onClick={() => { if(!user) return navigate('/login'); setShowSwapModal(true); }} className="flex-1 bg-purple-50 text-purple-600 border border-purple-200 py-3 rounded-xl font-black text-[10px] uppercase hover:bg-purple-100 transition-colors flex flex-col items-center justify-center leading-none">
+                                <span className="text-sm">🔄</span>
+                                <span>Đổi đồ</span>
+                            </button>
                             <button onClick={handleStartChat} disabled={isChatLoading} className="flex-[2] bg-primary hover:bg-primaryHover text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl">{isChatLoading ? '...' : 'Chat ngay'}</button>
                         </div>
                       )}
@@ -499,7 +545,16 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       )}
       {/* --- KẾT THÚC ĐOẠN CODE LIGHTBOX --- */}
-
+{/* [MỚI] Modal Đổi đồ */}
+      {listing && user && (
+          <SwapModal 
+            isOpen={showSwapModal} 
+            onClose={() => setShowSwapModal(false)} 
+            targetListing={listing} 
+            currentUser={user} 
+            onSubmit={handleSwapSubmit} 
+          />
+      )}
       {listing && <OfferModal isOpen={showOfferModal} onClose={() => setShowOfferModal(false)} onSubmit={handleMakeOffer} originalPrice={listing.price} productName={listing.title} />}
       <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} url={getListingUrl(listing)} title={listing.title} />
     </div>

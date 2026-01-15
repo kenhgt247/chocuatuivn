@@ -306,21 +306,22 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
           )}
 
-          {/* Description */}
-          <div className="bg-white md:rounded-2xl p-8 border border-gray-100 shadow-sm space-y-4">
+        {/* Description - Đã sửa thành rounded-xl và p-6 */}
+          <div className="bg-white md:rounded-xl p-6 border border-gray-100 shadow-sm space-y-4">
             <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest">📝 Mô tả sản phẩm</h2>
             <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm font-medium border-l-4 border-gray-100 pl-6 py-2">{listing.description}</p>
           </div>
 
-          {/* Reviews */}
-          <div className="bg-white md:rounded-2xl p-8 border border-gray-100 shadow-sm">
+          {/* Reviews - Đã sửa thành rounded-xl và p-6 */}
+          <div className="bg-white md:rounded-xl p-6 border border-gray-100 shadow-sm">
             <ReviewSection targetId={listing.id} targetType="listing" currentUser={user} />
           </div>
         </div>
 
         {/* RIGHT: SIDEBAR */}
         <div className="lg:col-span-4 p-4 md:p-0">
-          <div className="bg-white md:rounded-3xl p-8 border border-gray-100 shadow-xl space-y-8 sticky top-24">
+          {/* Sidebar - Đã sửa thành rounded-xl và p-6 cho gọn */}
+          <div className="bg-white md:rounded-xl p-6 border border-gray-100 shadow-xl space-y-6 sticky top-24">
             <div className="space-y-4">
               <h1 className="text-xl font-bold text-gray-800 leading-snug uppercase">{listing.title}</h1>
               {listing.isAuction ? (

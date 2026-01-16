@@ -289,56 +289,75 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
 
       <div className="grid lg:grid-cols-12 gap-0 md:gap-8">
         
-        {/* LEFT: MEDIA GALLERY & DETAILS */}
+      {/* LEFT: MEDIA GALLERY & DETAILS */}
         <div className="lg:col-span-8 space-y-6">
           
-         {/* Main Media (Video/Image) */}
-          <div className={`relative aspect-square md:aspect-video md:rounded-xl group shadow-sm border border-gray-100 z-20 ${isVideoActive ? 'bg-gray-900 border-gray-800 overflow-hidden' : 'bg-white'}`}>
+          {/* Main Media (Video/Image) */}
+          <div className={`relative w-full aspect-[4/3] md:aspect-video md:rounded-2xl overflow-hidden group shadow-lg border border-gray-100 z-20 ${isVideoActive ? 'bg-black' : 'bg-gray-100'}`}>
             
             {/* Watermark (Logo chìm) */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden select-none">
-                <div className="transform -rotate-45 leading-none pointer-events-none">
-                    <span className="text-white/10 text-sm md:text-lg font-black uppercase tracking-widest whitespace-nowrap px-4 py-2">Chợ Của Tui</span>
-                </div>
+            <div className="absolute top-4 right-4 pointer-events-none z-10 opacity-50 mix-blend-overlay">
+                <span className="text-white/80 text-xs md:text-sm font-black uppercase tracking-widest bg-black/20 px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">
+                    ⚡ Chợ Của Tui
+                </span>
             </div>
 
             {isVideoActive ? (
                 // --- TRƯỜNG HỢP LÀ VIDEO ---
                 <div className="relative w-full h-full cursor-pointer" onClick={handleVideoPlayPause}>
                     <video ref={videoRef} src={listing.videoUrl || ""} poster={listing.images[0] || ""} className="w-full h-full object-contain bg-black" autoPlay loop muted={isMuted} playsInline />
-                    <div className="absolute bottom-6 left-6 right-6 z-30 flex justify-between items-end">
+                    <div className="absolute bottom-4 left-4 right-4 z-30 flex justify-between items-end">
                         <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }} className="pointer-events-auto bg-black/60 backdrop-blur-md text-white p-3 rounded-full hover:bg-primary transition-all">{isMuted ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>}</button>
                         <div className="bg-primary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest animate-pulse shadow-lg flex items-center gap-1">Video</div>
                     </div>
                 </div>
             ) : (
-                // --- TRƯỜNG HỢP LÀ ẢNH (XỬ LÝ RIÊNG MOBILE/PC) ---
+                // --- TRƯỜNG HỢP LÀ ẢNH ---
                 <>
-                    {/* 1. MOBILE VIEW (Hiện dưới md): Ảnh thường, Click mở Lightbox */}
+                    {/* 1. MOBILE VIEW (Hiện dưới md): Full màn hình */}
                     <div className="md:hidden w-full h-full relative" onClick={() => setIsLightboxOpen(true)}>
-                        <img src={mediaList[activeMedia]} className="w-full h-full object-contain" alt={listing.title} />
-                        {/* Icon gợi ý bấm vào để xem to */}
+                        <img src={mediaList[activeMedia]} className="w-full h-full object-cover" alt={listing.title} />
                         <div className="absolute bottom-4 right-4 bg-black/50 text-white p-2 rounded-full pointer-events-none backdrop-blur-sm">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
                         </div>
                     </div>
 
-                    {/* 2. DESKTOP VIEW (Hiện từ md trở lên): ProductZoom xịn xò */}
-                    <div className="hidden md:block w-full h-full">
-                        <ProductZoom src={mediaList[activeMedia]} alt={listing.title} />
+                    {/* 2. DESKTOP VIEW: HIỆU ỨNG NỀN MỜ (BLURRED BACKGROUND) */}
+                    {/* Đây là giải pháp giúp ảnh không bị vệt trắng mà cũng không bị cắt đầu đuôi */}
+                    <div className="hidden md:block w-full h-full relative bg-gray-200 overflow-hidden">
+                        {/* Lớp nền mờ */}
+                        <img 
+                            src={mediaList[activeMedia]} 
+                            className="absolute inset-0 w-full h-full object-cover blur-xl opacity-50 scale-110" 
+                            alt="" 
+                        />
+                        {/* Lớp ảnh chính nổi lên trên */}
+                        <div className="relative w-full h-full z-10 flex items-center justify-center p-2">
+                             <ProductZoom 
+                                src={mediaList[activeMedia]} 
+                                alt={listing.title} 
+                                className="w-full h-full object-contain max-h-[600px] drop-shadow-xl" 
+                             />
+                        </div>
                     </div>
                 </>
             )}
             
-            {/* Nút Prev/Next chuyển ảnh */}
+            {/* Nút Prev/Next */}
             {mediaList.length > 1 && (
               <>
                 <button onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1); }} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-30 shadow-xl opacity-0 group-hover:opacity-100"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg></button>
                 <button onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev < mediaList.length - 1 ? prev + 1 : 0); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-30 shadow-xl opacity-0 group-hover:opacity-100"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg></button>
               </>
             )}
+            
+            {/* Page Indicator */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-[10px] font-bold px-3 py-1 rounded-full backdrop-blur-md pointer-events-none z-30">
+                {activeMedia + 1} / {mediaList.length}
+            </div>
           </div>
-        {/* Thumbnails - Giữ nguyên (Đã đẹp) */}
+
+        {/* Thumbnails */}
           <div className="hidden md:flex gap-3 overflow-x-auto no-scrollbar py-2">
             {mediaList.map((item, idx) => (
               <button key={idx} onClick={() => setActiveMedia(idx)} className={`w-20 h-20 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 relative ${activeMedia === idx ? 'border-primary shadow-lg scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}>
@@ -347,7 +366,7 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
             ))}
           </div>
 
-          {/* Attributes - Đã sửa lỗi dư thẻ đóng div */}
+          {/* Attributes */}
           {listing.attributes && Object.keys(listing.attributes).length > 0 && (
             <div className="bg-white md:rounded-xl p-6 border border-gray-100 shadow-sm">
               <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-6 border-l-4 border-primary pl-4">⚡ Thông số kỹ thuật</h2>
@@ -357,7 +376,6 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
                     if (!value) return null;
                     return (
                         <div key={attr.key} className="flex items-center gap-3 group">
-                            {/* Icon: w-10 h-10 và rounded-xl (nhỏ và tinh tế hơn) */}
                             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex-shrink-0 flex items-center justify-center border border-blue-100 group-hover:bg-primary group-hover:text-white transition-colors">
                                 {getAttributeIcon(attr.key)}
                             </div>
@@ -372,18 +390,17 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
             </div>
           )}
 
-        {/* Description - Đã sửa thành rounded-xl và p-6 */}
+          {/* Description */}
           <div className="bg-white md:rounded-xl p-6 border border-gray-100 shadow-sm space-y-4">
             <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest">📝 Mô tả sản phẩm</h2>
             <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm font-medium border-l-4 border-gray-100 pl-6 py-2">{listing.description}</p>
           </div>
 
-          {/* Reviews - Đã sửa thành rounded-xl và p-6 */}
+          {/* Reviews */}
           <div className="bg-white md:rounded-xl p-6 border border-gray-100 shadow-sm">
             <ReviewSection targetId={listing.id} targetType="listing" currentUser={user} />
           </div>
         </div>
-
         {/* RIGHT: SIDEBAR */}
         <div className="lg:col-span-4 p-4 md:p-0">
           {/* Sidebar - Đã sửa thành rounded-xl và p-6 cho gọn */}

@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
 // ==========================================================================
-// 1. ĐỊNH NGHĨA INTERFACE (Giữ nguyên logic của bạn)
+// 1. ĐỊNH NGHĨA INTERFACE
 // ==========================================================================
 export interface ListingAnalysis {
   category: string;
@@ -53,9 +53,43 @@ const getApiKey = () => {
 };
 
 // ==========================================================================
-// 2. CÁC HÀM GỌI API (Đã sửa SchemaType thành String literal)
+// 2. CÁC HÀM GỌI API (SỬ DỤNG @google/genai)
 // ==========================================================================
 
+// --- HÀM 1: TÌM KIẾM BẰNG HÌNH ẢNH (Khôi phục hàm này để sửa lỗi Build) ---
+export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
+  const apiKey = getApiKey();
+  if (!apiKey) return "";
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    
+    // Convert ảnh
+    const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
+    
+    // Gọi model
+    const response = await ai.models.generateContent({
+      model: 'gemini-1.5-flash',
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
+            { text: "Nhìn vào ảnh và trả về đúng 1 từ khóa ngắn gọn nhất để tìm kiếm sản phẩm này trên chợ đồ cũ. Ví dụ: 'iPhone 13', 'Xe Vision', 'Tủ lạnh Toshiba'. Không thêm dấu câu." }
+          ]
+        }
+      ]
+    });
+
+    const text = response.text();
+    return text ? text.trim().toLowerCase() : "";
+  } catch (error) {
+    console.error("Lỗi AI Search:", error);
+    return "";
+  }
+};
+
+// --- HÀM 2: PHÂN TÍCH ĐĂNG TIN (LOGIC ĐẲNG CẤP) ---
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
   const defaultData: any = { 
@@ -68,9 +102,9 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
   if (!apiKey) return defaultData;
 
   try {
-    const ai = new GoogleGenAI({ apiKey }); // Khởi tạo đúng cách cho @google/genai
+    const ai = new GoogleGenAI({ apiKey });
     
-    // Convert ảnh sang định dạng đúng
+    // Convert ảnh
     const imageParts = imagesBase64.map(base64 => ({
       inlineData: {
         data: base64.split(',')[1] || base64,
@@ -99,7 +133,7 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     ${CATEGORY_MAP_PROMPT}
     `;
 
-    // Gọi model với cấu hình Schema JSON chuẩn (thay vì dùng SchemaType)
+    // Gọi model với cấu hình JSON Schema chuẩn cho @google/genai
     const response = await ai.models.generateContent({
       model: 'gemini-1.5-flash',
       contents: [
@@ -108,7 +142,7 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: "OBJECT", // Thay SchemaType.OBJECT bằng "OBJECT"
+          type: "OBJECT", // Dùng chuỗi "OBJECT", không dùng SchemaType
           properties: {
             isProhibited: { type: "BOOLEAN" },
             prohibitedReason: { type: "STRING" },
@@ -161,7 +195,6 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
       }
     });
 
-    // Parse kết quả trả về
     const text = response.text();
     if (!text) return defaultData;
     return JSON.parse(text) as ListingAnalysis;

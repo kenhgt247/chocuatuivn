@@ -322,21 +322,21 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
                         </div>
                     </div>
 
-                    {/* 2. DESKTOP VIEW: HIỆU ỨNG NỀN MỜ (BLURRED BACKGROUND) */}
-                    {/* Đây là giải pháp giúp ảnh không bị vệt trắng mà cũng không bị cắt đầu đuôi */}
-                    <div className="hidden md:block w-full h-full relative bg-gray-200 overflow-hidden">
-                        {/* Lớp nền mờ */}
+                    {/* LỚP 1: Ảnh nền mờ */}
+                        {/* THÊM 'pointer-events-none': Để chuột đi xuyên qua lớp này, không chặn tính năng Zoom */}
                         <img 
                             src={mediaList[activeMedia]} 
-                            className="absolute inset-0 w-full h-full object-cover blur-xl opacity-50 scale-110" 
+                            className="absolute inset-0 w-full h-full object-cover blur-xl opacity-50 scale-110 pointer-events-none" 
                             alt="" 
                         />
-                        {/* Lớp ảnh chính nổi lên trên */}
-                        <div className="relative w-full h-full z-10 flex items-center justify-center p-2">
+
+                        {/* LỚP 2: Ảnh chính chứa ProductZoom */}
+                        {/* Tăng z-index lên 20 để chắc chắn nó nằm trên cùng và nhận sự kiện chuột */}
+                        <div className="relative w-full h-full z-20 flex items-center justify-center p-2">
                              <ProductZoom 
                                 src={mediaList[activeMedia]} 
                                 alt={listing.title} 
-                                className="w-full h-full object-contain max-h-[600px] drop-shadow-xl" 
+                                className="w-full h-full object-contain max-h-[600px] drop-shadow-xl cursor-crosshair" 
                              />
                         </div>
                     </div>

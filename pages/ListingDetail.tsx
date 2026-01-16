@@ -555,7 +555,7 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
             <button onClick={() => setShowReportModal(true)} className="w-full text-[9px] font-black text-gray-300 uppercase tracking-widest hover:text-red-400 transition-colors text-center pt-2">🚩 Báo cáo tin này</button>
           </div>
         </div>
-      </div>
+      
 
       {/* SIMILAR LISTINGS */}
       <div className="px-4 md:px-0 pt-10">

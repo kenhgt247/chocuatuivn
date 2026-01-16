@@ -323,24 +323,9 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
                         </div>
                     </div>
 
-                   {/* 2. DESKTOP VIEW (Trên md): Hiệu ứng nền mờ + Ảnh trọn vẹn */}
-                    <div className="hidden md:block w-full h-full relative bg-gray-200 overflow-hidden">
-                        
-                        {/* LỚP 1: Ảnh nền mờ (Để lấp đầy khoảng trống 2 bên) */}
-                        <img 
-                            src={mediaList[activeMedia]} 
-                            className="absolute inset-0 w-full h-full object-cover blur-xl opacity-50 scale-110" 
-                            alt="" 
-                        />
-
-                        {/* LỚP 2: Ảnh chính (Nổi lên trên, rõ nét, không bị cắt) */}
-                        <div className="relative w-full h-full z-10 flex items-center justify-center p-2">
-                             <ProductZoom 
-                                src={mediaList[activeMedia]} 
-                                alt={listing.title} 
-                                className="w-full h-full object-contain max-h-[600px] drop-shadow-xl" 
-                             />
-                        </div>
+                    {/* 2. DESKTOP VIEW (Hiện từ md trở lên): ProductZoom xịn xò */}
+                    <div className="hidden md:block w-full h-full">
+                        <ProductZoom src={mediaList[activeMedia]} alt={listing.title} />
                     </div>
                 </>
             )}

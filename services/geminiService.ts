@@ -53,10 +53,10 @@ const getApiKey = () => {
 };
 
 // ==========================================================================
-// 2. CÁC HÀM GỌI API (SỬ DỤNG @google/genai)
+// 2. CÁC HÀM GỌI API (MODEL: gemini-2.0-flash-exp)
 // ==========================================================================
 
-// --- HÀM 1: TÌM KIẾM BẰNG HÌNH ẢNH (Khôi phục hàm này để sửa lỗi Build) ---
+// --- HÀM 1: TÌM KIẾM BẰNG HÌNH ẢNH (Khôi phục để sửa lỗi Build Layout.tsx) ---
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
   const apiKey = getApiKey();
   if (!apiKey) return "";
@@ -64,18 +64,17 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
   try {
     const ai = new GoogleGenAI({ apiKey });
     
-    // Convert ảnh
     const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
     
-    // Gọi model
+    // Dùng đúng model cũ của bạn
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: [
         {
           role: 'user',
           parts: [
             { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-            { text: "Nhìn vào ảnh và trả về đúng 1 từ khóa ngắn gọn nhất để tìm kiếm sản phẩm này trên chợ đồ cũ. Ví dụ: 'iPhone 13', 'Xe Vision', 'Tủ lạnh Toshiba'. Không thêm dấu câu." }
+            { text: "Nhìn vào ảnh và trả về đúng 1 từ khóa ngắn gọn nhất để tìm kiếm sản phẩm này. Ví dụ: 'iPhone 13', 'Xe Vision'. Không thêm dấu câu." }
           ]
         }
       ]
@@ -89,7 +88,7 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
   }
 };
 
-// --- HÀM 2: PHÂN TÍCH ĐĂNG TIN (LOGIC ĐẲNG CẤP) ---
+// --- HÀM 2: PHÂN TÍCH ĐĂNG TIN ---
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
   const defaultData: any = { 
@@ -104,7 +103,6 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
   try {
     const ai = new GoogleGenAI({ apiKey });
     
-    // Convert ảnh
     const imageParts = imagesBase64.map(base64 => ({
       inlineData: {
         data: base64.split(',')[1] || base64,
@@ -118,12 +116,12 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
 
     YÊU CẦU ĐẶC BIỆT:
     1. ĐỊNH GIÁ (BẮT BUỘC):
-       - Phải ước lượng ra con số VNĐ cụ thể. KHÔNG trả về 0.
+       - Phải ước lượng ra con số VNĐ cụ thể. TUYỆT ĐỐI KHÔNG trả về 0.
        - fastSell: Giá rẻ để bay nhanh.
        - highProfit: Giá thách cưới (cao hơn 15-20%).
 
     2. SOI ẢNH:
-       - Soi kỹ ánh sáng, phông nền. Đưa lời khuyên cụ thể để chụp đẹp hơn.
+       - Soi kỹ ánh sáng, phông nền. Đưa lời khuyên cụ thể, đanh thép để chụp đẹp hơn.
 
     3. CONTENT:
        - Tiêu đề: Giật tít, có icon (🔥, ⚡).
@@ -133,16 +131,16 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     ${CATEGORY_MAP_PROMPT}
     `;
 
-    // Gọi model với cấu hình JSON Schema chuẩn cho @google/genai
+    // Dùng model cũ gemini-2.0-flash-exp
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: [
         { role: 'user', parts: [...imageParts, { text: prompt }] }
       ],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: "OBJECT", // Dùng chuỗi "OBJECT", không dùng SchemaType
+          type: "OBJECT",
           properties: {
             isProhibited: { type: "BOOLEAN" },
             prohibitedReason: { type: "STRING" },

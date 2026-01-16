@@ -1,7 +1,7 @@
-import { GoogleGenAI, SchemaType } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 // ==========================================================================
-// 1. ĐỊNH NGHĨA INTERFACE NÂNG CAO
+// 1. ĐỊNH NGHĨA INTERFACE NÂNG CẤP (Thêm các trường thông minh)
 // ==========================================================================
 export interface ListingAnalysis {
   category: string;
@@ -9,17 +9,15 @@ export interface ListingAnalysis {
   minPrice: number; // [MỚI] Giá thấp nhất thị trường
   maxPrice: number; // [MỚI] Giá cao nhất thị trường
   title: string;
-  description: string; // [NÂNG CẤP] Viết chuẩn SEO, chia đoạn
-  condition: 'new' | 'like_new' | 'good' | 'fair' | 'poor'; // [CHI TIẾT HƠN]
+  description: string; // Viết chuẩn SEO, hấp dẫn hơn
+  condition: 'new' | 'like_new' | 'good' | 'fair' | 'poor';
   isProhibited: boolean;
   prohibitedReason?: string;
   attributes: Record<string, any>;
-  seoTags: string[]; // [MỚI] Hashtag để dễ tìm kiếm
-  sellingTips: string; // [MỚI] AI tư vấn người dùng cần bổ sung gì
-  confidenceScore: number; // [MỚI] Độ tự tin của AI (0-100%)
+  seoTags: string[]; // [MỚI] Hashtag để tìm kiếm (vd: #iphone, #giare)
+  sellingTips: string; // [MỚI] AI tư vấn cách chụp ảnh/bán nhanh hơn
 }
 
-// Giữ nguyên Map danh mục của bạn (Rất tốt)
 const CATEGORY_MAP_PROMPT = `
 HÃY PHÂN TÍCH ẢNH VÀ CHỌN CHÍNH XÁC MỘT TRONG CÁC ID (SLUG) DƯỚI ĐÂY:
 1. Bất động sản: 'can-ho-chung-cu', 'nha-o', 'dat', 'phong-tro', 'van-phong'
@@ -54,10 +52,9 @@ const safeGetText = (response: any): string => {
 };
 
 // ==========================================================================
-// 2. CÁC HÀM GỌI API (ĐÃ TỐI ƯU)
+// 2. CÁC HÀM GỌI API (Giữ nguyên thư viện, Nâng cấp Prompt)
 // ==========================================================================
 
-// [NÂNG CẤP] Tìm kiếm thông minh hơn: Nhận diện cả Thương hiệu + Model
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
   const apiKey = getApiKey();
   if (!apiKey) return "";
@@ -67,12 +64,12 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
     const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp', // Model này nhanh và rẻ
+      model: 'gemini-2.0-flash-exp', 
       contents: {
         role: 'user',
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-          { text: "Xác định vật thể chính trong ảnh để tìm kiếm mua sắm. Trả về dạng: 'Tên vật thể + Thương hiệu (nếu rõ) + Màu sắc'. Ví dụ: 'iPhone 13 Pro Max xanh', 'Giày Nike Air Jordan đỏ'. Ngắn gọn dưới 6 từ." }
+          { text: "Xác định vật thể chính trong ảnh để tìm kiếm. Trả về: 'Tên vật thể + Thương hiệu + Màu sắc' (nếu rõ). Ví dụ: 'iPhone 13 xanh', 'Váy hoa nhí'. Ngắn gọn dưới 6 từ." }
         ]
       }
     });
@@ -84,13 +81,12 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
   }
 };
 
-// [NÂNG CẤP] Hàm phân tích chính
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
-  // Return default data nếu không có API Key
+  // Return default data nếu lỗi
   const defaultData: ListingAnalysis = { 
     title: '', description: '', category: 'khac', suggestedPrice: 0, minPrice: 0, maxPrice: 0,
-    condition: 'good', isProhibited: false, attributes: {}, seoTags: [], sellingTips: '', confidenceScore: 0
+    condition: 'good', isProhibited: false, attributes: {}, seoTags: [], sellingTips: '' 
   };
 
   if (!apiKey) return defaultData;
@@ -106,59 +102,59 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     }));
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp', // Dùng flash cho nhanh, nếu muốn cực thông minh hãy đổi sang 'gemini-1.5-pro'
+      model: 'gemini-2.0-flash-exp',
       
       contents: {
         role: 'user',
         parts: [
           ...imageParts,
-          { text: `Bạn là một chuyên gia thẩm định giá và Copywriter bán hàng đỉnh cao tại Việt Nam. 
-          Nhiệm vụ: Phân tích ảnh sản phẩm để tạo tin đăng bán hàng hấp dẫn nhất.
+          { text: `Bạn là một chuyên gia thẩm định giá và Copywriter bán hàng số 1 tại Việt Nam.
+          Nhiệm vụ: Phân tích ảnh để tạo tin đăng bán hàng hấp dẫn và chuyên nghiệp.
 
           ${CATEGORY_MAP_PROMPT}
           
-          YÊU CẦU ĐẶC BIỆT:
-          1. Title: Phải Giật tít, bao gồm Tên + Hãng + Tình trạng + Đặc điểm nổi bật. (Vd: "Macbook Pro M1 2020 16GB - Máy đẹp keng, Pin trâu")
-          2. Description: Viết theo cấu trúc bán hàng chuyên nghiệp:
-             - Mở đầu: Cảm xúc, lý do bán (ngắn gọn).
-             - Thân bài: Liệt kê chi tiết thông số kỹ thuật, tình trạng trầy xước (nếu có).
-             - Kết bài: Cam kết, kêu gọi hành động.
-          3. Price: Đưa ra mức giá trung bình thị trường đồ cũ tại Việt Nam (VNĐ).
-          4. SellingTips: Nhìn vào ảnh và khuyên người dùng nên làm gì để bán nhanh hơn (Vd: "Ảnh hơi tối, nên chụp thêm tem mác...").
-          5. Attributes: Chỉ trích xuất các thông số thực sự quan trọng với loại sản phẩm đó.
+          YÊU CẦU ĐẦU RA (OUTPUT):
+          1. Title: Giật tít hấp dẫn, gồm: Tên SP + Hãng + Tình trạng nổi bật.
+          2. Description: Viết mô tả bán hàng có cảm xúc, chia đoạn rõ ràng (Mở bài - Thân bài thông số - Kết bài cam kết).
+          3. Price: 
+             - suggestedPrice: Giá trung bình.
+             - minPrice/maxPrice: Khoảng giá thấp nhất và cao nhất thị trường đồ cũ hiện nay.
+          4. Condition: Đánh giá thật kỹ tình trạng qua ảnh ('new', 'like_new', 'good', 'fair', 'poor').
+          5. SellingTips: Nhìn vào ảnh và đưa ra lời khuyên để người dùng chụp ảnh đẹp hơn hoặc bán nhanh hơn (Vd: "Nên chụp thêm ảnh tem mác", "Lau sạch bụi ở ống kính").
+          6. SeoTags: 5-7 từ khóa hashtag liên quan để dễ tìm kiếm.
+          7. Attributes: Trích xuất thông số kỹ thuật quan trọng nhất (Ram, Ổ cứng, ODO, Dung tích...).
           ` }
         ]
       },
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: SchemaType.OBJECT,
+          type: Type.OBJECT, // Giữ nguyên Type của @google/genai
           properties: {
-            isProhibited: { type: SchemaType.BOOLEAN },
-            prohibitedReason: { type: SchemaType.STRING },
-            title: { type: SchemaType.STRING },
-            category: { type: SchemaType.STRING },
-            suggestedPrice: { type: SchemaType.NUMBER },
-            minPrice: { type: SchemaType.NUMBER },
-            maxPrice: { type: SchemaType.NUMBER },
-            condition: { type: SchemaType.STRING, enum: ['new', 'like_new', 'good', 'fair', 'poor'] },
-            description: { type: SchemaType.STRING },
-            seoTags: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-            sellingTips: { type: SchemaType.STRING },
-            confidenceScore: { type: SchemaType.NUMBER },
+            isProhibited: { type: Type.BOOLEAN },
+            prohibitedReason: { type: Type.STRING },
+            title: { type: Type.STRING },
+            category: { type: Type.STRING },
+            suggestedPrice: { type: Type.NUMBER },
+            minPrice: { type: Type.NUMBER }, // Mới
+            maxPrice: { type: Type.NUMBER }, // Mới
+            condition: { type: Type.STRING, enum: ['new', 'like_new', 'good', 'fair', 'poor'] },
+            description: { type: Type.STRING },
+            sellingTips: { type: Type.STRING }, // Mới: Lời khuyên bán hàng
+            seoTags: { type: Type.ARRAY, items: { type: Type.STRING } }, // Mới: Hashtag
             attributes: {
-              type: SchemaType.OBJECT,
+              type: Type.OBJECT,
               properties: {
-                brand: { type: SchemaType.STRING },
-                model: { type: SchemaType.STRING },
-                origin: { type: SchemaType.STRING }, // Xuất xứ
-                year: { type: SchemaType.STRING },
-                color: { type: SchemaType.STRING },
-                material: { type: SchemaType.STRING }, // Chất liệu (quan trọng cho thời trang/nội thất)
-                size: { type: SchemaType.STRING }, // Kích thước/Size quần áo
-                capacity: { type: SchemaType.STRING }, // Dung lượng (GB, Lít, Kg)
-                status_detail: { type: SchemaType.STRING }, // Mô tả chi tiết tình trạng (vd: xước dăm, fullbox)
-                warranty: { type: SchemaType.STRING } // Còn bảo hành không
+                brand: { type: Type.STRING },
+                model: { type: Type.STRING },
+                year: { type: Type.STRING },
+                origin: { type: Type.STRING },
+                color: { type: Type.STRING },
+                material: { type: Type.STRING },
+                size: { type: Type.STRING },
+                capacity: { type: Type.STRING },
+                status_detail: { type: Type.STRING },
+                warranty: { type: Type.STRING }
               }
             }
           },

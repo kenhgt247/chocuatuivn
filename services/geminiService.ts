@@ -1,7 +1,7 @@
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 // ==========================================================================
-// 1. ĐỊNH NGHĨA INTERFACE
+// 1. ĐỊNH NGHĨA INTERFACE (Giữ nguyên logic của bạn)
 // ==========================================================================
 export interface ListingAnalysis {
   category: string;
@@ -13,16 +13,16 @@ export interface ListingAnalysis {
   pricingStrategy: {
     min: number;
     max: number;
-    fastSell: number;    // Giá bán nhanh (Rẻ)
-    suggested: number;   // Giá hợp lý
-    highProfit: number;  // Giá được giá
+    fastSell: number;    // Giá bán nhanh
+    suggested: number;   // Giá đề xuất
+    highProfit: number;  // Giá lời cao
     marketAnalysis: string;
   };
 
   qualityCheck: {
     score: number;
-    tips: string;        // Lời khuyên cụ thể (ngắn gọn)
-    issues: string[];    // Các vấn đề tìm thấy
+    tips: string;
+    issues: string[];
   };
 
   seoTags: string[];
@@ -53,73 +53,106 @@ const getApiKey = () => {
 };
 
 // ==========================================================================
-// 2. CÁC HÀM GỌI API
+// 2. CÁC HÀM GỌI API (Đã sửa SchemaType thành String literal)
 // ==========================================================================
 
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
-  // Data mặc định phòng khi lỗi
   const defaultData: any = { 
     title: '', description: '', category: 'khac', suggestedPrice: 0, 
     condition: 'good', isProhibited: false, attributes: {}, seoTags: [],
-    pricingStrategy: { min: 0, max: 0, fastSell: 0, suggested: 0, highProfit: 0, marketAnalysis: 'Chưa xác định được giá' },
+    pricingStrategy: { min: 0, max: 0, fastSell: 0, suggested: 0, highProfit: 0, marketAnalysis: 'Chưa xác định' },
     qualityCheck: { score: 50, tips: 'Cần thêm thông tin', issues: [] }, keySellingPoints: []
   };
 
   if (!apiKey) return defaultData;
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash", // Bản Flash nhanh và ổn định nhất hiện tại
-      generationConfig: {
+    const ai = new GoogleGenAI({ apiKey }); // Khởi tạo đúng cách cho @google/genai
+    
+    // Convert ảnh sang định dạng đúng
+    const imageParts = imagesBase64.map(base64 => ({
+      inlineData: {
+        data: base64.split(',')[1] || base64,
+        mimeType: "image/jpeg",
+      },
+    }));
+
+    const prompt = `
+    Vai trò: Bạn là một chuyên gia buôn bán đồ cũ lão làng ("Thợ") tại Việt Nam.
+    Nhiệm vụ: Nhìn ảnh, thẩm định giá và viết bài đăng bán giúp người dùng.
+
+    YÊU CẦU ĐẶC BIỆT:
+    1. ĐỊNH GIÁ (BẮT BUỘC):
+       - Phải ước lượng ra con số VNĐ cụ thể. KHÔNG trả về 0.
+       - fastSell: Giá rẻ để bay nhanh.
+       - highProfit: Giá thách cưới (cao hơn 15-20%).
+
+    2. SOI ẢNH:
+       - Soi kỹ ánh sáng, phông nền. Đưa lời khuyên cụ thể để chụp đẹp hơn.
+
+    3. CONTENT:
+       - Tiêu đề: Giật tít, có icon (🔥, ⚡).
+       - Mô tả: Văn phong tự nhiên, nhấn mạnh lợi ích.
+
+    DANH MỤC:
+    ${CATEGORY_MAP_PROMPT}
+    `;
+
+    // Gọi model với cấu hình Schema JSON chuẩn (thay vì dùng SchemaType)
+    const response = await ai.models.generateContent({
+      model: 'gemini-1.5-flash',
+      contents: [
+        { role: 'user', parts: [...imageParts, { text: prompt }] }
+      ],
+      config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: SchemaType.OBJECT,
+          type: "OBJECT", // Thay SchemaType.OBJECT bằng "OBJECT"
           properties: {
-            isProhibited: { type: SchemaType.BOOLEAN },
-            prohibitedReason: { type: SchemaType.STRING },
-            category: { type: SchemaType.STRING },
-            title: { type: SchemaType.STRING },
-            description: { type: SchemaType.STRING },
-            suggestedPrice: { type: SchemaType.NUMBER },
+            isProhibited: { type: "BOOLEAN" },
+            prohibitedReason: { type: "STRING" },
+            category: { type: "STRING" },
+            title: { type: "STRING" },
+            description: { type: "STRING" },
+            suggestedPrice: { type: "NUMBER" },
             
             pricingStrategy: {
-              type: SchemaType.OBJECT,
+              type: "OBJECT",
               properties: {
-                min: { type: SchemaType.NUMBER },
-                max: { type: SchemaType.NUMBER },
-                fastSell: { type: SchemaType.NUMBER },
-                suggested: { type: SchemaType.NUMBER },
-                highProfit: { type: SchemaType.NUMBER },
-                marketAnalysis: { type: SchemaType.STRING }
+                min: { type: "NUMBER" },
+                max: { type: "NUMBER" },
+                fastSell: { type: "NUMBER" },
+                suggested: { type: "NUMBER" },
+                highProfit: { type: "NUMBER" },
+                marketAnalysis: { type: "STRING" }
               }
             },
             
-            condition: { type: SchemaType.STRING, enum: ['new', 'like_new', 'good', 'fair', 'poor'] },
+            condition: { type: "STRING", enum: ['new', 'like_new', 'good', 'fair', 'poor'] },
             
             qualityCheck: {
-              type: SchemaType.OBJECT,
+              type: "OBJECT",
               properties: {
-                score: { type: SchemaType.NUMBER },
-                tips: { type: SchemaType.STRING },
-                issues: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } }
+                score: { type: "NUMBER" },
+                tips: { type: "STRING" },
+                issues: { type: "ARRAY", items: { type: "STRING" } }
               }
             },
             
-            keySellingPoints: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-            seoTags: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+            keySellingPoints: { type: "ARRAY", items: { type: "STRING" } },
+            seoTags: { type: "ARRAY", items: { type: "STRING" } },
             
             attributes: {
-              type: SchemaType.OBJECT,
+              type: "OBJECT",
               properties: {
-                brand: { type: SchemaType.STRING },
-                model: { type: SchemaType.STRING },
-                year: { type: SchemaType.STRING },
-                origin: { type: SchemaType.STRING },
-                color: { type: SchemaType.STRING },
-                status_detail: { type: SchemaType.STRING },
-                warranty: { type: SchemaType.STRING }
+                brand: { type: "STRING" },
+                model: { type: "STRING" },
+                year: { type: "STRING" },
+                origin: { type: "STRING" },
+                color: { type: "STRING" },
+                status_detail: { type: "STRING" },
+                warranty: { type: "STRING" }
               }
             }
           },
@@ -128,40 +161,10 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
       }
     });
 
-    const imageParts = imagesBase64.map(base64 => ({
-      inlineData: {
-        data: base64.split(',')[1] || base64,
-        mimeType: "image/jpeg",
-      },
-    }));
-
-    // PROMPT CỰC MẠNH: ÉP AI PHẢI ĐOÁN GIÁ VÀ SOI LỖI ẢNH
-    const prompt = `
-    Vai trò: Bạn là một chuyên gia buôn bán đồ cũ lão làng ("Thợ") tại Việt Nam.
-    Nhiệm vụ: Nhìn ảnh, thẩm định giá và viết bài đăng bán giúp người dùng.
-
-    YÊU CẦU ĐẶC BIỆT:
-    1. ĐỊNH GIÁ (BẮT BUỘC):
-       - Phải ước lượng ra con số VNĐ cụ thể. Nếu không biết chính xác model, hãy đoán dựa trên ngoại hình.
-       - TUYỆT ĐỐI KHÔNG TRẢ VỀ GIÁ = 0. Nếu khó quá, hãy lấy giá sàn của loại sản phẩm đó (Ví dụ: Xe máy cũ nát bèo nhất cũng 3 triệu).
-       - fastSell: Giá rẻ để bay nhanh trong 24h.
-       - highProfit: Giá thách cưới (cao hơn 15-20%).
-
-    2. SOI ẢNH (Image Audit):
-       - Soi kỹ ánh sáng, phông nền, độ nét.
-       - Đưa ra lời khuyên "đanh thép" để người dùng chụp lại đẹp hơn. Ví dụ: "Ảnh tối om thế này khách chạy hết, mang ra nắng chụp lại đi".
-
-    3. VIẾT CONTENT:
-       - Tiêu đề: Giật tít, có icon (🔥, ⚡), viết hoa tên sản phẩm.
-       - Mô tả: Văn phong tự nhiên, chân thực, nhấn mạnh vào lợi ích (Tiết kiệm xăng, máy êm, chưa sửa chữa...).
-
-    DANH MỤC HỆ THỐNG:
-    ${CATEGORY_MAP_PROMPT}
-    `;
-
-    const result = await model.generateContent([prompt, ...imageParts]);
-    const response = await result.response;
-    return JSON.parse(response.text()) as ListingAnalysis;
+    // Parse kết quả trả về
+    const text = response.text();
+    if (!text) return defaultData;
+    return JSON.parse(text) as ListingAnalysis;
 
   } catch (error) {
     console.error("Lỗi AI Service:", error);

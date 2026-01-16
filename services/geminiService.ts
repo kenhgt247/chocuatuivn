@@ -100,20 +100,23 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
       inlineData: { data: base64.split(',')[1] || base64, mimeType: "image/jpeg" },
     }));
 
-    const prompt = `
-    Bạn là chuyên gia thẩm định giá đồ cũ tại Việt Nam.
-    Nhiệm vụ: Phân tích ảnh và trả về JSON.
+   const prompt = `
+    Vai trò: Bạn là một "Chiến thần Sales" trên chợ đồ cũ Việt Nam.
+    Nhiệm vụ: Nhìn ảnh sản phẩm và TỰ ĐỘNG ĐIỀN thông tin để bán được hàng ngay lập tức.
 
-    QUAN TRỌNG:
-    1. GIÁ (pricingStrategy): BẮT BUỘC trả về số tiền VNĐ. KHÔNG ĐƯỢC ĐỂ 0.
-       - Nếu không chắc, hãy đoán giá thấp nhất của loại hàng này.
-       - fastSell: Giá rẻ để bán nhanh.
-       - suggested: Giá trung bình thị trường.
-       - highProfit: Giá cao.
-    
-    2. CONTENT:
-       - Tiêu đề: Có icon, viết hoa tên chính.
-       - Mô tả: Hấp dẫn, chia dòng.
+    1. TƯ DUY VỀ GIÁ (Cực kỳ quan trọng):
+       - Nhìn kỹ thương hiệu, độ mới, trầy xước.
+       - BẮT BUỘC trả về con số VNĐ (Ví dụ: 12500000). Không được trả về 0.
+       - fastSell: Giá "xả lỗ" để bay trong ngày.
+       - suggested: Giá "thuận mua vừa bán".
+       - highProfit: Giá "thách cưới" cho khách sộp.
+
+    2. VIẾT NỘI DUNG (Phải hay, không được như robot):
+       - Tiêu đề: Giật tít, kèm icon, viết hoa tên Model. (Vd: "🔥 PASS NHANH Honda Vision 2021 Chính Chủ - Còn Mới Keng")
+       - Mô tả:
+         + Mở đầu: Lý do bán (lên đời, không dùng...) nghe cho tự nhiên.
+         + Thân bài: Gạch đầu dòng các ưu điểm (Mới 99%, Máy êm, Fullbox...).
+         + Kết bài: Kêu gọi hành động (Fix nhẹ xăng xe cho anh em nhiệt tình).
 
     DANH MỤC: ${CATEGORY_MAP_PROMPT}
     `;

@@ -6,7 +6,6 @@ import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
 
 const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=random&color=fff&name=User";
 
-// Danh sách tin nhắn mẫu
 const QUICK_REPLIES = [
   "Sản phẩm này còn không bạn?",
   "Hàng chuẩn như hình không ạ?",
@@ -23,7 +22,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
   const [message, setMessage] = useState('');
   
-  // State quản lý việc load thông tin đối tác
   const [fetchedPartners, setFetchedPartners] = useState<Record<string, { name: string, avatar: string }>>({});
   
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -43,38 +41,60 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     }
   }, [user]);
 
-  // 2. Fetch missing partner info
+  // 2. [FIX] Tối ưu Fetch missing partner info (Tránh render loop)
   useEffect(() => {
     if (!user || rooms.length === 0) return;
-    rooms.forEach(async (room) => {
-        const partnerId = room.participantIds.find(id => id !== user.id);
+
+    // Lọc ra các ID cần fetch trước để tránh gọi setFetchedPartners nhiều lần
+    const idsToFetch: string[] = [];
+    
+    rooms.forEach(room => {
+        // [FIX] Thêm ?. để tránh crash nếu data lỗi
+        const partnerId = room.participantIds?.find(id => id !== user.id);
         if (partnerId && (!room.participantsData || !room.participantsData[partnerId]) && !fetchedPartners[partnerId]) {
-            try {
-                const partnerUser = await db.getUserById(partnerId);
-                if (partnerUser) {
-                    setFetchedPartners(prev => ({
-                        ...prev,
-                        [partnerId]: { name: partnerUser.name, avatar: partnerUser.avatar }
-                    }));
-                }
-            } catch (err) { console.error(err); }
+            idsToFetch.push(partnerId);
         }
     });
-  }, [rooms, user, fetchedPartners]);
 
-  // 3. Load Active Room
+    if (idsToFetch.length > 0) {
+        // Fetch song song tất cả các user thiếu
+        Promise.all(idsToFetch.map(id => db.getUserById(id).then(u => ({ id, u }))))
+            .then(results => {
+                const newPartners: Record<string, any> = {};
+                results.forEach(({ id, u }) => {
+                    if (u) newPartners[id] = { name: u.name, avatar: u.avatar };
+                });
+                // Update state 1 lần duy nhất
+                if (Object.keys(newPartners).length > 0) {
+                    setFetchedPartners(prev => ({ ...prev, ...newPartners }));
+                }
+            });
+    }
+  }, [rooms, user]); // Bỏ fetchedPartners khỏi dependency để tránh loop
+
+  // 3. Load Active Room & Mark as Seen
   useEffect(() => {
     const loadActiveRoom = async () => {
       if (user && roomId) {
+        // Ưu tiên lấy từ state rooms (realtime)
         const existingRoom = rooms.find(r => r.id === roomId);
+        
         if (existingRoom) {
           setActiveRoom(existingRoom);
+          // [FIX] Chỉ gọi API markSeen nếu thực sự chưa xem (Tiết kiệm write DB)
+          if (!existingRoom.seenBy?.includes(user.id)) {
+             db.markRoomAsSeen(roomId, user.id);
+          }
         } else {
-          // Nếu không tìm thấy trong list (vd: reload trang), thử fetch lẻ
+          // Fallback: Fetch lẻ nếu chưa có trong list
           const room = await db.getChatRoom(roomId);
-          if (room) setActiveRoom(room);
+          if (room) {
+             setActiveRoom(room);
+             if (!room.seenBy?.includes(user.id)) {
+                 db.markRoomAsSeen(roomId, user.id);
+             }
+          }
         }
-        if (user) db.markRoomAsSeen(roomId, user.id);
       } else {
         setActiveRoom(null);
       }
@@ -85,29 +105,37 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   // Auto scroll
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeRoom?.messages]);
+  }, [activeRoom?.messages]); // Chỉ scroll khi messages thay đổi
 
-  // Gửi tin nhắn thường
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() || !activeRoom || !user) return;
     const textToSend = message;
     setMessage(''); 
-    await db.addMessage(activeRoom.id, {
-      senderId: user.id,
-      text: textToSend,
-      type: 'text'
-    });
+    try {
+        await db.addMessage(activeRoom.id, {
+        senderId: user.id,
+        text: textToSend,
+        type: 'text'
+        });
+    } catch (error) {
+        console.error("Lỗi gửi tin nhắn:", error);
+        alert("Không thể gửi tin nhắn. Vui lòng thử lại.");
+        setMessage(textToSend); // Hoàn lại tin nhắn nếu lỗi
+    }
   };
 
-  // Hàm gửi tin nhắn nhanh
   const handleSendQuickReply = async (text: string) => {
     if (!activeRoom || !user) return;
-    await db.addMessage(activeRoom.id, {
-      senderId: user.id,
-      text: text,
-      type: 'text'
-    });
+    try {
+        await db.addMessage(activeRoom.id, {
+        senderId: user.id,
+        text: text,
+        type: 'text'
+        });
+    } catch (error) {
+        console.error(error);
+    }
   };
 
   const handleDeleteMessage = async (messageId: string) => {
@@ -124,47 +152,47 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     } catch (error) { alert("Lỗi xóa phòng chat."); }
   };
 
-  // --- XỬ LÝ TRẢ GIÁ (OFFER) ---
   const handleRespondOffer = async (offerId: string, status: 'accepted' | 'rejected') => {
     if (!activeRoom || !offerId) return;
     if (!window.confirm(`Bạn có chắc muốn ${status === 'accepted' ? 'ĐỒNG Ý' : 'TỪ CHỐI'} mức giá này?`)) return;
-    const result = await db.respondToOffer(offerId, status, activeRoom.id);
-    if (!result.success) alert("Lỗi: " + result.message);
+    try {
+        const result = await db.respondToOffer(offerId, status, activeRoom.id);
+        if (!result.success) alert("Lỗi: " + result.message);
+    } catch (error) {
+        alert("Lỗi kết nối server.");
+    }
   };
 
-  // --- [FIXED] XỬ LÝ ĐỔI ĐỒ (SWAP) ---
   const handleRespondSwap = async (messageId: string, status: 'accepted' | 'rejected') => {
     if (!activeRoom || !messageId) return;
-    
-    // Hỏi xác nhận trước khi bấm
     if (!window.confirm(`Bạn có chắc muốn ${status === 'accepted' ? 'ĐỒNG Ý' : 'TỪ CHỐI'} lời đề nghị này?`)) return;
-    
     try {
-        // Gọi hàm DB thật (đã được thêm ở bước trước)
         const result = await db.respondToSwap(activeRoom.id, messageId, status);
-        
         if (!result.success) {
             alert("Lỗi: " + result.message);
         }
-        // Nếu thành công, UI sẽ tự cập nhật nhờ realtime snapshot
     } catch (e) {
         console.error(e);
         alert("Lỗi kết nối.");
     }
   };
 
+  // [FIX] Thêm optional chaining ?. và fallback an toàn
   const getPartnerInfo = (room: any, currentUserId: string) => {
-    const partnerId = room.participantIds.find((id: string) => id !== currentUserId) || '';
+    const partnerId = room.participantIds?.find((id: string) => id !== currentUserId) || '';
+    
+    // Ưu tiên 1: Data có sẵn trong room
     if (room.participantsData && room.participantsData[partnerId]) {
         return { name: room.participantsData[partnerId].name, avatar: room.participantsData[partnerId].avatar, isProductAvatar: false };
     }
+    // Ưu tiên 2: Data đã fetch lẻ
     if (fetchedPartners[partnerId]) {
         return { name: fetchedPartners[partnerId].name, avatar: fetchedPartners[partnerId].avatar, isProductAvatar: false };
     }
-    return { name: room.listingTitle, avatar: room.listingImage, isProductAvatar: true };
+    // Ưu tiên 3: Fallback lấy ảnh sản phẩm làm avatar
+    return { name: room.listingTitle || "Người dùng", avatar: room.listingImage || DEFAULT_AVATAR, isProductAvatar: true };
   };
 
-  // --- RENDER: Tin nhắn Trả giá (Mặc cả) ---
   const renderOfferMessage = (msg: Message, isMe: boolean) => {
     const priceMatch = msg.text.match(/[\d,.]+/);
     const priceStr = priceMatch ? priceMatch[0] : "???";
@@ -191,7 +219,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     );
   };
 
-  // --- RENDER: Tin nhắn Đổi đồ (Swap) ---
   const renderSwapMessage = (msg: Message, isMe: boolean) => {
     const swapData = msg.swapData || {
         offeredItemName: "Sản phẩm đổi",
@@ -200,16 +227,13 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
         status: undefined
     };
 
-    // Kiểm tra trạng thái
     const status = swapData.status; 
     const isPending = !status;
-    
-    // Chỉ người nhận mới được bấm nút (và chỉ khi đang pending)
+    // [LOGIC] Chỉ người nhận (not me) mới được accept, VÀ status phải là pending
     const canRespond = !isMe && isPending;
 
     return (
         <div className={`bg-white border-2 rounded-2xl p-4 shadow-sm w-72 space-y-3 relative overflow-hidden ${status === 'accepted' ? 'border-green-500 bg-green-50' : (status === 'rejected' ? 'border-gray-200 opacity-75' : 'border-purple-100')}`}>
-            {/* Header */}
             <div className="flex items-center gap-2 border-b border-black/5 pb-2 relative z-10">
                 <span className="text-xl">{status === 'accepted' ? '✅' : (status === 'rejected' ? '❌' : '🔄')}</span>
                 <span className={`font-black text-xs uppercase ${status === 'accepted' ? 'text-green-700' : (status === 'rejected' ? 'text-gray-500' : 'text-purple-700')}`}>
@@ -217,13 +241,11 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                 </span>
             </div>
             
-            {/* Background Decoration */}
             {isPending && <div className="absolute -right-4 -top-4 w-20 h-20 bg-purple-50 rounded-full blur-2xl z-0"></div>}
 
-            {/* Nội dung đổi */}
             <div className="relative z-10">
                 <div className="flex items-center gap-3 bg-white/60 p-2 rounded-xl border border-black/5">
-                    <img src={swapData.offeredItemImage} className="w-12 h-12 rounded-lg object-cover bg-white" alt="" />
+                    <img src={swapData.offeredItemImage} className="w-12 h-12 rounded-lg object-cover bg-white" alt="" onError={(e) => handleImageError(e, DEFAULT_AVATAR)} />
                     <div className="min-w-0">
                         <p className="text-[9px] text-gray-400 font-bold uppercase">Đổi lấy món:</p>
                         <p className="text-xs font-bold text-gray-800 truncate">{swapData.offeredItemName}</p>
@@ -247,7 +269,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
             </div>
 
-            {/* Actions: Chỉ hiện khi CHƯA xử lý */}
             {canRespond && (
                 <div className="grid grid-cols-2 gap-2 relative z-10">
                     <button onClick={() => handleRespondSwap(msg.id, 'rejected')} className="py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs rounded-xl transition-colors">Từ chối</button>
@@ -255,7 +276,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
             )}
             
-            {/* Trạng thái text: Hiện khi ĐÃ xử lý */}
             {!isPending && (
                 <div className={`text-center text-[10px] font-bold uppercase py-1 rounded-lg ${status === 'accepted' ? 'text-green-600 bg-green-100' : 'text-red-500 bg-red-100'}`}>
                     {status === 'accepted' ? 'Hai bên đã chốt kèo' : 'Đề nghị đã bị hủy'}
@@ -293,7 +313,6 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                     </div>
                     <p className="text-[10px] text-gray-500 truncate font-medium bg-gray-100 px-1.5 py-0.5 rounded w-fit max-w-full mt-0.5">{room.listingTitle}</p>
                     <p className={`text-xs truncate mt-1 ${isUnread ? 'font-black text-primary' : 'text-gray-400'}`}>
-                      {/* Hiển thị preview tin nhắn thông minh hơn */}
                       {room.lastMessage?.includes('💰') ? '💰 Có lời mặc cả mới' : 
                        room.lastMessage?.includes('🔄') ? '🔄 Có đề nghị đổi đồ' : 
                        (room.lastMessage || 'Bắt đầu cuộc trò chuyện')}
@@ -346,11 +365,10 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                             </div>
                         )}
                         <div className={`relative max-w-[85%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                            {/* LOGIC RENDER TIN NHẮN THEO LOẠI */}
                             {msg.type === 'offer' ? (
                                 renderOfferMessage(msg, isMe)
                             ) : msg.type === 'swap' ? (
-                                renderSwapMessage(msg, isMe) // [MỚI] Render thẻ đổi đồ
+                                renderSwapMessage(msg, isMe)
                             ) : (
                                 <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm leading-relaxed ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm'}`}>
                                   {msg.text}

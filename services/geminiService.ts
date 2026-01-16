@@ -1,25 +1,42 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 // ==========================================================================
-// 1. ĐỊNH NGHĨA INTERFACE NÂNG CẤP (Thêm các trường thông minh)
+// 1. ĐỊNH NGHĨA INTERFACE "ĐẲNG CẤP"
 // ==========================================================================
 export interface ListingAnalysis {
   category: string;
-  suggestedPrice: number;
-  minPrice: number; // [MỚI] Giá thấp nhất thị trường
-  maxPrice: number; // [MỚI] Giá cao nhất thị trường
   title: string;
-  description: string; // Viết chuẩn SEO, hấp dẫn hơn
+  description: string; // Nội dung bán hàng chuẩn AIDA (Attention - Interest - Desire - Action)
+  
+  // [MỚI] Chiến lược giá thông minh
+  pricing: {
+    suggested: number;   // Giá đề xuất cân bằng
+    fastSell: number;    // Giá "xả lỗ" để bay nhanh trong 24h
+    highProfit: number;  // Giá "thách cưới" dành cho khách không vội
+    marketRange: string; // Vd: "5.000.000 - 6.500.000 đ"
+    currency: string;
+  };
+
+  // [MỚI] Thẩm định chất lượng tin đăng
+  qualityCheck: {
+    score: number;       // Chấm điểm ảnh trên thang 100
+    issues: string[];    // Các vấn đề (Vd: Ảnh ngược sáng, Thiếu góc chụp đáy)
+    tips: string;        // Lời khuyên cụ thể để cải thiện
+  };
+
   condition: 'new' | 'like_new' | 'good' | 'fair' | 'poor';
   isProhibited: boolean;
   prohibitedReason?: string;
+  
+  // [MỚI] SEO & Marketing
+  seoTags: string[];     // Hashtag
+  keySellingPoints: string[]; // 3 điểm "ăn tiền" nhất của sản phẩm này
+
   attributes: Record<string, any>;
-  seoTags: string[]; // [MỚI] Hashtag để tìm kiếm (vd: #iphone, #giare)
-  sellingTips: string; // [MỚI] AI tư vấn cách chụp ảnh/bán nhanh hơn
 }
 
+// Map danh mục giữ nguyên
 const CATEGORY_MAP_PROMPT = `
-HÃY PHÂN TÍCH ẢNH VÀ CHỌN CHÍNH XÁC MỘT TRONG CÁC ID (SLUG) DƯỚI ĐÂY:
 1. Bất động sản: 'can-ho-chung-cu', 'nha-o', 'dat', 'phong-tro', 'van-phong'
 2. Xe cộ: 'o-to', 'xe-may', 'xe-dien', 'xe-tai', 'xe-dap', 'phu-tung-xe'
 3. Đồ điện tử: 'dien-thoai', 'may-tinh-bang', 'laptop', 'may-tinh-de-ban', 'may-anh', 'tivi-am-thanh', 'thiet-bi-thong-minh', 'phu-kien-dt', 'linh-kien'
@@ -52,7 +69,7 @@ const safeGetText = (response: any): string => {
 };
 
 // ==========================================================================
-// 2. CÁC HÀM GỌI API (Giữ nguyên thư viện, Nâng cấp Prompt)
+// 2. CÁC HÀM GỌI API (NÂNG CẤP PROMPT SIÊU CẤP)
 // ==========================================================================
 
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
@@ -69,24 +86,25 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
         role: 'user',
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-          { text: "Xác định vật thể chính trong ảnh để tìm kiếm. Trả về: 'Tên vật thể + Thương hiệu + Màu sắc' (nếu rõ). Ví dụ: 'iPhone 13 xanh', 'Váy hoa nhí'. Ngắn gọn dưới 6 từ." }
+          { text: "Bạn là chuyên gia tìm kiếm. Hãy nhìn ảnh và đưa ra 1 từ khóa chính xác nhất để tìm mua món này trên chợ đồ cũ. Ví dụ: 'iphone 14 pro max', 'tủ lạnh toshiba 180l'. Không dài dòng." }
         ]
       }
     });
     
     return safeGetText(response).trim().toLowerCase();
   } catch (error) {
-    console.error("Lỗi AI Search:", error);
     return "";
   }
 };
 
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
-  // Return default data nếu lỗi
-  const defaultData: ListingAnalysis = { 
-    title: '', description: '', category: 'khac', suggestedPrice: 0, minPrice: 0, maxPrice: 0,
-    condition: 'good', isProhibited: false, attributes: {}, seoTags: [], sellingTips: '' 
+  // Default data phòng khi lỗi
+  const defaultData: any = { 
+    title: '', description: '', category: 'khac', 
+    pricing: { suggested: 0, fastSell: 0, highProfit: 0, marketRange: '0 - 0', currency: 'VNĐ' },
+    condition: 'good', isProhibited: false, attributes: {}, seoTags: [], 
+    qualityCheck: { score: 50, issues: [], tips: '' }, keySellingPoints: []
   };
 
   if (!apiKey) return defaultData;
@@ -102,63 +120,91 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     }));
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.0-flash-exp', // Model này cực nhanh và thông minh
       
       contents: {
         role: 'user',
         parts: [
           ...imageParts,
-          { text: `Bạn là một chuyên gia thẩm định giá và Copywriter bán hàng số 1 tại Việt Nam.
-          Nhiệm vụ: Phân tích ảnh để tạo tin đăng bán hàng hấp dẫn và chuyên nghiệp.
+          { text: `
+          Vai trò: Bạn là "Vua Bán Hàng" trên sàn thương mại điện tử C2C tại Việt Nam.
+          Nhiệm vụ: Phân tích ảnh sản phẩm và tạo ra bộ thông tin đăng bán tối ưu nhất để "chốt đơn" ngay lập tức.
 
+          1. PHÂN TÍCH HÌNH ẢNH (Image Audit):
+             - Đánh giá chất lượng ảnh (ánh sáng, góc chụp, độ nét).
+             - Chỉ ra lỗi khiến khách hàng không dám mua (nếu có).
+
+          2. ĐỊNH GIÁ CHIẾN LƯỢC (Strategic Pricing):
+             - Xác định model, thương hiệu, độ mới.
+             - Đưa ra 3 mức giá: Giá bán nhanh (Rẻ), Giá đề xuất (Vừa), Giá cao (Lời nhiều).
+
+          3. VIẾT CONTENT "THÔI MIÊN" (Copywriting):
+             - Title: Phải có icon, giật tít, chứa từ khóa đắt giá (Vd: "🔥 Pas nhanh...").
+             - Description: Viết có cảm xúc, chia đoạn, dùng emoji, tập trung vào lợi ích (Vd: "Máy chạy êm ru", "Tiết kiệm điện").
+
+          DANH MỤC HỆ THỐNG:
           ${CATEGORY_MAP_PROMPT}
           
-          YÊU CẦU ĐẦU RA (OUTPUT):
-          1. Title: Giật tít hấp dẫn, gồm: Tên SP + Hãng + Tình trạng nổi bật.
-          2. Description: Viết mô tả bán hàng có cảm xúc, chia đoạn rõ ràng (Mở bài - Thân bài thông số - Kết bài cam kết).
-          3. Price: 
-             - suggestedPrice: Giá trung bình.
-             - minPrice/maxPrice: Khoảng giá thấp nhất và cao nhất thị trường đồ cũ hiện nay.
-          4. Condition: Đánh giá thật kỹ tình trạng qua ảnh ('new', 'like_new', 'good', 'fair', 'poor').
-          5. SellingTips: Nhìn vào ảnh và đưa ra lời khuyên để người dùng chụp ảnh đẹp hơn hoặc bán nhanh hơn (Vd: "Nên chụp thêm ảnh tem mác", "Lau sạch bụi ở ống kính").
-          6. SeoTags: 5-7 từ khóa hashtag liên quan để dễ tìm kiếm.
-          7. Attributes: Trích xuất thông số kỹ thuật quan trọng nhất (Ram, Ổ cứng, ODO, Dung tích...).
+          OUTPUT JSON FORMAT (Bắt buộc đúng Schema):
           ` }
         ]
       },
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.OBJECT, // Giữ nguyên Type của @google/genai
+          type: Type.OBJECT,
           properties: {
             isProhibited: { type: Type.BOOLEAN },
             prohibitedReason: { type: Type.STRING },
-            title: { type: Type.STRING },
             category: { type: Type.STRING },
-            suggestedPrice: { type: Type.NUMBER },
-            minPrice: { type: Type.NUMBER }, // Mới
-            maxPrice: { type: Type.NUMBER }, // Mới
-            condition: { type: Type.STRING, enum: ['new', 'like_new', 'good', 'fair', 'poor'] },
+            
+            title: { type: Type.STRING },
             description: { type: Type.STRING },
-            sellingTips: { type: Type.STRING }, // Mới: Lời khuyên bán hàng
-            seoTags: { type: Type.ARRAY, items: { type: Type.STRING } }, // Mới: Hashtag
+            
+            condition: { type: Type.STRING, enum: ['new', 'like_new', 'good', 'fair', 'poor'] },
+            
+            // [MỚI] Cấu trúc giá thông minh
+            pricing: {
+              type: Type.OBJECT,
+              properties: {
+                suggested: { type: Type.NUMBER }, // Giá chuẩn
+                fastSell: { type: Type.NUMBER },  // Giá bán gấp (rẻ hơn 10-15%)
+                highProfit: { type: Type.NUMBER }, // Giá bán thong thả (cao hơn 10%)
+                marketRange: { type: Type.STRING }, // Khoảng giá thị trường
+                currency: { type: Type.STRING }
+              }
+            },
+
+            // [MỚI] Thẩm định chất lượng tin đăng
+            qualityCheck: {
+              type: Type.OBJECT,
+              properties: {
+                score: { type: Type.NUMBER }, // Điểm số ảnh (0-100)
+                issues: { type: Type.ARRAY, items: { type: Type.STRING } }, // Lỗi của ảnh
+                tips: { type: Type.STRING } // Lời khuyên cụ thể
+              }
+            },
+
+            // Marketing
+            keySellingPoints: { type: Type.ARRAY, items: { type: Type.STRING } }, // 3 điểm mạnh nhất
+            seoTags: { type: Type.ARRAY, items: { type: Type.STRING } },
+
             attributes: {
               type: Type.OBJECT,
               properties: {
                 brand: { type: Type.STRING },
                 model: { type: Type.STRING },
-                year: { type: Type.STRING },
                 origin: { type: Type.STRING },
+                year: { type: Type.STRING },
                 color: { type: Type.STRING },
-                material: { type: Type.STRING },
-                size: { type: Type.STRING },
-                capacity: { type: Type.STRING },
-                status_detail: { type: Type.STRING },
+                usage: { type: Type.STRING }, // Thời gian đã sử dụng
+                battery: { type: Type.STRING }, // Pin (nếu có)
+                status_detail: { type: Type.STRING }, // Mô tả kỹ vết xước
                 warranty: { type: Type.STRING }
               }
             }
           },
-          required: ["title", "category", "suggestedPrice", "description", "condition", "seoTags"]
+          required: ["title", "category", "pricing", "description", "condition", "qualityCheck"]
         }
       }
     });

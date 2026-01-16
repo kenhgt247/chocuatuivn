@@ -401,8 +401,8 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const hasChildren = childCategories.length > 0;
 
   return (
-    // [FIX UI] overflow-hidden ở root để tránh cuộn ngang ngoài ý muốn
-    <div className="max-w-7xl mx-auto space-y-6 px-4 pb-20 pt-6 font-sans overflow-x-hidden">
+    // [FIX CRITICAL] overflow-x-hidden để CHẶN đứng việc trang bị trôi sang phải
+    <div className="max-w-7xl mx-auto space-y-6 px-4 pb-20 pt-6 font-sans overflow-x-hidden w-full">
       <div className="text-center space-y-3 mb-6">
         <h1 className="text-2xl md:text-3xl font-black text-gray-900 uppercase">{isEditing ? 'Chỉnh Sửa Tin' : 'Đăng Tin Mới'}</h1>
         {!isEditing && (
@@ -490,7 +490,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         {/* CỘT PHẢI: FORM */}
         <div className="lg:col-span-8">
           {(listingType === 'normal' || user?.subscriptionTier === 'pro') && (
-            <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-3xl p-4 md:p-8 shadow-xl shadow-gray-100/50 space-y-5 md:space-y-6">
+            <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-3xl p-4 md:p-8 shadow-xl shadow-gray-100/50 space-y-5 md:space-y-6 w-full">
 
               {!isEditing && remainingPosts === 1 && (
                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-xl mb-2 animate-pulse">
@@ -573,7 +573,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 w-full max-w-full"> {/* [FIX] Ensure container is constrained */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                       <div className="space-y-1">
                         <label className={labelStyle}>Giá bán (VNĐ) *</label>
@@ -587,21 +587,23 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                         </select>
                       </div>
                     </div>
-                    {/* [FIX UI] Price Suggestions: Thêm max-w-full và overflow-x-auto để tránh vỡ khung */}
+                    {/* [FIX CRITICAL UIX] Price Chips: max-w-full + overflow-x-auto */}
                     {priceSuggestions && (
-                        <div className="flex gap-2 overflow-x-auto pb-2 w-full max-w-[100vw] no-scrollbar touch-pan-x">
-                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.fast.toString()}))} className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition whitespace-nowrap">
-                                <span className="text-[10px] font-bold text-green-600 uppercase">⚡ Bán nhanh</span>
-                                <span className="text-xs font-black text-green-700">{Number(priceSuggestions.fast).toLocaleString('vi-VN')}</span>
-                            </button>
-                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.market.toString()}))} className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition whitespace-nowrap">
-                                <span className="text-[10px] font-bold text-blue-600 uppercase">👍 Hợp lý</span>
-                                <span className="text-xs font-black text-blue-700">{Number(priceSuggestions.market).toLocaleString('vi-VN')}</span>
-                            </button>
-                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.high.toString()}))} className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition whitespace-nowrap">
-                                <span className="text-[10px] font-bold text-purple-600 uppercase">💰 Lời cao</span>
-                                <span className="text-xs font-black text-purple-700">{Number(priceSuggestions.high).toLocaleString('vi-VN')}</span>
-                            </button>
+                        <div className="w-full max-w-full overflow-hidden"> {/* Wrapper bắt buộc */}
+                            <div className="flex gap-2 overflow-x-auto pb-2 w-full no-scrollbar touch-pan-x scroll-smooth">
+                                <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.fast.toString()}))} className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition whitespace-nowrap">
+                                    <span className="text-[10px] font-bold text-green-600 uppercase">⚡ Bán nhanh</span>
+                                    <span className="text-xs font-black text-green-700">{Number(priceSuggestions.fast).toLocaleString('vi-VN')}</span>
+                                </button>
+                                <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.market.toString()}))} className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition whitespace-nowrap">
+                                    <span className="text-[10px] font-bold text-blue-600 uppercase">👍 Hợp lý</span>
+                                    <span className="text-xs font-black text-blue-700">{Number(priceSuggestions.market).toLocaleString('vi-VN')}</span>
+                                </button>
+                                <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.high.toString()}))} className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition whitespace-nowrap">
+                                    <span className="text-[10px] font-bold text-purple-600 uppercase">💰 Lời cao</span>
+                                    <span className="text-xs font-black text-purple-700">{Number(priceSuggestions.high).toLocaleString('vi-VN')}</span>
+                                </button>
+                            </div>
                         </div>
                     )}
                   </div>

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Category, CategoryAttribute } from '../types';
-import { analyzeListingImages } from '../services/geminiService';
+import { analyzeListingImages, ListingAnalysis } from '../services/geminiService';
 import { getLocationFromCoords } from '../utils/locationHelper';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import { LOCATIONS } from '../constants';
@@ -61,9 +61,9 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     isAuction: false, auctionEndAt: '', bidIncrement: '50000'
   });
 
-  // Styles Responsive: Mobile chữ to hơn 1 chút, padding hợp lý hơn
-  const inputStyle = "w-full bg-white border border-gray-200 rounded-2xl p-3 md:p-4 font-bold text-sm focus:outline-none focus:border-primary transition-all shadow-sm";
-  const labelStyle = "text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest px-1 mb-1.5 block";
+  // [FIX UI] Input Style an toàn hơn trên mobile (w-full, min-w-0)
+  const inputStyle = "w-full min-w-0 bg-white border border-gray-200 rounded-2xl p-3 md:p-4 font-bold text-sm focus:outline-none focus:border-primary transition-all shadow-sm placeholder:font-normal";
+  const labelStyle = "text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest px-1 mb-1.5 block truncate";
 
   // --- INITIALIZE ---
   useEffect(() => {
@@ -175,7 +175,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       const updatedImages = [...formData.images, ...compressedResults];
       setFormData(prev => ({ ...prev, images: updatedImages }));
 
-      // GỌI AI NGAY
       if (!isEditing && compressedResults.length > 0 && !formData.title) {
         runAIAnalysis(updatedImages);
       }
@@ -352,7 +351,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const renderDynamicFields = () => {
     if (currentAttributes.length === 0) return null;
     return (
-      // Mobile: 1 cột (grid-cols-1) | Desktop: 2 cột (md:grid-cols-2)
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up bg-blue-50/50 p-4 md:p-5 rounded-3xl border border-blue-100">
         <div className="col-span-1 md:col-span-2 text-xs font-black text-blue-500 uppercase tracking-widest mb-2 border-b border-blue-100 pb-2">Thông tin chi tiết</div>
         {currentAttributes.map((attr) => (
@@ -383,7 +381,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   if (isLimitReached && !isEditing) {
     return (
       <div className="max-w-2xl mx-auto mt-10 px-4 pb-20">
-        {/* Blocking UI content - Giữ nguyên như cũ */}
         <div className="bg-red-50 border-2 border-red-100 rounded-[2.5rem] p-10 text-center space-y-6 shadow-xl animate-fade-in-up">
           <div className="text-6xl animate-bounce">⛔️</div>
           <h2 className="text-2xl font-black text-red-600 uppercase">Hết hạn mức đăng tin</h2>
@@ -404,7 +401,8 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const hasChildren = childCategories.length > 0;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 px-4 pb-20 pt-6 font-sans">
+    // [FIX UI] overflow-hidden ở root để tránh cuộn ngang ngoài ý muốn
+    <div className="max-w-7xl mx-auto space-y-6 px-4 pb-20 pt-6 font-sans overflow-x-hidden">
       <div className="text-center space-y-3 mb-6">
         <h1 className="text-2xl md:text-3xl font-black text-gray-900 uppercase">{isEditing ? 'Chỉnh Sửa Tin' : 'Đăng Tin Mới'}</h1>
         {!isEditing && (
@@ -475,7 +473,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
           )}
 
-          {/* Quy tắc - Ẩn trên mobile để đỡ dài dòng, chỉ hiện trên PC */}
           <div className="hidden lg:block bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-6 rounded-3xl relative overflow-hidden">
             <div className="relative z-10">
               <h3 className="flex items-center gap-2 font-black text-xs md:text-sm uppercase text-blue-600 mb-4 tracking-wider">
@@ -493,7 +490,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         {/* CỘT PHẢI: FORM */}
         <div className="lg:col-span-8">
           {(listingType === 'normal' || user?.subscriptionTier === 'pro') && (
-            // [FIX] Padding nhỏ hơn trên mobile (p-4)
             <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-3xl p-4 md:p-8 shadow-xl shadow-gray-100/50 space-y-5 md:space-y-6">
 
               {!isEditing && remainingPosts === 1 && (
@@ -528,7 +524,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max 256GB..." value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={`${inputStyle} ${aiAnalyzing ? 'animate-pulse bg-blue-50' : ''}`} />
               </div>
 
-              {/* [FIX] Mobile: 1 cột (grid-cols-1) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 bg-gray-50 p-4 rounded-2xl border border-gray-100">
                 <div className="space-y-1">
                   <label className={labelStyle}>Danh mục Chính *</label>
@@ -555,7 +550,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                       <span className="text-xl">🔨</span>
                       <h3 className="font-black text-purple-700 uppercase text-xs tracking-widest">Thiết lập đấu giá</h3>
                     </div>
-                    {/* [FIX] Mobile: 1 cột */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Giá khởi điểm *</label>
@@ -580,7 +574,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {/* [FIX] Mobile: 1 cột */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                       <div className="space-y-1">
                         <label className={labelStyle}>Giá bán (VNĐ) *</label>
@@ -594,9 +587,9 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                         </select>
                       </div>
                     </div>
-                    {/* AI Price Chips */}
+                    {/* [FIX UI] Price Suggestions: Thêm max-w-full và overflow-x-auto để tránh vỡ khung */}
                     {priceSuggestions && (
-                        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                        <div className="flex gap-2 overflow-x-auto pb-2 w-full max-w-[100vw] no-scrollbar touch-pan-x">
                             <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.fast.toString()}))} className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition whitespace-nowrap">
                                 <span className="text-[10px] font-bold text-green-600 uppercase">⚡ Bán nhanh</span>
                                 <span className="text-xs font-black text-green-700">{Number(priceSuggestions.fast).toLocaleString('vi-VN')}</span>
@@ -615,7 +608,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 )}
               </div>
 
-              {/* [FIX] Mobile: 1 cột */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 <div className="space-y-1">
                   <label className={labelStyle}>Khu vực</label>

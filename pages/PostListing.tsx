@@ -2,10 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Category, CategoryAttribute } from '../types';
-import { analyzeListingImages } from '../services/geminiService';
+import { analyzeListingImages, ListingAnalysis } from '../services/geminiService'; // Import ListingAnalysis
 import { getLocationFromCoords } from '../utils/locationHelper';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import { LOCATIONS } from '../constants';
+import AIAnalysisModal from '../components/AIAnalysisModal'; // [NEW] Import Modal
 
 interface ListingFormData {
   title: string;
@@ -41,6 +42,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  
+  // [NEW] STATE CHO AI MODAL
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [aiResult, setAiResult] = useState<ListingAnalysis | null>(null);
+
   const [locationDetected, setLocationDetected] = useState<{ lat: number, lng: number } | null>(null);
   const [agreedToRules, setAgreedToRules] = useState(false);
   const [listingType, setListingType] = useState<'normal' | 'affiliate'>('normal');
@@ -238,11 +244,13 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     }
   };
 
+  // --- [UPDATED] HÀM GỌI AI VÀ MỞ MODAL ---
   const runAIAnalysis = async (images: string[]) => {
     setAiAnalyzing(true);
     try {
       const analysis = await analyzeListingImages(images.slice(0, 3)).catch(() => null);
       if (analysis) {
+        // 1. Tự động chọn danh mục (Logic cũ vẫn giữ để hỗ trợ ngầm)
         let foundChildId = "", foundParentId = "", newAttributes: any[] = [];
         const detectedCategory = categories.find(c => c.id === analysis.category);
         if (detectedCategory) {
@@ -254,22 +262,40 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             foundParentId = detectedCategory.id;
           }
         }
+        
+        // Cập nhật danh mục ngay lập tức (không cần hỏi)
         if (foundParentId) setSelectedParentId(foundParentId);
         if (foundChildId) setSelectedChildId(foundChildId);
         if (newAttributes.length > 0) setCurrentAttributes(newAttributes);
 
+        // 2. Lưu kết quả AI và Mở Modal để user chọn Giá/Content
+        setAiResult(analysis);
+        setAiModalOpen(true);
+        
+        // Lưu tạm attributes vào form luôn (vì modal không chỉnh attributes)
         setFormData(prev => ({
-          ...prev,
-          title: (!prev.title) ? (analysis.title || '') : prev.title,
-          category: foundChildId || foundParentId || prev.category,
-          price: (!prev.price) ? (analysis.suggestedPrice?.toString() || '') : prev.price,
-          description: (!prev.description) ? (analysis.description || '') : prev.description,
-          condition: (analysis.condition as 'new' | 'used') || prev.condition,
-          attributes: { ...prev.attributes, ...(analysis.attributes || {}) }
+            ...prev,
+            attributes: { ...prev.attributes, ...(analysis.attributes || {}) },
+            // Cập nhật category vào form
+            category: foundChildId || foundParentId || prev.category, 
+            condition: (analysis.condition as 'new' | 'used') || prev.condition
         }));
+
       }
     } catch (err) { console.log("AI skip"); }
     finally { setAiAnalyzing(false); }
+  };
+
+  // --- [NEW] HÀM XỬ LÝ KHI NGƯỜI DÙNG ÁP DỤNG TỪ MODAL ---
+  const handleApplyAI = (data: ListingAnalysis, selectedPrice: number) => {
+      setFormData(prev => ({
+          ...prev,
+          title: data.title,
+          description: data.description,
+          price: selectedPrice.toString(),
+          // Attributes và Condition đã được set ở bước runAIAnalysis
+      }));
+      setAiModalOpen(false); // Đóng modal
   };
 
   // --- SUBMIT ---
@@ -388,7 +414,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     }
   };
 
-  // --- HÀM RENDER DYNAMIC FIELDS (BỔ SUNG VÀO ĐÂY ĐỂ FIX LỖI) ---
+  // --- HÀM RENDER DYNAMIC FIELDS ---
   const renderDynamicFields = () => {
     if (currentAttributes.length === 0) return null;
     return (
@@ -483,6 +509,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
               <div className="flex justify-between items-center mb-4">
                 <label className={labelStyle}>Media ({formData.images.length}/{currentTierConfig.maxImages})</label>
+                {/* [UX] Loading Text */}
                 {aiAnalyzing && <span className="text-[9px] font-bold text-blue-500 animate-pulse uppercase">AI Đang quét...</span>}
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -709,6 +736,14 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           )}
         </div>
       </div>
+
+      {/* [NEW] MODAL AI ANALYSIS */}
+      <AIAnalysisModal 
+          isOpen={aiModalOpen}
+          onClose={() => setAiModalOpen(false)}
+          aiData={aiResult}
+          onApply={handleApplyAI}
+      />
     </div>
   );
 };

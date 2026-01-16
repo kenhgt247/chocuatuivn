@@ -1,129 +1,161 @@
 import { GoogleGenAI } from "@google/genai";
 
-// 1. Interface (Giữ nguyên)
+// ==========================================================================
+// 1. ĐỊNH NGHĨA INTERFACE CHUẨN
+// ==========================================================================
 export interface ListingAnalysis {
   category: string;
   title: string;
   description: string;
   suggestedPrice: number;
   condition: 'new' | 'like_new' | 'good' | 'fair' | 'poor';
+  
   pricingStrategy: {
     min: number;
     max: number;
-    fastSell: number;
-    suggested: number;
-    highProfit: number;
+    fastSell: number;    // Giá bán nhanh (Rẻ hơn 10-15%)
+    suggested: number;   // Giá thị trường
+    highProfit: number;  // Giá kỳ vọng cao (Đắt hơn 10-15%)
     marketAnalysis: string;
   };
+
   qualityCheck: {
     score: number;
     tips: string;
     issues: string[];
   };
+
   seoTags: string[];
   keySellingPoints: string[];
-  attributes: Record<string, any>;
+  attributes: Record<string, any>; // Lưu hãng, màu sắc, xuất xứ...
+  
   isProhibited: boolean;
   prohibitedReason?: string;
 }
 
+// DANH MỤC HỆ THỐNG (Cần mapping chính xác với Database của bạn)
 const CATEGORY_MAP_PROMPT = `
-1. Bất động sản: 'can-ho-chung-cu', 'nha-o', 'dat', 'phong-tro', 'van-phong'
-2. Xe cộ: 'o-to', 'xe-may', 'xe-dien', 'xe-tai', 'xe-dap', 'phu-tung-xe'
-3. Đồ điện tử: 'dien-thoai', 'may-tinh-bang', 'laptop', 'may-tinh-de-ban', 'may-anh', 'tivi-am-thanh', 'thiet-bi-thong-minh', 'phu-kien-dt', 'linh-kien'
-4. Việc làm: 'ban-hang', 'nhan-vien-phuc-vu', 'tai-xe-giao-hang', 'tap-vu', 'pha-che', 'phu-bep', 'nhan-vien-kinh-doanh', 'cong-nhan', 'bao-ve'
-5. Thú cưng: 'ga', 'cho', 'chim', 'meo', 'thu-cung-khac', 'phu-kien-thu-cung'
-6. Điện lạnh: 'tu-lanh', 'may-lanh', 'may-giat'
-7. Nội thất & Gia dụng: 'ban-ghe', 'tu-ke', 'giuong-nem', 'bep-lo', 'dung-cu-bep', 'cay-canh'
-8. Thời trang: 'quan-ao', 'dong-ho', 'giay-dep', 'tui-xach', 'nuoc-hoa'
-9. Giải trí & Thể thao: 'nhac-cu', 'sach', 'do-the-thao', 'suu-tam'
-10. Mẹ và Bé: 'me-va-be'
-11. Dịch vụ: 'dich-vu-don-nha', 'dich-vu-chuyen-nha', 'dich-vu-sua-chua'
-12. Khác: 'khac'
+HÃY CHỌN CHÍNH XÁC 1 MÃ (SLUG) TỪ DANH SÁCH SAU ĐÂY:
+- Bất động sản: 'can-ho-chung-cu', 'nha-o', 'dat', 'phong-tro', 'van-phong'
+- Xe cộ: 'o-to', 'xe-may', 'xe-dien', 'xe-tai', 'xe-dap', 'phu-tung-xe'
+- Đồ điện tử: 'dien-thoai', 'may-tinh-bang', 'laptop', 'may-tinh-de-ban', 'may-anh', 'tivi-am-thanh', 'thiet-bi-thong-minh', 'phu-kien-dt', 'linh-kien'
+- Việc làm: 'ban-hang', 'nhan-vien-phuc-vu', 'tai-xe-giao-hang', 'tap-vu', 'pha-che', 'phu-bep', 'nhan-vien-kinh-doanh', 'cong-nhan', 'bao-ve'
+- Thú cưng: 'ga', 'cho', 'chim', 'meo', 'thu-cung-khac', 'phu-kien-thu-cung'
+- Điện lạnh: 'tu-lanh', 'may-lanh', 'may-giat', 'dien-lanh-khac'
+- Nội thất & Gia dụng: 'ban-ghe', 'tu-ke', 'giuong-nem', 'bep-lo', 'dung-cu-bep', 'cay-canh'
+- Thời trang: 'quan-ao', 'dong-ho', 'giay-dep', 'tui-xach', 'nuoc-hoa', 'phu-kien-thoi-trang'
+- Giải trí & Thể thao: 'nhac-cu', 'sach', 'do-the-thao', 'suu-tam', 'so-thich-khac'
+- Mẹ và Bé: 'me-va-be', 'do-choi'
+- Dịch vụ: 'dich-vu-don-nha', 'dich-vu-chuyen-nha', 'dich-vu-sua-chua'
+- Khác: 'khac'
 `;
 
-const getApiKey = () => import.meta.env.VITE_GEMINI_API_KEY || "";
+const getApiKey = () => {
+  return import.meta.env.VITE_GEMINI_API_KEY || "";
+};
 
-// HÀM HỖ TRỢ: Lấy text an toàn từ mọi cấu trúc phản hồi
+// HÀM HỖ TRỢ: Lấy text an toàn từ mọi cấu trúc phản hồi của Google
 const safeGetText = (response: any): string => {
   try {
-    // Trường hợp 1: Có hàm text()
     if (typeof response.text === 'function') return response.text();
-    // Trường hợp 2: Cấu trúc data.candidates
-    if (response.data?.candidates?.[0]?.content?.parts?.[0]?.text) 
-        return response.data.candidates[0].content.parts[0].text;
-    // Trường hợp 3: Cấu trúc candidates trực tiếp
     if (response.candidates?.[0]?.content?.parts?.[0]?.text) 
         return response.candidates[0].content.parts[0].text;
-    
-    return JSON.stringify(response); // Fallback
+    return JSON.stringify(response);
   } catch (e) {
-    console.error("Lỗi đọc response:", e);
+    console.error("Lỗi đọc response AI:", e);
     return "";
   }
 };
 
-// HÀM HỖ TRỢ: Làm sạch JSON (Xóa dấu ```json ... ```)
+// HÀM HỖ TRỢ: Làm sạch JSON (Loại bỏ Markdown ```json ... ```)
 const cleanJson = (text: string): string => {
+  if (!text) return "";
   return text.replace(/```json/g, '').replace(/```/g, '').trim();
 };
 
-// 2. Main Functions
+// ==========================================================================
+// 2. CÁC HÀM GỌI API (SỬ DỤNG GEMINI 1.5 PRO - BẢN TRẢ PHÍ MẠNH NHẤT)
+// ==========================================================================
+
+// Hàm 1: Tìm kiếm bằng hình ảnh (Dùng cho thanh tìm kiếm)
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
   const apiKey = getApiKey();
   if (!apiKey) return "";
+
   try {
     const ai = new GoogleGenAI({ apiKey });
     const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
+    
+    // Tìm kiếm chỉ cần Flash cho nhanh
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
-      contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } }, { text: "1 từ khóa tìm kiếm sản phẩm này. Vd: 'iPhone 13'. Không dấu câu." }] }]
+      model: 'gemini-1.5-flash', 
+      contents: [{
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
+          { text: "Trả về duy nhất 1 cụm từ khóa chính xác để tìm mua sản phẩm trong ảnh này tại Việt Nam. Ví dụ: 'iPhone 14 Pro Max', 'Tủ lạnh Toshiba'. Không thêm dấu câu." }
+        ]
+      }]
     });
+
     return safeGetText(response).trim().toLowerCase();
-  } catch (error) { return ""; }
+  } catch (error) {
+    return "";
+  }
 };
 
+// Hàm 2: Phân tích đăng tin (Dùng model PRO cho độ chính xác cao)
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
-  const defaultData: any = { 
+  
+  // Dữ liệu mặc định nếu AI lỗi
+  const defaultData: ListingAnalysis = { 
     title: '', description: '', category: 'khac', suggestedPrice: 0, 
     condition: 'good', isProhibited: false, attributes: {}, seoTags: [],
-    pricingStrategy: { min: 0, max: 0, fastSell: 0, suggested: 0, highProfit: 0, marketAnalysis: 'Chưa xác định' },
-    qualityCheck: { score: 50, tips: 'Cần thêm thông tin', issues: [] }, keySellingPoints: []
+    pricingStrategy: { min: 0, max: 0, fastSell: 0, suggested: 0, highProfit: 0, marketAnalysis: '' },
+    qualityCheck: { score: 50, tips: 'Hãy chụp rõ nét hơn', issues: [] }, keySellingPoints: []
   };
 
   if (!apiKey) return defaultData;
 
   try {
     const ai = new GoogleGenAI({ apiKey });
+    
     const imageParts = imagesBase64.map(base64 => ({
-      inlineData: { data: base64.split(',')[1] || base64, mimeType: "image/jpeg" },
+      inlineData: {
+        data: base64.split(',')[1] || base64,
+        mimeType: "image/jpeg",
+      },
     }));
 
-   const prompt = `
-    Vai trò: Bạn là một "Chiến thần Sales" trên chợ đồ cũ Việt Nam.
-    Nhiệm vụ: Nhìn ảnh sản phẩm và TỰ ĐỘNG ĐIỀN thông tin để bán được hàng ngay lập tức.
+    const prompt = `
+    Vai trò: Bạn là Chuyên gia Thẩm định giá & Copywriter số 1 Việt Nam.
+    Nhiệm vụ: Phân tích ảnh sản phẩm để tạo tin đăng bán hàng chuyên nghiệp.
 
-    1. TƯ DUY VỀ GIÁ (Cực kỳ quan trọng):
-       - Nhìn kỹ thương hiệu, độ mới, trầy xước.
-       - BẮT BUỘC trả về con số VNĐ (Ví dụ: 12500000). Không được trả về 0.
-       - fastSell: Giá "xả lỗ" để bay trong ngày.
-       - suggested: Giá "thuận mua vừa bán".
-       - highProfit: Giá "thách cưới" cho khách sộp.
+    QUY TRÌNH SUY LUẬN (BẮT BUỘC):
+    1. Nhận diện vật thể chính.
+    2. Xác định Danh mục (Category) chính xác nhất từ danh sách cung cấp. (Ví dụ: Thấy Tivi -> Phải chọn 'tivi-am-thanh').
+    3. Ước lượng giá trị thực tế tại thị trường đồ cũ Việt Nam (VNĐ).
 
-    2. VIẾT NỘI DUNG (Phải hay, không được như robot):
-       - Tiêu đề: Giật tít, kèm icon, viết hoa tên Model. (Vd: "🔥 PASS NHANH Honda Vision 2021 Chính Chủ - Còn Mới Keng")
-       - Mô tả:
-         + Mở đầu: Lý do bán (lên đời, không dùng...) nghe cho tự nhiên.
-         + Thân bài: Gạch đầu dòng các ưu điểm (Mới 99%, Máy êm, Fullbox...).
-         + Kết bài: Kêu gọi hành động (Fix nhẹ xăng xe cho anh em nhiệt tình).
+    YÊU CẦU ĐẦU RA (JSON):
+    - category: Chọn 1 slug từ danh sách bên dưới.
+    - suggestedPrice: Giá trung bình (Số nguyên, > 0).
+    - fastSell: Giá bán nhanh (Thấp hơn 15%).
+    - highProfit: Giá bán lời (Cao hơn 15%).
+    - title: Tiêu đề hấp dẫn, chứa Tên SP + Tình trạng.
+    - description: Mô tả chi tiết, chia dòng, nêu bật ưu điểm.
+    - attributes: Trích xuất thông số (Hãng, Màu, Dung lượng...).
 
-    DANH MỤC: ${CATEGORY_MAP_PROMPT}
+    DANH SÁCH DANH MỤC CHUẨN:
+    ${CATEGORY_MAP_PROMPT}
     `;
 
+    // Sử dụng Model Pro 1.5 cho kết quả tốt nhất
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
-      contents: [{ role: 'user', parts: [...imageParts, { text: prompt }] }],
+      model: 'gemini-1.5-pro', 
+      contents: [
+        { role: 'user', parts: [...imageParts, { text: prompt }] }
+      ],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -131,10 +163,11 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
           properties: {
             isProhibited: { type: "BOOLEAN" },
             prohibitedReason: { type: "STRING" },
-            category: { type: "STRING" },
+            category: { type: "STRING" }, // Quan trọng: AI phải trả về String khớp danh mục
             title: { type: "STRING" },
             description: { type: "STRING" },
             suggestedPrice: { type: "NUMBER" },
+            
             pricingStrategy: {
               type: "OBJECT",
               properties: {
@@ -146,7 +179,9 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
                 marketAnalysis: { type: "STRING" }
               }
             },
+            
             condition: { type: "STRING", enum: ['new', 'like_new', 'good', 'fair', 'poor'] },
+            
             qualityCheck: {
               type: "OBJECT",
               properties: {
@@ -155,8 +190,10 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
                 issues: { type: "ARRAY", items: { type: "STRING" } }
               }
             },
+            
             keySellingPoints: { type: "ARRAY", items: { type: "STRING" } },
             seoTags: { type: "ARRAY", items: { type: "STRING" } },
+            
             attributes: {
               type: "OBJECT",
               properties: {
@@ -165,6 +202,7 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
                 year: { type: "STRING" },
                 origin: { type: "STRING" },
                 color: { type: "STRING" },
+                capacity: { type: "STRING" },
                 status_detail: { type: "STRING" },
                 warranty: { type: "STRING" }
               }
@@ -176,13 +214,27 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     });
 
     const rawText = safeGetText(response);
-    const jsonText = cleanJson(rawText); // Làm sạch trước khi parse
-    
+    const jsonText = cleanJson(rawText);
+
     if (!jsonText) return defaultData;
-    return JSON.parse(jsonText) as ListingAnalysis;
+    
+    const parsedData = JSON.parse(jsonText) as ListingAnalysis;
+    
+    // Validate dữ liệu quan trọng trước khi trả về
+    if (!parsedData.pricingStrategy) {
+        parsedData.pricingStrategy = { min: 0, max: 0, fastSell: 0, suggested: 0, highProfit: 0, marketAnalysis: '' };
+    }
+    // Nếu AI lười trả về 0, ta fallback sang giá gợi ý
+    if (parsedData.pricingStrategy.fastSell === 0 && parsedData.suggestedPrice > 0) {
+        parsedData.pricingStrategy.fastSell = parsedData.suggestedPrice * 0.85;
+        parsedData.pricingStrategy.suggested = parsedData.suggestedPrice;
+        parsedData.pricingStrategy.highProfit = parsedData.suggestedPrice * 1.15;
+    }
+
+    return parsedData;
 
   } catch (error) {
-    console.error("Lỗi AI Service:", error);
+    console.error("Lỗi AI Analysis:", error);
     return defaultData;
   }
 };

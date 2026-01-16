@@ -292,26 +292,29 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
     {/* LEFT: MEDIA GALLERY & DETAILS */}
         <div className="lg:col-span-8 space-y-6">
           
-          {/* 1. KHUNG ẢNH/VIDEO CHÍNH */}
-          <div className={`relative w-full aspect-[4/3] md:aspect-video md:rounded-2xl overflow-hidden group shadow-lg border border-gray-100 z-0 ${isVideoActive ? 'bg-black' : 'bg-gray-200'}`}>
+         {/* 1. KHUNG ẢNH/VIDEO CHÍNH */}
+          <div className={`relative w-full aspect-[4/3] md:aspect-video md:rounded-2xl overflow-hidden group shadow-lg border border-gray-100 bg-gray-100`}>
             
-            {/* WATERMARK */}
-            <div className="absolute top-4 right-4 pointer-events-none z-30 opacity-60 mix-blend-overlay">
-                <span className="text-white text-xs md:text-sm font-black uppercase tracking-widest bg-black/30 px-3 py-1 rounded-full backdrop-blur-md border border-white/20">
+            {/* === WATERMARK (LOGO CHÌM) - ĐÃ SỬA LẠI === */}
+            {/* z-50: Đảm bảo luôn nằm trên cùng */}
+            {/* pointer-events-none: Đảm bảo chuột xuyên qua logo để vẫn Zoom được ảnh bên dưới */}
+            <div className="absolute top-4 right-4 z-50 pointer-events-none">
+                <span className="text-white text-xs md:text-sm font-black uppercase tracking-widest bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/20 shadow-sm">
                     ⚡ Chợ Của Tui
                 </span>
             </div>
 
             {isVideoActive ? (
-                // --- VIDEO ---
-                <div className="relative w-full h-full cursor-pointer z-10" onClick={handleVideoPlayPause}>
+                // --- TRƯỜNG HỢP VIDEO ---
+                <div className="relative w-full h-full cursor-pointer z-10 bg-black" onClick={handleVideoPlayPause}>
                     <video 
                         ref={videoRef} 
                         src={listing.videoUrl || ""} 
                         poster={listing.images[0] || ""} 
-                        className="w-full h-full object-contain bg-black" 
+                        className="w-full h-full object-contain" 
                         autoPlay loop muted={isMuted} playsInline 
                     />
+                    {/* Controls Video */}
                     <div className="absolute bottom-4 left-4 right-4 z-30 flex justify-between items-end">
                         <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }} className="pointer-events-auto bg-black/50 backdrop-blur-md text-white p-2.5 rounded-full hover:bg-primary transition-all border border-white/10">
                             {isMuted ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>}
@@ -322,9 +325,9 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
                     </div>
                 </div>
             ) : (
-                // --- ẢNH (IMAGE) ---
+                // --- TRƯỜNG HỢP ẢNH ---
                 <>
-                    {/* Mobile: Lightbox */}
+                    {/* MOBILE (Dưới md): Click mở Lightbox */}
                     <div className="md:hidden w-full h-full relative z-10" onClick={() => setIsLightboxOpen(true)}>
                         <img src={mediaList[activeMedia]} className="w-full h-full object-cover" alt={listing.title} />
                         <div className="absolute bottom-3 right-3 bg-black/60 text-white p-2 rounded-xl backdrop-blur-md border border-white/10 shadow-lg pointer-events-none">
@@ -332,38 +335,54 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
                         </div>
                     </div>
 
-                    {/* Desktop: Blur Background + Zoom */}
-                    <div className="hidden md:block w-full h-full relative overflow-hidden group">
-                        <img 
-                            src={mediaList[activeMedia]} 
-                            className="absolute inset-0 w-full h-full object-cover blur-xl opacity-50 scale-110 pointer-events-none z-0" 
-                            alt="" 
-                        />
-                        <div className="relative w-full h-full z-10 flex items-center justify-center p-1">
+                    {/* DESKTOP (Trên md): Hiệu ứng nền mờ + Zoom */}
+                    <div className="hidden md:block w-full h-full relative overflow-hidden bg-gray-200">
+                        {/* Lớp 1: Ảnh nền mờ (Nằm dưới cùng z-0) */}
+                        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+                            <img 
+                                src={mediaList[activeMedia]} 
+                                className="w-full h-full object-cover blur-xl opacity-60 scale-110" 
+                                alt="" 
+                            />
+                        </div>
+                        
+                        {/* Lớp 2: Ảnh chính Zoom (Nổi lên z-10) */}
+                        {/* Quan trọng: w-full h-full để ProductZoom nhận diện vùng hover */}
+                        <div className="relative z-10 w-full h-full flex items-center justify-center p-1">
                              <ProductZoom 
                                 src={mediaList[activeMedia]} 
                                 alt={listing.title} 
-                                className="w-full h-full object-contain max-h-[600px] drop-shadow-xl cursor-crosshair" 
+                                className="w-full h-full object-contain max-h-[600px] drop-shadow-2xl cursor-crosshair" 
                              />
                         </div>
                     </div>
                 </>
             )}
             
-            {/* Buttons Next/Prev */}
+            {/* Nút điều hướng (Next/Prev) */}
+            {/* pointer-events-auto: Để bấm được nút */}
             {mediaList.length > 1 && (
-              <>
-                <button onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1); }} className="absolute left-3 md:left-5 top-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 bg-white/80 md:bg-white text-gray-800 hover:text-primary rounded-full shadow-lg hover:scale-110 active:scale-95 transition-all flex items-center justify-center z-30 backdrop-blur-sm border border-gray-100 cursor-pointer">
+              <div className="absolute inset-0 z-40 pointer-events-none flex items-center justify-between px-3 md:px-5">
+                <button 
+                    onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1); }} 
+                    className="pointer-events-auto w-10 h-10 md:w-12 md:h-12 bg-white/90 text-gray-800 hover:text-primary rounded-full shadow-lg hover:scale-110 active:scale-95 transition-all flex items-center justify-center backdrop-blur-sm border border-gray-200"
+                >
                     <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev < mediaList.length - 1 ? prev + 1 : 0); }} className="absolute right-3 md:right-5 top-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 bg-white/80 md:bg-white text-gray-800 hover:text-primary rounded-full shadow-lg hover:scale-110 active:scale-95 transition-all flex items-center justify-center z-30 backdrop-blur-sm border border-gray-100 cursor-pointer">
+                <button 
+                    onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev < mediaList.length - 1 ? prev + 1 : 0); }} 
+                    className="pointer-events-auto w-10 h-10 md:w-12 md:h-12 bg-white/90 text-gray-800 hover:text-primary rounded-full shadow-lg hover:scale-110 active:scale-95 transition-all flex items-center justify-center backdrop-blur-sm border border-gray-200"
+                >
                     <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
                 </button>
-              </>
+              </div>
             )}
             
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-[10px] font-bold px-3 py-1 rounded-full backdrop-blur-md pointer-events-none z-30">
-                {activeMedia + 1} / {mediaList.length}
+            {/* Số trang ảnh */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
+                <div className="bg-black/60 text-white text-[10px] font-bold px-3 py-1 rounded-full backdrop-blur-md">
+                    {activeMedia + 1} / {mediaList.length}
+                </div>
             </div>
           </div>
 

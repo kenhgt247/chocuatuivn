@@ -1,34 +1,28 @@
 import { GoogleGenAI } from "@google/genai";
 
-// ==========================================================================
-// 1. ĐỊNH NGHĨA INTERFACE
-// ==========================================================================
+// 1. Interface (Giữ nguyên)
 export interface ListingAnalysis {
   category: string;
   title: string;
   description: string;
   suggestedPrice: number;
   condition: 'new' | 'like_new' | 'good' | 'fair' | 'poor';
-  
   pricingStrategy: {
     min: number;
     max: number;
-    fastSell: number;    // Giá bán nhanh
-    suggested: number;   // Giá đề xuất
-    highProfit: number;  // Giá lời cao
+    fastSell: number;
+    suggested: number;
+    highProfit: number;
     marketAnalysis: string;
   };
-
   qualityCheck: {
     score: number;
     tips: string;
     issues: string[];
   };
-
   seoTags: string[];
   keySellingPoints: string[];
   attributes: Record<string, any>;
-  
   isProhibited: boolean;
   prohibitedReason?: string;
 }
@@ -48,47 +42,47 @@ const CATEGORY_MAP_PROMPT = `
 12. Khác: 'khac'
 `;
 
-const getApiKey = () => {
-  return import.meta.env.VITE_GEMINI_API_KEY || "";
-};
+const getApiKey = () => import.meta.env.VITE_GEMINI_API_KEY || "";
 
-// ==========================================================================
-// 2. CÁC HÀM GỌI API (MODEL: gemini-2.0-flash-exp)
-// ==========================================================================
-
-// --- HÀM 1: TÌM KIẾM BẰNG HÌNH ẢNH (Khôi phục để sửa lỗi Build Layout.tsx) ---
-export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
-  const apiKey = getApiKey();
-  if (!apiKey) return "";
-
+// HÀM HỖ TRỢ: Lấy text an toàn từ mọi cấu trúc phản hồi
+const safeGetText = (response: any): string => {
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    // Trường hợp 1: Có hàm text()
+    if (typeof response.text === 'function') return response.text();
+    // Trường hợp 2: Cấu trúc data.candidates
+    if (response.data?.candidates?.[0]?.content?.parts?.[0]?.text) 
+        return response.data.candidates[0].content.parts[0].text;
+    // Trường hợp 3: Cấu trúc candidates trực tiếp
+    if (response.candidates?.[0]?.content?.parts?.[0]?.text) 
+        return response.candidates[0].content.parts[0].text;
     
-    const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
-    
-    // Dùng đúng model cũ của bạn
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-            { text: "Nhìn vào ảnh và trả về đúng 1 từ khóa ngắn gọn nhất để tìm kiếm sản phẩm này. Ví dụ: 'iPhone 13', 'Xe Vision'. Không thêm dấu câu." }
-          ]
-        }
-      ]
-    });
-
-    const text = response.text();
-    return text ? text.trim().toLowerCase() : "";
-  } catch (error) {
-    console.error("Lỗi AI Search:", error);
+    return JSON.stringify(response); // Fallback
+  } catch (e) {
+    console.error("Lỗi đọc response:", e);
     return "";
   }
 };
 
-// --- HÀM 2: PHÂN TÍCH ĐĂNG TIN ---
+// HÀM HỖ TRỢ: Làm sạch JSON (Xóa dấu ```json ... ```)
+const cleanJson = (text: string): string => {
+  return text.replace(/```json/g, '').replace(/```/g, '').trim();
+};
+
+// 2. Main Functions
+export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
+  const apiKey = getApiKey();
+  if (!apiKey) return "";
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-exp',
+      contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } }, { text: "1 từ khóa tìm kiếm sản phẩm này. Vd: 'iPhone 13'. Không dấu câu." }] }]
+    });
+    return safeGetText(response).trim().toLowerCase();
+  } catch (error) { return ""; }
+};
+
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
   const defaultData: any = { 
@@ -102,41 +96,31 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    
     const imageParts = imagesBase64.map(base64 => ({
-      inlineData: {
-        data: base64.split(',')[1] || base64,
-        mimeType: "image/jpeg",
-      },
+      inlineData: { data: base64.split(',')[1] || base64, mimeType: "image/jpeg" },
     }));
 
     const prompt = `
-    Vai trò: Bạn là một chuyên gia buôn bán đồ cũ lão làng ("Thợ") tại Việt Nam.
-    Nhiệm vụ: Nhìn ảnh, thẩm định giá và viết bài đăng bán giúp người dùng.
+    Bạn là chuyên gia thẩm định giá đồ cũ tại Việt Nam.
+    Nhiệm vụ: Phân tích ảnh và trả về JSON.
 
-    YÊU CẦU ĐẶC BIỆT:
-    1. ĐỊNH GIÁ (BẮT BUỘC):
-       - Phải ước lượng ra con số VNĐ cụ thể. TUYỆT ĐỐI KHÔNG trả về 0.
-       - fastSell: Giá rẻ để bay nhanh.
-       - highProfit: Giá thách cưới (cao hơn 15-20%).
+    QUAN TRỌNG:
+    1. GIÁ (pricingStrategy): BẮT BUỘC trả về số tiền VNĐ. KHÔNG ĐƯỢC ĐỂ 0.
+       - Nếu không chắc, hãy đoán giá thấp nhất của loại hàng này.
+       - fastSell: Giá rẻ để bán nhanh.
+       - suggested: Giá trung bình thị trường.
+       - highProfit: Giá cao.
+    
+    2. CONTENT:
+       - Tiêu đề: Có icon, viết hoa tên chính.
+       - Mô tả: Hấp dẫn, chia dòng.
 
-    2. SOI ẢNH:
-       - Soi kỹ ánh sáng, phông nền. Đưa lời khuyên cụ thể, đanh thép để chụp đẹp hơn.
-
-    3. CONTENT:
-       - Tiêu đề: Giật tít, có icon (🔥, ⚡).
-       - Mô tả: Văn phong tự nhiên, nhấn mạnh lợi ích.
-
-    DANH MỤC:
-    ${CATEGORY_MAP_PROMPT}
+    DANH MỤC: ${CATEGORY_MAP_PROMPT}
     `;
 
-    // Dùng model cũ gemini-2.0-flash-exp
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash-exp',
-      contents: [
-        { role: 'user', parts: [...imageParts, { text: prompt }] }
-      ],
+      contents: [{ role: 'user', parts: [...imageParts, { text: prompt }] }],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -148,7 +132,6 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
             title: { type: "STRING" },
             description: { type: "STRING" },
             suggestedPrice: { type: "NUMBER" },
-            
             pricingStrategy: {
               type: "OBJECT",
               properties: {
@@ -160,9 +143,7 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
                 marketAnalysis: { type: "STRING" }
               }
             },
-            
             condition: { type: "STRING", enum: ['new', 'like_new', 'good', 'fair', 'poor'] },
-            
             qualityCheck: {
               type: "OBJECT",
               properties: {
@@ -171,10 +152,8 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
                 issues: { type: "ARRAY", items: { type: "STRING" } }
               }
             },
-            
             keySellingPoints: { type: "ARRAY", items: { type: "STRING" } },
             seoTags: { type: "ARRAY", items: { type: "STRING" } },
-            
             attributes: {
               type: "OBJECT",
               properties: {
@@ -193,9 +172,11 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
       }
     });
 
-    const text = response.text();
-    if (!text) return defaultData;
-    return JSON.parse(text) as ListingAnalysis;
+    const rawText = safeGetText(response);
+    const jsonText = cleanJson(rawText); // Làm sạch trước khi parse
+    
+    if (!jsonText) return defaultData;
+    return JSON.parse(jsonText) as ListingAnalysis;
 
   } catch (error) {
     console.error("Lỗi AI Service:", error);

@@ -2,11 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Category, CategoryAttribute } from '../types';
-import { analyzeListingImages, ListingAnalysis } from '../services/geminiService'; // Import ListingAnalysis
+import { analyzeListingImages } from '../services/geminiService';
 import { getLocationFromCoords } from '../utils/locationHelper';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import { LOCATIONS } from '../constants';
-import AIAnalysisModal from '../components/AIAnalysisModal'; // [NEW] Import Modal
 
 interface ListingFormData {
   title: string;
@@ -41,22 +40,21 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   // --- STATE HỆ THỐNG & UI ---
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
-  const [aiAnalyzing, setAiAnalyzing] = useState(false);
   
-  // [NEW] STATE CHO AI MODAL
-  const [aiModalOpen, setAiModalOpen] = useState(false);
-  const [aiResult, setAiResult] = useState<ListingAnalysis | null>(null);
+  // [AI STATE]
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [priceSuggestions, setPriceSuggestions] = useState<{fast: number, market: number, high: number} | null>(null);
 
   const [locationDetected, setLocationDetected] = useState<{ lat: number, lng: number } | null>(null);
   const [agreedToRules, setAgreedToRules] = useState(false);
   const [listingType, setListingType] = useState<'normal' | 'affiliate'>('normal');
 
-  // --- STATE HẠN MỨC (NEW) ---
+  // --- STATE HẠN MỨC ---
   const [postsToday, setPostsToday] = useState(0);
   const [maxPosts, setMaxPosts] = useState(0);
   const [isLimitReached, setIsLimitReached] = useState(false);
 
-  // --- STATE MEDIA & DATA ---
+  // --- STATE MEDIA ---
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string>("");
   const [existingVideoUrl, setExistingVideoUrl] = useState<string | null>(null);
@@ -80,7 +78,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
     const init = async () => {
       try {
-        // Load Settings, Categories và đếm số tin hôm nay
         const [s, cats, count] = await Promise.all([
           db.getSettings(),
           db.getCategories(),
@@ -91,12 +88,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         setCategories(cats);
         setPostsToday(count);
 
-        // Tính toán hạn mức dựa trên Tier của User
+        // Tính hạn mức
         const userTier = user.subscriptionTier || 'free';
         const limit = (s?.tierConfigs as any)?.[userTier]?.postsPerDay || 5;
         setMaxPosts(limit);
 
-        // Nếu không phải đang sửa và đã hết hạn mức -> SET CỜ CHẶN
         if (!isEditing && count >= limit) {
           setIsLimitReached(true);
         }
@@ -108,7 +104,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           if (!listing) { alert("Tin không tồn tại"); return navigate('/'); }
           if (listing.sellerId !== user.id && user.role !== 'admin') { alert("Không có quyền sửa"); return navigate('/'); }
 
-          // Map Category Logic
+          // Map Category
           const currentCat = cats.find(c => c.id === listing.category);
           if (currentCat) {
             if (currentCat.parentId) {
@@ -132,7 +128,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             attributes: listing.attributes || {},
             affiliateLink: listing.affiliateLink || '',
             isAuction: listing.isAuction || false,
-            auctionEndAt: listing.auctionEndAt ? new Date(listing.auctionEndAt).toISOString().slice(0, 16) : '', // format cho input datetime-local
+            auctionEndAt: listing.auctionEndAt ? new Date(listing.auctionEndAt).toISOString().slice(0, 16) : '',
             bidIncrement: listing.bidIncrement?.toString() || '50000'
           });
 
@@ -145,7 +141,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           setLoading(false);
         }
       } catch (error) {
-        console.error("Lỗi khởi tạo trang đăng tin:", error);
+        console.error("Lỗi khởi tạo:", error);
       }
     };
 
@@ -214,6 +210,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       const updatedImages = [...formData.images, ...compressedResults];
       setFormData(prev => ({ ...prev, images: updatedImages }));
 
+      // GỌI AI: Chỉ chạy khi đang tạo mới, chưa có tiêu đề và vừa upload ảnh xong
       if (!isEditing && compressedResults.length > 0 && !formData.title) {
         runAIAnalysis(updatedImages);
       }
@@ -244,13 +241,13 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     }
   };
 
-  // --- [UPDATED] HÀM GỌI AI VÀ MỞ MODAL ---
+  // --- AI LOGIC (MỚI: TỰ ĐỘNG ĐIỀN) ---
   const runAIAnalysis = async (images: string[]) => {
     setAiAnalyzing(true);
     try {
       const analysis = await analyzeListingImages(images.slice(0, 3)).catch(() => null);
       if (analysis) {
-        // 1. Tự động chọn danh mục (Logic cũ vẫn giữ để hỗ trợ ngầm)
+        // 1. Tự động khớp danh mục
         let foundChildId = "", foundParentId = "", newAttributes: any[] = [];
         const detectedCategory = categories.find(c => c.id === analysis.category);
         if (detectedCategory) {
@@ -262,48 +259,42 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             foundParentId = detectedCategory.id;
           }
         }
-        
-        // Cập nhật danh mục ngay lập tức (không cần hỏi)
+
+        // Cập nhật State Danh mục UI
         if (foundParentId) setSelectedParentId(foundParentId);
         if (foundChildId) setSelectedChildId(foundChildId);
         if (newAttributes.length > 0) setCurrentAttributes(newAttributes);
 
-        // 2. Lưu kết quả AI và Mở Modal để user chọn Giá/Content
-        setAiResult(analysis);
-        setAiModalOpen(true);
-        
-        // Lưu tạm attributes vào form luôn (vì modal không chỉnh attributes)
-        setFormData(prev => ({
-            ...prev,
-            attributes: { ...prev.attributes, ...(analysis.attributes || {}) },
-            // Cập nhật category vào form
-            category: foundChildId || foundParentId || prev.category, 
-            condition: (analysis.condition as 'new' | 'used') || prev.condition
-        }));
+        // 2. Lưu gợi ý giá để hiện nút bấm (Inline)
+        if (analysis.pricingStrategy) {
+            setPriceSuggestions({
+                fast: analysis.pricingStrategy.fastSell || 0,
+                market: analysis.pricingStrategy.suggested || 0,
+                high: analysis.pricingStrategy.highProfit || 0
+            });
+        }
 
+        // 3. ĐIỀN THẲNG VÀO FORM (Ghi đè)
+        setFormData(prev => ({
+          ...prev,
+          title: analysis.title || prev.title,
+          price: analysis.pricingStrategy?.suggested ? analysis.pricingStrategy.suggested.toString() : prev.price,
+          description: analysis.description || prev.description,
+          condition: (analysis.condition as 'new' | 'used') || prev.condition,
+          category: foundChildId || foundParentId || prev.category,
+          attributes: { ...prev.attributes, ...(analysis.attributes || {}) }
+        }));
       }
-    } catch (err) { console.log("AI skip"); }
+    } catch (err) { console.log("AI skip", err); }
     finally { setAiAnalyzing(false); }
   };
 
-  // --- [NEW] HÀM XỬ LÝ KHI NGƯỜI DÙNG ÁP DỤNG TỪ MODAL ---
-  const handleApplyAI = (data: ListingAnalysis, selectedPrice: number) => {
-      setFormData(prev => ({
-          ...prev,
-          title: data.title,
-          description: data.description,
-          price: selectedPrice.toString(),
-          // Attributes và Condition đã được set ở bước runAIAnalysis
-      }));
-      setAiModalOpen(false); // Đóng modal
-  };
-
-  // --- SUBMIT ---
+  // --- SUBMIT (ĐẦY ĐỦ LOGIC) ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !settings) return;
 
-    // Check lại hạn mức lần cuối (Security)
+    // Check hạn mức
     if (!isEditing && postsToday >= maxPosts) {
       return alert(`⚠️ Hạn mức đăng tin trong ngày đã hết!`);
     }
@@ -375,7 +366,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         affiliateLink: listingType === 'affiliate' ? formData.affiliateLink : null,
         lat: locationDetected?.lat || null,
         lng: locationDetected?.lng || null,
-        // Gộp dữ liệu đấu giá
         ...auctionData
       };
 
@@ -392,7 +382,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       } else {
         await db.saveListing(listingData);
 
-        // [LOGIC MỚI] CHECK SAU KHI ĐĂNG
         const newCount = postsToday + 1;
         if (newCount >= maxPosts) {
           if (window.confirm(`🎉 Đăng tin thành công!\n\n⚠️ Bạn đã dùng hết ${newCount}/${maxPosts} lượt đăng hôm nay.\nHãy nâng cấp VIP để đăng không giới hạn?`)) {
@@ -414,7 +403,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     }
   };
 
-  // --- HÀM RENDER DYNAMIC FIELDS ---
+  // --- RENDER DYNAMIC FIELDS ---
   const renderDynamicFields = () => {
     if (currentAttributes.length === 0) return null;
     return (
@@ -440,12 +429,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     );
   };
 
-  // --- RENDER ---
+  // --- RENDER UI ---
   if (!settings) return <div className="h-96 flex items-center justify-center font-black text-primary animate-pulse uppercase tracking-widest text-xl">Đang tải dữ liệu...</div>;
   const currentTierConfig = (settings.tierConfigs as any)[user?.subscriptionTier || 'free'];
   const remainingPosts = maxPosts - postsToday;
 
-  // [BLOCKING UI] NẾU HẾT HẠN MỨC TỪ ĐẦU
   if (isLimitReached && !isEditing) {
     return (
       <div className="max-w-2xl mx-auto mt-10 px-4 pb-20">
@@ -465,7 +453,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     );
   }
 
-  // --- MAIN UI ---
   const parentCategories = categories.filter(c => !c.parentId);
   const childCategories = categories.filter(c => c.parentId === selectedParentId);
   const hasChildren = childCategories.length > 0;
@@ -474,8 +461,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     <div className="max-w-7xl mx-auto space-y-6 px-4 pb-20 pt-6 font-sans">
       <div className="text-center space-y-3 mb-6">
         <h1 className="text-3xl font-black text-gray-900 uppercase">{isEditing ? 'Chỉnh Sửa Tin' : 'Đăng Tin Mới'}</h1>
-
-        {/* [NEW] THANH TRẠNG THÁI HẠN MỨC */}
         {!isEditing && (
           <div className="flex flex-col items-center gap-2">
             <div className={`inline-flex items-center gap-3 px-5 py-2 rounded-full border shadow-sm ${remainingPosts <= 1 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
@@ -509,8 +494,12 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
               <div className="flex justify-between items-center mb-4">
                 <label className={labelStyle}>Media ({formData.images.length}/{currentTierConfig.maxImages})</label>
-                {/* [UX] Loading Text */}
-                {aiAnalyzing && <span className="text-[9px] font-bold text-blue-500 animate-pulse uppercase">AI Đang quét...</span>}
+                {aiAnalyzing && (
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
+                        <span className="text-[10px] font-bold text-blue-500 uppercase">AI đang tự điền...</span>
+                    </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {formData.images.map((img, i) => (
@@ -540,7 +529,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
           )}
 
-          {/* --- KHỐI QUY TẮC ĐẸP MẮT --- */}
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-6 rounded-3xl relative overflow-hidden">
             <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-blue-100 rounded-full opacity-50 blur-2xl"></div>
             <div className="relative z-10">
@@ -571,7 +559,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           {(listingType === 'normal' || user?.subscriptionTier === 'pro') && (
             <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-3xl p-8 shadow-xl shadow-gray-100/50 space-y-6">
 
-              {/* [NEW] CẢNH BÁO TIN CUỐI TRONG FORM */}
               {!isEditing && remainingPosts === 1 && (
                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-xl mb-2 animate-pulse">
                   <div className="flex items-center gap-3">
@@ -586,24 +573,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
               )}
 
-              {/* [NEW] TOGGLE ĐẤU GIÁ */}
               {listingType === 'normal' && (
                 <div className="bg-gray-50 p-1.5 rounded-2xl flex relative mb-4">
                   <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-xl shadow-sm transition-all duration-300 ${formData.isAuction ? 'left-[calc(50%+3px)]' : 'left-1.5'}`}></div>
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, isAuction: false }))}
-                    className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors ${!formData.isAuction ? 'text-primary' : 'text-gray-400'}`}
-                  >
-                    🏷️ Giá cố định
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, isAuction: true }))}
-                    className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors ${formData.isAuction ? 'text-purple-600' : 'text-gray-400'}`}
-                  >
-                    🔨 Đấu giá
-                  </button>
+                  <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: false }))} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors ${!formData.isAuction ? 'text-primary' : 'text-gray-400'}`}>🏷️ Giá cố định</button>
+                  <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: true }))} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors ${formData.isAuction ? 'text-purple-600' : 'text-gray-400'}`}>🔨 Đấu giá</button>
                 </div>
               )}
 
@@ -616,7 +590,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
               <div className="space-y-1">
                 <label className={labelStyle}>Tiêu đề *</label>
-                <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max 256GB..." value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={inputStyle} />
+                <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max 256GB..." value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={`${inputStyle} ${aiAnalyzing ? 'animate-pulse bg-blue-50' : ''}`} />
               </div>
 
               <div className="grid grid-cols-2 gap-6 bg-gray-50 p-4 rounded-2xl border border-gray-100">
@@ -638,7 +612,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
               {renderDynamicFields()}
 
-              {/* KHU VỰC GIÁ & ĐẤU GIÁ */}
               <div className={`p-6 rounded-2xl border transition-all ${formData.isAuction ? 'bg-purple-50 border-purple-100' : 'bg-white border-transparent'}`}>
                 {formData.isAuction ? (
                   <div className="space-y-4 animate-fade-in">
@@ -646,25 +619,14 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                       <span className="text-xl">🔨</span>
                       <h3 className="font-black text-purple-700 uppercase text-xs tracking-widest">Thiết lập đấu giá</h3>
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Giá khởi điểm *</label>
-                        <input
-                          type="text"
-                          value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''}
-                          onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })}
-                          className="w-full bg-white border border-purple-200 rounded-xl p-3 font-black text-purple-700 focus:ring-2 focus:ring-purple-500"
-                          placeholder="0"
-                        />
+                        <input type="text" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-black text-purple-700 focus:ring-2 focus:ring-purple-500" placeholder="0" />
                       </div>
                       <div>
                         <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Bước giá *</label>
-                        <select
-                          value={formData.bidIncrement}
-                          onChange={(e) => setFormData({ ...formData, bidIncrement: e.target.value })}
-                          className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:ring-2 focus:ring-purple-500"
-                        >
+                        <select value={formData.bidIncrement} onChange={(e) => setFormData({ ...formData, bidIncrement: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:ring-2 focus:ring-purple-500">
                           <option value="10000">10.000 đ</option>
                           <option value="20000">20.000 đ</option>
                           <option value="50000">50.000 đ</option>
@@ -674,31 +636,44 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                         </select>
                       </div>
                     </div>
-
                     <div>
                       <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Kết thúc lúc *</label>
-                      <input
-                        type="datetime-local"
-                        value={formData.auctionEndAt}
-                        onChange={(e) => setFormData({ ...formData, auctionEndAt: e.target.value })}
-                        className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:ring-2 focus:ring-purple-500"
-                      />
+                      <input type="datetime-local" value={formData.auctionEndAt} onChange={(e) => setFormData({ ...formData, auctionEndAt: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:ring-2 focus:ring-purple-500" />
                       <p className="text-[9px] text-purple-400 font-bold mt-1">* Tin đấu giá sẽ tự động kết thúc vào thời điểm này.</p>
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-1">
-                      <label className={labelStyle}>Giá bán (VNĐ) *</label>
-                      <input type="text" placeholder="0" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className={inputStyle} />
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-1">
+                        <label className={labelStyle}>Giá bán (VNĐ) *</label>
+                        <input type="text" placeholder="0" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className={inputStyle} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className={labelStyle}>Tình trạng</label>
+                        <select value={formData.condition} onChange={(e) => setFormData({ ...formData, condition: e.target.value as any })} className={inputStyle}>
+                          <option value="used">Đã qua sử dụng</option>
+                          <option value="new">Mới 100%</option>
+                        </select>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className={labelStyle}>Tình trạng</label>
-                      <select value={formData.condition} onChange={(e) => setFormData({ ...formData, condition: e.target.value as any })} className={inputStyle}>
-                        <option value="used">Đã qua sử dụng</option>
-                        <option value="new">Mới 100%</option>
-                      </select>
-                    </div>
+                    {/* [NEW] Gợi ý giá Inline */}
+                    {priceSuggestions && (
+                        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.fast.toString()}))} className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition whitespace-nowrap">
+                                <span className="text-[10px] font-bold text-green-600 uppercase">⚡ Bán nhanh</span>
+                                <span className="text-xs font-black text-green-700">{Number(priceSuggestions.fast).toLocaleString('vi-VN')}</span>
+                            </button>
+                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.market.toString()}))} className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition whitespace-nowrap">
+                                <span className="text-[10px] font-bold text-blue-600 uppercase">👍 Hợp lý</span>
+                                <span className="text-xs font-black text-blue-700">{Number(priceSuggestions.market).toLocaleString('vi-VN')}</span>
+                            </button>
+                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.high.toString()}))} className="flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition whitespace-nowrap">
+                                <span className="text-[10px] font-bold text-purple-600 uppercase">💰 Lời cao</span>
+                                <span className="text-xs font-black text-purple-700">{Number(priceSuggestions.high).toLocaleString('vi-VN')}</span>
+                            </button>
+                        </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -721,7 +696,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
               <div className="space-y-1">
                 <label className={labelStyle}>Mô tả chi tiết</label>
-                <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className={`${inputStyle} h-40 leading-relaxed`} placeholder="Mô tả kỹ về sản phẩm..." />
+                <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className={`${inputStyle} h-40 leading-relaxed ${aiAnalyzing ? 'animate-pulse bg-gray-50' : ''}`} placeholder="AI sẽ tự động viết mô tả..." />
               </div>
 
               <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
@@ -736,14 +711,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           )}
         </div>
       </div>
-
-      {/* [NEW] MODAL AI ANALYSIS */}
-      <AIAnalysisModal 
-          isOpen={aiModalOpen}
-          onClose={() => setAiModalOpen(false)}
-          aiData={aiResult}
-          onApply={handleApplyAI}
-      />
     </div>
   );
 };

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Category, CategoryAttribute } from '../types';
-import { analyzeListingImages } from '../services/geminiService';
+import { analyzeListingImages, ListingAnalysis } from '../services/geminiService';
 import { getLocationFromCoords } from '../utils/locationHelper';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import { LOCATIONS } from '../constants';
@@ -17,6 +17,7 @@ interface ListingFormData {
   images: string[];
   attributes: Record<string, string>;
   affiliateLink?: string | null;
+  // --- Đấu giá ---
   isAuction: boolean;
   auctionEndAt: string;
   bidIncrement: string;
@@ -30,6 +31,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
+  // --- STATE ---
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedParentId, setSelectedParentId] = useState<string>("");
   const [selectedChildId, setSelectedChildId] = useState<string>("");
@@ -38,6 +40,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   
+  // AI State
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [priceSuggestions, setPriceSuggestions] = useState<{fast: number, market: number, high: number} | null>(null);
 
@@ -59,9 +62,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     isAuction: false, auctionEndAt: '', bidIncrement: '50000'
   });
 
+  // [UI STYLES]
   const inputStyle = "w-full min-w-0 bg-white border border-gray-200 rounded-xl p-3 md:p-4 text-sm font-semibold focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all shadow-sm placeholder:font-normal placeholder:text-gray-400";
   const labelStyle = "text-[11px] font-bold text-gray-500 uppercase tracking-wide px-1 mb-1.5 block truncate";
 
+  // --- INITIALIZE ---
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
     const init = async () => {
@@ -123,6 +128,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     }
   }, [user, navigate, id, isEditing]);
 
+  // --- HANDLERS ---
   const handleParentCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const pId = e.target.value;
     setSelectedParentId(pId);
@@ -277,7 +283,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         highestBidderId: null
       };
     } else {
-        auctionData = { isAuction: false, auctionEndAt: null, bidIncrement: null, bidsCount: 0, highestBidderId: null };
+        auctionData = { isAuction: false, auctionEndAt: null, bidIncrement: null, bidsCount: 0, highestBidderId: null }
     }
 
     setLoading(true);
@@ -328,6 +334,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         navigate(`/san-pham/${id}`);
       } else {
         await db.saveListing(listingData);
+        
         const newCount = postsToday + 1;
         if (newCount >= maxPosts) {
           if (window.confirm(`🎉 Đăng tin thành công!\n\n⚠️ Bạn đã dùng hết ${newCount}/${maxPosts} lượt đăng hôm nay.\nHãy nâng cấp VIP để đăng không giới hạn?`)) {
@@ -394,9 +401,12 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const hasChildren = childCategories.length > 0;
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-5 px-4 pb-24 pt-4 font-sans overflow-x-hidden">
+    // [FIX OVERFLOW] Chặn trôi ngang cho toàn trang
+    <div className="w-full max-w-2xl mx-auto space-y-6 px-4 pb-24 pt-4 font-sans overflow-x-hidden">
+      
+      {/* HEADER */}
       <div className="text-center space-y-3 mb-6">
-        <h1 className="text-xl md:text-3xl font-black text-gray-900 uppercase tracking-tight">{isEditing ? 'Sửa Tin' : 'Đăng Tin'}</h1>
+        <h1 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tight">{isEditing ? 'Sửa Tin' : 'Đăng Tin'}</h1>
         {!isEditing && (
           <div className="flex flex-col items-center gap-2">
             <div className={`inline-flex items-center gap-3 px-5 py-2 rounded-full border shadow-sm ${remainingPosts <= 1 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
@@ -411,235 +421,236 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       </div>
 
       {!isEditing && (
-        <div className="bg-gray-100 p-1 rounded-xl flex max-w-md mx-auto shadow-inner mb-8">
+        <div className="bg-gray-100 p-1 rounded-xl flex max-w-md mx-auto shadow-inner mb-6">
           <button onClick={() => setListingType('normal')} className={`flex-1 py-2.5 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-wide transition-all ${listingType === 'normal' ? 'bg-white shadow text-primary' : 'text-gray-400'}`}>📦 Bán ngay</button>
           <button onClick={() => setListingType('affiliate')} className={`flex-1 py-2.5 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-wide transition-all ${listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow' : 'text-gray-400'}`}>💰 Tiếp thị VIP</button>
         </div>
       )}
 
-      <div className="grid lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-4 space-y-6">
-          {listingType === 'affiliate' && user?.subscriptionTier !== 'pro' ? (
-            <div className="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center space-y-4">
-              <div className="text-4xl">👑</div>
-              <h3 className="text-sm font-black text-orange-600 uppercase">Dành cho VIP PRO</h3>
-              <Link to="/upgrade" className="block w-full bg-orange-500 text-white py-4 rounded-xl font-bold text-xs">Nâng cấp ngay</Link>
-            </div>
-          ) : (
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                <label className={labelStyle}>Media ({formData.images.length}/{currentTierConfig.maxImages})</label>
-                {aiAnalyzing && (
-                    <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
-                        <span className="text-[10px] font-bold text-blue-500 uppercase">AI đang tự điền...</span>
-                    </div>
-                )}
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {formData.images.map((img, i) => (
-                  <div key={i} className="aspect-square rounded-xl overflow-hidden border border-gray-200 relative group">
-                    <img src={img} className="w-full h-full object-cover" alt="" />
-                    <button type="button" onClick={() => setFormData(p => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all">✕</button>
-                  </div>
-                ))}
-                {formData.images.length < currentTierConfig.maxImages && (
-                  <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-all">
-                    <span className="text-3xl font-light">+</span>
-                  </button>
-                )}
-                {!videoPreview ? (
-                  <button type="button" onClick={handleVideoClick} className={`aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center transition-all ${currentTierConfig.allowVideo ? 'bg-blue-50 border-blue-200 text-blue-500 hover:border-blue-400' : 'bg-gray-50 border-gray-200 text-gray-300 opacity-50 cursor-not-allowed'}`}>
-                    <span className="text-2xl">📹</span>
-                  </button>
-                ) : (
-                  <div className="aspect-square rounded-xl overflow-hidden border border-blue-200 relative group shadow-lg">
-                    <video src={videoPreview} className="w-full h-full object-cover" />
-                    <button type="button" onClick={() => { setVideoFile(null); setVideoPreview(""); setExistingVideoUrl(null); }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 shadow-md">✕</button>
-                  </div>
-                )}
-              </div>
-              <input type="file" ref={fileInputRef} onChange={handleImageUpload} multiple accept="image/*" className="hidden" />
-              <input type="file" ref={videoInputRef} onChange={handleVideoChange} accept="video/*" className="hidden" />
-            </div>
-          )}
+      {/* --- KHỐI MEDIA (ĐÃ DI CHUYỂN VÀO GIỮA) --- */}
+      {listingType === 'affiliate' && user?.subscriptionTier !== 'pro' ? (
+        <div className="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center space-y-4">
+          <div className="text-4xl">👑</div>
+          <h3 className="text-sm font-black text-orange-600 uppercase">Dành cho VIP PRO</h3>
+          <Link to="/upgrade" className="block w-full bg-orange-500 text-white py-4 rounded-xl font-bold text-xs">Nâng cấp ngay</Link>
         </div>
-
-        <div className="lg:col-span-8">
-          {(listingType === 'normal' || user?.subscriptionTier === 'pro') && (
-            <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xl shadow-gray-100/50 space-y-6">
-
-              {!isEditing && remainingPosts === 1 && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-xl mb-2 animate-pulse">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">⚠️</span>
-                    <div>
-                      <h4 className="text-xs font-black text-yellow-700 uppercase">Lưu ý quan trọng</h4>
-                      <p className="text-[11px] text-yellow-800">Tin cuối cùng trong ngày.</p>
-                    </div>
-                  </div>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+          <div className="flex justify-between items-center mb-4">
+            <label className={labelStyle}>Media ({formData.images.length}/{currentTierConfig.maxImages})</label>
+            {aiAnalyzing && (
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
+                    <span className="text-[10px] font-bold text-blue-500 uppercase">AI đang tự điền...</span>
                 </div>
-              )}
-
-              {listingType === 'normal' && (
-                <div className="bg-gray-50 p-1.5 rounded-2xl flex relative mb-4">
-                  <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-xl shadow-sm transition-all duration-300 ${formData.isAuction ? 'left-[calc(50%+3px)]' : 'left-1.5'}`}></div>
-                  <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: false }))} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors ${!formData.isAuction ? 'text-primary' : 'text-gray-400'}`}>🏷️ Giá cố định</button>
-                  <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: true }))} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors ${formData.isAuction ? 'text-purple-600' : 'text-gray-400'}`}>🔨 Đấu giá</button>
-                </div>
-              )}
-
-              {listingType === 'affiliate' && (
-                <div className="space-y-2 bg-orange-50 p-6 rounded-2xl border border-orange-100">
-                  <label className={labelStyle}>Link Tiếp Thị Liên Kết *</label>
-                  <input type="url" required placeholder="Dán link Shopee, Lazada..." value={formData.affiliateLink || ''} onChange={(e) => setFormData({ ...formData, affiliateLink: e.target.value })} className={inputStyle} />
-                </div>
-              )}
-
-              <div className="space-y-1">
-                <label className={labelStyle}>Tiêu đề *</label>
-                <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max..." value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={inputStyle} />
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {formData.images.map((img, i) => (
+              <div key={i} className="aspect-square rounded-xl overflow-hidden border border-gray-200 relative group">
+                <img src={img} className="w-full h-full object-cover" alt="" />
+                <button type="button" onClick={() => setFormData(p => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all">✕</button>
               </div>
-
-              <div className="grid grid-cols-1 gap-6 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                <div className="space-y-1">
-                  <label className={labelStyle}>Danh mục Chính *</label>
-                  <select value={selectedParentId} onChange={handleParentCategoryChange} className={inputStyle}>
-                    <option value="">-- Chọn --</option>
-                    {parentCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className={labelStyle}>Chi tiết</label>
-                  <select value={selectedChildId} onChange={handleChildCategoryChange} className={inputStyle} disabled={!selectedParentId || !hasChildren}>
-                    <option value="">{hasChildren ? "-- Chọn loại --" : "Không có mục con"}</option>
-                    {childCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {renderDynamicFields()}
-
-              <div className={`p-4 rounded-2xl border transition-all ${formData.isAuction ? 'bg-purple-50 border-purple-100' : 'bg-white border-transparent'}`}>
-                {formData.isAuction ? (
-                  <div className="space-y-4 animate-fade-in">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xl">🔨</span>
-                      <h3 className="font-black text-purple-700 uppercase text-xs tracking-widest">Thiết lập đấu giá</h3>
-                    </div>
-                    <div className="grid grid-cols-1 gap-4">
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Giá khởi điểm *</label>
-                        <input type="text" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-black text-purple-700 focus:ring-2 focus:ring-purple-500" placeholder="0" />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Bước giá *</label>
-                        <select value={formData.bidIncrement} onChange={(e) => setFormData({ ...formData, bidIncrement: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:ring-2 focus:ring-purple-500">
-                          <option value="10000">10.000 đ</option>
-                          <option value="20000">20.000 đ</option>
-                          <option value="50000">50.000 đ</option>
-                          <option value="100000">100.000 đ</option>
-                          <option value="200000">200.000 đ</option>
-                          <option value="500000">500.000 đ</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Kết thúc lúc *</label>
-                      <input type="datetime-local" value={formData.auctionEndAt} onChange={(e) => setFormData({ ...formData, auctionEndAt: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:ring-2 focus:ring-purple-500" />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="space-y-1">
-                        <label className={labelStyle}>Giá bán (VNĐ) *</label>
-                        <input type="text" placeholder="0" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className={inputStyle} />
-                      </div>
-                      <div className="space-y-1">
-                        <label className={labelStyle}>Tình trạng</label>
-                        <select value={formData.condition} onChange={(e) => setFormData({ ...formData, condition: e.target.value as any })} className={inputStyle}>
-                          <option value="used">Đã qua sử dụng</option>
-                          <option value="new">Mới 100%</option>
-                        </select>
-                      </div>
-                    </div>
-                    
-                    {priceSuggestions && (
-                        <div className="w-full overflow-hidden">
-                            <div className="flex gap-2 overflow-x-auto pb-2 w-full no-scrollbar touch-pan-x snap-x">
-                                <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.fast.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition whitespace-nowrap">
-                                    <span className="text-[10px] font-bold text-green-600 uppercase">⚡ Bán nhanh</span>
-                                    <span className="text-xs font-black text-green-700">{Number(priceSuggestions.fast).toLocaleString('vi-VN')}</span>
-                                </button>
-                                <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.market.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition whitespace-nowrap">
-                                    <span className="text-[10px] font-bold text-blue-600 uppercase">👍 Hợp lý</span>
-                                    <span className="text-xs font-black text-blue-700">{Number(priceSuggestions.market).toLocaleString('vi-VN')}</span>
-                                </button>
-                                <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.high.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition whitespace-nowrap">
-                                    <span className="text-[10px] font-bold text-purple-600 uppercase">💰 Lời cao</span>
-                                    <span className="text-xs font-black text-purple-700">{Number(priceSuggestions.high).toLocaleString('vi-VN')}</span>
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-1">
-                  <label className={labelStyle}>Khu vực</label>
-                  <select value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} className={inputStyle}>
-                    {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Địa chỉ chi tiết</label>
-                    <button type="button" onClick={handleManualLocate} className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 hover:text-blue-600">📍 Lấy vị trí</button>
-                  </div>
-                  <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={inputStyle} placeholder="Số nhà, đường..." />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className={labelStyle}>Mô tả chi tiết</label>
-                <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className={`${inputStyle} h-40 leading-relaxed`} placeholder="Mô tả kỹ về sản phẩm..." />
-              </div>
-
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-5 rounded-2xl relative overflow-hidden">
-                <div className="relative z-10">
-                  <h3 className="flex items-center gap-2 font-black text-xs uppercase text-blue-600 mb-3 tracking-wider">
-                    <span className="text-lg">🛡️</span> Quy tắc & Mẹo Bán Nhanh
-                  </h3>
-                  <ul className="space-y-2">
-                    {[
-                      { icon: "🚫", text: "Không đăng hàng cấm, hàng giả." },
-                      { icon: "📸", text: "Hình ảnh tự chụp, rõ nét, không mờ." },
-                      { icon: "📝", text: "Mô tả chi tiết tình trạng, xuất xứ." },
-                      { icon: "💬", text: "Trả lời khách hàng lịch sự, nhanh chóng." }
-                    ].map((rule, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-gray-700 font-medium">
-                        <span className="pt-0.5">{rule.icon} {rule.text}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
-                <input type="checkbox" id="rules" checked={agreedToRules} onChange={e => setAgreedToRules(e.target.checked)} className="w-5 h-5 text-primary rounded" />
-                <label htmlFor="rules" className="text-[11px] font-bold text-gray-500 uppercase cursor-pointer">Tôi cam kết tuân thủ quy tắc cộng đồng</label>
-              </div>
-
-              <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl font-black text-sm uppercase shadow-xl text-white transition-all transform active:scale-95 ${formData.isAuction ? 'bg-gradient-to-r from-purple-600 to-indigo-600 shadow-purple-200' : (listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-primary hover:bg-primaryHover')}`}>
-                {loading ? 'Đang xử lý...' : (isEditing ? 'Lưu thay đổi' : (formData.isAuction ? '🔨 Tạo phiên đấu giá' : (remainingPosts === 1 ? 'Đăng tin cuối cùng' : 'Đăng tin ngay')))}
+            ))}
+            {formData.images.length < currentTierConfig.maxImages && (
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-all">
+                <span className="text-3xl font-light">+</span>
               </button>
-            </form>
-          )}
+            )}
+            {!videoPreview ? (
+              <button type="button" onClick={handleVideoClick} className={`aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center transition-all ${currentTierConfig.allowVideo ? 'bg-blue-50 border-blue-200 text-blue-500 hover:border-blue-400' : 'bg-gray-50 border-gray-200 text-gray-300 opacity-50 cursor-not-allowed'}`}>
+                <span className="text-2xl">📹</span>
+              </button>
+            ) : (
+              <div className="aspect-square rounded-xl overflow-hidden border border-blue-200 relative group shadow-lg">
+                <video src={videoPreview} className="w-full h-full object-cover" />
+                <button type="button" onClick={() => { setVideoFile(null); setVideoPreview(""); setExistingVideoUrl(null); }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 shadow-md">✕</button>
+              </div>
+            )}
+          </div>
+          <input type="file" ref={fileInputRef} onChange={handleImageUpload} multiple accept="image/*" className="hidden" />
+          <input type="file" ref={videoInputRef} onChange={handleVideoChange} accept="video/*" className="hidden" />
         </div>
-      </div>
+      )}
+
+      {/* KHỐI FORM NHẬP LIỆU */}
+      {(listingType === 'normal' || user?.subscriptionTier === 'pro') && (
+        <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xl shadow-gray-100/50 space-y-6">
+
+          {!isEditing && remainingPosts === 1 && (
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-xl mb-2 animate-pulse">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">⚠️</span>
+                <div>
+                  <h4 className="text-xs font-black text-yellow-700 uppercase">Lưu ý quan trọng</h4>
+                  <p className="text-[11px] text-yellow-800">Tin cuối cùng trong ngày.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {listingType === 'normal' && (
+            <div className="bg-gray-50 p-1.5 rounded-2xl flex relative mb-4">
+              <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-xl shadow-sm transition-all duration-300 ${formData.isAuction ? 'left-[calc(50%+3px)]' : 'left-1.5'}`}></div>
+              <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: false }))} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors ${!formData.isAuction ? 'text-primary' : 'text-gray-400'}`}>🏷️ Giá cố định</button>
+              <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: true }))} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors ${formData.isAuction ? 'text-purple-600' : 'text-gray-400'}`}>🔨 Đấu giá</button>
+            </div>
+          )}
+
+          {listingType === 'affiliate' && (
+            <div className="space-y-2 bg-orange-50 p-6 rounded-2xl border border-orange-100">
+              <label className={labelStyle}>Link Tiếp Thị Liên Kết *</label>
+              <input type="url" required placeholder="Dán link Shopee, Lazada..." value={formData.affiliateLink || ''} onChange={(e) => setFormData({ ...formData, affiliateLink: e.target.value })} className={inputStyle} />
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <label className={labelStyle}>Tiêu đề *</label>
+            <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max 256GB..." value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={inputStyle} />
+          </div>
+
+          {/* [1 CỘT] Danh mục */}
+          <div className="grid grid-cols-1 gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+            <div className="space-y-1">
+              <label className={labelStyle}>Danh mục Chính *</label>
+              <select value={selectedParentId} onChange={handleParentCategoryChange} className={inputStyle}>
+                <option value="">-- Chọn --</option>
+                {parentCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className={labelStyle}>Chi tiết</label>
+              <select value={selectedChildId} onChange={handleChildCategoryChange} className={inputStyle} disabled={!selectedParentId || !hasChildren}>
+                <option value="">{hasChildren ? "-- Chọn loại --" : "Không có mục con"}</option>
+                {childCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {renderDynamicFields()}
+
+          {/* [1 CỘT] KHU VỰC GIÁ & ĐẤU GIÁ */}
+          <div className={`p-4 rounded-2xl border transition-all ${formData.isAuction ? 'bg-purple-50 border-purple-100' : 'bg-white border-transparent'}`}>
+            {formData.isAuction ? (
+              <div className="space-y-4 animate-fade-in">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">🔨</span>
+                  <h3 className="font-black text-purple-700 uppercase text-xs tracking-widest">Thiết lập đấu giá</h3>
+                </div>
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Giá khởi điểm *</label>
+                    <input type="text" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-black text-purple-700 focus:ring-2 focus:ring-purple-500" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Bước giá *</label>
+                    <select value={formData.bidIncrement} onChange={(e) => setFormData({ ...formData, bidIncrement: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:ring-2 focus:ring-purple-500">
+                      <option value="10000">10.000 đ</option>
+                      <option value="20000">20.000 đ</option>
+                      <option value="50000">50.000 đ</option>
+                      <option value="100000">100.000 đ</option>
+                      <option value="200000">200.000 đ</option>
+                      <option value="500000">500.000 đ</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Kết thúc lúc *</label>
+                  <input type="datetime-local" value={formData.auctionEndAt} onChange={(e) => setFormData({ ...formData, auctionEndAt: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:ring-2 focus:ring-purple-500" />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-1">
+                    <label className={labelStyle}>Giá bán (VNĐ) *</label>
+                    <input type="text" placeholder="0" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className={inputStyle} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className={labelStyle}>Tình trạng</label>
+                    <select value={formData.condition} onChange={(e) => setFormData({ ...formData, condition: e.target.value as any })} className={inputStyle}>
+                      <option value="used">Đã qua sử dụng</option>
+                      <option value="new">Mới 100%</option>
+                    </select>
+                  </div>
+                </div>
+                
+                {/* [FIX TRÀN MÀN HÌNH] Chặn tràn bằng overflow-hidden */}
+                {priceSuggestions && (
+                    <div className="w-full overflow-hidden mt-2">
+                        <div className="flex gap-2 overflow-x-auto pb-2 w-full no-scrollbar touch-pan-x snap-x">
+                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.fast.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition whitespace-nowrap">
+                                <span className="text-[10px] font-bold text-green-600 uppercase">⚡ Bán nhanh</span>
+                                <span className="text-xs font-black text-green-700">{Number(priceSuggestions.fast).toLocaleString('vi-VN')}</span>
+                            </button>
+                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.market.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition whitespace-nowrap">
+                                <span className="text-[10px] font-bold text-blue-600 uppercase">👍 Hợp lý</span>
+                                <span className="text-xs font-black text-blue-700">{Number(priceSuggestions.market).toLocaleString('vi-VN')}</span>
+                            </button>
+                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.high.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition whitespace-nowrap">
+                                <span className="text-[10px] font-bold text-purple-600 uppercase">💰 Lời cao</span>
+                                <span className="text-xs font-black text-purple-700">{Number(priceSuggestions.high).toLocaleString('vi-VN')}</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* [1 CỘT] Khu vực */}
+          <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-1">
+              <label className={labelStyle}>Khu vực</label>
+              <select value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} className={inputStyle}>
+                {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Địa chỉ chi tiết</label>
+                <button type="button" onClick={handleManualLocate} className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 hover:text-blue-600">📍 Lấy vị trí</button>
+              </div>
+              <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={inputStyle} placeholder="Số nhà, đường..." />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className={labelStyle}>Mô tả chi tiết</label>
+            <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className={`${inputStyle} h-40 leading-relaxed`} placeholder="Mô tả kỹ về sản phẩm..." />
+          </div>
+
+          {/* [QUY TẮC & MẸO - ĐÃ CHUYỂN VÀO ĐÂY] */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-5 rounded-2xl relative overflow-hidden">
+            <div className="relative z-10">
+              <h3 className="flex items-center gap-2 font-black text-xs uppercase text-blue-600 mb-3 tracking-wider">
+                <span className="text-lg">🛡️</span> Quy tắc & Mẹo Bán Nhanh
+              </h3>
+              <ul className="space-y-2">
+                {[
+                  { icon: "🚫", text: "Không đăng hàng cấm, hàng giả." },
+                  { icon: "📸", text: "Hình ảnh tự chụp, rõ nét, không mờ." },
+                  { icon: "📝", text: "Mô tả chi tiết tình trạng, xuất xứ." },
+                  { icon: "💬", text: "Trả lời khách hàng lịch sự, nhanh chóng." }
+                ].map((rule, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-gray-700 font-medium">
+                    <span className="pt-0.5">{rule.icon} {rule.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+            <input type="checkbox" id="rules" checked={agreedToRules} onChange={e => setAgreedToRules(e.target.checked)} className="w-5 h-5 text-primary rounded" />
+            <label htmlFor="rules" className="text-[11px] font-bold text-gray-500 uppercase cursor-pointer">Tôi cam kết tuân thủ quy tắc cộng đồng</label>
+          </div>
+
+          <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl font-black text-sm uppercase shadow-xl text-white transition-all transform active:scale-95 ${formData.isAuction ? 'bg-gradient-to-r from-purple-600 to-indigo-600 shadow-purple-200' : (listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-primary hover:bg-primaryHover')}`}>
+            {loading ? 'Đang xử lý...' : (isEditing ? 'Lưu thay đổi' : (formData.isAuction ? '🔨 Tạo phiên đấu giá' : (remainingPosts === 1 ? 'Đăng tin cuối cùng' : 'Đăng tin ngay')))}
+          </button>
+        </form>
+      )}
     </div>
   );
 };

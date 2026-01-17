@@ -1,96 +1,141 @@
 <!DOCTYPE html>
 <html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <head>
+    <meta charset="UTF-8" />
     
-    <title>Chợ Của Tui - Mua Bán Rao Vặt AI Thông Minh Số 1 Việt Nam</title>
-    <meta name="description" content="Chợ Của Tui - Nền tảng rao vặt ứng dụng AI giúp đăng tin nhanh chóng, định vị tin đăng gần bạn, đấu giá trực tuyến minh bạch và an toàn.">
-    <meta name="keywords" content="rao vặt, mua bán, chợ tốt, chợ của tui, thanh lý, bất động sản, xe cộ, đồ điện tử, đấu giá trực tuyến, ai market">
-    <meta name="author" content="Chợ Của Tui Team">
-    <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://chocuatui.vn/">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://chocuatui.vn/">
-    <meta property="og:title" content="Chợ Của Tui - Mua Bán Rao Vặt AI Thông Minh">
-    <meta property="og:description" content="Khám phá hàng ngàn tin đăng quanh bạn. Đấu giá trực tuyến, video ngắn review sản phẩm. Công nghệ AI hỗ trợ mua bán cực nhanh.">
-    <meta property="og:image" content="https://www.chocuatui.vn/unnamed.jpg"> <meta property="og:locale" content="vi_VN">
+    <title>Chợ Của Tui - Mua Bán Rao Vặt AI Thông Minh</title>
+    <meta name="description" content="Nền tảng rao vặt ứng dụng AI: Đăng tin 30s, định giá tự động, tìm kiếm bằng hình ảnh. Đấu giá trực tuyến an toàn, minh bạch." />
+    
+    <meta property="og:title" content="Chợ Của Tui - Chợ Đồ Cũ AI Số 1 Việt Nam" />
+    <meta property="og:description" content="Mua bán nhanh chóng với trợ lý AI. Đăng tin miễn phí, tiếp cận hàng ngàn khách hàng ngay lập tức." />
+    <meta property="og:image" content="https://chocuatui.vn/og-image.jpg" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
 
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Chợ Của Tui - Mua Bán Rao Vặt AI">
-    <meta name="twitter:description" content="Hệ thống rao vặt, đấu giá thông minh ứng dụng công nghệ Google Gemini AI.">
-    <meta name="twitter:image" content="https://www.chocuatui.vn/unnamed.jpg">
-
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#1677ff">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Chợ Của Tui">
-    <link rel="apple-touch-icon" href="/icons/icon-192.png">
-    <link rel="icon" type="image/png" href="/icons/icon-192.png">
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Chợ Của Tui" />
+    
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Be+Vietnam+Pro:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
-        body {
-            font-family: 'Be Vietnam Pro', 'Inter', sans-serif;
-            background-color: #f8f9fa;
-            color: #0b1220;
-            overscroll-behavior-y: none;
-            padding-bottom: env(safe-area-inset-bottom);
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-        
-        /* Loading Spinner Đẳng Cấp Hơn */
-        .loading-container {
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            gap: 15px;
-        }
-        
-        .lightning-bolt {
-            font-size: 45px;
-            animation: pulse 1.5s infinite;
-        }
-        
-        .loading-text {
-            color: #1677ff;
-            font-weight: 900;
-            font-size: 12px;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-        }
+      /* Reset cơ bản */
+      *, *::before, *::after {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent; /* Bỏ highlight xanh khi bấm trên mobile */
+      }
 
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.2); opacity: 0.7; }
-            100% { transform: scale(1); opacity: 1; }
-        }
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Be Vietnam Pro', sans-serif;
+        background-color: #f8f9fa;
+        color: #111827;
+        
+        /* QUAN TRỌNG: Chặn hiệu ứng kéo nảy (Rubber band) trên iOS */
+        overscroll-behavior-y: none;
+        
+        /* Đảm bảo full chiều cao */
+        width: 100vw;
+        height: 100dvh; /* Dynamic viewport height */
+        overflow-x: hidden;
+      }
 
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #d7e6ff; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #1677ff; }
+      /* Định nghĩa biến Safe Area (Vùng an toàn tai thỏ) */
+      :root {
+        --sat: env(safe-area-inset-top);
+        --sab: env(safe-area-inset-bottom);
+        --sal: env(safe-area-inset-left);
+        --sar: env(safe-area-inset-right);
+      }
+
+      /* LOADING SCREEN STYLES (Hiện khi React chưa tải xong) */
+      .app-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%);
+        padding-bottom: 50px;
+      }
+
+      .logo-box {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        background: #2563EB;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.4);
+        margin-bottom: 20px;
+        animation: float 3s ease-in-out infinite;
+      }
+
+      .logo-icon {
+        font-size: 40px;
+        animation: pulse 2s infinite;
+      }
+
+      .app-name {
+        font-family: 'Be Vietnam Pro', sans-serif;
+        font-weight: 900;
+        font-size: 20px;
+        color: #1e3a8a;
+        letter-spacing: -0.5px;
+        margin-bottom: 8px;
+      }
+
+      .loading-spinner {
+        width: 24px;
+        height: 24px;
+        border: 3px solid #e0e7ff;
+        border-top-color: #2563EB;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+      }
+
+      @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.1); opacity: 0.8; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div id="root">
-        <div class="loading-container">
-            <div class="lightning-bolt">⚡</div>
-            <div class="loading-text">Chợ Của Tui Đang Tải...</div>
+      <div class="app-loader">
+        <div class="logo-box">
+          <div class="logo-icon">⚡</div>
         </div>
+        <div class="app-name">CHỢ CỦA TUI</div>
+        <div class="loading-spinner"></div>
+      </div>
     </div>
     
-    <script type="module" src="/index.tsx"></script>
-</body>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

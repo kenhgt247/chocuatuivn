@@ -61,9 +61,9 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     isAuction: false, auctionEndAt: '', bidIncrement: '50000'
   });
 
-  // [FIX UI] Input Style: Mềm mại hơn, padding vừa phải
-  const inputStyle = "w-full bg-white border border-gray-200 rounded-xl p-3 text-sm font-semibold focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all shadow-sm placeholder:font-normal placeholder:text-gray-400";
-  const labelStyle = "text-[11px] font-bold text-gray-500 uppercase tracking-wide px-1 mb-1.5 block";
+  // [FIX UI] Input Style
+  const inputStyle = "w-full min-w-0 bg-white border border-gray-200 rounded-xl p-3 md:p-4 text-sm font-semibold focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all shadow-sm placeholder:font-normal placeholder:text-gray-400";
+  const labelStyle = "text-[11px] font-bold text-gray-500 uppercase tracking-wide px-1 mb-1.5 block truncate";
 
   // --- INITIALIZE ---
   useEffect(() => {
@@ -90,7 +90,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           if (!listing) { alert("Tin không tồn tại"); return navigate('/'); }
           if (listing.sellerId !== user.id && user.role !== 'admin') { alert("Không có quyền sửa"); return navigate('/'); }
 
-          // Logic map category khi edit
           const currentCat = cats.find(c => c.id === listing.category);
           if (currentCat) {
             if (currentCat.parentId) {
@@ -212,17 +211,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     try {
       const analysis = await analyzeListingImages(images.slice(0, 3)).catch(() => null);
       if (analysis) {
-        // [FIX LOGIC] Tìm category thông minh hơn (Recursive Search)
         let foundChildId = "", foundParentId = "", newAttributes: any[] = [];
         
-        // 1. Tìm chính xác ID
         let detectedCategory = categories.find(c => c.id === analysis.category);
-        
-        // 2. Nếu không thấy, thử tìm trong danh mục con của tất cả danh mục cha
         if (!detectedCategory) {
-             // Giả sử category từ AI là slug (vd: 'tivi-am-thanh')
-             // Cần logic fuzzy match hoặc tìm kiếm đệ quy ở đây nếu cấu trúc DB phức tạp
-             // Ở mức đơn giản: tìm theo slug tương đối
              detectedCategory = categories.find(c => c.id.includes(analysis.category) || analysis.category.includes(c.id));
         }
 
@@ -279,7 +271,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       return alert('Vui lòng điền đủ: Tiêu đề, Danh mục, Giá và ít nhất 1 Ảnh!');
     }
     if (listingType === 'affiliate' && !formData.affiliateLink) return alert('Nhập Link tiếp thị liên kết.');
-    if (!agreedToRules) return alert('Vui lòng đồng ý quy tắc.');
+    if (!agreedToRules) return alert('Vui lòng đồng ý quy tắc cộng đồng trước khi đăng.');
 
     let auctionData = {};
     if (formData.isAuction) {
@@ -412,7 +404,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const hasChildren = childCategories.length > 0;
 
   return (
-    // [FIX OVERFLOW] Container chính được giới hạn chiều rộng và ẩn thanh cuộn ngang trang
     <div className="w-full max-w-7xl mx-auto space-y-5 px-4 pb-24 pt-4 font-sans overflow-x-hidden">
       
       {/* HEADER */}
@@ -437,7 +428,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       )}
 
       <div className="grid lg:grid-cols-12 gap-6">
-        
         {/* MEDIA SECTION */}
         <div className="lg:col-span-4 space-y-4">
           <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
@@ -484,21 +474,12 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           {(listingType === 'normal' || user?.subscriptionTier === 'pro') && (
             <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-2xl p-4 md:p-6 shadow-lg shadow-gray-100/50 space-y-5">
 
-              {listingType === 'normal' && (
-                <div className="bg-gray-50 p-1 rounded-xl flex relative mb-2">
-                  <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-lg shadow-sm transition-all duration-300 ${formData.isAuction ? 'left-[calc(50%+2px)]' : 'left-1'}`}></div>
-                  <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: false }))} className={`flex-1 relative z-10 py-2.5 text-[10px] font-black uppercase tracking-wider transition-colors ${!formData.isAuction ? 'text-primary' : 'text-gray-400'}`}>🏷️ Giá cố định</button>
-                  <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: true }))} className={`flex-1 relative z-10 py-2.5 text-[10px] font-black uppercase tracking-wider transition-colors ${formData.isAuction ? 'text-purple-600' : 'text-gray-400'}`}>🔨 Đấu giá</button>
-                </div>
-              )}
-
-              {/* Title Input */}
+              {/* Title & Category - Giữ nguyên */}
               <div className="space-y-1">
                 <label className={labelStyle}>Tiêu đề *</label>
                 <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max..." value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={`${inputStyle} ${aiAnalyzing ? 'animate-pulse bg-blue-50' : ''}`} />
               </div>
 
-              {/* Category Selects */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className={labelStyle}>Danh mục Chính *</label>
@@ -534,7 +515,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                     </div>
                  </div>
 
-                 {/* [FIX UI CRITICAL] Gợi ý giá: Dùng max-w-full để chặn tràn, và overflow-x-auto để cuộn */}
                  {priceSuggestions && !formData.isAuction && (
                     <div className="w-full max-w-[calc(100vw-60px)] md:max-w-full overflow-hidden">
                         <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar touch-pan-x snap-x">
@@ -555,47 +535,26 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                  )}
               </div>
 
-              {/* Auction Section */}
-              {formData.isAuction && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-purple-50 p-4 rounded-xl border border-purple-100">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-purple-600 uppercase tracking-wide">Bước giá *</label>
-                        <select value={formData.bidIncrement} onChange={(e) => setFormData({ ...formData, bidIncrement: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:outline-none">
-                          <option value="10000">10.000 đ</option>
-                          <option value="50000">50.000 đ</option>
-                          <option value="100000">100.000 đ</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-purple-600 uppercase tracking-wide">Kết thúc *</label>
-                        <input type="datetime-local" value={formData.auctionEndAt} onChange={(e) => setFormData({ ...formData, auctionEndAt: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:outline-none" />
-                      </div>
-                  </div>
-              )}
-
-              {/* Location */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className={labelStyle}>Khu vực</label>
-                  <select value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} className={inputStyle}>
-                    {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className={labelStyle}>Địa chỉ chi tiết</label>
-                  <div className="relative">
-                     <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={inputStyle} placeholder="Số nhà, đường..." />
-                     <button type="button" onClick={handleManualLocate} className="absolute right-2 top-2.5 text-xs bg-gray-100 p-1.5 rounded-lg hover:bg-gray-200">📍</button>
-                  </div>
-                </div>
-              </div>
-
               <div className="space-y-1">
                 <label className={labelStyle}>Mô tả</label>
                 <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className={`${inputStyle} h-32 leading-relaxed`} placeholder="Mô tả chi tiết..." />
               </div>
 
-              <button type="submit" disabled={loading} className={`w-full py-4 rounded-xl font-black text-sm uppercase shadow-lg text-white transition-all active:scale-95 ${formData.isAuction ? 'bg-purple-600 shadow-purple-200' : 'bg-primary shadow-blue-200'}`}>
+              {/* [ĐÃ BỔ SUNG LẠI] NÚT CHECKBOX */}
+              <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                <input 
+                  type="checkbox" 
+                  id="rules" 
+                  checked={agreedToRules} 
+                  onChange={e => setAgreedToRules(e.target.checked)} 
+                  className="w-5 h-5 mt-0.5 text-primary border-gray-300 rounded focus:ring-primary cursor-pointer" 
+                />
+                <label htmlFor="rules" className="text-xs font-medium text-gray-600 cursor-pointer select-none">
+                  Tôi cam kết thông tin đăng tải là sự thật và tuân thủ <span className="text-primary font-bold hover:underline">Quy tắc cộng đồng</span>.
+                </label>
+              </div>
+
+              <button type="submit" disabled={loading} className={`w-full py-4 rounded-xl font-black text-sm uppercase shadow-lg text-white transition-all active:scale-95 ${formData.isAuction ? 'bg-purple-600 shadow-purple-200' : 'bg-primary shadow-blue-200'} disabled:opacity-50 disabled:cursor-not-allowed`}>
                 {loading ? 'Đang xử lý...' : (isEditing ? 'Lưu thay đổi' : (formData.isAuction ? '🔨 Tạo đấu giá' : 'Đăng tin ngay'))}
               </button>
             </form>

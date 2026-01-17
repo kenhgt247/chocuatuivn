@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
 // ==========================================================================
-// 1. ĐỊNH NGHĨA INTERFACE CHUẨN
+// 1. ĐỊNH NGHĨA INTERFACE (CHUẨN DỮ LIỆU)
 // ==========================================================================
 export interface ListingAnalysis {
   category: string;
@@ -13,9 +13,9 @@ export interface ListingAnalysis {
   pricingStrategy: {
     min: number;
     max: number;
-    fastSell: number;    // Giá bán nhanh (Rẻ hơn 10-15%)
-    suggested: number;   // Giá thị trường
-    highProfit: number;  // Giá kỳ vọng cao (Đắt hơn 10-15%)
+    fastSell: number;    // Giá bán nhanh (Rẻ)
+    suggested: number;   // Giá hợp lý
+    highProfit: number;  // Giá được giá
     marketAnalysis: string;
   };
 
@@ -27,15 +27,15 @@ export interface ListingAnalysis {
 
   seoTags: string[];
   keySellingPoints: string[];
-  attributes: Record<string, any>; // Lưu hãng, màu sắc, xuất xứ...
+  attributes: Record<string, any>;
   
   isProhibited: boolean;
   prohibitedReason?: string;
 }
 
-// DANH MỤC HỆ THỐNG (Cần mapping chính xác với Database của bạn)
+// DANH SÁCH MÃ DANH MỤC (Cần khớp với DB của bạn)
 const CATEGORY_MAP_PROMPT = `
-HÃY CHỌN CHÍNH XÁC 1 MÃ (SLUG) TỪ DANH SÁCH SAU ĐÂY:
+HÃY CHỌN CHÍNH XÁC 1 MÃ (SLUG) TỪ DANH SÁCH SAU:
 - Bất động sản: 'can-ho-chung-cu', 'nha-o', 'dat', 'phong-tro', 'van-phong'
 - Xe cộ: 'o-to', 'xe-may', 'xe-dien', 'xe-tai', 'xe-dap', 'phu-tung-xe'
 - Đồ điện tử: 'dien-thoai', 'may-tinh-bang', 'laptop', 'may-tinh-de-ban', 'may-anh', 'tivi-am-thanh', 'thiet-bi-thong-minh', 'phu-kien-dt', 'linh-kien'
@@ -54,30 +54,32 @@ const getApiKey = () => {
   return import.meta.env.VITE_GEMINI_API_KEY || "";
 };
 
-// HÀM HỖ TRỢ: Lấy text an toàn từ mọi cấu trúc phản hồi của Google
+// --- CÁC HÀM HỖ TRỢ AN TOÀN (HELPER) ---
+
 const safeGetText = (response: any): string => {
   try {
     if (typeof response.text === 'function') return response.text();
+    // Xử lý cấu trúc dữ liệu lồng nhau của Google SDK mới
     if (response.candidates?.[0]?.content?.parts?.[0]?.text) 
         return response.candidates[0].content.parts[0].text;
-    return JSON.stringify(response);
+    return ""; 
   } catch (e) {
-    console.error("Lỗi đọc response AI:", e);
+    console.error("Lỗi đọc text từ AI:", e);
     return "";
   }
 };
 
-// HÀM HỖ TRỢ: Làm sạch JSON (Loại bỏ Markdown ```json ... ```)
 const cleanJson = (text: string): string => {
   if (!text) return "";
+  // Xóa các ký tự markdown thừa để tránh lỗi JSON.parse
   return text.replace(/```json/g, '').replace(/```/g, '').trim();
 };
 
 // ==========================================================================
-// 2. CÁC HÀM GỌI API (SỬ DỤNG GEMINI 1.5 PRO - BẢN TRẢ PHÍ MẠNH NHẤT)
+// 2. CÁC HÀM GỌI API (LOGIC PRO VIP)
 // ==========================================================================
 
-// Hàm 1: Tìm kiếm bằng hình ảnh (Dùng cho thanh tìm kiếm)
+// HÀM 1: TÌM KIẾM SẢN PHẨM (Dùng Flash cho nhanh)
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
   const apiKey = getApiKey();
   if (!apiKey) return "";
@@ -86,14 +88,13 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
     const ai = new GoogleGenAI({ apiKey });
     const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
     
-    // Tìm kiếm chỉ cần Flash cho nhanh
     const response = await ai.models.generateContent({
       model: 'gemini-1.5-flash', 
       contents: [{
         role: 'user',
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-          { text: "Trả về duy nhất 1 cụm từ khóa chính xác để tìm mua sản phẩm trong ảnh này tại Việt Nam. Ví dụ: 'iPhone 14 Pro Max', 'Tủ lạnh Toshiba'. Không thêm dấu câu." }
+          { text: "Trả về duy nhất 1 cụm từ khóa chính xác để tìm mua sản phẩm này. Ví dụ: 'iPhone 14 Pro Max', 'Honda Vision'. Không dấu câu." }
         ]
       }]
     });
@@ -104,16 +105,16 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
   }
 };
 
-// Hàm 2: Phân tích đăng tin (Dùng model PRO cho độ chính xác cao)
+// HÀM 2: PHÂN TÍCH ĐĂNG TIN (Dùng Pro cho thông minh)
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
   
-  // Dữ liệu mặc định nếu AI lỗi
+  // Dữ liệu mặc định an toàn
   const defaultData: ListingAnalysis = { 
     title: '', description: '', category: 'khac', suggestedPrice: 0, 
     condition: 'good', isProhibited: false, attributes: {}, seoTags: [],
     pricingStrategy: { min: 0, max: 0, fastSell: 0, suggested: 0, highProfit: 0, marketAnalysis: '' },
-    qualityCheck: { score: 50, tips: 'Hãy chụp rõ nét hơn', issues: [] }, keySellingPoints: []
+    qualityCheck: { score: 50, tips: 'Cần ảnh rõ hơn', issues: [] }, keySellingPoints: []
   };
 
   if (!apiKey) return defaultData;
@@ -129,28 +130,24 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     }));
 
     const prompt = `
-    Vai trò: Bạn là Chuyên gia Thẩm định giá & Copywriter số 1 Việt Nam.
-    Nhiệm vụ: Phân tích ảnh sản phẩm để tạo tin đăng bán hàng chuyên nghiệp.
+    Bạn là Chuyên gia Thẩm định giá đồ cũ số 1 Việt Nam.
+    Nhiệm vụ: Phân tích ảnh và trả về dữ liệu JSON để tự động điền form đăng bán.
 
-    QUY TRÌNH SUY LUẬN (BẮT BUỘC):
-    1. Nhận diện vật thể chính.
-    2. Xác định Danh mục (Category) chính xác nhất từ danh sách cung cấp. (Ví dụ: Thấy Tivi -> Phải chọn 'tivi-am-thanh').
-    3. Ước lượng giá trị thực tế tại thị trường đồ cũ Việt Nam (VNĐ).
+    YÊU CẦU QUAN TRỌNG:
+    1. DANH MỤC (Category): Chọn CHÍNH XÁC 1 mã từ danh sách dưới. (Ví dụ thấy Tivi -> 'tivi-am-thanh').
+    2. GIÁ (Pricing): Bắt buộc trả về số VNĐ > 0.
+       - fastSell: Giá rẻ để bán nhanh.
+       - suggested: Giá thị trường.
+       - highProfit: Giá cao.
+    3. CONTENT: 
+       - Tiêu đề: Giật tít, viết hoa Tên Sản Phẩm.
+       - Mô tả: Văn phong tự nhiên, chân thực (như người bán thật).
 
-    YÊU CẦU ĐẦU RA (JSON):
-    - category: Chọn 1 slug từ danh sách bên dưới.
-    - suggestedPrice: Giá trung bình (Số nguyên, > 0).
-    - fastSell: Giá bán nhanh (Thấp hơn 15%).
-    - highProfit: Giá bán lời (Cao hơn 15%).
-    - title: Tiêu đề hấp dẫn, chứa Tên SP + Tình trạng.
-    - description: Mô tả chi tiết, chia dòng, nêu bật ưu điểm.
-    - attributes: Trích xuất thông số (Hãng, Màu, Dung lượng...).
-
-    DANH SÁCH DANH MỤC CHUẨN:
+    DANH SÁCH DANH MỤC:
     ${CATEGORY_MAP_PROMPT}
     `;
 
-    // Sử dụng Model Pro 1.5 cho kết quả tốt nhất
+    // SỬ DỤNG MODEL PRO (1.5 PRO)
     const response = await ai.models.generateContent({
       model: 'gemini-1.5-pro', 
       contents: [
@@ -159,11 +156,11 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: "OBJECT",
+          type: "OBJECT", // Dùng String "OBJECT" chuẩn SDK mới
           properties: {
             isProhibited: { type: "BOOLEAN" },
             prohibitedReason: { type: "STRING" },
-            category: { type: "STRING" }, // Quan trọng: AI phải trả về String khớp danh mục
+            category: { type: "STRING" },
             title: { type: "STRING" },
             description: { type: "STRING" },
             suggestedPrice: { type: "NUMBER" },
@@ -208,7 +205,7 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
               }
             }
           },
-          required: ["title", "category", "suggestedPrice", "description", "condition", "pricingStrategy", "qualityCheck"]
+          required: ["title", "category", "suggestedPrice", "description", "condition", "pricingStrategy"]
         }
       }
     });
@@ -218,23 +215,25 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
 
     if (!jsonText) return defaultData;
     
-    const parsedData = JSON.parse(jsonText) as ListingAnalysis;
+    // Parse và Validate dữ liệu lần cuối
+    const result = JSON.parse(jsonText) as ListingAnalysis;
     
-    // Validate dữ liệu quan trọng trước khi trả về
-    if (!parsedData.pricingStrategy) {
-        parsedData.pricingStrategy = { min: 0, max: 0, fastSell: 0, suggested: 0, highProfit: 0, marketAnalysis: '' };
-    }
-    // Nếu AI lười trả về 0, ta fallback sang giá gợi ý
-    if (parsedData.pricingStrategy.fastSell === 0 && parsedData.suggestedPrice > 0) {
-        parsedData.pricingStrategy.fastSell = parsedData.suggestedPrice * 0.85;
-        parsedData.pricingStrategy.suggested = parsedData.suggestedPrice;
-        parsedData.pricingStrategy.highProfit = parsedData.suggestedPrice * 1.15;
+    // Fallback nếu AI quên trả về chiến lược giá
+    if (!result.pricingStrategy) {
+        result.pricingStrategy = {
+            min: result.suggestedPrice * 0.8,
+            max: result.suggestedPrice * 1.2,
+            fastSell: result.suggestedPrice * 0.9,
+            suggested: result.suggestedPrice,
+            highProfit: result.suggestedPrice * 1.1,
+            marketAnalysis: "Dựa trên giá trung bình"
+        };
     }
 
-    return parsedData;
+    return result;
 
   } catch (error) {
-    console.error("Lỗi AI Analysis:", error);
+    console.error("Lỗi AI Service:", error);
     return defaultData;
   }
 };

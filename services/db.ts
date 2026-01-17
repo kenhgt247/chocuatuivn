@@ -66,10 +66,19 @@ const firestore = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 const functions = getFunctions(app);
-// [MỚI] Khởi tạo Messaging
-const messaging = getMessaging(app);
 
-// Xuất các instance ra để dùng ở nơi khác (ví dụ Layout.tsx)
+// --- [FIX LỖI TRẮNG TRANG] KHỞI TẠO MESSAGING AN TOÀN ---
+let messaging: any = null;
+try {
+  // Chỉ khởi tạo nếu môi trường hỗ trợ (tránh lỗi trên server-side hoặc trình duyệt cũ)
+  if (typeof window !== "undefined" && 'serviceWorker' in navigator) {
+    messaging = getMessaging(app);
+  }
+} catch (error) {
+  console.log("Firebase Messaging không được hỗ trợ trên thiết bị này:", error);
+}
+
+// Xuất các biến
 export { app, auth, storage, firestore, messaging };
 
 // 4. OBJECT DB

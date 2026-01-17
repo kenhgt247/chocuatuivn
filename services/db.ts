@@ -64,7 +64,7 @@ const firestore = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 const functions = getFunctions(app);
-
+export { app, auth, storage, firestore };
 // 4. OBJECT DB
 export const db = {
   

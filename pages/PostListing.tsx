@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Category, CategoryAttribute } from '../types';
-import { analyzeListingImages, ListingAnalysis } from '../services/geminiService';
+import { analyzeListingImages } from '../services/geminiService';
 import { getLocationFromCoords } from '../utils/locationHelper';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import { LOCATIONS } from '../constants';
@@ -30,7 +30,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
-  // --- STATE ---
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedParentId, setSelectedParentId] = useState<string>("");
   const [selectedChildId, setSelectedChildId] = useState<string>("");
@@ -38,8 +37,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
+  
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [priceSuggestions, setPriceSuggestions] = useState<{fast: number, market: number, high: number} | null>(null);
+
   const [locationDetected, setLocationDetected] = useState<{ lat: number, lng: number } | null>(null);
   const [agreedToRules, setAgreedToRules] = useState(false);
   const [listingType, setListingType] = useState<'normal' | 'affiliate'>('normal');
@@ -58,11 +59,9 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     isAuction: false, auctionEndAt: '', bidIncrement: '50000'
   });
 
-  // [UI STYLES]
-  const inputStyle = "w-full bg-white border border-gray-200 rounded-xl p-3 text-sm font-semibold focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all shadow-sm placeholder:font-normal placeholder:text-gray-400";
+  const inputStyle = "w-full min-w-0 bg-white border border-gray-200 rounded-xl p-3 md:p-4 text-sm font-semibold focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all shadow-sm placeholder:font-normal placeholder:text-gray-400";
   const labelStyle = "text-[11px] font-bold text-gray-500 uppercase tracking-wide px-1 mb-1.5 block truncate";
 
-  // --- INITIALIZE ---
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
     const init = async () => {
@@ -124,7 +123,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     }
   }, [user, navigate, id, isEditing]);
 
-  // --- HANDLERS ---
   const handleParentCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const pId = e.target.value;
     setSelectedParentId(pId);
@@ -247,7 +245,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     finally { setAiAnalyzing(false); }
   };
 
-  // --- SUBMIT ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !settings) return;
@@ -280,7 +277,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         highestBidderId: null
       };
     } else {
-        auctionData = { isAuction: false, auctionEndAt: null, bidIncrement: null, bidsCount: 0, highestBidderId: null }
+        auctionData = { isAuction: false, auctionEndAt: null, bidIncrement: null, bidsCount: 0, highestBidderId: null };
     }
 
     setLoading(true);
@@ -348,7 +345,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const renderDynamicFields = () => {
     if (currentAttributes.length === 0) return null;
     return (
-      // [QUAN TRỌNG] LUÔN LÀ 1 CỘT (grid-cols-1) CHO CẢ MOBILE VÀ DESKTOP
       <div className="grid grid-cols-1 gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
         <div className="text-xs font-black text-blue-500 uppercase tracking-widest mb-2 border-b border-blue-100 pb-2">Thông tin chi tiết</div>
         {currentAttributes.map((attr) => (
@@ -398,9 +394,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const hasChildren = childCategories.length > 0;
 
   return (
-    // [FIX] Sử dụng overflow-x-hidden để tránh lỗi AI làm vỡ khung
-    <div className="w-full max-w-3xl mx-auto space-y-5 px-4 pb-24 pt-4 font-sans overflow-x-hidden">
-      
+    <div className="w-full max-w-7xl mx-auto space-y-5 px-4 pb-24 pt-4 font-sans overflow-x-hidden">
       <div className="text-center space-y-3 mb-6">
         <h1 className="text-xl md:text-3xl font-black text-gray-900 uppercase tracking-tight">{isEditing ? 'Sửa Tin' : 'Đăng Tin'}</h1>
         {!isEditing && (
@@ -423,17 +417,15 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       )}
 
-      {/* [CHUYỂN VỀ 1 CỘT TOÀN BỘ] Không dùng grid-cols-12 nữa */}
-      <div className="space-y-6">
-        
-        {/* KHỐI MEDIA */}
-        {listingType === 'affiliate' && user?.subscriptionTier !== 'pro' ? (
+      <div className="grid lg:grid-cols-12 gap-8">
+        <div className="lg:col-span-4 space-y-6">
+          {listingType === 'affiliate' && user?.subscriptionTier !== 'pro' ? (
             <div className="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center space-y-4">
               <div className="text-4xl">👑</div>
               <h3 className="text-sm font-black text-orange-600 uppercase">Dành cho VIP PRO</h3>
               <Link to="/upgrade" className="block w-full bg-orange-500 text-white py-4 rounded-xl font-bold text-xs">Nâng cấp ngay</Link>
             </div>
-        ) : (
+          ) : (
             <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
               <div className="flex justify-between items-center mb-4">
                 <label className={labelStyle}>Media ({formData.images.length}/{currentTierConfig.maxImages})</label>
@@ -444,7 +436,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                     </div>
                 )}
               </div>
-              <div className="grid grid-cols-3 gap-3"> {/* Ảnh nhỏ gọn hơn */}
+              <div className="grid grid-cols-3 gap-3">
                 {formData.images.map((img, i) => (
                   <div key={i} className="aspect-square rounded-xl overflow-hidden border border-gray-200 relative group">
                     <img src={img} className="w-full h-full object-cover" alt="" />
@@ -470,10 +462,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
               <input type="file" ref={fileInputRef} onChange={handleImageUpload} multiple accept="image/*" className="hidden" />
               <input type="file" ref={videoInputRef} onChange={handleVideoChange} accept="video/*" className="hidden" />
             </div>
-        )}
+          )}
+        </div>
 
-        {/* KHỐI FORM */}
-        {(listingType === 'normal' || user?.subscriptionTier === 'pro') && (
+        <div className="lg:col-span-8">
+          {(listingType === 'normal' || user?.subscriptionTier === 'pro') && (
             <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xl shadow-gray-100/50 space-y-6">
 
               {!isEditing && remainingPosts === 1 && (
@@ -508,7 +501,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max..." value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={inputStyle} />
               </div>
 
-              {/* [QUAN TRỌNG] CHỈ 1 CỘT DUY NHẤT */}
               <div className="grid grid-cols-1 gap-6 bg-gray-50 p-4 rounded-2xl border border-gray-100">
                 <div className="space-y-1">
                   <label className={labelStyle}>Danh mục Chính *</label>
@@ -535,7 +527,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                       <span className="text-xl">🔨</span>
                       <h3 className="font-black text-purple-700 uppercase text-xs tracking-widest">Thiết lập đấu giá</h3>
                     </div>
-                    {/* [QUAN TRỌNG] 1 CỘT */}
                     <div className="grid grid-cols-1 gap-4">
                       <div>
                         <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Giá khởi điểm *</label>
@@ -560,7 +551,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {/* [QUAN TRỌNG] 1 CỘT */}
                     <div className="grid grid-cols-1 gap-4">
                       <div className="space-y-1">
                         <label className={labelStyle}>Giá bán (VNĐ) *</label>
@@ -575,7 +565,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                       </div>
                     </div>
                     
-                    {/* [FIX TRÀN MÀN HÌNH] Sử dụng overflow-hidden cho container cha */}
                     {priceSuggestions && (
                         <div className="w-full overflow-hidden">
                             <div className="flex gap-2 overflow-x-auto pb-2 w-full no-scrollbar touch-pan-x snap-x">
@@ -598,7 +587,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 )}
               </div>
 
-              {/* [QUAN TRỌNG] 1 CỘT */}
               <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-1">
                   <label className={labelStyle}>Khu vực</label>
@@ -620,7 +608,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className={`${inputStyle} h-40 leading-relaxed`} placeholder="Mô tả kỹ về sản phẩm..." />
               </div>
 
-              {/* [ĐÃ DI CHUYỂN] QUY TẮC CỘNG ĐỒNG VÀO ĐÂY, NGAY TRÊN NÚT CAM KẾT */}
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-5 rounded-2xl relative overflow-hidden">
                 <div className="relative z-10">
                   <h3 className="flex items-center gap-2 font-black text-xs uppercase text-blue-600 mb-3 tracking-wider">

@@ -1,5 +1,6 @@
 // services/db.ts
 
+// 1. IMPORT CÁC THƯ VIỆN CẦN THIẾT
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { 
   getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, 
@@ -23,10 +24,14 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 
 // Import Types
 import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus, Offer, Category, Bid, Message } from '../types';
+
+// IMPORT LOGIC TÌM KIẾM & FORMAT
 import { isSearchMatch, calculateRelevanceScore, generateKeywords } from '../utils/format';
 
+// 2. CẤU HÌNH ADMIN EMAIL
 const ADMIN_EMAIL = "buivanbac@gmail.com"; 
 
+// Interface chuẩn đầy đủ cho Admin Settings
 export interface SystemSettings {
   pushPrice: number;    
   pushDiscount: number; 
@@ -60,12 +65,10 @@ const auth = getAuth(app);
 const storage = getStorage(app);
 const functions = getFunctions(app);
 
-// [QUAN TRỌNG] Export app để Layout dùng (nhưng KHÔNG export messaging để tránh lỗi trắng trang)
-export { app, auth, storage, firestore }; 
-
 // 4. OBJECT DB
 export const db = {
   
+  // --- HÀM HELPER: Tạo đường dẫn đẹp (Slug) ---
   toSlug: (str: string) => {
     return str
       .toLowerCase()
@@ -75,6 +78,8 @@ export const db = {
       .trim()
       .replace(/\s+/g, "-");
   },
+
+  // --- A. QUẢN LÝ TIN ĐĂNG (LISTINGS) ---
 
   countUserListingsToday: async (userId: string) => {
     try {
@@ -144,6 +149,7 @@ export const db = {
       const colRef = collection(firestore, "listings");
       let constraints: any[] = [];
 
+      // 1. TÌM KIẾM
       if (options.search && options.search.trim().length > 0) {
          const searchKeywords = generateKeywords(options.search);
          if (searchKeywords.length > 0) {
@@ -152,22 +158,26 @@ export const db = {
          }
       }
 
+      // 2. TRẠNG THÁI
       if (options.status) {
           constraints.push(where("status", "==", options.status));
       } else if (!options.sellerId) {
           constraints.push(where("status", "==", "approved"));
       }
 
+      // 3. LỌC DANH MỤC
       if (options.categoryId) {
           constraints.push(where("category", "==", options.categoryId));
       } else if (options.parentCategoryId) {
           constraints.push(where("parentCategory", "==", options.parentCategoryId));
       }
 
+      // 4. CÁC BỘ LỌC KHÁC
       if (options.sellerId) constraints.push(where("sellerId", "==", options.sellerId));
       if (options.location) constraints.push(where("location", "==", options.location));
       if (options.isVip) constraints.push(where("tier", "==", "pro"));
 
+      // 5. LỌC KHOẢNG GIÁ
       if (typeof options.minPrice === 'number') {
         constraints.push(where("price", ">=", options.minPrice));
       }
@@ -175,12 +185,14 @@ export const db = {
         constraints.push(where("price", "<=", options.maxPrice));
       }
 
+      // 6. SẮP XẾP
       if (typeof options.minPrice === 'number' || typeof options.maxPrice === 'number') {
           constraints.push(orderBy("price", "desc"));
       } else if (!options.search) {
           constraints.push(orderBy("createdAt", "desc"));
       }
 
+      // 7. PHÂN TRANG
       constraints.push(limit(options.pageSize));
       if (options.lastDoc) {
         constraints.push(startAfter(options.lastDoc));
@@ -191,6 +203,7 @@ export const db = {
       
       let results = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
 
+      // 8. TÌM KIẾM CLIENT SIDE
       if (options.search && options.search.trim().length > 0) {
           const queryText = options.search.trim();
           results = results.filter(l => isSearchMatch(l.title, queryText));
@@ -421,6 +434,8 @@ export const db = {
     }
   },
 
+  // --- C. GIAO DỊCH & VÍ ---
+
   requestDeposit: async (userId: string, amount: number, method: string) => {
     try {
       const res = await addDoc(collection(firestore, "transactions"), {
@@ -607,6 +622,8 @@ export const db = {
     return snap.docs.map(d => ({ ...d.data(), id: d.id } as Transaction));
   },
 
+  // --- D. NGƯỜI DÙNG (USERS & AUTH) ---
+  
   getUsersPaged: async (options: {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
@@ -674,6 +691,7 @@ export const db = {
     return d.exists() ? { id: d.id, ...d.data() } as User : undefined;
   },
 
+  // [HÀM MỚI CHÈN VÀO] - Lắng nghe thay đổi user (cho ví tự cập nhật)
   onUserChange: (userId: string, callback: (user: User) => void) => {
     const userRef = doc(firestore, "users", userId);
     return onSnapshot(userRef, (docSnap) => {
@@ -809,6 +827,8 @@ export const db = {
 
   logout: async () => await signOut(auth),
 
+  // --- E. HỆ THỐNG FOLLOW ---
+  
   checkIsFollowing: async (followerId: string, followedId: string): Promise<boolean> => {
     try {
         const followDocId = `${followerId}_${followedId}`;
@@ -871,6 +891,8 @@ export const db = {
          await db.followUser(uId, tId);
      }
   },
+
+  // --- F. ĐÁNH GIÁ (REVIEWS) ---
 
   getReviews: (targetId: string, targetType: 'listing' | 'user', callback: (reviews: Review[]) => void) => {
     const q = query(
@@ -1046,6 +1068,8 @@ export const db = {
     }
   },
 
+  // --- G. CHAT ---
+
   getChatRooms: (uId: string, cb: any) => {
     const q = query(collection(firestore, "chats"), where("participantIds", "array-contains", uId));
     return onSnapshot(q, (s) => {
@@ -1069,9 +1093,11 @@ export const db = {
     }
   },
   
+  // [FIXED] Sửa lại logic gửi tin nhắn để tránh lỗi "No document to update"
   addMessage: async (roomId: string, message: Omit<Message, 'id' | 'timestamp'>) => {
     const roomRef = doc(firestore, "chats", roomId);
     
+    // 1. Tạo tin nhắn mới
     const newMessage = {
       ...message,
       id: crypto.randomUUID(),
@@ -1079,9 +1105,11 @@ export const db = {
     };
 
     try {
+      // 2. Kiểm tra phòng tồn tại chưa
       const roomSnap = await getDoc(roomRef);
       
       if (!roomSnap.exists()) {
+         // Nếu chưa có phòng (phòng bị lỗi hoặc xóa), tự tạo lại
          console.warn("Phòng chat không tồn tại, đang tự tạo lại...");
          await setDoc(roomRef, {
              id: roomId,
@@ -1092,6 +1120,7 @@ export const db = {
              seenBy: [message.senderId]
          }, { merge: true });
       } else {
+          // 3. Nếu có rồi thì update bình thường
           await updateDoc(roomRef, {
             messages: arrayUnion(newMessage),
             lastMessage: message.type === 'image' ? '📷 Hình ảnh' : (message.type === 'offer' ? '💸 Đề nghị giá' : (message.type === 'swap' ? '🔄 Đề nghị đổi đồ' : message.text)),
@@ -1143,6 +1172,7 @@ export const db = {
     }
   },
 
+  // [FIXED] Đảm bảo dùng setDoc để tạo phòng
   createChatRoom: async (l: Listing, buyer: User): Promise<string> => {
     try {
         const roomId = `${buyer.id}_${l.id}`;
@@ -1178,6 +1208,7 @@ export const db = {
     }
   },
   
+  // Hàm xử lý Đồng ý/Từ chối đổi đồ
   respondToSwap: async (roomId: string, messageId: string, status: 'accepted' | 'rejected') => {
     const roomRef = doc(firestore, "chats", roomId);
     try {
@@ -1220,6 +1251,8 @@ export const db = {
     }
   },
 
+  // --- I. TÍNH NĂNG MẶC CẢ (OFFERS) ---
+  
   createOffer: async (listing: Listing, buyer: User, offerPrice: number) => {
     try {
       const offerData: Omit<Offer, 'id'> = {
@@ -1292,6 +1325,7 @@ export const db = {
     }
   },
 
+  // --- CRAWLER LINK ---
   scanLinkToImage: async (url: string) => {
     try {
       const captureFn = httpsCallable(functions, 'captureUrl');
@@ -1308,6 +1342,8 @@ export const db = {
     }
   },
 
+
+  // --- DANH MỤC ĐỘNG ---
   getCategories: async (): Promise<Category[]> => {
     try {
       const colRef = collection(firestore, "categories");
@@ -1340,7 +1376,9 @@ export const db = {
       return { success: false, message: e.message };
     }
   },
+  // --- H. ĐẤU GIÁ (AUCTION) ---
 
+  // Lấy danh sách người đấu giá (Realtime)
   getBids: (listingId: string, callback: (bids: Bid[]) => void) => {
     const q = query(
       collection(firestore, "bids"), 
@@ -1353,9 +1391,11 @@ export const db = {
     });
   },
 
+  // Thực hiện đặt giá (Transaction an toàn)
   placeBid: async (listingId: string, userId: string, amount: number) => {
     try {
       return await runTransaction(firestore, async (transaction) => {
+        // 1. Lấy thông tin tin đăng & user
         const listingRef = doc(firestore, "listings", listingId);
         const userRef = doc(firestore, "users", userId);
         

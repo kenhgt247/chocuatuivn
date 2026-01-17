@@ -2,12 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { User, ChatRoom } from '../types'; 
 import { identifyProductForSearch } from '../services/geminiService';
-import { db, app } from '../services/db'; // Import 'app' từ db
+// 👇 Import 'app' và 'db' (Lưu ý: không import messaging ở đây)
+import { db, app } from '../services/db'; 
 import UniversalInstallPrompt from './UniversalInstallPrompt';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import NotificationMenu from '../components/NotificationMenu';
 
-// [QUAN TRỌNG] KHÔNG import getMessaging ở đây nữa để tránh crash
+// ⚠️ TUYỆT ĐỐI KHÔNG IMPORT firebase/messaging Ở ĐÂY ĐỂ TRÁNH TRẮNG TRANG
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,6 +25,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [isSearchingImage, setIsSearchingImage] = useState(false);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
+  
+  // State quản lý quyền thông báo
   const [notifPermission, setNotifPermission] = useState(Notification.permission);
 
   const minPriceParam = searchParams.get('minPrice');
@@ -38,11 +41,13 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   // --- 2. LẤY TIN NHẮN REALTIME ---
   useEffect(() => {
     if (user?.id) {
-      const unsubChats = db.getChatRooms(user.id, (rooms: ChatRoom[]) => { // Added type
+      // @ts-ignore - Bỏ qua lỗi type check tạm thời nếu db chưa update type
+      const unsubChats = db.getChatRooms(user.id, (rooms: ChatRoom[]) => {
         setChatRooms(rooms);
       });
       return () => {
-        unsubChats();
+        // @ts-ignore
+        if (typeof unsubChats === 'function') unsubChats();
       };
     } else {
       setChatRooms([]);
@@ -51,48 +56,44 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
 
   const unreadChatCount = user ? chatRooms.filter(r => r.messages.length > 0 && !r.seenBy?.includes(user?.id || '')).length : 0;
 
-  // --- 3. [FIX TRẮNG TRANG] DYNAMIC IMPORT MESSAGING ---
+  // --- 3. [FIX TRẮNG TRANG] LOGIC BẬT THÔNG BÁO (DYNAMIC IMPORT) ---
   const handleEnableNotifications = async () => {
-    // Kiểm tra cơ bản
     if (!("Notification" in window)) {
       alert("Trình duyệt này không hỗ trợ thông báo.");
       return;
     }
 
-    // Kiểm tra HTTPS (Bắt buộc)
-    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
-        alert("⚠️ Tính năng này chỉ hoạt động trên HTTPS hoặc Localhost. Vui lòng kiểm tra lại đường dẫn.");
-        return;
-    }
-
     try {
-      // A. Xin quyền
       const permission = await Notification.requestPermission();
       setNotifPermission(permission);
 
       if (permission === 'granted') {
-        // B. Cập nhật số đỏ
         if ('setAppBadge' in navigator) navigator.setAppBadge(unreadChatCount);
 
-        // C. TẢI ĐỘNG THƯ VIỆN FIREBASE (Lazy Load)
-        // Cách này đảm bảo app không bao giờ bị trắng trang lúc khởi động
+        // 👇 KỸ THUẬT LAZY LOAD: Chỉ tải Firebase Messaging khi cần thiết
         try {
-            console.log("Đang tải thư viện Messaging...");
+            console.log("Đang tải module thông báo...");
+            // Dùng await import để tránh lỗi khi khởi động App
             const { getMessaging, getToken } = await import("firebase/messaging");
             
             const messaging = getMessaging(app);
+            
+            // Lấy registration từ Service Worker có sẵn
             const registration = await navigator.serviceWorker.ready;
 
             const currentToken = await getToken(messaging, { 
-              vapidKey: 'BGB3cVEpmksrmgJ8Rjl4mzLCJgy8Dg48axCRlYHCHTdvkWSr1oG9HE_143G23nj0RyxKMMcZc3yQxzoHx6mSBAM', // Key của bạn
+              // Key của bạn
+              vapidKey: 'BGB3cVEpmksrmgJ8Rjl4mzLCJgy8Dg48axCRlYHCHTdvkWSr1oG9HE_143G23nj0RyxKMMcZc3yQxzoHx6mSBAM', 
               serviceWorkerRegistration: registration 
             });
 
             if (currentToken) {
               console.log('FCM Token:', currentToken);
               if (user?.id) {
+                  // Gọi hàm update trong db (nếu hàm này tồn tại)
                   // @ts-ignore
-                  if (db.updateUserProfile) { // Check an toàn
+                  if (db.updateUserProfile) {
+                      // @ts-ignore
                       await db.updateUserProfile(user.id, { fcmToken: currentToken });
                       console.log("Đã lưu token!");
                   }
@@ -100,8 +101,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
               alert("✅ Đã bật thông báo thành công!");
             }
         } catch (err) {
-            console.error('Lỗi khởi tạo Messaging:', err);
-            // Không alert lỗi kỹ thuật ra user
+            console.error('Lỗi khởi tạo Messaging (Không ảnh hưởng app):', err);
+            // Không alert lỗi để tránh làm phiền người dùng
         }
       }
     } catch (error) {
@@ -198,7 +199,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {/* ACTIONS */}
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
           
-          {/* NÚT BẬT THÔNG BÁO (Mobile) */}
+          {/* NÚT BẬT THÔNG BÁO (Mobile only) */}
           {user && notifPermission === 'default' && (
             <button 
               onClick={handleEnableNotifications}

@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
 // ==========================================================================
-// 1. DATA INTERFACES (Standardized for your App)
+// 1. ĐỊNH NGHĨA DỮ LIỆU (INTERFACE)
 // ==========================================================================
 export interface ListingAnalysis {
   category: string;
@@ -13,9 +13,9 @@ export interface ListingAnalysis {
   pricingStrategy: {
     min: number;
     max: number;
-    fastSell: number;    // Quick sale price (10-15% lower)
-    suggested: number;   // Market price
-    highProfit: number;  // High profit price (10-15% higher)
+    fastSell: number;    // Giá bán nhanh (Rẻ)
+    suggested: number;   // Giá hợp lý
+    highProfit: number;  // Giá lời cao
     marketAnalysis: string;
   };
 
@@ -27,59 +27,59 @@ export interface ListingAnalysis {
 
   seoTags: string[];
   keySellingPoints: string[];
-  attributes: Record<string, any>; // Stores brand, color, origin, etc.
+  attributes: Record<string, any>; // Lưu hãng, màu, thông số...
   
   isProhibited: boolean;
   prohibitedReason?: string;
 }
 
-// SYSTEM CATEGORY LIST (Must map exactly to your Database)
+// DANH SÁCH MÃ DANH MỤC (Cần khớp chính xác với Database của bạn)
 const CATEGORY_MAP_PROMPT = `
-SELECT EXACTLY ONE SLUG FROM THIS LIST:
-- Real Estate: 'can-ho-chung-cu', 'nha-o', 'dat', 'phong-tro', 'van-phong'
-- Vehicles: 'o-to', 'xe-may', 'xe-dien', 'xe-tai', 'xe-dap', 'phu-tung-xe'
-- Electronics: 'dien-thoai', 'may-tinh-bang', 'laptop', 'may-tinh-de-ban', 'may-anh', 'tivi-am-thanh', 'thiet-bi-thong-minh', 'phu-kien-dt', 'linh-kien'
-- Jobs: 'ban-hang', 'nhan-vien-phuc-vu', 'tai-xe-giao-hang', 'tap-vu', 'pha-che', 'phu-bep', 'nhan-vien-kinh-doanh', 'cong-nhan', 'bao-ve'
-- Pets: 'ga', 'cho', 'chim', 'meo', 'thu-cung-khac', 'phu-kien-thu-cung'
-- Appliances: 'tu-lanh', 'may-lanh', 'may-giat', 'dien-lanh-khac'
-- Furniture & Household: 'ban-ghe', 'tu-ke', 'giuong-nem', 'bep-lo', 'dung-cu-bep', 'cay-canh'
-- Fashion: 'quan-ao', 'dong-ho', 'giay-dep', 'tui-xach', 'nuoc-hoa', 'phu-kien-thoi-trang'
-- Entertainment & Sports: 'nhac-cu', 'sach', 'do-the-thao', 'suu-tam', 'so-thich-khac'
-- Mom & Baby: 'me-va-be', 'do-choi'
-- Services: 'dich-vu-don-nha', 'dich-vu-chuyen-nha', 'dich-vu-sua-chua'
-- Other: 'khac'
+HÃY CHỌN CHÍNH XÁC 1 MÃ (SLUG) TỪ DANH SÁCH SAU:
+- Bất động sản: 'can-ho-chung-cu', 'nha-o', 'dat', 'phong-tro', 'van-phong'
+- Xe cộ: 'o-to', 'xe-may', 'xe-dien', 'xe-tai', 'xe-dap', 'phu-tung-xe'
+- Đồ điện tử: 'dien-thoai', 'may-tinh-bang', 'laptop', 'may-tinh-de-ban', 'may-anh', 'tivi-am-thanh', 'thiet-bi-thong-minh', 'phu-kien-dt', 'linh-kien'
+- Việc làm: 'ban-hang', 'nhan-vien-phuc-vu', 'tai-xe-giao-hang', 'tap-vu', 'pha-che', 'phu-bep', 'nhan-vien-kinh-doanh', 'cong-nhan', 'bao-ve'
+- Thú cưng: 'ga', 'cho', 'chim', 'meo', 'thu-cung-khac', 'phu-kien-thu-cung'
+- Điện lạnh: 'tu-lanh', 'may-lanh', 'may-giat', 'dien-lanh-khac'
+- Nội thất & Gia dụng: 'ban-ghe', 'tu-ke', 'giuong-nem', 'bep-lo', 'dung-cu-bep', 'cay-canh'
+- Thời trang: 'quan-ao', 'dong-ho', 'giay-dep', 'tui-xach', 'nuoc-hoa', 'phu-kien-thoi-trang'
+- Giải trí & Thể thao: 'nhac-cu', 'sach', 'do-the-thao', 'suu-tam', 'so-thich-khac'
+- Mẹ và Bé: 'me-va-be', 'do-choi'
+- Dịch vụ: 'dich-vu-don-nha', 'dich-vu-chuyen-nha', 'dich-vu-sua-chua'
+- Khác: 'khac'
 `;
 
 const getApiKey = () => {
   return import.meta.env.VITE_GEMINI_API_KEY || "";
 };
 
-// --- HELPER FUNCTIONS FOR SAFETY ---
+// --- CÁC HÀM HỖ TRỢ AN TOÀN (Giúp app không bị crash) ---
 
 const safeGetText = (response: any): string => {
   try {
     if (typeof response.text === 'function') return response.text();
-    // Handle nested data structure of new Google SDK
+    // Xử lý cấu trúc dữ liệu mới của Google
     if (response.candidates?.[0]?.content?.parts?.[0]?.text) 
         return response.candidates[0].content.parts[0].text;
     return ""; 
   } catch (e) {
-    console.error("Error reading AI text:", e);
+    console.error("Lỗi đọc text từ AI:", e);
     return "";
   }
 };
 
 const cleanJson = (text: string): string => {
   if (!text) return "";
-  // Remove extra markdown characters to avoid JSON.parse errors
+  // Xóa các ký tự thừa để tránh lỗi JSON
   return text.replace(/```json/g, '').replace(/```/g, '').trim();
 };
 
 // ==========================================================================
-// 2. API CALL FUNCTIONS (PRO VIP LOGIC)
+// 2. CÁC HÀM GỌI API (LOGIC PRO VIP - MODEL 2.0 FLASH EXP)
 // ==========================================================================
 
-// FUNCTION 1: PRODUCT SEARCH (Fast identification)
+// HÀM 1: TÌM KIẾM SẢN PHẨM
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
   const apiKey = getApiKey();
   if (!apiKey) return "";
@@ -88,14 +88,14 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
     const ai = new GoogleGenAI({ apiKey });
     const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
     
-    // Using gemini-2.0-flash-exp as it's proven stable for you
+    // Dùng model 2.0 Flash Exp (Ổn định nhất cho bạn)
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash-exp', 
       contents: [{
         role: 'user',
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-          { text: "Return exactly one concise keyword phrase to search for this product in Vietnam. Example: 'iPhone 14 Pro Max', 'Honda Vision'. No punctuation." }
+          { text: "Trả về duy nhất 1 cụm từ khóa chính xác để tìm mua sản phẩm này. Ví dụ: 'iPhone 14 Pro Max', 'Honda Vision'. Không dấu câu." }
         ]
       }]
     });
@@ -106,16 +106,16 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
   }
 };
 
-// FUNCTION 2: LISTING ANALYSIS (Smart Pro Logic)
+// HÀM 2: PHÂN TÍCH ĐĂNG TIN (Thông minh như chuyên gia)
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
   
-  // Safe default data
+  // Dữ liệu mặc định (Phòng khi lỗi)
   const defaultData: ListingAnalysis = { 
     title: '', description: '', category: 'khac', suggestedPrice: 0, 
     condition: 'good', isProhibited: false, attributes: {}, seoTags: [],
     pricingStrategy: { min: 0, max: 0, fastSell: 0, suggested: 0, highProfit: 0, marketAnalysis: '' },
-    qualityCheck: { score: 50, tips: 'Need clearer photos', issues: [] }, keySellingPoints: []
+    qualityCheck: { score: 50, tips: 'Cần ảnh rõ hơn', issues: [] }, keySellingPoints: []
   };
 
   if (!apiKey) return defaultData;
@@ -130,29 +130,31 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
       },
     }));
 
+    // CÂU LỆNH PRO VIP (BÍ QUYẾT ĐỂ AI THÔNG MINH HƠN)
     const prompt = `
-    Role: You are Vietnam's #1 Second-hand Appraisal Expert & Copywriter.
-    Task: Analyze product images to create a professional sales listing.
+    Vai trò: Bạn là Chuyên gia Thẩm định giá đồ cũ số 1 Việt Nam.
+    Nhiệm vụ: Phân tích ảnh và trả về dữ liệu JSON chuẩn xác để điền form đăng bán.
 
-    MANDATORY REASONING PROCESS:
-    1. Identify the main object.
-    2. Determine the EXACT Category Slug from the provided list (e.g., see TV -> must choose 'tivi-am-thanh').
-    3. Estimate actual value in the Vietnamese second-hand market (VND).
+    QUY TRÌNH SUY LUẬN (BẮT BUỘC):
+    1. Nhìn ảnh -> Xác định vật thể -> Đối chiếu với danh sách Category bên dưới.
+       (Ví dụ: Thấy Tivi -> Bắt buộc chọn 'tivi-am-thanh').
+    2. Đánh giá độ mới -> Ước lượng giá VNĐ thực tế.
 
-    OUTPUT REQUIREMENTS (JSON):
-    - category: Select 1 slug from the list below.
-    - suggestedPrice: Average market price (Integer, > 0).
-    - fastSell: Quick sale price (10-15% lower).
-    - highProfit: High profit price (10-15% higher).
-    - title: Catchy title, includes Product Name + Condition.
-    - description: Detailed description, bullet points, highlighting pros.
-    - attributes: Extract specs (Brand, Color, Capacity...).
+    YÊU CẦU ĐẦU RA:
+    1. CATEGORY: Chọn CHÍNH XÁC 1 mã (slug) từ danh sách dưới.
+    2. PRICE: Bắt buộc trả về số VNĐ > 0.
+       - fastSell: Giá rẻ (để bán nhanh).
+       - suggested: Giá thị trường.
+       - highProfit: Giá cao.
+    3. CONTENT: 
+       - Tiêu đề: Giật tít, viết hoa Tên Sản Phẩm + Tình trạng.
+       - Mô tả: Văn phong tự nhiên, chân thực, chia dòng rõ ràng.
 
-    STANDARD CATEGORY LIST:
+    DANH SÁCH DANH MỤC CHUẨN:
     ${CATEGORY_MAP_PROMPT}
     `;
 
-    // Using gemini-2.0-flash-exp as it works with your setup and is very capable
+    // Gọi Model
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash-exp', 
       contents: [
@@ -161,7 +163,7 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: "OBJECT", // Using String "OBJECT" for new SDK standard
+          type: "OBJECT", // Dùng chuỗi "OBJECT" (Chuẩn mới)
           properties: {
             isProhibited: { type: "BOOLEAN" },
             prohibitedReason: { type: "STRING" },
@@ -220,10 +222,10 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
 
     if (!jsonText) return defaultData;
     
-    // Final parse and validation
+    // Parse dữ liệu
     const result = JSON.parse(jsonText) as ListingAnalysis;
     
-    // Fallback logic if AI is lazy with pricing strategy
+    // Logic dự phòng: Nếu AI lười tính chiến lược giá, ta tự tính
     if (!result.pricingStrategy) {
         result.pricingStrategy = {
             min: result.suggestedPrice * 0.8,
@@ -231,11 +233,11 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
             fastSell: result.suggestedPrice * 0.9,
             suggested: result.suggestedPrice,
             highProfit: result.suggestedPrice * 1.1,
-            marketAnalysis: "Based on average market value"
+            marketAnalysis: "Dựa trên giá trung bình"
         };
     }
 
-    // Double check fastSell isn't 0
+    // Đảm bảo không bị giá = 0
     if (result.pricingStrategy.fastSell === 0 && result.suggestedPrice > 0) {
        result.pricingStrategy.fastSell = result.suggestedPrice * 0.9;
        result.pricingStrategy.highProfit = result.suggestedPrice * 1.1;
@@ -244,7 +246,7 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     return result;
 
   } catch (error) {
-    console.error("AI Service Error:", error);
+    console.error("Lỗi AI Service:", error);
     return defaultData;
   }
 };

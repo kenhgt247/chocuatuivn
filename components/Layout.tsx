@@ -91,7 +91,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
 
             const currentToken = await getToken(messaging, { 
               // DÁN KEY CỦA BẠN VÀO ĐÂY (NẾU CÓ)
-              vapidKey: 'BLIwgbrniI2hgqiLiVGXgEE9FUGphF6djxpVzpgUBEo8729r-z1I994RoBUBV9Dnj7pRKtL8B-z5Z2Q4WPZeNPY', 
+              vapidKey: 'BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI', 
               serviceWorkerRegistration: registration 
             });
 

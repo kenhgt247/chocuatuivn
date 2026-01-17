@@ -58,12 +58,15 @@ const firebaseConfig = {
   measurementId: "G-CRKRLNGF8V"
 };
 
-// 3. KHỞI TẠO FIREBASE
+/ 3. KHỞI TẠO FIREBASE
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const firestore = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 const functions = getFunctions(app);
+
+// 👇 THÊM DÒNG NÀY ĐỂ LAYOUT CÓ THỂ DÙNG BIẾN 'app' 👇
+export { app, auth, storage, firestore };
 
 // 4. OBJECT DB
 export const db = {

@@ -17,6 +17,7 @@ interface ListingFormData {
   images: string[];
   attributes: Record<string, string>;
   affiliateLink?: string | null;
+  // --- Đấu giá ---
   isAuction: boolean;
   auctionEndAt: string;
   bidIncrement: string;
@@ -61,7 +62,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     isAuction: false, auctionEndAt: '', bidIncrement: '50000'
   });
 
-  // [FIX UI] Input Style
+  // [UI STYLES] Tối ưu cho cả Mobile & Desktop
   const inputStyle = "w-full min-w-0 bg-white border border-gray-200 rounded-xl p-3 md:p-4 text-sm font-semibold focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all shadow-sm placeholder:font-normal placeholder:text-gray-400";
   const labelStyle = "text-[11px] font-bold text-gray-500 uppercase tracking-wide px-1 mb-1.5 block truncate";
 
@@ -273,6 +274,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     if (listingType === 'affiliate' && !formData.affiliateLink) return alert('Nhập Link tiếp thị liên kết.');
     if (!agreedToRules) return alert('Vui lòng đồng ý quy tắc cộng đồng trước khi đăng.');
 
+    // Logic Đấu giá
     let auctionData = {};
     if (formData.isAuction) {
       if (!formData.auctionEndAt) return alert("Vui lòng chọn thời gian kết thúc đấu giá.");
@@ -404,7 +406,8 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const hasChildren = childCategories.length > 0;
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-5 px-4 pb-24 pt-4 font-sans overflow-x-hidden">
+    // [FIX OVERFLOW] Container chính được giới hạn chiều rộng và ẩn thanh cuộn ngang trang
+    <div className="w-full max-w-5xl mx-auto space-y-5 px-4 pb-24 pt-4 font-sans overflow-x-hidden">
       
       {/* HEADER */}
       <div className="flex flex-col items-center gap-2 mb-4">
@@ -474,12 +477,28 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           {(listingType === 'normal' || user?.subscriptionTier === 'pro') && (
             <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-2xl p-4 md:p-6 shadow-lg shadow-gray-100/50 space-y-5">
 
-              {/* Title & Category - Giữ nguyên */}
+              {listingType === 'normal' && (
+                <div className="bg-gray-50 p-1 rounded-xl flex relative mb-2">
+                  <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-lg shadow-sm transition-all duration-300 ${formData.isAuction ? 'left-[calc(50%+2px)]' : 'left-1'}`}></div>
+                  <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: false }))} className={`flex-1 relative z-10 py-2.5 text-[10px] font-black uppercase tracking-wider transition-colors ${!formData.isAuction ? 'text-primary' : 'text-gray-400'}`}>🏷️ Giá cố định</button>
+                  <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: true }))} className={`flex-1 relative z-10 py-2.5 text-[10px] font-black uppercase tracking-wider transition-colors ${formData.isAuction ? 'text-purple-600' : 'text-gray-400'}`}>🔨 Đấu giá</button>
+                </div>
+              )}
+
+              {listingType === 'affiliate' && (
+                <div className="space-y-2 bg-orange-50 p-4 rounded-xl border border-orange-100">
+                  <label className={labelStyle}>Link Tiếp Thị Liên Kết *</label>
+                  <input type="url" required placeholder="Dán link Shopee, Lazada..." value={formData.affiliateLink || ''} onChange={(e) => setFormData({ ...formData, affiliateLink: e.target.value })} className={inputStyle} />
+                </div>
+              )}
+
+              {/* Title Input */}
               <div className="space-y-1">
                 <label className={labelStyle}>Tiêu đề *</label>
                 <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max..." value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={`${inputStyle} ${aiAnalyzing ? 'animate-pulse bg-blue-50' : ''}`} />
               </div>
 
+              {/* Category Selects */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className={labelStyle}>Danh mục Chính *</label>
@@ -500,39 +519,83 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
               {renderDynamicFields()}
 
               {/* Price Section */}
-              <div className="space-y-3">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className={labelStyle}>Giá bán (VNĐ) *</label>
-                      <input type="text" placeholder="0" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className={inputStyle} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className={labelStyle}>Tình trạng</label>
-                      <select value={formData.condition} onChange={(e) => setFormData({ ...formData, condition: e.target.value as any })} className={inputStyle}>
-                        <option value="used">Đã qua sử dụng</option>
-                        <option value="new">Mới 100%</option>
-                      </select>
-                    </div>
-                 </div>
-
-                 {priceSuggestions && !formData.isAuction && (
-                    <div className="w-full max-w-[calc(100vw-60px)] md:max-w-full overflow-hidden">
-                        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar touch-pan-x snap-x">
-                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.fast.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition">
-                                <span className="text-[10px] font-bold text-green-600 uppercase">⚡ Bán nhanh</span>
-                                <span className="text-xs font-black text-green-700">{Number(priceSuggestions.fast).toLocaleString('vi-VN')}</span>
-                            </button>
-                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.market.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition">
-                                <span className="text-[10px] font-bold text-blue-600 uppercase">👍 Hợp lý</span>
-                                <span className="text-xs font-black text-blue-700">{Number(priceSuggestions.market).toLocaleString('vi-VN')}</span>
-                            </button>
-                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.high.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition">
-                                <span className="text-[10px] font-bold text-purple-600 uppercase">💰 Lời cao</span>
-                                <span className="text-xs font-black text-purple-700">{Number(priceSuggestions.high).toLocaleString('vi-VN')}</span>
-                            </button>
+              {formData.isAuction ? (
+                  // GIAO DIỆN ĐẤU GIÁ
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-purple-50 p-4 rounded-xl border border-purple-100 animate-fade-in">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-purple-600 uppercase tracking-wide">Giá khởi điểm *</label>
+                        <input type="text" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="0" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-purple-600 uppercase tracking-wide">Bước giá *</label>
+                        <select value={formData.bidIncrement} onChange={(e) => setFormData({ ...formData, bidIncrement: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                          <option value="10000">10.000 đ</option>
+                          <option value="20000">20.000 đ</option>
+                          <option value="50000">50.000 đ</option>
+                          <option value="100000">100.000 đ</option>
+                          <option value="200000">200.000 đ</option>
+                          <option value="500000">500.000 đ</option>
+                        </select>
+                      </div>
+                      <div className="md:col-span-2 space-y-1">
+                        <label className="text-[10px] font-bold text-purple-600 uppercase tracking-wide">Kết thúc *</label>
+                        <input type="datetime-local" value={formData.auctionEndAt} onChange={(e) => setFormData({ ...formData, auctionEndAt: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                  </div>
+              ) : (
+                  // GIAO DIỆN BÁN THƯỜNG
+                  <div className="space-y-3">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className={labelStyle}>Giá bán (VNĐ) *</label>
+                          <input type="text" placeholder="0" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className={inputStyle} />
                         </div>
-                    </div>
-                 )}
+                        <div className="space-y-1">
+                          <label className={labelStyle}>Tình trạng</label>
+                          <select value={formData.condition} onChange={(e) => setFormData({ ...formData, condition: e.target.value as any })} className={inputStyle}>
+                            <option value="used">Đã qua sử dụng</option>
+                            <option value="new">Mới 100%</option>
+                          </select>
+                        </div>
+                     </div>
+
+                     {/* [FIX UI CRITICAL] Gợi ý giá: Dùng max-w-full để chặn tràn, và overflow-x-auto để cuộn */}
+                     {priceSuggestions && (
+                        <div className="w-full max-w-[calc(100vw-60px)] md:max-w-full overflow-hidden">
+                            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar touch-pan-x snap-x">
+                                <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.fast.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition">
+                                    <span className="text-[10px] font-bold text-green-600 uppercase">⚡ Bán nhanh</span>
+                                    <span className="text-xs font-black text-green-700">{Number(priceSuggestions.fast).toLocaleString('vi-VN')}</span>
+                                </button>
+                                <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.market.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition">
+                                    <span className="text-[10px] font-bold text-blue-600 uppercase">👍 Hợp lý</span>
+                                    <span className="text-xs font-black text-blue-700">{Number(priceSuggestions.market).toLocaleString('vi-VN')}</span>
+                                </button>
+                                <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.high.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition">
+                                    <span className="text-[10px] font-bold text-purple-600 uppercase">💰 Lời cao</span>
+                                    <span className="text-xs font-black text-purple-700">{Number(priceSuggestions.high).toLocaleString('vi-VN')}</span>
+                                </button>
+                            </div>
+                        </div>
+                     )}
+                  </div>
+              )}
+
+              {/* Location */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className={labelStyle}>Khu vực</label>
+                  <select value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} className={inputStyle}>
+                    {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className={labelStyle}>Địa chỉ chi tiết</label>
+                  <div className="relative">
+                     <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={inputStyle} placeholder="Số nhà, đường..." />
+                     <button type="button" onClick={handleManualLocate} className="absolute right-2 top-2.5 text-xs bg-gray-100 p-1.5 rounded-lg hover:bg-gray-200">📍</button>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-1">

@@ -2,11 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { User, ChatRoom } from '../types'; 
 import { identifyProductForSearch } from '../services/geminiService';
-import { db } from '../services/db';
+import { db, app } from '../services/db'; // Import 'app' từ db
 import UniversalInstallPrompt from './UniversalInstallPrompt';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import NotificationMenu from '../components/NotificationMenu';
-import { getMessaging, getToken } from "firebase/messaging";
+
+// [QUAN TRỌNG] KHÔNG import getMessaging ở đây nữa để tránh crash
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -23,8 +24,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [isSearchingImage, setIsSearchingImage] = useState(false);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
-  
-  // State quản lý quyền thông báo
   const [notifPermission, setNotifPermission] = useState(Notification.permission);
 
   const minPriceParam = searchParams.get('minPrice');
@@ -39,7 +38,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   // --- 2. LẤY TIN NHẮN REALTIME ---
   useEffect(() => {
     if (user?.id) {
-      const unsubChats = db.getChatRooms(user.id, (rooms) => {
+      const unsubChats = db.getChatRooms(user.id, (rooms: ChatRoom[]) => { // Added type
         setChatRooms(rooms);
       });
       return () => {
@@ -52,49 +51,57 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
 
   const unreadChatCount = user ? chatRooms.filter(r => r.messages.length > 0 && !r.seenBy?.includes(user?.id || '')).length : 0;
 
-  // --- 3. LOGIC BẬT THÔNG BÁO & LẤY TOKEN FIREBASE ---
+  // --- 3. [FIX TRẮNG TRANG] DYNAMIC IMPORT MESSAGING ---
   const handleEnableNotifications = async () => {
+    // Kiểm tra cơ bản
     if (!("Notification" in window)) {
-      alert("Trình duyệt không hỗ trợ thông báo.");
+      alert("Trình duyệt này không hỗ trợ thông báo.");
       return;
     }
 
+    // Kiểm tra HTTPS (Bắt buộc)
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+        alert("⚠️ Tính năng này chỉ hoạt động trên HTTPS hoặc Localhost. Vui lòng kiểm tra lại đường dẫn.");
+        return;
+    }
+
     try {
-      // A. Xin quyền từ trình duyệt/iOS
+      // A. Xin quyền
       const permission = await Notification.requestPermission();
       setNotifPermission(permission);
 
       if (permission === 'granted') {
-        // B. Cập nhật số đỏ ngay lập tức
+        // B. Cập nhật số đỏ
         if ('setAppBadge' in navigator) navigator.setAppBadge(unreadChatCount);
 
-        // C. Lấy Token Firebase để nhận tin khi tắt App
+        // C. TẢI ĐỘNG THƯ VIỆN FIREBASE (Lazy Load)
+        // Cách này đảm bảo app không bao giờ bị trắng trang lúc khởi động
         try {
-            // [FIX LỖI TRẮNG TRANG] Lấy Registration của SW đang chạy
+            console.log("Đang tải thư viện Messaging...");
+            const { getMessaging, getToken } = await import("firebase/messaging");
+            
+            const messaging = getMessaging(app);
             const registration = await navigator.serviceWorker.ready;
 
-            const messaging = getMessaging(); 
             const currentToken = await getToken(messaging, { 
-              // 👇 Thay bằng Key thật của bạn
-              vapidKey: 'BGB3cVEpmksrmgJ8Rjl4mzLCJgy8Dg48axCRlYHCHTdvkWSr1oG9HE_143G23nj0RyxKMMcZc3yQxzoHx6mSBAM',
-              // 👇 [QUAN TRỌNG] Dòng này ép Firebase dùng sw.js có sẵn, không tìm file lạ nữa
+              vapidKey: 'BGB3cVEpmksrmgJ8Rjl4mzLCJgy8Dg48axCRlYHCHTdvkWSr1oG9HE_143G23nj0RyxKMMcZc3yQxzoHx6mSBAM', // Key của bạn
               serviceWorkerRegistration: registration 
             });
 
             if (currentToken) {
               console.log('FCM Token:', currentToken);
               if (user?.id) {
-                  // Lưu token vào profile user
-                  await db.updateUserProfile(user.id, { fcmToken: currentToken });
-                  console.log("Đã lưu token thiết bị!");
+                  // @ts-ignore
+                  if (db.updateUserProfile) { // Check an toàn
+                      await db.updateUserProfile(user.id, { fcmToken: currentToken });
+                      console.log("Đã lưu token!");
+                  }
               }
-              alert("✅ Đã bật thông báo thành công! Bạn sẽ nhận được tin nhắn ngay cả khi thoát ứng dụng.");
-            } else {
-              console.log('Không lấy được Token.');
+              alert("✅ Đã bật thông báo thành công!");
             }
         } catch (err) {
-            console.error('Lỗi lấy Token FCM:', err);
-            // Không alert lỗi để tránh làm phiền user nếu chỉ lỗi mạng nhẹ
+            console.error('Lỗi khởi tạo Messaging:', err);
+            // Không alert lỗi kỹ thuật ra user
         }
       }
     } catch (error) {
@@ -102,7 +109,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   };
 
-  // --- 4. TỰ ĐỘNG CẬP NHẬT BADGE KHI CÓ TIN MỚI ---
+  // --- 4. CẬP NHẬT BADGE ---
   useEffect(() => {
     if (notifPermission === 'granted' && 'setAppBadge' in navigator) {
       if (unreadChatCount > 0) navigator.setAppBadge(unreadChatCount).catch(() => {});
@@ -148,7 +155,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   return (
     <div className="min-h-screen flex flex-col bg-bgMain">
       
-      {/* HEADER: Có padding-top an toàn cho tai thỏ (safe-area-inset-top) */}
+      {/* HEADER */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 px-3 md:px-6 lg:px-10 h-auto min-h-[5rem] flex items-center justify-between gap-2 md:gap-4 shadow-sm pt-[env(safe-area-inset-top)] transition-all">
         
         {/* LOGO */}
@@ -191,17 +198,16 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {/* ACTIONS */}
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
           
-          {/* [NÚT QUAN TRỌNG] BẬT THÔNG BÁO CHO PWA */}
+          {/* NÚT BẬT THÔNG BÁO (Mobile) */}
           {user && notifPermission === 'default' && (
             <button 
               onClick={handleEnableNotifications}
-              className="flex items-center gap-1 bg-red-500 text-white px-2.5 py-1.5 rounded-lg text-[10px] font-black border border-red-400 animate-bounce md:hidden shadow-lg hover:scale-105 active:scale-95 transition-transform"
+              className="flex items-center gap-1 bg-red-500 text-white px-2.5 py-1.5 rounded-lg text-[10px] font-black border border-red-400 animate-bounce md:hidden hover:scale-105 active:scale-95 transition-transform"
             >
               🔔 Bật báo tin
             </button>
           )}
 
-          {/* Desktop Chat Icon */}
           <Link to="/chat" className={`hidden md:flex relative p-2.5 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-gray-100 hover:text-primary'}`}>
             <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -213,7 +219,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             )}
           </Link>
 
-          {/* User Menu / Login */}
           {user ? (
              <NotificationMenu userId={user.id} />
           ) : (
@@ -222,7 +227,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
              </Link>
           )}
 
-          {/* Nút Đăng tin Desktop */}
           <div className="hidden md:flex items-center gap-4">
             <Link to="/post" className="flex items-center gap-2 bg-primary text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primaryHover hover:-translate-y-1 transition-all active:scale-95">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4"/></svg>
@@ -268,7 +272,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         </div>
       )}
 
-      {/* MAIN CONTENT - Padding bottom an toàn */}
+      {/* MAIN CONTENT */}
       <main className="flex-1 w-full max-w-screen-2xl mx-auto md:px-8 py-6 md:py-10 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-10">
         {children}
       </main>
@@ -303,7 +307,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           </div>
           <span className={`text-[10px] font-bold ${location.pathname.startsWith('/chat') ? 'opacity-100' : 'opacity-70'}`}>Tin nhắn</span>
           
-          {/* Badge Tin nhắn Mobile */}
           {unreadChatCount > 0 && (
             <span className="absolute top-2 right-4 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-pulse">
               {unreadChatCount > 9 ? '9+' : unreadChatCount}

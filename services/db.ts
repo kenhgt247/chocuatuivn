@@ -58,7 +58,7 @@ const firebaseConfig = {
   measurementId: "G-CRKRLNGF8V"
 };
 
-/ 3. KHỞI TẠO FIREBASE
+// 3. KHỞI TẠO FIREBASE
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const firestore = getFirestore(app);
 const auth = getAuth(app);

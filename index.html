@@ -29,10 +29,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
-      /* Reset cơ bản */
       *, *::before, *::after {
         box-sizing: border-box;
-        -webkit-tap-highlight-color: transparent; /* Bỏ highlight xanh khi bấm trên mobile */
+        -webkit-tap-highlight-color: transparent;
       }
 
       body {
@@ -41,17 +40,12 @@
         font-family: 'Be Vietnam Pro', sans-serif;
         background-color: #f8f9fa;
         color: #111827;
-        
-        /* QUAN TRỌNG: Chặn hiệu ứng kéo nảy (Rubber band) trên iOS */
         overscroll-behavior-y: none;
-        
-        /* Đảm bảo full chiều cao */
         width: 100vw;
-        height: 100dvh; /* Dynamic viewport height */
+        height: 100dvh;
         overflow-x: hidden;
       }
 
-      /* Định nghĩa biến Safe Area (Vùng an toàn tai thỏ) */
       :root {
         --sat: env(safe-area-inset-top);
         --sab: env(safe-area-inset-bottom);
@@ -59,7 +53,6 @@
         --sar: env(safe-area-inset-right);
       }
 
-      /* LOADING SCREEN STYLES (Hiện khi React chưa tải xong) */
       .app-loader {
         position: fixed;
         inset: 0;
@@ -136,6 +129,6 @@
       </div>
     </div>
     
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>

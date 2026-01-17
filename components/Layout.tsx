@@ -7,6 +7,8 @@ import UniversalInstallPrompt from './UniversalInstallPrompt';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import NotificationMenu from '../components/NotificationMenu';
 
+// ⚠️ TUYỆT ĐỐI KHÔNG IMPORT firebase/messaging Ở ĐÂY
+
 interface LayoutProps {
   children: React.ReactNode;
   user: User | null;
@@ -131,6 +133,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     navigate(q ? `/?search=${encodeURIComponent(q)}` : `/`);
   };
 
+  const handleImageSearchClick = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -229,7 +235,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
            <Link to="/post" className="w-14 h-14 mb-1 bg-gradient-to-tr from-blue-600 to-cyan-400 text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(59,130,246,0.5)] border-[4px] border-white transform transition-all duration-300 active:scale-90 hover:scale-105 hover:-translate-y-2"><svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg></Link>
           <span className="text-[10px] font-black text-blue-600 tracking-tight">Đăng tin</span>
         </div>
-        <Link to="/chat" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname.startsWith('/chat') ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
+        <Link to="/chat" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 relative ${location.pathname.startsWith('/chat') ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
           <div className={`p-1.5 rounded-xl transition-all duration-300 relative ${location.pathname.startsWith('/chat') ? 'bg-blue-50' : ''}`}>
              <svg className="w-6 h-6" fill={location.pathname.startsWith('/chat') ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
              {/* 👇👇👇 SỬA CHỖ NÀY: Đưa badge vào trong div container để nó dính chặt vào icon */}

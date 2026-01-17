@@ -17,7 +17,6 @@ interface ListingFormData {
   images: string[];
   attributes: Record<string, string>;
   affiliateLink?: string | null;
-  // --- Đấu giá ---
   isAuction: boolean;
   auctionEndAt: string;
   bidIncrement: string;
@@ -31,13 +30,12 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
-  // --- STATE QUẢN LÝ DANH MỤC ---
+  // --- STATE ---
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedParentId, setSelectedParentId] = useState<string>("");
   const [selectedChildId, setSelectedChildId] = useState<string>("");
   const [currentAttributes, setCurrentAttributes] = useState<CategoryAttribute[]>([]);
 
-  // --- STATE HỆ THỐNG & UI ---
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
@@ -46,12 +44,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const [agreedToRules, setAgreedToRules] = useState(false);
   const [listingType, setListingType] = useState<'normal' | 'affiliate'>('normal');
 
-  // --- STATE HẠN MỨC ---
   const [postsToday, setPostsToday] = useState(0);
   const [maxPosts, setMaxPosts] = useState(0);
   const [isLimitReached, setIsLimitReached] = useState(false);
 
-  // --- STATE MEDIA & DATA ---
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string>("");
   const [existingVideoUrl, setExistingVideoUrl] = useState<string | null>(null);
@@ -62,14 +58,13 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     isAuction: false, auctionEndAt: '', bidIncrement: '50000'
   });
 
-  // Styles
-  const inputStyle = "w-full bg-white border border-gray-200 rounded-2xl p-4 font-bold text-sm focus:outline-none focus:border-primary transition-all shadow-sm";
-  const labelStyle = "text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 mb-1 block";
+  // [UI STYLES]
+  const inputStyle = "w-full bg-white border border-gray-200 rounded-xl p-3 text-sm font-semibold focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all shadow-sm placeholder:font-normal placeholder:text-gray-400";
+  const labelStyle = "text-[11px] font-bold text-gray-500 uppercase tracking-wide px-1 mb-1.5 block truncate";
 
-  // --- 1. INITIALIZE DATA ---
+  // --- INITIALIZE ---
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
-
     const init = async () => {
       try {
         const [s, cats, count] = await Promise.all([
@@ -77,18 +72,14 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           db.getCategories(),
           !isEditing ? db.countUserListingsToday(user.id) : Promise.resolve(0)
         ]);
-
         setSettings(s);
         setCategories(cats);
         setPostsToday(count);
-
+        
         const userTier = user.subscriptionTier || 'free';
         const limit = (s?.tierConfigs as any)?.[userTier]?.postsPerDay || 5;
         setMaxPosts(limit);
-
-        if (!isEditing && count >= limit) {
-          setIsLimitReached(true);
-        }
+        if (!isEditing && count >= limit) setIsLimitReached(true);
 
         if (isEditing && id) {
           setLoading(true);
@@ -106,46 +97,30 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
               setSelectedParentId(currentCat.id);
             }
           }
-
           setFormData({
-            title: listing.title,
-            price: listing.price.toString(),
-            description: listing.description,
-            location: listing.location,
-            address: listing.address || '',
-            condition: listing.condition,
-            images: listing.images,
-            attributes: listing.attributes || {},
-            affiliateLink: listing.affiliateLink || '',
-            isAuction: listing.isAuction || false,
-            auctionEndAt: listing.auctionEndAt ? new Date(listing.auctionEndAt).toISOString().slice(0, 16) : '',
+            title: listing.title, price: listing.price.toString(), description: listing.description,
+            location: listing.location, address: listing.address || '', condition: listing.condition,
+            images: listing.images, attributes: listing.attributes || {}, affiliateLink: listing.affiliateLink || '',
+            isAuction: listing.isAuction || false, auctionEndAt: listing.auctionEndAt ? new Date(listing.auctionEndAt).toISOString().slice(0, 16) : '',
             bidIncrement: listing.bidIncrement?.toString() || '50000'
           });
-
           if (listing.affiliateLink) setListingType('affiliate');
-          if (listing.videoUrl) {
-            setExistingVideoUrl(listing.videoUrl);
-            setVideoPreview(listing.videoUrl);
-          }
+          if (listing.videoUrl) { setExistingVideoUrl(listing.videoUrl); setVideoPreview(listing.videoUrl); }
           setAgreedToRules(true);
           setLoading(false);
         }
       } catch (error) { console.error(error); }
     };
-
     init();
-
     if (!isEditing && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
+      navigator.geolocation.getCurrentPosition(async (pos) => {
           const { latitude, longitude } = pos.coords;
           setLocationDetected({ lat: latitude, lng: longitude });
           try {
             const info = await getLocationFromCoords(latitude, longitude);
             setFormData(prev => ({ ...prev, location: info.city || prev.location, address: info.address || prev.address }));
           } catch (e) { }
-        }, null, { timeout: 10000 }
-      );
+      }, null, { timeout: 10000 });
     }
   }, [user, navigate, id, isEditing]);
 
@@ -233,12 +208,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       const analysis = await analyzeListingImages(images.slice(0, 3)).catch(() => null);
       if (analysis) {
         let foundChildId = "", foundParentId = "", newAttributes: any[] = [];
-        
         let detectedCategory = categories.find(c => c.id === analysis.category);
         if (!detectedCategory) {
              detectedCategory = categories.find(c => c.id.includes(analysis.category) || analysis.category.includes(c.id));
         }
-
         if (detectedCategory) {
           if (detectedCategory.parentId) {
             foundChildId = detectedCategory.id;
@@ -248,7 +221,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             foundParentId = detectedCategory.id;
           }
         }
-
         if (foundParentId) setSelectedParentId(foundParentId);
         if (foundChildId) setSelectedChildId(foundChildId);
         if (newAttributes.length > 0) setCurrentAttributes(newAttributes);
@@ -263,11 +235,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
         setFormData(prev => ({
           ...prev,
-          title: (!prev.title) ? (analysis.title || '') : prev.title,
-          category: foundChildId || foundParentId || prev.category,
-          price: (!prev.price) ? (analysis.suggestedPrice?.toString() || '') : prev.price,
-          description: (!prev.description) ? (analysis.description || '') : prev.description,
+          title: analysis.title || prev.title,
+          price: analysis.pricingStrategy?.suggested ? analysis.pricingStrategy.suggested.toString() : prev.price,
+          description: analysis.description || prev.description,
           condition: (analysis.condition as 'new' | 'used') || prev.condition,
+          category: foundChildId || foundParentId || prev.category,
           attributes: { ...prev.attributes, ...(analysis.attributes || {}) }
         }));
       }
@@ -359,7 +331,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         navigate(`/san-pham/${id}`);
       } else {
         await db.saveListing(listingData);
-        
         const newCount = postsToday + 1;
         if (newCount >= maxPosts) {
           if (window.confirm(`🎉 Đăng tin thành công!\n\n⚠️ Bạn đã dùng hết ${newCount}/${maxPosts} lượt đăng hôm nay.\nHãy nâng cấp VIP để đăng không giới hạn?`)) {
@@ -370,16 +341,15 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           navigate('/manage-ads');
         }
       }
-    } catch (error) { console.error(error); alert("Lỗi xử lý tin. Thử lại sau."); }
+    } catch (error) { console.error(error); alert("Lỗi xử lý tin. Thử lại sau."); } 
     finally { setLoading(false); }
   };
 
-  // --- HÀM RENDER DYNAMIC FIELDS ---
   const renderDynamicFields = () => {
     if (currentAttributes.length === 0) return null;
     return (
-      // [FIX 1 CỘT] Luôn dùng 1 cột (grid-cols-1)
-      <div className="grid grid-cols-1 gap-4 bg-blue-50 p-5 rounded-2xl border border-blue-100">
+      // [QUAN TRỌNG] LUÔN LÀ 1 CỘT (grid-cols-1) CHO CẢ MOBILE VÀ DESKTOP
+      <div className="grid grid-cols-1 gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
         <div className="text-xs font-black text-blue-500 uppercase tracking-widest mb-2 border-b border-blue-100 pb-2">Thông tin chi tiết</div>
         {currentAttributes.map((attr) => (
           <div key={attr.key} className="space-y-1">
@@ -401,7 +371,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     );
   };
 
-  // --- RENDER ---
   if (!settings) return <div className="h-96 flex items-center justify-center font-black text-primary animate-pulse uppercase tracking-widest text-xl">Đang tải dữ liệu...</div>;
   const currentTierConfig = (settings.tierConfigs as any)[user?.subscriptionTier || 'free'];
   const remainingPosts = maxPosts - postsToday;
@@ -417,7 +386,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           </p>
           <div className="flex gap-4 justify-center pt-4">
             <Link to="/" className="px-6 py-3 bg-white border border-gray-200 rounded-xl font-bold text-sm uppercase hover:bg-gray-50">Về trang chủ</Link>
-            <Link to="/upgrade" className="px-6 py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl font-bold text-sm uppercase shadow-lg hover:scale-105 transition-transform">Nâng cấp VIP ngay</Link>
+            <Link to="/upgrade" className="px-6 py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl font-bold text-sm uppercase shadow-lg hover:scale-105 transition-transform">Nâng cấp VIP</Link>
           </div>
         </div>
       </div>
@@ -429,8 +398,8 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const hasChildren = childCategories.length > 0;
 
   return (
-    // [FIX TRÀN MÀN HÌNH] Thêm overflow-x-hidden
-    <div className="w-full max-w-7xl mx-auto space-y-5 px-4 pb-24 pt-4 font-sans overflow-x-hidden">
+    // [FIX] Sử dụng overflow-x-hidden để tránh lỗi AI làm vỡ khung
+    <div className="w-full max-w-3xl mx-auto space-y-5 px-4 pb-24 pt-4 font-sans overflow-x-hidden">
       
       <div className="text-center space-y-3 mb-6">
         <h1 className="text-xl md:text-3xl font-black text-gray-900 uppercase tracking-tight">{isEditing ? 'Sửa Tin' : 'Đăng Tin'}</h1>
@@ -454,27 +423,28 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-12 gap-8">
-        {/* CỘT TRÁI: MEDIA */}
-        <div className="lg:col-span-4 space-y-6">
-          {listingType === 'affiliate' && user?.subscriptionTier !== 'pro' ? (
+      {/* [CHUYỂN VỀ 1 CỘT TOÀN BỘ] Không dùng grid-cols-12 nữa */}
+      <div className="space-y-6">
+        
+        {/* KHỐI MEDIA */}
+        {listingType === 'affiliate' && user?.subscriptionTier !== 'pro' ? (
             <div className="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center space-y-4">
               <div className="text-4xl">👑</div>
               <h3 className="text-sm font-black text-orange-600 uppercase">Dành cho VIP PRO</h3>
               <Link to="/upgrade" className="block w-full bg-orange-500 text-white py-4 rounded-xl font-bold text-xs">Nâng cấp ngay</Link>
             </div>
-          ) : (
+        ) : (
             <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
               <div className="flex justify-between items-center mb-4">
                 <label className={labelStyle}>Media ({formData.images.length}/{currentTierConfig.maxImages})</label>
                 {aiAnalyzing && (
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
-                        <span className="text-[10px] font-bold text-blue-500 uppercase">AI đang quét...</span>
+                        <span className="text-[10px] font-bold text-blue-500 uppercase">AI đang tự điền...</span>
                     </div>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3"> {/* Ảnh nhỏ gọn hơn */}
                 {formData.images.map((img, i) => (
                   <div key={i} className="aspect-square rounded-xl overflow-hidden border border-gray-200 relative group">
                     <img src={img} className="w-full h-full object-cover" alt="" />
@@ -483,12 +453,12 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 ))}
                 {formData.images.length < currentTierConfig.maxImages && (
                   <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-all">
-                    <span className="text-3xl font-light">+</span><span className="text-[9px] font-black uppercase mt-1">Tải ảnh</span>
+                    <span className="text-3xl font-light">+</span>
                   </button>
                 )}
                 {!videoPreview ? (
                   <button type="button" onClick={handleVideoClick} className={`aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center transition-all ${currentTierConfig.allowVideo ? 'bg-blue-50 border-blue-200 text-blue-500 hover:border-blue-400' : 'bg-gray-50 border-gray-200 text-gray-300 opacity-50 cursor-not-allowed'}`}>
-                    <span className="text-2xl">📹</span><span className="text-[9px] font-black uppercase mt-1">Video</span>
+                    <span className="text-2xl">📹</span>
                   </button>
                 ) : (
                   <div className="aspect-square rounded-xl overflow-hidden border border-blue-200 relative group shadow-lg">
@@ -500,14 +470,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
               <input type="file" ref={fileInputRef} onChange={handleImageUpload} multiple accept="image/*" className="hidden" />
               <input type="file" ref={videoInputRef} onChange={handleVideoChange} accept="video/*" className="hidden" />
             </div>
-          )}
-          
-          {/* ĐÃ XÓA "QUY TẮC" Ở ĐÂY ĐỂ CHUYỂN SANG CỘT PHẢI */}
-        </div>
+        )}
 
-        {/* CỘT PHẢI: FORM */}
-        <div className="lg:col-span-8">
-          {(listingType === 'normal' || user?.subscriptionTier === 'pro') && (
+        {/* KHỐI FORM */}
+        {(listingType === 'normal' || user?.subscriptionTier === 'pro') && (
             <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xl shadow-gray-100/50 space-y-6">
 
               {!isEditing && remainingPosts === 1 && (
@@ -516,15 +482,12 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                     <span className="text-2xl">⚠️</span>
                     <div>
                       <h4 className="text-xs font-black text-yellow-700 uppercase">Lưu ý quan trọng</h4>
-                      <p className="text-[11px] text-yellow-800">
-                        Đây là tin đăng <strong>cuối cùng</strong> trong ngày của bạn. Sau tin này, bạn cần <Link to="/upgrade" className="font-bold underline ml-1">Nâng cấp VIP</Link> để đăng tiếp.
-                      </p>
+                      <p className="text-[11px] text-yellow-800">Tin cuối cùng trong ngày.</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* TOGGLE ĐẤU GIÁ */}
               {listingType === 'normal' && (
                 <div className="bg-gray-50 p-1.5 rounded-2xl flex relative mb-4">
                   <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-xl shadow-sm transition-all duration-300 ${formData.isAuction ? 'left-[calc(50%+3px)]' : 'left-1.5'}`}></div>
@@ -542,10 +505,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
               <div className="space-y-1">
                 <label className={labelStyle}>Tiêu đề *</label>
-                <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max 256GB..." value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={inputStyle} />
+                <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max..." value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={inputStyle} />
               </div>
 
-              {/* [FIX 1 CỘT] Luôn là grid-cols-1 cho tất cả thiết bị */}
+              {/* [QUAN TRỌNG] CHỈ 1 CỘT DUY NHẤT */}
               <div className="grid grid-cols-1 gap-6 bg-gray-50 p-4 rounded-2xl border border-gray-100">
                 <div className="space-y-1">
                   <label className={labelStyle}>Danh mục Chính *</label>
@@ -555,7 +518,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className={labelStyle}>Chi tiết {hasChildren && <span className="text-red-500">*</span>}</label>
+                  <label className={labelStyle}>Chi tiết</label>
                   <select value={selectedChildId} onChange={handleChildCategoryChange} className={inputStyle} disabled={!selectedParentId || !hasChildren}>
                     <option value="">{hasChildren ? "-- Chọn loại --" : "Không có mục con"}</option>
                     {childCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>)}
@@ -565,7 +528,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
               {renderDynamicFields()}
 
-              {/* KHU VỰC GIÁ & ĐẤU GIÁ */}
               <div className={`p-4 rounded-2xl border transition-all ${formData.isAuction ? 'bg-purple-50 border-purple-100' : 'bg-white border-transparent'}`}>
                 {formData.isAuction ? (
                   <div className="space-y-4 animate-fade-in">
@@ -573,7 +535,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                       <span className="text-xl">🔨</span>
                       <h3 className="font-black text-purple-700 uppercase text-xs tracking-widest">Thiết lập đấu giá</h3>
                     </div>
-                    {/* [FIX 1 CỘT] */}
+                    {/* [QUAN TRỌNG] 1 CỘT */}
                     <div className="grid grid-cols-1 gap-4">
                       <div>
                         <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Giá khởi điểm *</label>
@@ -598,7 +560,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {/* [FIX 1 CỘT] */}
+                    {/* [QUAN TRỌNG] 1 CỘT */}
                     <div className="grid grid-cols-1 gap-4">
                       <div className="space-y-1">
                         <label className={labelStyle}>Giá bán (VNĐ) *</label>
@@ -613,7 +575,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                       </div>
                     </div>
                     
-                    {/* [FIX TRÀN MÀN HÌNH] Gợi ý giá AI có scroll ngang */}
+                    {/* [FIX TRÀN MÀN HÌNH] Sử dụng overflow-hidden cho container cha */}
                     {priceSuggestions && (
                         <div className="w-full overflow-hidden">
                             <div className="flex gap-2 overflow-x-auto pb-2 w-full no-scrollbar touch-pan-x snap-x">
@@ -636,7 +598,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 )}
               </div>
 
-              {/* [FIX 1 CỘT] */}
+              {/* [QUAN TRỌNG] 1 CỘT */}
               <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-1">
                   <label className={labelStyle}>Khu vực</label>
@@ -658,7 +620,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className={`${inputStyle} h-40 leading-relaxed`} placeholder="Mô tả kỹ về sản phẩm..." />
               </div>
 
-              {/* [ĐÃ CHUYỂN] QUY TẮC CỘNG ĐỒNG VÀO ĐÂY */}
+              {/* [ĐÃ DI CHUYỂN] QUY TẮC CỘNG ĐỒNG VÀO ĐÂY, NGAY TRÊN NÚT CAM KẾT */}
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-5 rounded-2xl relative overflow-hidden">
                 <div className="relative z-10">
                   <h3 className="flex items-center gap-2 font-black text-xs uppercase text-blue-600 mb-3 tracking-wider">

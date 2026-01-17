@@ -28,13 +28,13 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const maxPriceParam = searchParams.get('maxPrice');
   const locationParam = searchParams.get('location');
 
-  // --- EFFECT 1: Sync Search Params ---
+  // --- 1. ĐỒNG BỘ SEARCH URL ---
   useEffect(() => {
     const currentSearch = searchParams.get('search') || '';
     setSearchQuery(currentSearch);
   }, [searchParams]);
 
-  // --- EFFECT 2: Real-time Chat Data ---
+  // --- 2. LẤY DỮ LIỆU CHAT REALTIME ---
   useEffect(() => {
     if (user?.id) {
       const unsubChats = db.getChatRooms(user.id, (rooms) => {
@@ -48,30 +48,28 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   }, [user?.id]);
 
-  // --- TÍNH TOÁN SỐ TIN NHẮN CHƯA ĐỌC ---
+  // --- 3. TÍNH SỐ TIN NHẮN CHƯA ĐỌC ---
   const unreadChatCount = user ? chatRooms.filter(r => r.messages.length > 0 && !r.seenBy?.includes(user?.id || '')).length : 0;
 
-  // --- [TÍNH NĂNG MỚI] APP BADGING API (HIỆN SỐ ĐỎ NGOÀI ICON) ---
+  // --- 4. CẬP NHẬT BADGE (SỐ ĐỎ) TRÊN ICON APP (PWA) ---
   useEffect(() => {
-    const updateAppBadge = async () => {
-      // Kiểm tra trình duyệt có hỗ trợ không
+    const updateBadge = async () => {
+      // Chỉ chạy khi app đã được cài đặt (PWA) và trình duyệt hỗ trợ
       if ('setAppBadge' in navigator) {
         try {
           if (unreadChatCount > 0) {
-            // Set số lên icon
             await navigator.setAppBadge(unreadChatCount);
           } else {
-            // Xóa số nếu đã đọc hết
             await navigator.clearAppBadge();
           }
         } catch (error) {
-          console.error("Lỗi set Badge:", error);
+          // Lỗi này thường do chưa cấp quyền thông báo, không ảnh hưởng app
+          console.log("Badge update skipped (permission might be needed)");
         }
       }
     };
-
-    updateAppBadge();
-  }, [unreadChatCount]); // Chạy lại mỗi khi số lượng tin chưa đọc thay đổi
+    updateBadge();
+  }, [unreadChatCount]);
 
   // --- HANDLERS ---
   const handleSearch = (e: React.FormEvent) => {
@@ -111,7 +109,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   return (
     <div className="min-h-screen flex flex-col bg-bgMain">
       
-      {/* HEADER */}
+      {/* HEADER - Fix Safe Area cho iPhone */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 px-3 md:px-6 lg:px-10 h-auto min-h-[5rem] flex items-center justify-between gap-2 md:gap-4 shadow-sm pt-[env(safe-area-inset-top)] transition-all">
         
         {/* LOGO */}
@@ -153,17 +151,20 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
 
         {/* ACTIONS */}
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
+          
+          {/* Nút Chat trên Desktop - Có số đỏ */}
           <Link to="/chat" className={`hidden md:flex relative p-2.5 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-gray-100 hover:text-primary'}`}>
             <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
             {unreadChatCount > 0 && (
-              <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-bounce">
                 {unreadChatCount}
               </span>
             )}
           </Link>
 
+          {/* Menu Thông báo & Avatar */}
           {user ? (
              <NotificationMenu userId={user.id} />
           ) : (
@@ -217,12 +218,12 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         </div>
       )}
 
-      {/* MAIN CONTENT */}
+      {/* MAIN CONTENT - Fix bị menu che */}
       <main className="flex-1 w-full max-w-screen-2xl mx-auto md:px-8 py-6 md:py-10 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-10">
         {children}
       </main>
 
-      {/* MOBILE NAV BAR */}
+      {/* MOBILE NAV BAR (BOTTOM) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex items-end justify-between h-[calc(4rem+env(safe-area-inset-bottom))] z-50 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
         
         <Link to="/" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname === '/' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
@@ -239,6 +240,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           <span className={`text-[10px] font-bold ${location.pathname === '/manage-ads' ? 'opacity-100' : 'opacity-70'}`}>Quản lý</span>
         </Link>
 
+        {/* Nút Đăng Tin Lớn */}
         <div className="flex-1 flex flex-col items-center justify-end pb-3 relative z-10">
            <Link to="/post" className="w-14 h-14 mb-1 bg-gradient-to-tr from-blue-600 to-cyan-400 text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(59,130,246,0.5)] border-[4px] border-white transform transition-all duration-300 active:scale-90 hover:scale-105 hover:-translate-y-2">
             <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
@@ -246,12 +248,19 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           <span className="text-[10px] font-black text-blue-600 tracking-tight">Đăng tin</span>
         </div>
 
+        {/* Tab Tin Nhắn (Có số đỏ hiển thị trên icon) */}
         <Link to="/chat" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 relative ${location.pathname.startsWith('/chat') ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
           <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname.startsWith('/chat') ? 'bg-blue-50' : ''}`}>
              <svg className="w-6 h-6" fill={location.pathname.startsWith('/chat') ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
           </div>
           <span className={`text-[10px] font-bold ${location.pathname.startsWith('/chat') ? 'opacity-100' : 'opacity-70'}`}>Tin nhắn</span>
-          {unreadChatCount > 0 && <span className="absolute top-2 right-4 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
+          
+          {/* SỐ ĐỎ (BADGE) TRÊN TAB TIN NHẮN */}
+          {unreadChatCount > 0 && (
+            <span className="absolute top-2 right-4 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-bounce">
+              {unreadChatCount > 9 ? '9+' : unreadChatCount}
+            </span>
+          )}
         </Link>
 
         <Link to="/profile" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname === '/profile' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>

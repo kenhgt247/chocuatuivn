@@ -2,12 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { User, ChatRoom } from '../types'; 
 import { identifyProductForSearch } from '../services/geminiService';
-import { db, app } from '../services/db'; // Chỉ import db và app
+import { db, app } from '../services/db'; 
 import UniversalInstallPrompt from './UniversalInstallPrompt';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import NotificationMenu from '../components/NotificationMenu';
 
-// ⚠️ QUAN TRỌNG: KHÔNG IMPORT MESSAGING Ở ĐÂY ĐỂ TRÁNH LỖI TRẮNG TRANG TRÊN MOBILE
+// ⚠️ TUYỆT ĐỐI KHÔNG IMPORT firebase/messaging Ở ĐÂY
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,7 +24,20 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [isSearchingImage, setIsSearchingImage] = useState(false);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
-  const [notifPermission, setNotifPermission] = useState(Notification.permission);
+  
+  // --- [FIX LỖI TRẮNG TRANG] ---
+  // Thay vì gọi trực tiếp Notification.permission (gây crash nếu mobile không hỗ trợ)
+  // Ta dùng hàm kiểm tra an toàn:
+  const [notifPermission, setNotifPermission] = useState(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'default'; // Giá trị mặc định nếu không hỗ trợ
+  });
+
+  const minPriceParam = searchParams.get('minPrice');
+  const maxPriceParam = searchParams.get('maxPrice');
+  const locationParam = searchParams.get('location');
 
   // --- 1. ĐỒNG BỘ SEARCH ---
   useEffect(() => {
@@ -34,6 +47,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   // --- 2. LẤY TIN NHẮN REALTIME ---
   useEffect(() => {
     if (user?.id) {
+      // @ts-ignore
       const unsubChats = db.getChatRooms(user.id, (rooms: ChatRoom[]) => {
         setChatRooms(rooms);
       });
@@ -48,47 +62,67 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
 
   const unreadChatCount = user ? chatRooms.filter(r => r.messages.length > 0 && !r.seenBy?.includes(user?.id || '')).length : 0;
 
-  // --- 3. [FIX TRẮNG TRANG] LOGIC BẬT THÔNG BÁO (DYNAMIC IMPORT) ---
+  // --- 3. LOGIC BẬT THÔNG BÁO (DYNAMIC IMPORT) ---
   const handleEnableNotifications = async () => {
+    // 1. Kiểm tra hỗ trợ
     if (!("Notification" in window)) {
       alert("Trình duyệt này không hỗ trợ thông báo.");
       return;
     }
 
     try {
+      // 2. Xin quyền
       const permission = await Notification.requestPermission();
       setNotifPermission(permission);
 
       if (permission === 'granted') {
-        if ('setAppBadge' in navigator) navigator.setAppBadge(unreadChatCount);
+        // Cập nhật Badge nếu có
+        if ('setAppBadge' in navigator) {
+            // @ts-ignore
+            navigator.setAppBadge(unreadChatCount).catch(() => {});
+        }
 
-        // 👇 KỸ THUẬT LAZY LOAD: Chỉ tải Firebase Messaging khi cần thiết
-        // Giúp App không bị crash lúc khởi động
+        // 3. Tải thư viện Firebase Messaging (Lazy Load)
         try {
             console.log("Đang tải module thông báo...");
             const { getMessaging, getToken } = await import("firebase/messaging");
             
+            // Lấy service worker registration hiện tại
+            let registration;
+            if ('serviceWorker' in navigator) {
+                registration = await navigator.serviceWorker.ready;
+            }
+
+            if (!registration) {
+                console.log("Không tìm thấy Service Worker, bỏ qua bước lấy token.");
+                return;
+            }
+
             const messaging = getMessaging(app);
             
-            // Lấy registration từ Service Worker có sẵn
-            const registration = await navigator.serviceWorker.ready;
-
+            // Lấy Token
             const currentToken = await getToken(messaging, { 
-              // Key của bạn
+              // 👇👇👇 KEY CỦA BẠN ĐÂY 👇👇👇
               vapidKey: 'BGB3cVEpmksrmgJ8Rjl4mzLCJgy8Dg48axCRlYHCHTdvkWSr1oG9HE_143G23nj0RyxKMMcZc3yQxzoHx6mSBAM', 
               serviceWorkerRegistration: registration 
             });
 
             if (currentToken) {
+              console.log('Token:', currentToken);
               if (user?.id) {
-                  // Lưu token vào DB
-                  await db.updateUserProfile(user.id, { fcmToken: currentToken });
-                  console.log("Đã lưu token!");
+                  // Gọi hàm update trong db (nếu có)
+                  // @ts-ignore
+                  if (db.updateUserProfile) {
+                      // @ts-ignore
+                      await db.updateUserProfile(user.id, { fcmToken: currentToken });
+                      console.log("Đã lưu token!");
+                  }
               }
               alert("✅ Đã bật thông báo thành công!");
             }
         } catch (err) {
-            console.error('Lỗi khởi tạo Messaging (Không ảnh hưởng app):', err);
+            console.error('Lỗi khởi tạo Messaging:', err);
+            // Không alert lỗi để tránh làm phiền user
         }
       }
     } catch (error) {
@@ -98,9 +132,15 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
 
   // --- 4. CẬP NHẬT BADGE ---
   useEffect(() => {
-    if (notifPermission === 'granted' && 'setAppBadge' in navigator) {
-      if (unreadChatCount > 0) navigator.setAppBadge(unreadChatCount).catch(() => {});
-      else navigator.clearAppBadge().catch(() => {});
+    // Kiểm tra kỹ trước khi gọi setAppBadge
+    if (typeof window !== 'undefined' && 'setAppBadge' in navigator && notifPermission === 'granted') {
+      if (unreadChatCount > 0) {
+          // @ts-ignore
+          navigator.setAppBadge(unreadChatCount).catch(() => {});
+      } else {
+          // @ts-ignore
+          navigator.clearAppBadge().catch(() => {});
+      }
     }
   }, [unreadChatCount, notifPermission]);
 
@@ -119,13 +159,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         const base64 = await compressAndGetBase64(file);
         const keywords = await identifyProductForSearch(base64);
         navigate(`/?search=${encodeURIComponent(keywords.trim().toLowerCase())}&visual=true`);
-    } catch (err) { alert("Lỗi ảnh."); }
+    } catch (err) { alert("Lỗi xử lý ảnh."); }
     finally { setIsSearchingImage(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
-
-  const minPriceParam = searchParams.get('minPrice');
-  const maxPriceParam = searchParams.get('maxPrice');
-  const locationParam = searchParams.get('location');
 
   return (
     <div className="min-h-screen flex flex-col bg-bgMain">
@@ -154,7 +190,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {/* ACTIONS */}
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
           
-          {/* NÚT BẬT THÔNG BÁO (Mobile) */}
+          {/* [NÚT BẬT THÔNG BÁO] - Chỉ hiện khi chưa cấp quyền & có User */}
           {user && notifPermission === 'default' && (
             <button 
               onClick={handleEnableNotifications}

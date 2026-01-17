@@ -21,6 +21,8 @@ import {
 } from "firebase/auth";
 import { getStorage, ref, uploadString, getDownloadURL, uploadBytes } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
+// [MỚI] Import Messaging cho thông báo
+import { getMessaging } from "firebase/messaging";
 
 // Import Types
 import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus, Offer, Category, Bid, Message } from '../types';
@@ -64,6 +66,11 @@ const firestore = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 const functions = getFunctions(app);
+// [MỚI] Khởi tạo Messaging
+const messaging = getMessaging(app);
+
+// Xuất các instance ra để dùng ở nơi khác (ví dụ Layout.tsx)
+export { app, auth, storage, firestore, messaging };
 
 // 4. OBJECT DB
 export const db = {

@@ -6,7 +6,6 @@ import { db } from '../services/db';
 import UniversalInstallPrompt from './UniversalInstallPrompt';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import NotificationMenu from '../components/NotificationMenu';
-// Import Firebase Messaging
 import { getMessaging, getToken } from "firebase/messaging";
 
 interface LayoutProps {
@@ -71,27 +70,31 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
 
         // C. Lấy Token Firebase để nhận tin khi tắt App
         try {
+            // [FIX LỖI TRẮNG TRANG] Lấy Registration của SW đang chạy
+            const registration = await navigator.serviceWorker.ready;
+
             const messaging = getMessaging(); 
             const currentToken = await getToken(messaging, { 
-              // 👇👇👇 DÁN KEY CỦA BẠN VÀO DƯỚI ĐÂY 👇👇👇
-              vapidKey: 'BGB3cVEpmksrmgJ8Rjl4mzLCJgy8Dg48axCRlYHCHTdvkWSr1oG9HE_143G23nj0RyxKMMcZc3yQxzoHx6mSBAM' 
+              // 👇 Thay bằng Key thật của bạn
+              vapidKey: 'BGB3cVEpmksrmgJ8Rjl4mzLCJgy8Dg48axCRlYHCHTdvkWSr1oG9HE_143G23nj0RyxKMMcZc3yQxzoHx6mSBAM',
+              // 👇 [QUAN TRỌNG] Dòng này ép Firebase dùng sw.js có sẵn, không tìm file lạ nữa
+              serviceWorkerRegistration: registration 
             });
 
             if (currentToken) {
               console.log('FCM Token:', currentToken);
               if (user?.id) {
-                  // Lưu token vào profile user để Server biết đường gửi tin
+                  // Lưu token vào profile user
                   await db.updateUserProfile(user.id, { fcmToken: currentToken });
                   console.log("Đã lưu token thiết bị!");
               }
               alert("✅ Đã bật thông báo thành công! Bạn sẽ nhận được tin nhắn ngay cả khi thoát ứng dụng.");
             } else {
-              console.log('Không lấy được Token, vui lòng kiểm tra lại Key hoặc Mạng.');
+              console.log('Không lấy được Token.');
             }
         } catch (err) {
             console.error('Lỗi lấy Token FCM:', err);
-            // Vẫn thông báo thành công vì quyền cơ bản đã được cấp
-            alert("✅ Đã cấp quyền hiển thị thông báo!");
+            // Không alert lỗi để tránh làm phiền user nếu chỉ lỗi mạng nhẹ
         }
       }
     } catch (error) {
@@ -188,11 +191,11 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {/* ACTIONS */}
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
           
-          {/* [NÚT BẬT THÔNG BÁO] - Chỉ hiện khi chưa cấp quyền & có User */}
+          {/* [NÚT QUAN TRỌNG] BẬT THÔNG BÁO CHO PWA */}
           {user && notifPermission === 'default' && (
             <button 
               onClick={handleEnableNotifications}
-              className="flex items-center gap-1 bg-red-500 text-white px-2.5 py-1.5 rounded-lg text-[10px] font-black border border-red-400 animate-pulse shadow-lg md:hidden hover:scale-105 active:scale-95 transition-transform"
+              className="flex items-center gap-1 bg-red-500 text-white px-2.5 py-1.5 rounded-lg text-[10px] font-black border border-red-400 animate-bounce md:hidden shadow-lg hover:scale-105 active:scale-95 transition-transform"
             >
               🔔 Bật báo tin
             </button>

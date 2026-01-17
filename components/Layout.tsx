@@ -23,18 +23,20 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [isSearchingImage, setIsSearchingImage] = useState(false);
   
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
+  // [QUAN TRỌNG] State kiểm tra quyền thông báo
+  const [notifPermission, setNotifPermission] = useState(Notification.permission);
 
   const minPriceParam = searchParams.get('minPrice');
   const maxPriceParam = searchParams.get('maxPrice');
   const locationParam = searchParams.get('location');
 
-  // --- 1. ĐỒNG BỘ SEARCH URL ---
+  // --- EFFECT 1: Sync Search Params ---
   useEffect(() => {
     const currentSearch = searchParams.get('search') || '';
     setSearchQuery(currentSearch);
   }, [searchParams]);
 
-  // --- 2. LẤY DỮ LIỆU CHAT REALTIME ---
+  // --- EFFECT 2: Real-time Chat Data ---
   useEffect(() => {
     if (user?.id) {
       const unsubChats = db.getChatRooms(user.id, (rooms) => {
@@ -48,14 +50,34 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   }, [user?.id]);
 
-  // --- 3. TÍNH SỐ TIN NHẮN CHƯA ĐỌC ---
+  // --- TÍNH TOÁN SỐ TIN NHẮN CHƯA ĐỌC ---
   const unreadChatCount = user ? chatRooms.filter(r => r.messages.length > 0 && !r.seenBy?.includes(user?.id || '')).length : 0;
 
-  // --- 4. CẬP NHẬT BADGE (SỐ ĐỎ) TRÊN ICON APP (PWA) ---
-  useEffect(() => {
-    const updateBadge = async () => {
-      // Chỉ chạy khi app đã được cài đặt (PWA) và trình duyệt hỗ trợ
+  // --- [FIX] HÀM XIN QUYỀN THÔNG BÁO (BẮT BUỘC CHO IPHONE) ---
+  const requestPermission = async () => {
+    if (!("Notification" in window)) {
+      alert("Trình duyệt này không hỗ trợ thông báo.");
+      return;
+    }
+    
+    // Yêu cầu quyền
+    const permission = await Notification.requestPermission();
+    setNotifPermission(permission); // Cập nhật state
+
+    if (permission === "granted") {
+      // Nếu đồng ý -> Set luôn badge hiện tại
       if ('setAppBadge' in navigator) {
+        navigator.setAppBadge(unreadChatCount);
+      }
+      alert("✅ Đã bật thông báo! Bây giờ icon sẽ hiện số đỏ khi có tin nhắn.");
+    }
+  };
+
+  // --- APP BADGING API (HIỆN SỐ ĐỎ) ---
+  useEffect(() => {
+    const updateAppBadge = async () => {
+      // Chỉ chạy nếu quyền đã được cấp (granted)
+      if (notifPermission === 'granted' && 'setAppBadge' in navigator) {
         try {
           if (unreadChatCount > 0) {
             await navigator.setAppBadge(unreadChatCount);
@@ -63,13 +85,13 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             await navigator.clearAppBadge();
           }
         } catch (error) {
-          // Lỗi này thường do chưa cấp quyền thông báo, không ảnh hưởng app
-          console.log("Badge update skipped (permission might be needed)");
+          console.error("Lỗi set Badge:", error);
         }
       }
     };
-    updateBadge();
-  }, [unreadChatCount]);
+
+    updateAppBadge();
+  }, [unreadChatCount, notifPermission]);
 
   // --- HANDLERS ---
   const handleSearch = (e: React.FormEvent) => {
@@ -109,7 +131,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   return (
     <div className="min-h-screen flex flex-col bg-bgMain">
       
-      {/* HEADER - Fix Safe Area cho iPhone */}
+      {/* HEADER */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 px-3 md:px-6 lg:px-10 h-auto min-h-[5rem] flex items-center justify-between gap-2 md:gap-4 shadow-sm pt-[env(safe-area-inset-top)] transition-all">
         
         {/* LOGO */}
@@ -152,19 +174,28 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {/* ACTIONS */}
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
           
-          {/* Nút Chat trên Desktop - Có số đỏ */}
+          {/* [NÚT QUAN TRỌNG] BẬT THÔNG BÁO (Chỉ hiện khi chưa cấp quyền) */}
+          {user && notifPermission === 'default' && (
+            <button 
+              onClick={requestPermission}
+              className="flex items-center gap-1 bg-red-50 text-red-500 px-2 py-1.5 rounded-lg text-[10px] font-bold border border-red-100 animate-bounce md:hidden"
+            >
+              🔔 Bật báo tin
+            </button>
+          )}
+
+          {/* Desktop Chat Icon */}
           <Link to="/chat" className={`hidden md:flex relative p-2.5 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-gray-100 hover:text-primary'}`}>
             <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
             {unreadChatCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-bounce">
+              <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-pulse">
                 {unreadChatCount}
               </span>
             )}
           </Link>
 
-          {/* Menu Thông báo & Avatar */}
           {user ? (
              <NotificationMenu userId={user.id} />
           ) : (
@@ -218,7 +249,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         </div>
       )}
 
-      {/* MAIN CONTENT - Fix bị menu che */}
+      {/* MAIN CONTENT */}
       <main className="flex-1 w-full max-w-screen-2xl mx-auto md:px-8 py-6 md:py-10 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-10">
         {children}
       </main>
@@ -257,7 +288,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           
           {/* SỐ ĐỎ (BADGE) TRÊN TAB TIN NHẮN */}
           {unreadChatCount > 0 && (
-            <span className="absolute top-2 right-4 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-bounce">
+            <span className="absolute top-2 right-4 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-pulse">
               {unreadChatCount > 9 ? '9+' : unreadChatCount}
             </span>
           )}

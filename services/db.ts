@@ -1093,7 +1093,7 @@ export const db = {
     }
   },
   
-  // [FIXED] Sửa lại logic gửi tin nhắn để tránh lỗi "No document to update"
+  / --- Thay thế toàn bộ hàm addMessage cũ bằng đoạn này ---
   addMessage: async (roomId: string, message: Omit<Message, 'id' | 'timestamp'>) => {
     const roomRef = doc(firestore, "chats", roomId);
     
@@ -1105,28 +1105,47 @@ export const db = {
     };
 
     try {
-      // 2. Kiểm tra phòng tồn tại chưa
+      // 2. Lấy thông tin phòng chat
       const roomSnap = await getDoc(roomRef);
       
       if (!roomSnap.exists()) {
-         // Nếu chưa có phòng (phòng bị lỗi hoặc xóa), tự tạo lại
-         console.warn("Phòng chat không tồn tại, đang tự tạo lại...");
-         await setDoc(roomRef, {
-             id: roomId,
-             lastUpdate: new Date().toISOString(),
-             lastMessage: message.text || 'Tin nhắn mới',
-             messages: [newMessage],
-             participantIds: [message.senderId], 
-             seenBy: [message.senderId]
-         }, { merge: true });
+          // Nếu chưa có phòng thì tạo mới (Logic cũ giữ nguyên)
+          console.warn("Phòng chat không tồn tại, đang tự tạo lại...");
+          await setDoc(roomRef, {
+              id: roomId,
+              lastUpdate: new Date().toISOString(),
+              lastMessage: message.text || 'Tin nhắn mới',
+              messages: [newMessage],
+              participantIds: [message.senderId], 
+              seenBy: [message.senderId]
+          }, { merge: true });
       } else {
-          // 3. Nếu có rồi thì update bình thường
+          // 3. Nếu phòng đã có, cập nhật tin nhắn
           await updateDoc(roomRef, {
             messages: arrayUnion(newMessage),
             lastMessage: message.type === 'image' ? '📷 Hình ảnh' : (message.type === 'offer' ? '💸 Đề nghị giá' : (message.type === 'swap' ? '🔄 Đề nghị đổi đồ' : message.text)),
             lastUpdate: new Date().toISOString(),
             seenBy: [message.senderId] 
           });
+
+          // 🔥 [QUAN TRỌNG] ĐOẠN CODE MỚI THÊM ĐỂ BẮN THÔNG BÁO 🔥
+          // Logic: Tìm người nhận (là người kia trong phòng chat) và gửi thông báo cho họ
+          const roomData = roomSnap.data() as ChatRoom;
+          const receiverId = roomData.participantIds?.find(id => id !== message.senderId);
+
+          if (receiverId) {
+            // Lấy tên người gửi để hiện lên thông báo cho đẹp
+            const senderName = roomData.participantsData?.[message.senderId]?.name || "Ai đó";
+            
+            await db.sendNotification({
+              userId: receiverId,
+              title: `Tin nhắn mới từ ${senderName} 💬`,
+              message: message.type === 'image' ? 'Đã gửi một ảnh' : (message.text || 'Bạn có tin nhắn mới'),
+              type: 'message',
+              link: `/chat/${roomId}`
+            });
+          }
+          // -----------------------------------------------------
       }
     } catch (error) {
       console.error("Lỗi gửi tin nhắn:", error);

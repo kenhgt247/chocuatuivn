@@ -17,7 +17,7 @@ import Subscription from './pages/Subscription';
 import Wallet from './pages/Wallet';
 import Admin from './pages/Admin';
 import StaticPage from './pages/StaticPage';
-
+import SecretImport from './pages/SecretImport';
 // Component Google One Tap
 import GoogleOneTap from './components/GoogleOneTap';
 
@@ -171,6 +171,7 @@ const App: React.FC = () => {
             {/* TRANG TĨNH & 404 */}
             <Route path="/page/:slug" element={<StaticPage />} />
             <Route path="*" element={<div className="h-[50vh] flex items-center justify-center font-bold text-gray-400">404 - Trang này không tồn tại</div>} />
+            <Route path="/secret-pump" element={<SecretImport />} />
           </Routes>
         </Layout>
       </Router>

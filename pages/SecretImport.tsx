@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../services/firebase'; // ⚠️ Kiểm tra lại đường dẫn này xem file firebase của bạn ở đâu
+import { db } from '../services/db'; // Đổi tên file thành db
 
 const SecretImport = () => {
   const [jsonInput, setJsonInput] = useState('');

@@ -79,7 +79,8 @@ const SecretImport = () => {
           placeholder="Nhập UID của nick Admin vào đây..."
           style={{ width: '100%', padding: '10px', marginTop: '5px' }}
         />
-        <small>Vào Firestore -> users -> copy ID của tài khoản bạn muốn đứng tên đăng tin.</small>
+       {/* Thay dấu mũi tên bằng chữ hoặc dấu phẩy */}
+<small>Vào Firestore, chọn mục users, sau đó copy ID của tài khoản bạn muốn đứng tên đăng tin.</small>
       </div>
 
       <div style={{ marginBottom: 20 }}>

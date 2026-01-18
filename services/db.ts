@@ -1093,7 +1093,7 @@ export const db = {
     }
   },
   
-  / --- Thay thế toàn bộ hàm addMessage cũ bằng đoạn này ---
+  // --- Thay thế toàn bộ hàm addMessage cũ bằng đoạn này ---
   addMessage: async (roomId: string, message: Omit<Message, 'id' | 'timestamp'>) => {
     const roomRef = doc(firestore, "chats", roomId);
     

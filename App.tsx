@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { HelmetProvider } from 'react-helmet-async'; // [QUAN TRỌNG] Hỗ trợ SEO Facebook/Zalo
+import { HelmetProvider } from 'react-helmet-async';
+
+// [MỚI] Import các hàm Firestore để cập nhật trạng thái Online
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db as firestoreDB } from './services/firebase'; // Import DB gốc (đặt tên khác để không trùng service db)
 
 // Layout & Pages
 import Layout from './components/Layout';
@@ -18,11 +22,12 @@ import Wallet from './pages/Wallet';
 import Admin from './pages/Admin';
 import StaticPage from './pages/StaticPage';
 import SecretImport from './pages/SecretImport';
+
 // Component Google One Tap
 import GoogleOneTap from './components/GoogleOneTap';
 
 // Services & Types
-import { db } from './services/db';
+import { db } from './services/db'; // Service wrapper
 import { User } from './types';
 import { formatPrice } from './utils/format';
 
@@ -53,47 +58,87 @@ const App: React.FC = () => {
         
         if (currentUser) {
             setUser(currentUser);
-            prevBalanceRef.current = currentUser.walletBalance;
+            prevBalanceRef.current = currentUser.walletBalance || 0;
 
             // 1.2 Lắng nghe thay đổi User (Số dư, Trạng thái) Realtime từ Firestore
             if (db.onUserChange) {
                 unsubscribe = db.onUserChange(currentUser.id, (updatedUser) => {
                     // Kiểm tra tiền về: Nếu số dư mới > số dư cũ
-                    if (updatedUser.walletBalance > prevBalanceRef.current) {
-                        const amount = updatedUser.walletBalance - prevBalanceRef.current;
+                    if ((updatedUser.walletBalance || 0) > prevBalanceRef.current) {
+                        const amount = (updatedUser.walletBalance || 0) - prevBalanceRef.current;
                         // Thông báo "Ting Ting" khi được cộng tiền
                         alert(`💰 Ting Ting! Ví của bạn vừa được cộng ${formatPrice(amount)}`);
                     }
                     
                     // Cập nhật State và Ref
                     setUser(updatedUser);
-                    prevBalanceRef.current = updatedUser.walletBalance;
+                    prevBalanceRef.current = updatedUser.walletBalance || 0;
                 });
             }
         }
       } catch (err) {
         console.error("Auth init error:", err);
       } finally {
-        // Hoàn tất quá trình khởi tạo ứng dụng
         setIsInitializing(false);
       }
     };
 
     initialize();
 
-    // Cleanup: Ngắt kết nối listener khi component bị hủy (Unmount)
     return () => {
         if (unsubscribe) unsubscribe();
     };
   }, []);
 
+  // -----------------------------------------------------------
+  // [MỚI] 2. LOGIC CẬP NHẬT TRẠNG THÁI ONLINE (HEARTBEAT)
+  // -----------------------------------------------------------
+  useEffect(() => {
+    if (!user) return;
+
+    // Hàm báo cáo lên Server: "Tôi đang hoạt động"
+    const reportOnline = async () => {
+      try {
+        // Tham chiếu đến document của user hiện tại
+        const userRef = doc(firestoreDB, "users", user.id);
+        
+        // Cập nhật trường isOnline và thời gian hoạt động
+        await updateDoc(userRef, {
+          isOnline: true,
+          lastActive: new Date().toISOString() // Hoặc dùng serverTimestamp() nếu muốn chuẩn server
+        });
+      } catch (e) {
+        console.error("Lỗi cập nhật trạng thái Online:", e);
+      }
+    };
+
+    // a. Chạy ngay lập tức khi vừa có user (vừa đăng nhập/F5)
+    reportOnline();
+
+    // b. Thiết lập vòng lặp: Cứ 5 phút báo cáo lại 1 lần (để duy trì trạng thái)
+    const interval = setInterval(reportOnline, 5 * 60 * 1000);
+
+    // c. Cleanup: Xóa vòng lặp khi user đăng xuất hoặc tắt component
+    return () => clearInterval(interval);
+  }, [user]); // Chạy lại mỗi khi user thay đổi (đăng nhập/đăng xuất)
+  // -----------------------------------------------------------
+
+
   // Các handler quản lý User state
   const handleLogin = (u: User) => {
       setUser(u);
-      prevBalanceRef.current = u.walletBalance; // Reset mốc so sánh ngay khi login
+      prevBalanceRef.current = u.walletBalance || 0;
   };
   
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // [Tuỳ chọn] Trước khi logout, set Offline ngay lập tức
+    if (user) {
+        try {
+            const userRef = doc(firestoreDB, "users", user.id);
+            await updateDoc(userRef, { isOnline: false });
+        } catch (e) {}
+    }
+
     db.logout();
     setUser(null);
     prevBalanceRef.current = 0;
@@ -101,10 +146,10 @@ const App: React.FC = () => {
   
   const handleUpdateUser = (u: User) => {
     setUser(u);
-    prevBalanceRef.current = u.walletBalance;
+    prevBalanceRef.current = u.walletBalance || 0;
   };
 
-  // Màn hình loading khi đang check login (Xử lý UX khi mở app)
+  // Màn hình loading
   if (isInitializing) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-bgMain">
@@ -115,50 +160,40 @@ const App: React.FC = () => {
   }
 
   return (
-    <HelmetProvider> {/* [BẮT BUỘC] Bao bọc toàn bộ để SEO Helmet hoạt động */}
+    <HelmetProvider>
       <Router>
         <ScrollToTop />
 
-        {/* Google One Tap chỉ hiện cho khách chưa đăng nhập */}
         {!isInitializing && !user && <GoogleOneTap onLogin={handleLogin} />}
 
         <Layout user={user}>
           <Routes>
-            {/* TRANG CHỦ & TÌM KIẾM */}
             <Route path="/" element={<Home user={user} />} />
             <Route path="/search" element={<Home user={user} />} />
             <Route path="/danh-muc/:slug" element={<Home user={user} />} />
             <Route path="/danh-muc/:parentSlug/:childSlug" element={<Home user={user} />} />
 
-            {/* CHI TIẾT SẢN PHẨM (Hỗ trợ nhiều định dạng URL) */}
             <Route path="/san-pham/:slugWithId" element={<ListingDetail user={user} />} />
             <Route path="/listings/:slugWithId" element={<ListingDetail user={user} />} />
             <Route path="/listing/:slugWithId" element={<ListingDetail user={user} />} />
 
-            {/* TRANG CÁ NHÂN & QUẢN LÝ (Yêu cầu Đăng nhập) */}
             <Route path="/profile" element={user ? <Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
             <Route path="/profile/:id" element={<SellerProfile currentUser={user} />} />
             <Route path="/seller/:id" element={<SellerProfile currentUser={user} />} />
             
-            {/* ĐĂNG TIN & CHỈNH SỬA */}
             <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
             <Route path="/edit/:id" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
             
-            {/* QUẢN LÝ TIN ĐĂNG */}
             <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
             
-            {/* HỆ THỐNG CHAT */}
             <Route path="/chat" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
             <Route path="/chat/:roomId" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
             
-            {/* VÍ & NÂNG CẤP DỊCH VỤ */}
             <Route path="/upgrade" element={user ? <Subscription user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
             <Route path="/wallet" element={user ? <Wallet user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
             
-            {/* QUẢN TRỊ VIÊN (ADMIN) */}
             <Route path="/admin" element={user?.role === 'admin' ? <Admin user={user} /> : <Navigate to="/" />} />
 
-            {/* XÁC THỰC (Ẩn khi đã đăng nhập) */}
             <Route 
               path="/login" 
               element={!user ? <Auth onLogin={handleLogin} /> : <Navigate to="/" replace />} 
@@ -168,7 +203,6 @@ const App: React.FC = () => {
               element={!user ? <Register onLogin={handleLogin} /> : <Navigate to="/" replace />} 
             />
             
-            {/* TRANG TĨNH & 404 */}
             <Route path="/page/:slug" element={<StaticPage />} />
             <Route path="*" element={<div className="h-[50vh] flex items-center justify-center font-bold text-gray-400">404 - Trang này không tồn tại</div>} />
             <Route path="/secret-pump" element={<SecretImport />} />

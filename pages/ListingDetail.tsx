@@ -295,13 +295,14 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
          {/* Main Media (Video/Image) */}
           <div className={`relative aspect-square md:aspect-video md:rounded-xl group shadow-sm border border-gray-100 z-20 ${isVideoActive ? 'bg-gray-900 border-gray-800 overflow-hidden' : 'bg-white'}`}>
             
-            {/* Watermark (Logo chìm) */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden select-none">
-                <div className="transform -rotate-45 leading-none pointer-events-none">
-                    <span className="text-white/10 text-sm md:text-lg font-black uppercase tracking-widest whitespace-nowrap px-4 py-2">⚡ Chợ Của Tui</span>
-                </div>
-            </div>
-
+            {/* Watermark (Logo chìm) - Đã điều chỉnh cho rõ hơn */}
+<div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden select-none">
+    <div className="transform -rotate-45 leading-none pointer-events-none">
+        <span className="text-white/40 drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)] text-sm md:text-lg font-black uppercase tracking-widest whitespace-nowrap px-4 py-2">
+            ⚡ Chợ Của Tui
+        </span>
+    </div>
+</div>
             {isVideoActive ? (
                 // --- TRƯỜNG HỢP LÀ VIDEO ---
                 <div className="relative w-full h-full cursor-pointer" onClick={handleVideoPlayPause}>

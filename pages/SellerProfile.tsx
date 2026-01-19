@@ -230,13 +230,33 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
         <div className="absolute top-0 right-0 w-80 h-80 bg-primary/5 rounded-full -mr-40 -mt-40 blur-3xl"></div>
         <div className="flex flex-col md:flex-row gap-10 items-center md:items-start relative z-10">
           
-          {/* Avatar Section */}
+          {/* Avatar Section - Đã sửa lỗi Hardcode */}
           <div className="relative">
-            <img src={seller.avatar} alt={seller.name} className="w-32 h-32 md:w-44 md:h-44 rounded-[3rem] border-4 border-white shadow-2xl object-cover" />
-            <div className="absolute -bottom-2 right-4 bg-green-500 text-white px-3 py-1 rounded-xl border-4 border-white shadow-lg flex items-center gap-1.5">
-               <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
-               <span className="text-[8px] font-black uppercase">Online</span>
-            </div>
+            <img 
+              src={seller.avatar} 
+              alt={seller.name} 
+              className="w-32 h-32 md:w-44 md:h-44 rounded-[3rem] border-4 border-white shadow-2xl object-cover" 
+            />
+            
+            {/* Logic hiển thị trạng thái động */}
+            {(() => {
+              // Sử dụng ép kiểu (as any) để tránh lỗi đỏ nếu bạn chưa kịp sửa file types.ts
+              const isUserOnline = (seller as any).isOnline || false; 
+
+              return (
+                <div className={`absolute -bottom-2 right-4 px-3 py-1 rounded-xl border-4 border-white shadow-lg flex items-center gap-1.5 transition-colors duration-300 ${
+                  isUserOnline ? 'bg-green-500' : 'bg-gray-400'
+                }`}>
+                   {/* Chấm tròn: Chỉ nhấp nháy khi Online */}
+                   <div className={`w-1.5 h-1.5 bg-white rounded-full ${isUserOnline ? 'animate-pulse' : ''}`}></div>
+                   
+                   {/* Chữ hiển thị: Online hoặc Offline */}
+                   <span className="text-[8px] font-black text-white uppercase">
+                      {isUserOnline ? 'Online' : 'Offline'}
+                   </span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Info Section */}

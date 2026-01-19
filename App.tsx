@@ -4,7 +4,7 @@ import { HelmetProvider } from 'react-helmet-async';
 
 // [MỚI] Import các hàm Firestore để cập nhật trạng thái Online
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db as firestoreDB } from './services/firebase'; // Import DB gốc (đặt tên khác để không trùng service db)
+import { db as firestoreDB } from './services/db'; // Import DB gốc (đặt tên khác để không trùng service db)
 
 // Layout & Pages
 import Layout from './components/Layout';

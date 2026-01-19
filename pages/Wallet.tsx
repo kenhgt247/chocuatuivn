@@ -4,18 +4,28 @@ import { db, SystemSettings } from '../services/db';
 import { User, Transaction } from '../types';
 import { formatPrice } from '../utils/format';
 
+// --- IMPORT ICON VECTOR ---
+import { 
+  Wallet as WalletIcon, QrCode, CreditCard, Copy, Check, 
+  Clock, XCircle, ArrowUpRight, ArrowDownLeft, Loader2, 
+  Banknote, History, CheckCircle, RefreshCw
+} from 'lucide-react';
+
 const PRESET_AMOUNTS = [50000, 100000, 200000, 500000, 1000000, 2000000];
 
 const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> = ({ user, onUpdateUser }) => {
   const navigate = useNavigate();
-  const [selectedAmount, setSelectedAmount] = useState<number>(100000);
+  
+  // State
+  const [amount, setAmount] = useState<string>('100000'); 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // [NÂNG CẤP] Auto-refresh balance & transactions
+  // Auto-refresh logic
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
     
@@ -26,34 +36,43 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
         const [s, txs, updatedUser] = await Promise.all([
             db.getSettings(), 
             db.getTransactions(user.id),
-            db.getUserById(user.id) // Lấy info mới nhất để cập nhật số dư
+            db.getUserById(user.id)
         ]);
         
         setSettings(s);
         setTransactions(txs);
-        if (updatedUser) onUpdateUser(updatedUser); // Cập nhật số dư realtime
+        if (updatedUser) onUpdateUser(updatedUser);
       } catch (error) {
         console.error("Lỗi tải ví:", error);
       }
     };
 
     loadData();
-
-    // Tự động refresh mỗi 10s để kiểm tra tiền vào chưa
-    interval = setInterval(loadData, 10000);
+    interval = setInterval(loadData, 10000); 
 
     return () => clearInterval(interval);
   }, [user, navigate, onUpdateUser]);
 
   if (!user) return null;
 
+  // Handlers
+  const handleSelectPreset = (value: number) => setAmount(value.toString());
+  
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value.replace(/\D/g, '');
+      setAmount(val);
+  };
+
   const handleDepositRequest = async () => {
+    const finalAmount = parseInt(amount);
+    if (!finalAmount || finalAmount < 10000) {
+        alert("Vui lòng nạp tối thiểu 10.000đ");
+        return;
+    }
+
     setIsProcessing(true);
     try {
-        // Tạo transaction pending
-        await db.requestDeposit(user.id, selectedAmount, `NAP ${user.id.slice(-6).toUpperCase()}`);
-        
-        // Reload transaction list ngay lập tức
+        await db.requestDeposit(user.id, finalAmount, `NAP ${user.id.slice(-6).toUpperCase()}`);
         const txs = await db.getTransactions(user.id);
         setTransactions(txs);
         setShowQRModal(true);
@@ -64,18 +83,15 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
     }
   };
 
-  // --- VIETQR LOGIC ---
   const getVietQRUrl = () => {
     if (!settings?.bankName || !settings?.accountNumber) return '';
-    
     const bankId = settings.bankName; 
     const accountNo = settings.accountNumber;
     const template = 'compact2'; 
-    const amount = selectedAmount;
+    const finalAmount = parseInt(amount) || 0;
     const content = `NAP ${user.id.slice(-6).toUpperCase()}`;
     const accountName = encodeURI(settings.accountName || '');
-
-    return `https://img.vietqr.io/image/${bankId}-${accountNo}-${template}.png?amount=${amount}&addInfo=${content}&accountName=${accountName}`;
+    return `https://img.vietqr.io/image/${bankId}-${accountNo}-${template}.png?amount=${finalAmount}&addInfo=${content}&accountName=${accountName}`;
   };
 
   const handleCopy = (text: string, field: string) => {
@@ -84,63 +100,113 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
     setTimeout(() => setCopiedField(null), 2000);
   };
 
+  const handleManualRefresh = async () => {
+      setIsRefreshing(true);
+      const updatedUser = await db.getUserById(user.id);
+      if(updatedUser) onUpdateUser(updatedUser);
+      const txs = await db.getTransactions(user.id);
+      setTransactions(txs);
+      setTimeout(() => setIsRefreshing(false), 800);
+  };
+
   const transferContent = `NAP ${user.id.slice(-6).toUpperCase()}`;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-10 px-4">
-      {/* Header Wallet Card */}
-      <div className="bg-gradient-to-br from-primary to-blue-700 rounded-[2rem] p-8 text-white shadow-2xl relative overflow-hidden group">
-        <div className="relative z-10 space-y-6">
-          <div>
-            <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mb-1 opacity-70">Số dư khả dụng</p>
-            <h2 className="text-4xl font-black tracking-tight">{formatPrice(user.walletBalance || 0)}</h2>
+    // [FIX TRÀN MÀN HÌNH]: Thêm overflow-x-hidden và max-w-full
+    <div className="w-full max-w-4xl mx-auto space-y-5 pb-24 px-3 md:px-4 font-sans animate-fade-in pt-4 overflow-x-hidden">
+      
+      {/* 1. THẺ VÍ TIỀN */}
+      <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[1.5rem] p-5 md:p-8 text-white shadow-xl relative overflow-hidden group">
+        <div className="relative z-10 space-y-4">
+          <div className="flex justify-between items-start">
+             <div className="min-w-0"> {/* min-w-0 giúp text truncate chuẩn */}
+                <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mb-1 opacity-70 flex items-center gap-2">
+                    <WalletIcon className="w-3.5 h-3.5" /> Số dư khả dụng
+                </p>
+                <div className="flex items-center gap-2">
+                    {/* [FIX FONT]: Giảm size chữ trên mobile để không bị tràn */}
+                    <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight truncate max-w-[200px] sm:max-w-none">
+                        {formatPrice(user.walletBalance || 0)}
+                    </h2>
+                    <button onClick={handleManualRefresh} className={`p-1.5 bg-white/10 rounded-full hover:bg-white/20 transition-all ${isRefreshing ? 'animate-spin' : ''}`}>
+                        <RefreshCw className="w-3.5 h-3.5 text-white" />
+                    </button>
+                </div>
+             </div>
+             <div className="p-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/10 shrink-0">
+                 <CreditCard className="w-5 h-5 md:w-6 md:h-6 text-white/90" />
+             </div>
           </div>
-          <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest opacity-60">
-            <span>Mã ví: {user.id.slice(-8).toUpperCase()}</span>
+          
+          <div className="flex items-center gap-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest opacity-60 bg-black/20 w-fit px-2.5 py-1 rounded-lg backdrop-blur-sm">
+            <span>ID: {user.id.slice(-8).toUpperCase()}</span>
+            <button onClick={() => handleCopy(user.id, 'id')} className="active:scale-90 transition-transform p-1">
+                {copiedField === 'id' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3 hover:text-white" />}
+            </button>
           </div>
         </div>
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+        
+        {/* Background Effects */}
+        <div className="absolute top-0 right-0 w-32 h-32 md:w-48 md:h-48 bg-white/10 rounded-full -mr-10 -mt-10 blur-3xl"></div>
       </div>
 
-      <div className="grid lg:grid-cols-5 gap-8">
-        {/* Deposit Section */}
-        <div className="lg:col-span-3 space-y-6">
-          <div className="bg-white border border-borderMain rounded-[2rem] p-8 shadow-soft">
-            <h3 className="font-black text-lg mb-8 flex items-center gap-3">
-               <span className="w-1.5 h-6 bg-primary rounded-full"></span>
-               Nạp tiền vào ví
+      <div className="grid lg:grid-cols-5 gap-5 md:gap-8">
+        
+        {/* 2. KHU VỰC NẠP TIỀN */}
+        <div className="lg:col-span-3 space-y-5">
+          <div className="bg-white border border-gray-100 rounded-[1.5rem] p-5 shadow-sm">
+            <h3 className="font-black text-sm md:text-base mb-5 flex items-center gap-2 text-slate-800 uppercase tracking-wide">
+               <span className="w-8 h-8 bg-green-50 text-green-600 rounded-lg flex items-center justify-center shadow-sm">
+                   <Banknote className="w-4 h-4" />
+               </span>
+               Nạp tiền nhanh
             </h3>
             
-            <div className="grid grid-cols-3 gap-4 mb-10">
+            {/* INPUT NHẬP SỐ TIỀN */}
+            <div className="mb-5 relative">
+                <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest absolute top-2 left-4">Số tiền muốn nạp</label>
+                <input 
+                    type="text" 
+                    value={amount ? parseInt(amount).toLocaleString('vi-VN') : ''}
+                    onChange={handleAmountChange}
+                    placeholder="0"
+                    className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl pt-6 pb-2 px-4 font-black text-lg text-primary focus:border-primary focus:ring-0 outline-none transition-all"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 mt-2 font-bold text-gray-400 text-xs">VNĐ</span>
+            </div>
+
+            {/* Grid chọn tiền - [FIX]: gap-2 để các nút không dính nhau */}
+            <div className="grid grid-cols-3 gap-2 mb-6">
               {PRESET_AMOUNTS.map(a => (
                 <button 
                   key={a} 
-                  onClick={() => setSelectedAmount(a)} 
-                  className={`py-4 rounded-2xl border-2 font-black text-sm transition-all active:scale-95 ${selectedAmount === a ? 'border-primary bg-primary/5 text-primary shadow-lg shadow-primary/10' : 'border-gray-50 bg-gray-50/50 text-gray-400 hover:border-gray-200'}`}
+                  onClick={() => handleSelectPreset(a)} 
+                  className={`py-3 rounded-xl border-2 font-black text-[10px] sm:text-xs transition-all active:scale-95 touch-manipulation truncate px-1 ${parseInt(amount) === a ? 'border-primary bg-primary/5 text-primary shadow-md' : 'border-gray-50 bg-white text-gray-400 hover:border-gray-200'}`}
                 >
                   {a / 1000}k
                 </button>
               ))}
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3 pt-3 border-t border-gray-50">
                <div className="flex items-center justify-between px-1">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Phương thức thanh toán</span>
-                  <span className="text-[10px] font-black text-primary uppercase flex items-center gap-1">
-                    <img src="https://img.vietqr.io/image/970423-113366668888-compact.jpg?width=20" className="h-4 w-auto object-contain" alt="" /> Quét mã tự động
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Thanh toán</span>
+                  <span className="text-[10px] font-black text-primary uppercase flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-md">
+                    <QrCode className="w-3 h-3" /> VietQR Auto
                   </span>
                </div>
+               
                <button 
                 onClick={handleDepositRequest} 
-                disabled={isProcessing || !settings?.bankName} 
-                className="w-full bg-primary text-white font-black py-5 rounded-2xl shadow-xl shadow-primary/20 flex items-center justify-center gap-3 hover:bg-primaryHover active:scale-[0.98] transition-all disabled:opacity-50"
+                disabled={isProcessing || !settings?.bankName || !amount} 
+                className="w-full bg-primary text-white font-black py-4 rounded-xl shadow-xl shadow-primary/20 flex items-center justify-center gap-2 hover:bg-primaryHover active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider"
                >
                  {isProcessing ? (
-                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                   <Loader2 className="w-4 h-4 animate-spin" />
                  ) : (
                    <>
-                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v1m6 11h2m-6 0h-2v4h-4v-2h4v-4H6v4H2v-4h4V4h2v2h4v4a2 2 0 002 2h2v4z" strokeWidth={2}/></svg>
-                     {settings?.bankName ? 'Tạo mã VietQR' : 'Hệ thống đang bảo trì'}
+                     <QrCode className="w-4 h-4" />
+                     {settings?.bankName ? 'Tạo mã thanh toán' : 'Đang bảo trì'}
                    </>
                  )}
                </button>
@@ -148,32 +214,43 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
           </div>
         </div>
 
-        {/* History Section */}
+        {/* 3. LỊCH SỬ GIAO DỊCH */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white border border-borderMain rounded-[2rem] p-8 shadow-soft flex flex-col h-[480px]">
-            <h3 className="font-black text-lg mb-6 flex items-center gap-3">
-               <span className="w-1.5 h-6 bg-primary rounded-full"></span>
-               Lịch sử giao dịch
+          <div className="bg-white border border-gray-100 rounded-[1.5rem] p-5 shadow-sm flex flex-col h-[400px]">
+            <h3 className="font-black text-sm md:text-base mb-4 flex items-center gap-2 text-slate-800 uppercase tracking-wide">
+               <span className="w-8 h-8 bg-orange-50 text-orange-600 rounded-lg flex items-center justify-center shadow-sm">
+                   <History className="w-4 h-4" />
+               </span>
+               Giao dịch gần đây
             </h3>
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1 no-scrollbar">
+            
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-hide">
               {transactions.length > 0 ? transactions.map(tx => (
-                <div key={tx.id} className="flex items-center justify-between p-4 bg-gray-50/50 border border-gray-100 rounded-2xl group hover:bg-white hover:shadow-md transition-all">
-                  <div className="min-w-0 flex-1 pr-2">
-                    <p className="text-[10px] font-black uppercase text-textMain truncate leading-tight mb-1">{tx.description}</p>
-                    <p className="text-[9px] text-gray-400 font-bold">{new Date(tx.createdAt).toLocaleString('vi-VN')}</p>
+                <div key={tx.id} className="flex items-center justify-between p-3 bg-gray-50/30 border border-gray-100 rounded-xl active:bg-gray-100 transition-colors">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${tx.type === 'deposit' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                          {tx.type === 'deposit' ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
+                      </div>
+                      <div className="min-w-0 pr-2">
+                        <p className="text-[10px] font-black uppercase text-slate-700 truncate leading-tight mb-0.5 max-w-[120px]">{tx.description}</p>
+                        <p className="text-[9px] text-gray-400 font-bold flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" />
+                            {new Date(tx.createdAt).toLocaleDateString('vi-VN')}
+                        </p>
+                      </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className={`text-sm font-black ${tx.type === 'deposit' ? 'text-green-600' : 'text-red-600'}`}>
+                    <p className={`text-xs font-black ${tx.type === 'deposit' ? 'text-green-600' : 'text-red-600'}`}>
                       {tx.type === 'deposit' ? '+' : '-'}{formatPrice(tx.amount)}
                     </p>
-                    <span className={`text-[8px] px-2 py-0.5 rounded-lg font-black uppercase tracking-tighter ${tx.status === 'pending' ? 'bg-yellow-100 text-yellow-600' : tx.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                      {tx.status === 'pending' ? 'Chờ duyệt' : tx.status === 'success' ? 'Thành công' : 'Thất bại'}
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-tighter inline-block mt-1 ${tx.status === 'pending' ? 'bg-yellow-100 text-yellow-600' : tx.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                      {tx.status === 'pending' ? 'Đang duyệt' : tx.status === 'success' ? 'Thành công' : 'Thất bại'}
                     </span>
                   </div>
                 </div>
               )) : (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-3">
-                   <div className="text-4xl grayscale opacity-30">💸</div>
+                <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-3 opacity-60">
+                   <History className="w-10 h-10" />
                    <p className="text-[10px] font-black uppercase tracking-widest">Chưa có giao dịch</p>
                 </div>
               )}
@@ -182,76 +259,87 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
         </div>
       </div>
 
-      {/* MODAL VIETQR - SMART PAYMENT UI */}
+      {/* 4. MODAL VIETQR - MOBILE OPTIMIZED (BOTTOM SHEET) */}
       {showQRModal && settings && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setShowQRModal(false)}></div>
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl relative animate-fade-in-up flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center sm:p-4">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onClick={() => setShowQRModal(false)}></div>
+          
+          {/* Modal Content */}
+          <div className="bg-white w-full md:max-w-sm rounded-t-[2rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl relative animate-slide-up md:animate-fade-in-up flex flex-col max-h-[90vh]">
             
             {/* Modal Header */}
-            <div className="bg-primary p-6 text-white text-center relative">
-                <h3 className="text-xl font-black uppercase tracking-wider">Thanh toán</h3>
-                <p className="text-[10px] opacity-80 font-bold mt-1">Sử dụng App Ngân hàng bất kỳ để quét</p>
-                <button onClick={() => setShowQRModal(false)} className="absolute top-6 right-6 text-white/70 hover:text-white">✕</button>
+            <div className="bg-primary px-6 py-4 text-white text-center relative shrink-0">
+                <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-3 md:hidden"></div> {/* Handle bar for mobile */}
+                <h3 className="text-base font-black uppercase tracking-wider flex items-center justify-center gap-2">
+                    Thanh toán
+                </h3>
+                <button 
+                    onClick={() => setShowQRModal(false)} 
+                    className="absolute top-1/2 -translate-y-1/2 right-4 text-white/70 hover:text-white bg-white/10 p-1.5 rounded-full active:bg-white/20 transition-colors hidden md:block"
+                >
+                    <XCircle className="w-5 h-5" />
+                </button>
             </div>
 
-            <div className="p-8 overflow-y-auto space-y-6">
+            <div className="p-5 overflow-y-auto scrollbar-hide space-y-5">
+                
                 {/* QR Image Area */}
                 <div className="flex justify-center">
-                    <div className="p-3 bg-white border-2 border-dashed border-primary/30 rounded-3xl shadow-lg">
+                    <div className="p-2 bg-white border-2 border-dashed border-primary/30 rounded-2xl shadow-lg w-[200px] h-[200px] flex items-center justify-center relative">
                         <img 
                             src={getVietQRUrl()} 
-                            className="w-full max-w-[280px] object-contain rounded-2xl" 
+                            className="w-full h-full object-contain rounded-xl" 
                             alt="VietQR Payment"
                         />
                     </div>
                 </div>
 
-                {/* Transfer Details with Copy Buttons */}
-                <div className="space-y-4">
-                    <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-3">
-                         {/* Account Num */}
-                         <div className="flex justify-between items-center group">
-                            <span className="text-[10px] font-black text-gray-400 uppercase">Số tài khoản</span>
+                {/* Transfer Details */}
+                <div className="space-y-3">
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3">
+                         
+                         {/* Số tài khoản */}
+                         <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-black text-gray-400 uppercase">STK Nhận</span>
                             <div className="flex items-center gap-2">
-                                <span className="font-bold text-gray-800">{settings.accountNumber}</span>
-                                <button onClick={() => handleCopy(settings.accountNumber, 'acc')} className="text-primary hover:bg-blue-50 p-1.5 rounded-lg transition-colors" title="Sao chép">
-                                    {copiedField === 'acc' ? <span className="text-green-600 font-bold text-xs">Đã chép!</span> : '❐'}
+                                <span className="font-bold text-gray-800 text-sm">{settings.accountNumber}</span>
+                                <button onClick={() => handleCopy(settings.accountNumber, 'acc')} className="text-primary bg-primary/10 p-1 rounded-lg active:scale-95" title="Sao chép">
+                                    {copiedField === 'acc' ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
                                 </button>
                             </div>
                          </div>
-                         <div className="border-t border-gray-200"></div>
                          
-                         {/* Content (Quan trọng nhất) */}
+                         <div className="border-t border-gray-200/60"></div>
+                         
+                         {/* Nội dung CK */}
                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-black text-gray-400 uppercase">Nội dung CK</span>
-                            <div className="flex items-center gap-2">
-                                <span className="font-black text-red-500">{transferContent}</span>
-                                <button onClick={() => handleCopy(transferContent, 'content')} className="text-primary hover:bg-blue-50 p-1.5 rounded-lg transition-colors" title="Sao chép">
-                                    {copiedField === 'content' ? <span className="text-green-600 font-bold text-xs">Đã chép!</span> : '❐'}
+                            <span className="text-[10px] font-black text-gray-400 uppercase">Nội dung</span>
+                            <div className="flex items-center gap-2 max-w-[65%]">
+                                <span className="font-black text-red-500 text-[10px] truncate bg-white px-2 py-1 rounded border border-gray-100">{transferContent}</span>
+                                <button onClick={() => handleCopy(transferContent, 'content')} className="text-primary bg-primary/10 p-1 rounded-lg active:scale-95 shrink-0" title="Sao chép">
+                                    {copiedField === 'content' ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
                                 </button>
                             </div>
                          </div>
 
-                         {/* Amount */}
-                         <div className="flex justify-between items-center pt-2 bg-yellow-50 p-2 rounded-xl border border-yellow-100 mt-2">
-                             <span className="text-[10px] font-black text-yellow-700 uppercase">Số tiền</span>
-                             <span className="font-black text-primary text-lg">{formatPrice(selectedAmount)}</span>
+                         {/* Số tiền */}
+                         <div className="flex justify-between items-center pt-2 bg-yellow-50 p-2.5 rounded-lg border border-yellow-100 mt-1">
+                             <span className="text-[10px] font-black text-yellow-700 uppercase">Cần thanh toán</span>
+                             <span className="font-black text-primary text-base">{formatPrice(parseInt(amount) || 0)}</span>
                          </div>
                     </div>
                 </div>
 
-                <button 
-                  onClick={() => setShowQRModal(false)} 
-                  className="w-full bg-gray-900 text-white font-black py-4 rounded-2xl shadow-xl hover:scale-[1.02] transition-transform active:scale-95 uppercase text-xs tracking-widest"
-                >
-                  Đã chuyển khoản
-                </button>
-            </div>
-            
-            {/* Footer Note */}
-            <div className="bg-gray-50 p-4 text-center border-t border-gray-100">
-                <p className="text-[9px] text-gray-400 font-bold">Hệ thống sẽ tự động cập nhật số dư sau 1-3 phút.</p>
+                {/* Footer Actions */}
+                <div className="space-y-3 pt-1">
+                    <button 
+                        onClick={() => setShowQRModal(false)} 
+                        className="w-full bg-slate-900 text-white font-black py-4 rounded-xl shadow-xl active:scale-[0.98] transition-transform uppercase text-xs tracking-widest flex items-center justify-center gap-2"
+                    >
+                        <CheckCircle className="w-4 h-4" /> Tôi đã chuyển khoản
+                    </button>
+                </div>
             </div>
           </div>
         </div>

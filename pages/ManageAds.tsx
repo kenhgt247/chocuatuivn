@@ -4,6 +4,13 @@ import { db, SystemSettings } from '../services/db';
 import { Listing, User } from '../types';
 import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
 
+// --- IMPORT ICON VECTOR ---
+import { 
+  Plus, Wallet, CheckCircle, Clock, XCircle, Trophy, AlertOctagon, 
+  MapPin, Crown, Eye, MessageCircle, Zap, Trash2, PackageOpen, 
+  Loader2, AlertTriangle, ArrowUpRight
+} from 'lucide-react';
+
 interface ManageAdsProps {
   user: User | null;
   onUpdateUser: (u: User) => void;
@@ -120,12 +127,10 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
   });
 
   if (!user || !settings) return (
-    <div className="py-20 text-center">
-      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+    <div className="py-20 text-center flex justify-center">
+      <Loader2 className="w-10 h-10 text-primary animate-spin" />
     </div>
   );
-
-  const currentPushPrice = settings.pushPrice * (1 - (settings.pushDiscount || 0) / 100);
 
   return (
     <div className="max-w-2xl mx-auto pb-24 md:pb-10 px-4 relative font-sans">
@@ -133,8 +138,11 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
       {modal.show && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModal(prev => ({ ...prev, show: false }))}></div>
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl relative animate-fade-in-up border border-borderMain">
-            <h3 className="text-xl font-black text-textMain mb-2">{modal.title}</h3>
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl relative animate-fade-in-up border border-gray-100">
+            <div className="flex items-center gap-3 mb-4">
+                {modal.type === 'delete' ? <AlertTriangle className="w-6 h-6 text-red-500" /> : <Zap className="w-6 h-6 text-primary" />}
+                <h3 className="text-xl font-black text-gray-900">{modal.title}</h3>
+            </div>
             <p className="text-gray-500 text-sm font-medium mb-8 leading-relaxed">{modal.message}</p>
             <div className="flex gap-3">
                <button onClick={() => setModal(prev => ({ ...prev, show: false }))} className="flex-1 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors">Hủy</button>
@@ -145,25 +153,27 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
       )}
 
       {/* Header */}
-      <div className="sticky top-20 z-40 bg-bgMain/90 backdrop-blur-md pt-4 pb-2">
+      <div className="sticky top-20 z-40 bg-white/90 backdrop-blur-md pt-4 pb-2">
         <div className="flex items-center justify-between mb-6">
           <div className="space-y-1">
-            <h1 className="text-2xl font-black text-textMain tracking-tight">Quản lý tin đăng</h1>
+            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Quản lý tin đăng</h1>
             <div className="flex items-center gap-2">
-               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ví:</span>
+               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                   <Wallet className="w-3 h-3" /> Ví của bạn:
+               </span>
                <span className="text-xs font-black text-primary bg-primary/5 px-2 py-1 rounded-lg border border-primary/10">{formatPrice(user.walletBalance)}</span>
             </div>
           </div>
           <Link to="/post" className="w-12 h-12 bg-primary text-white rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4"/></svg>
+            <Plus className="w-6 h-6" strokeWidth={3} />
           </Link>
         </div>
 
-        <div className="bg-gray-200/50 p-1 rounded-2xl flex gap-1 mb-4">
+        <div className="bg-gray-100 p-1 rounded-2xl flex gap-1 mb-4">
           {[
-            { id: 'active', label: 'Đang đăng', icon: '✅' },
-            { id: 'pending', label: 'Chờ duyệt', icon: '🕒' },
-            { id: 'expired', label: 'Từ chối', icon: '❌' }
+            { id: 'active', label: 'Đang đăng', icon: <CheckCircle className="w-3.5 h-3.5" /> },
+            { id: 'pending', label: 'Chờ duyệt', icon: <Clock className="w-3.5 h-3.5" /> },
+            { id: 'expired', label: 'Từ chối', icon: <XCircle className="w-3.5 h-3.5" /> }
           ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === tab.id ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               <span className="hidden sm:inline">{tab.icon}</span>
@@ -176,13 +186,13 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
       {/* Danh sách tin đăng */}
       <div className="mt-2 space-y-4">
         {filteredListings.length > 0 ? filteredListings.map(listing => (
-          <div key={listing.id} className="bg-white border border-borderMain rounded-3xl overflow-hidden shadow-soft flex flex-col group relative hover:border-primary/30 transition-all duration-300">
+          <div key={listing.id} className="bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm flex flex-col group relative hover:border-primary/30 transition-all duration-300">
             
-            {/* Nhãn Đấu giá thành công - Đưa vào góc để không che nút */}
+            {/* Nhãn Đấu giá thành công */}
             {listing.status === 'sold' && (
               <div className="absolute top-3 right-3 z-30 pointer-events-none">
                 <div className="bg-blue-600 text-white px-3 py-1.5 rounded-xl font-black text-[8px] uppercase tracking-widest shadow-xl flex items-center gap-1 border-2 border-white">
-                  <span>🏆</span> Thành công
+                  <Trophy className="w-3 h-3" /> Thành công
                 </div>
               </div>
             )}
@@ -191,7 +201,7 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
             {listing.status === 'rejected' && (
               <div className="absolute top-3 right-3 z-30 pointer-events-none">
                 <div className="bg-red-500 text-white px-3 py-1.5 rounded-xl font-black text-[8px] uppercase tracking-widest shadow-xl flex items-center gap-1 border-2 border-white">
-                  <span>❌</span> Từ chối
+                  <AlertOctagon className="w-3 h-3" /> Từ chối
                 </div>
               </div>
             )}
@@ -200,12 +210,14 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
               <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-gray-50 border border-gray-100 relative">
                 <img src={listing.images[0]} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ${listing.status === 'sold' ? 'opacity-60 grayscale-[40%]' : ''}`} alt={listing.title} />
                 {listing.tier !== 'free' && (
-                  <div className="absolute top-1 left-1 bg-yellow-400 text-white text-[7px] font-black px-1.5 py-0.5 rounded shadow-sm uppercase">VIP</div>
+                  <div className="absolute top-1 left-1 bg-yellow-400 text-white text-[7px] font-black px-1.5 py-0.5 rounded shadow-sm uppercase flex items-center gap-0.5">
+                      <Crown className="w-2 h-2 fill-current" /> VIP
+                  </div>
                 )}
               </div>
               <div className="flex-1 min-w-0 flex flex-col justify-between">
                 <div>
-                  <h3 className="text-sm font-black text-textMain truncate leading-tight mb-1 group-hover:text-primary transition-colors">{listing.title}</h3>
+                  <h3 className="text-sm font-black text-gray-900 truncate leading-tight mb-1 group-hover:text-primary transition-colors">{listing.title}</h3>
                   <div className="flex items-center gap-2">
                     <p className="text-primary font-black text-base">{formatPrice(listing.price)}</p>
                     {listing.status === 'sold' && (
@@ -214,16 +226,18 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 text-[9px] text-gray-400 font-bold uppercase tracking-tight">
-                  <span className="flex items-center gap-1">📍 {listing.location}</span>
+                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {listing.location}</span>
                   <span>•</span>
-                  <span>🕒 {formatTimeAgo(listing.createdAt)}</span>
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {formatTimeAgo(listing.createdAt)}</span>
                 </div>
               </div>
             </div>
             
             {/* Thanh điều hướng và nút chức năng */}
             <div className="grid grid-cols-3 border-t border-gray-50 bg-gray-50/30 relative z-40">
-              <Link to={getListingUrl(listing)} className="py-4 text-[10px] font-black text-center uppercase text-gray-500 hover:bg-white hover:text-primary transition-all border-r border-gray-50">Xem tin</Link>
+              <Link to={getListingUrl(listing)} className="py-4 text-[10px] font-black text-center uppercase text-gray-500 hover:bg-white hover:text-primary transition-all border-r border-gray-50 flex items-center justify-center gap-1">
+                  <Eye className="w-3.5 h-3.5" /> Xem tin
+              </Link>
               
               {listing.status === 'sold' ? (
                  <button 
@@ -232,9 +246,9 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
                   className="py-4 text-[10px] font-black text-center uppercase text-green-600 hover:bg-green-50 flex items-center justify-center gap-2 border-r border-gray-50 transition-all active:scale-95"
                  >
                    {isFindingChat === listing.id ? (
-                     <div className="w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                    ) : (
-                     <>💬 Nhắn tin</>
+                     <> <MessageCircle className="w-3.5 h-3.5" /> Nhắn tin</>
                    )}
                  </button>
               ) : (
@@ -244,21 +258,25 @@ const ManageAds: React.FC<ManageAdsProps> = ({ user, onUpdateUser }) => {
                   className={`py-4 text-[10px] font-black text-center uppercase flex items-center justify-center gap-2 border-r border-gray-50 transition-all ${isPushing === listing.id ? 'text-primary' : 'text-primary hover:bg-white active:scale-95 disabled:opacity-30 disabled:grayscale'}`}
                 >
                   {isPushing === listing.id ? (
-                    <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <>⚡ Đẩy tin</>
+                    <> <Zap className="w-3.5 h-3.5 fill-current" /> Đẩy tin</>
                   )}
                 </button>
               )}
 
-              <button onClick={() => handleDelete(listing.id)} className="py-4 text-[10px] font-black text-center uppercase text-red-400 hover:bg-red-50 hover:text-red-500 transition-all active:scale-95">Xóa tin</button>
+              <button onClick={() => handleDelete(listing.id)} className="py-4 text-[10px] font-black text-center uppercase text-red-400 hover:bg-red-50 hover:text-red-500 transition-all active:scale-95 flex items-center justify-center gap-1">
+                  <Trash2 className="w-3.5 h-3.5" /> Xóa tin
+              </button>
             </div>
           </div>
         )) : (
-          <div className="py-32 text-center bg-white border border-borderMain border-dashed rounded-[3rem] space-y-4">
-             <div className="text-5xl opacity-20">📭</div>
-             <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest">Không có tin đăng nào</p>
-             <Link to="/post" className="inline-block mt-4 text-[10px] font-black text-primary border-2 border-primary/20 px-6 py-2.5 rounded-xl hover:bg-primary hover:text-white transition-all uppercase tracking-widest">Đăng tin ngay</Link>
+          <div className="py-32 text-center bg-white border border-gray-200 border-dashed rounded-[3rem] space-y-4 flex flex-col items-center">
+              <PackageOpen className="w-16 h-16 text-gray-200" strokeWidth={1} />
+              <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest">Không có tin đăng nào</p>
+              <Link to="/post" className="flex items-center gap-2 mt-4 text-[10px] font-black text-primary border-2 border-primary/20 px-6 py-3 rounded-xl hover:bg-primary hover:text-white transition-all uppercase tracking-widest">
+                  <Plus className="w-3 h-3" /> Đăng tin ngay
+              </Link>
           </div>
         )}
       </div>

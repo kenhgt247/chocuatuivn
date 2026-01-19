@@ -4,6 +4,13 @@ import { User, SubscriptionTier } from '../types';
 import { db, SystemSettings } from '../services/db';
 import { formatPrice } from '../utils/format';
 
+// --- IMPORT ICON VECTOR ---
+import { 
+  Check, X, Zap, Crown, Star, Shield, Clock, CreditCard, 
+  QrCode, ChevronRight, Loader2, AlertTriangle, CheckCircle, 
+  Sparkles, Wallet, Landmark, ArrowRight
+} from 'lucide-react';
+
 const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => void }> = ({ user, onUpdateUser }) => {
   const navigate = useNavigate();
   
@@ -36,7 +43,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
 
   /**
    * [LOGIC CHUẨN] Kiểm tra trạng thái gói cước
-   * Trả về: Có phải gói hiện tại ko? Đã hết hạn chưa? Còn bao nhiêu ngày?
    */
   const checkSubscriptionStatus = (tier: SubscriptionTier) => {
     if (!user) return { isCurrent: false, isExpired: false, daysLeft: 0 };
@@ -44,10 +50,10 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
     // 1. Nếu không phải gói user đang gắn -> Không quan tâm
     if (user.subscriptionTier !== tier) return { isCurrent: false, isExpired: false, daysLeft: 0 };
     
-    // 2. Gói Free -> Luôn active, không bao giờ hết hạn
+    // 2. Gói Free -> Luôn active
     if (tier === 'free') return { isCurrent: true, isExpired: false, daysLeft: 9999 };
     
-    // 3. Gói trả phí nhưng data lỗi (không có ngày hết hạn) -> Coi như còn hạn
+    // 3. Gói trả phí
     if (!user.subscriptionExpires) return { isCurrent: true, isExpired: false, daysLeft: 0 };
     
     const expires = new Date(user.subscriptionExpires).getTime();
@@ -55,12 +61,12 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
     
     // Tính chênh lệch
     const diffTime = expires - now;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); // Làm tròn lên
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
 
     return { 
         isCurrent: true, 
-        isExpired: diffTime <= 0, // Hết hạn nếu thời gian <= 0
-        daysLeft: diffDays > 0 ? diffDays : 0 // Chỉ hiển thị số dương
+        isExpired: diffTime <= 0,
+        daysLeft: diffDays > 0 ? diffDays : 0
     };
   };
 
@@ -69,6 +75,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
   // 1. Bấm nút Nâng cấp / Gia hạn
   const handleUpgradeClick = (tier: SubscriptionTier) => {
     if (!settings) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const config = (settings.tierConfigs as any)[tier];
     if (!config) return;
 
@@ -98,13 +105,11 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
       const res = await db.buySubscriptionWithWallet(user.id, showPayModal.tier, showPayModal.price);
       
       if (res.success) {
-        // Lấy lại info user mới nhất để cập nhật giao diện ngay lập tức
         const updatedUser = await db.getCurrentUser();
         if (updatedUser) onUpdateUser(updatedUser);
         
         showToast("Nâng cấp gói thành công!");
         setShowPayModal(null);
-        // Chuyển trang sau khi user kịp đọc thông báo
         setTimeout(() => navigate('/profile'), 1500);
       } else {
         showToast(res.message || "Giao dịch thất bại", "error");
@@ -144,7 +149,12 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
 
   // --- RENDER CONDITION ---
   if (!user || !settings) {
-    return <div className="h-screen flex items-center justify-center font-bold text-gray-400 animate-pulse">Đang tải dữ liệu...</div>;
+    return (
+        <div className="h-screen flex flex-col items-center justify-center font-bold text-gray-400 animate-pulse gap-4">
+            <Loader2 className="w-10 h-10 animate-spin text-primary" />
+            <span>Đang tải dữ liệu...</span>
+        </div>
+    );
   }
 
   const tiers: SubscriptionTier[] = ['free', 'basic', 'pro'];
@@ -161,24 +171,29 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
       {/* Toast */}
       {toast.show && (
         <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[150] px-8 py-4 rounded-2xl shadow-2xl font-black text-xs uppercase tracking-widest animate-fade-in-up flex items-center gap-3 ${toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-           {toast.type === 'success' ? '✅' : '⚠️'} {toast.message}
+           {toast.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />} {toast.message}
         </div>
       )}
 
       {/* Header */}
       <div className="text-center mb-16 space-y-6">
-        <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">Gói Thành Viên</h1>
+        <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter flex items-center justify-center gap-3">
+            <Crown className="w-10 h-10 text-yellow-500 fill-current" /> Gói Thành Viên
+        </h1>
         <p className="text-slate-500 max-w-2xl mx-auto text-lg leading-relaxed">Nâng cấp đặc quyền để tiếp cận khách hàng và bán hàng nhanh chóng hơn.</p>
         
         <div className="inline-flex items-center gap-3 bg-white px-6 py-3 rounded-full text-sm font-bold border-2 border-primary/20 shadow-sm">
-          <span className={`flex h-2 w-2 rounded-full ${user.subscriptionTier === 'free' ? 'bg-gray-400' : 'bg-green-500 animate-pulse'}`}></span>
-          Đang sử dụng: <span className="text-primary uppercase ml-1">{(settings.tierConfigs as any)[user.subscriptionTier]?.name || 'Miễn phí'}</span>
+          <div className={`flex h-2.5 w-2.5 rounded-full ${user.subscriptionTier === 'free' ? 'bg-gray-400' : 'bg-green-500 animate-pulse'}`}></div>
+          <span className="text-slate-500 uppercase text-xs tracking-wider">Đang sử dụng:</span>
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <span className="text-primary font-black uppercase">{(settings.tierConfigs as any)[user.subscriptionTier]?.name || 'Miễn phí'}</span>
         </div>
       </div>
 
       {/* Grid Packages */}
       <div className="grid md:grid-cols-3 gap-8 items-stretch">
         {tiers.map((tier) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const config = (settings.tierConfigs as any)[tier];
           const status = checkSubscriptionStatus(tier);
           const isPro = tier === 'pro';
@@ -188,15 +203,11 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
           const discountedPrice = originalPrice * (1 - discountPercent / 100);
           const hasDiscount = discountPercent > 0 && tier !== 'free';
 
-          // LOGIC BUTTON DISABLE / ENABLE
-          // - Disable nếu: Đang dùng gói này VÀ (Chưa hết hạn VÀ Còn nhiều hơn 5 ngày)
-          // - Enable nếu: Đang dùng gói này NHƯNG (Đã hết hạn HOẶC Sắp hết hạn < 5 ngày)
-          // - Enable nếu: Không phải gói đang dùng (Nâng cấp)
+          // LOGIC BUTTON
           const isRenewable = status.isCurrent && (status.isExpired || status.daysLeft <= 5) && tier !== 'free';
           const isButtonDisabled = status.isCurrent && !isRenewable && tier !== 'free';
-          const isFreeTierActive = status.isCurrent && tier === 'free'; // Gói free đang dùng thì luôn disable nút
+          const isFreeTierActive = status.isCurrent && tier === 'free';
 
-          // Text nút bấm
           let buttonText = 'Nâng cấp ngay';
           if (isFreeTierActive) buttonText = 'Đang sử dụng';
           else if (isRenewable) buttonText = 'Gia hạn ngay';
@@ -210,12 +221,18 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
             } ${status.isCurrent && !status.isExpired ? 'ring-2 ring-primary ring-offset-4' : ''}`}>
               
               {isPro && (
-                <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-[11px] font-black px-6 py-2 rounded-full shadow-xl uppercase tracking-[0.2em] whitespace-nowrap animate-bounce-subtle">
-                  Phổ biến nhất
+                <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-[11px] font-black px-6 py-2 rounded-full shadow-xl uppercase tracking-[0.2em] whitespace-nowrap animate-bounce-subtle flex items-center gap-2">
+                  <Sparkles className="w-3 h-3 fill-white" /> Phổ biến nhất
                 </div>
               )}
               
               <div className="mb-10 text-center">
+                <div className="flex justify-center mb-4">
+                    {tier === 'pro' ? <Zap className="w-12 h-12 text-yellow-500 fill-yellow-100" /> : 
+                     tier === 'basic' ? <Star className="w-12 h-12 text-blue-500 fill-blue-50" /> :
+                     <Shield className="w-12 h-12 text-gray-400" />
+                    }
+                </div>
                 <h3 className={`text-xl font-black mb-6 uppercase tracking-widest ${isPro ? 'text-yellow-600' : 'text-slate-800'}`}>
                   {config.name}
                 </h3>
@@ -244,7 +261,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
               <div className="space-y-4 mb-10 flex-1">
                 {/* Stats */}
                 <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-white transition-colors">
-                  <span className="text-2xl">🚀</span>
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><CheckCircle className="w-5 h-5" /></div>
                   <div>
                     <p className="text-[10px] font-black uppercase text-slate-400 leading-none mb-1">Hạn mức đăng tin</p>
                     <p className="text-sm font-bold text-slate-800">{config.postsPerDay >= 900 ? 'Không giới hạn' : `${config.postsPerDay} tin mỗi ngày`}</p>
@@ -252,7 +269,9 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                 </div>
 
                 <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-white transition-colors">
-                  <span className="text-2xl">{config.autoApprove ? '✅' : '⏳'}</span>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${config.autoApprove ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}`}>
+                      {config.autoApprove ? <Zap className="w-5 h-5 fill-current" /> : <Clock className="w-5 h-5" />}
+                  </div>
                   <div>
                     <p className="text-[10px] font-black uppercase text-slate-400 leading-none mb-1">Kiểm duyệt</p>
                     <p className="text-sm font-bold text-slate-800">{config.autoApprove ? 'Tự động (Hiện ngay)' : 'Chờ Admin duyệt'}</p>
@@ -265,8 +284,8 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                 <ul className="space-y-4 px-2">
                   {config.features.map((f: string, i: number) => (
                     <li key={i} className="flex items-start gap-3 text-sm">
-                      <div className={`mt-1 flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center ${isPro ? 'bg-yellow-500' : 'bg-primary'}`}>
-                        <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="4"><path d="M5 13l4 4L19 7" /></svg>
+                      <div className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center ${isPro ? 'bg-yellow-500' : 'bg-primary'}`}>
+                        <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />
                       </div>
                       <span className="text-slate-600 font-semibold leading-tight">{f}</span>
                     </li>
@@ -274,7 +293,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                   
                   {tier === 'pro' && (
                       <li className="flex items-start gap-3 text-sm font-bold text-orange-600 animate-pulse">
-                          <span className="text-lg">💰</span>
+                          <CreditCard className="w-4 h-4 text-orange-600 mt-0.5" />
                           Mở khóa Tiếp thị liên kết (Affiliate)
                       </li>
                   )}
@@ -293,11 +312,11 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                                 : 'bg-slate-900 text-white shadow-slate-200 hover:bg-slate-800 hover:-translate-y-1'
                         }`}
                   >
-                    {processingTier === tier && <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>}
+                    {processingTier === tier && <Loader2 className="w-4 h-4 animate-spin" />}
                     {buttonText}
                   </button>
                   
-                  {/* Status Label (Hiển thị thời hạn) */}
+                  {/* Status Label */}
                   {status.isCurrent && tier !== 'free' && (
                       <div className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-[11px] font-black uppercase tracking-wider bg-white border-2 
                         ${status.isExpired || status.daysLeft < 3 
@@ -305,8 +324,8 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                           : 'text-slate-500 border-slate-100'
                         }`}>
                           {status.isExpired 
-                            ? '❌ Gói đã hết hạn' 
-                            : `⏳ Hiệu lực: ${status.daysLeft} ngày`}
+                            ? <><X className="w-3 h-3" /> Gói đã hết hạn</> 
+                            : <><Clock className="w-3 h-3" /> Hiệu lực: {status.daysLeft} ngày</>}
                       </div>
                   )}
               </div>
@@ -325,6 +344,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">
                     {paymentStep === 'method' ? 'Bước 1: Chọn thanh toán' : 'Bước 2: Quét mã QR'}
                 </p>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 <h3 className="text-2xl font-black text-slate-900">{(settings.tierConfigs as any)[showPayModal.tier]?.name}</h3>
                 <div className="mt-4 flex flex-col items-center">
                    <span className="text-3xl font-black text-primary">{formatPrice(showPayModal.price)}</span>
@@ -336,24 +356,28 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                 <div className="space-y-4">
                   <button onClick={payWithWallet} disabled={processingTier !== null} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 ${processingMethod === 'wallet' ? 'border-primary bg-primary/5' : 'border-slate-100 hover:border-primary hover:shadow-md'}`}>
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">💳</div>
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">
+                          <Wallet className="w-6 h-6" />
+                      </div>
                       <div className="text-left">
                         <p className="text-[10px] font-black uppercase text-slate-400">Thanh toán qua</p>
                         <p className="text-xs font-black text-slate-800">Ví Chợ Của Tui</p>
                       </div>
                     </div>
-                    {processingMethod === 'wallet' ? <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div> : <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"></div>}
+                    {processingMethod === 'wallet' ? <Loader2 className="w-5 h-5 text-primary animate-spin" /> : <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"></div>}
                   </button>
 
                   <button onClick={handleSelectTransfer} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 border-slate-100 hover:border-primary hover:shadow-md`}>
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">🏦</div>
+                      <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">
+                          <Landmark className="w-6 h-6" />
+                      </div>
                       <div className="text-left">
                         <p className="text-[10px] font-black uppercase text-slate-400">Thanh toán qua</p>
                         <p className="text-xs font-black text-slate-800">Chuyển khoản</p>
                       </div>
                     </div>
-                    <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"></div>
+                    <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"><ChevronRight className="w-4 h-4 text-white" /></div>
                   </button>
                 </div>
             )}
@@ -367,15 +391,15 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                         </div>
                         <div className="space-y-1 w-full">
                             <p className="text-[10px] font-black text-slate-400 uppercase">Nội dung chuyển khoản</p>
-                            <p className="text-xs font-black bg-yellow-100 text-yellow-800 px-3 py-1.5 rounded-lg select-all break-all">{transferContent}</p>
+                            <p className="text-xs font-black bg-yellow-100 text-yellow-800 px-3 py-1.5 rounded-lg select-all break-all border border-yellow-200">{transferContent}</p>
                         </div>
-                        <div className="text-[10px] text-slate-500 font-medium px-4">
-                            Hệ thống sẽ tự động duyệt sau khi nhận được tiền (5-10 phút).
+                        <div className="text-[10px] text-slate-500 font-medium px-4 flex items-center gap-2">
+                            <Clock className="w-3 h-3" /> Hệ thống sẽ tự động duyệt sau 5-10 phút.
                         </div>
                     </div>
                     
                     <button onClick={confirmTransfer} disabled={processingTier !== null} className="w-full bg-green-500 text-white font-black py-4 rounded-[1.5rem] hover:bg-green-600 transition-all shadow-lg active:scale-95 uppercase text-xs tracking-widest flex items-center justify-center gap-2">
-                        {processingTier ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <span>✅ Tôi đã chuyển khoản</span>}
+                        {processingTier ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4" /> Tôi đã chuyển khoản</>}
                     </button>
                 </div>
             )}

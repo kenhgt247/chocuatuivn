@@ -238,7 +238,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         <Link to="/chat" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 relative ${location.pathname.startsWith('/chat') ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
           <div className={`p-1.5 rounded-xl transition-all duration-300 relative ${location.pathname.startsWith('/chat') ? 'bg-blue-50' : ''}`}>
              <svg className="w-6 h-6" fill={location.pathname.startsWith('/chat') ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-             {/* 👇👇👇 SỬA CHỖ NÀY: Đưa badge vào trong div container để nó dính chặt vào icon */}
              {unreadChatCount > 0 && <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-0.5 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-pulse">{unreadChatCount > 9 ? '9+' : unreadChatCount}</span>}
           </div>
           <span className={`text-[10px] font-bold ${location.pathname.startsWith('/chat') ? 'opacity-100' : 'opacity-70'}`}>Tin nhắn</span>

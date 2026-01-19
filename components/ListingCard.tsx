@@ -6,7 +6,7 @@ import { db } from '../services/db';
 
 interface ListingCardProps {
   listing: Listing;
-  currentUser?: User | null; // Cần user để check ví khi đẩy tin
+  currentUser?: User | null;
   isFavorite?: boolean;
   onToggleFavorite?: (id: string) => void;
   hideViews?: boolean;
@@ -46,7 +46,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
     if (onToggleFavorite) onToggleFavorite(listing.id);
   };
 
-  // 3. Xử lý Đẩy tin (Logic quan trọng giữ nguyên)
+  // 3. Xử lý Đẩy tin
   const handlePushClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -72,7 +72,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
             const res = await db.pushListing(listing.id, currentUser.id);
             if (res.success) {
                 alert(`🚀 Đẩy tin thành công!`);
-                window.location.reload(); // Reload để thấy thay đổi
+                window.location.reload(); 
             } else {
                 alert("Lỗi: " + res.message);
             }
@@ -85,12 +85,50 @@ const ListingCard: React.FC<ListingCardProps> = ({
     }
   };
 
-  // Kiểm tra quyền chủ sở hữu để hiện nút Đẩy tin
+  // Kiểm tra quyền chủ sở hữu
   const isOwner = currentUser && (String(currentUser.id) === String(listing.sellerId));
   const canPush = isOwner && (listing.status === 'approved');
 
+  // --- [MỚI] LOGIC PHÂN LOẠI TIN ---
+  // Xác định style dựa trên Tier (Gói tin)
+  const getCardStyle = () => {
+    switch (listing.tier) {
+      case 'pro': // TIN VIP
+        return {
+          container: "border-yellow-400 shadow-md ring-1 ring-yellow-400/50", // Viền vàng nổi bật
+          badge: (
+            <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[9px] font-black px-2 py-1 rounded-lg uppercase shadow-sm tracking-wider flex items-center gap-1">
+              <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+              VIP
+            </span>
+          ),
+          bgTitle: "bg-yellow-50/50" // Nền tiêu đề hơi vàng nhẹ
+        };
+      case 'basic': // TIN BASIC (Gói cơ bản/Ưu tiên)
+        return {
+          container: "border-blue-200 shadow-sm", // Viền xanh nhẹ
+          badge: (
+            <span className="bg-blue-500 text-white text-[9px] font-black px-2 py-1 rounded-lg uppercase shadow-sm tracking-wider">
+              HOT
+            </span>
+          ),
+          bgTitle: "bg-blue-50/30"
+        };
+      default: // TIN THƯỜNG
+        return {
+          container: "border-gray-100 hover:border-gray-300",
+          badge: listing.condition === 'new' ? (
+            <span className="bg-green-500 text-white text-[9px] font-black px-2 py-1 rounded-lg uppercase shadow-sm tracking-wider">Mới</span>
+          ) : null,
+          bgTitle: "bg-white"
+        };
+    }
+  };
+
+  const cardStyle = getCardStyle();
+
   return (
-    <div className="group relative flex flex-col bg-white border border-gray-100 rounded shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden h-full">
+    <div className={`group relative flex flex-col bg-white rounded transition-all duration-300 overflow-hidden h-full hover:-translate-y-1 hover:shadow-lg ${cardStyle.container}`}>
       
       {/* --- PHẦN HÌNH ẢNH --- */}
       <div className="relative aspect-square overflow-hidden bg-gray-100">
@@ -105,13 +143,12 @@ const ListingCard: React.FC<ListingCardProps> = ({
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none"></div>
         </Link>
         
-        {/* Badges (VIP / Mới) */}
+        {/* Badges (VIP / Basic / Mới) - Dynamic Rendering */}
         <div className="absolute top-2 left-2 flex flex-col gap-1 z-10 pointer-events-none">
-            {listing.tier === 'pro' && <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[9px] font-black px-2 py-1 rounded-lg uppercase shadow-sm tracking-wider">VIP</span>}
-            {listing.condition === 'new' && <span className="bg-blue-500 text-white text-[9px] font-black px-2 py-1 rounded-lg uppercase shadow-sm tracking-wider">Mới</span>}
+            {cardStyle.badge}
         </div>
 
-        {/* Nút Yêu thích - ĐÃ SỬA Z-INDEX CAO LÊN */}
+        {/* Nút Yêu thích */}
         <button 
           onClick={handleFavoriteClick}
           className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-all active:scale-90 z-40 cursor-pointer ${isFavorite ? 'bg-red-500 text-white' : 'bg-white/90 text-gray-400 hover:text-red-500 hover:bg-white'}`}
@@ -140,14 +177,14 @@ const ListingCard: React.FC<ListingCardProps> = ({
       </div>
 
       {/* --- PHẦN NỘI DUNG --- */}
-      <Link to={`/san-pham/${listing.slug}-${listing.id}`} className="flex flex-col flex-1 p-3 space-y-2">
+      <Link to={`/san-pham/${listing.slug}-${listing.id}`} className={`flex flex-col flex-1 p-3 space-y-2 ${cardStyle.bgTitle}`}>
         
-        {/* Tiêu đề */}
-        <h3 className="text-xs font-bold text-slate-700 line-clamp-2 min-h-[2.5em] leading-relaxed group-hover:text-primary transition-colors">
+        {/* Tiêu đề - Đậm hơn cho tin VIP */}
+        <h3 className={`text-xs ${listing.tier === 'pro' ? 'font-black text-black' : 'font-bold text-slate-700'} line-clamp-2 min-h-[2.5em] leading-relaxed group-hover:text-primary transition-colors`}>
           {listing.title}
         </h3>
 
-        {/* [FIX UI] GIÁ TIỀN & LƯỢT XEM (NẰM NGANG NHAU) */}
+        {/* GIÁ TIỀN & LƯỢT XEM */}
         <div className="flex items-center justify-between mt-1">
             <span className="text-sm font-black text-red-600">
                 {formatPrice(listing.price)}
@@ -164,7 +201,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
             )}
         </div>
 
-        {/* Footer: Avatar + Thời gian + Địa điểm */}
+        {/* Footer */}
         <div className="flex items-center justify-between pt-3 border-t border-slate-50 mt-auto">
             <div className="flex items-center gap-1.5 min-w-0">
                 <img 

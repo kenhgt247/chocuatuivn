@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate, useParams, Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async'; // [QUAN TRỌNG] Tối ưu SEO
+import { Helmet } from 'react-helmet-async';
 import { db, SystemSettings } from '../services/db'; 
 import { Listing, User, Category } from '../types';
 import ListingCard from '../components/ListingCard';
 import HomeBanner from '../components/HomeBanner'; 
 import CategoryBar from '../components/CategoryBar'; 
-import { formatPrice } from '../utils/format'; 
 import { getLocationFromCoords } from '../utils/locationHelper'; 
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
@@ -55,6 +54,25 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const LIMIT_VIP = 12;
   const LIMIT_NEARBY = 12;
   const PAGE_SIZE = 12;
+
+  // --- [MỚI] HÀM SẮP XẾP TIN (VIP > BASIC > THƯỜNG) ---
+  const sortListings = useCallback((items: Listing[]) => {
+    return [...items].sort((a, b) => {
+        // 1. Ưu tiên theo Gói tin (Tier)
+        // Pro (VIP) = 3 điểm, Basic = 2 điểm, Free = 1 điểm
+        const tierScore: Record<string, number> = { pro: 3, basic: 2, free: 1 };
+        
+        const scoreA = tierScore[a.tier || 'free'] || 1;
+        const scoreB = tierScore[b.tier || 'free'] || 1;
+        
+        if (scoreA !== scoreB) {
+            return scoreB - scoreA; // Điểm cao xếp trước
+        }
+
+        // 2. Nếu cùng gói thì ưu tiên Ngày tạo mới nhất
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, []);
 
   // 1. Tải danh mục trước tiên
   useEffect(() => {
@@ -178,7 +196,10 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       });
 
       if (!result.error) {
-        setLatestListings(result.listings);
+        // [QUAN TRỌNG] Áp dụng sắp xếp trước khi lưu vào State
+        const sortedList = sortListings(result.listings);
+        setLatestListings(sortedList);
+        
         setLastDoc(result.lastDoc);
         setHasMore(result.hasMore);
       }
@@ -192,7 +213,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [activeCategoryId, allCategories, search, typeParam, locationParam, user, loadSpecialSections, detectedLocation, isUrlCategory, isCatsLoading, minPriceParam, maxPriceParam]);
+  }, [activeCategoryId, allCategories, search, typeParam, locationParam, user, loadSpecialSections, detectedLocation, isUrlCategory, isCatsLoading, minPriceParam, maxPriceParam, sortListings]);
 
   useEffect(() => {
     fetchInitialData();
@@ -217,8 +238,11 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         minPrice: minPriceParam ? Number(minPriceParam) : undefined,
         maxPrice: maxPriceParam ? Number(maxPriceParam) : undefined,
       });
+
       if (!result.error) {
-        setLatestListings(prev => [...prev, ...result.listings]);
+        // [QUAN TRỌNG] Sắp xếp lại toàn bộ danh sách khi tải thêm
+        setLatestListings(prev => sortListings([...prev, ...result.listings]));
+        
         setLastDoc(result.lastDoc);
         setHasMore(result.hasMore);
       }
@@ -256,7 +280,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       {/* 2. BANNER */}
       {!search && !isUrlCategory && !typeParam && !locationParam && <HomeBanner />}
 
-     {/* 3. TIN VIP */}
+      {/* 3. TIN VIP (SECTION RIÊNG - Nếu bạn vẫn muốn giữ) */}
       {!search && !isUrlCategory && !typeParam && !locationParam && vipListings.length > 0 && (
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
@@ -274,7 +298,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                 isFavorite={favorites.includes(l.id)} 
                 onToggleFavorite={toggleFav} 
                 currentUser={user} 
-                // Đã xóa hideViews={true} để hiện lượt xem
               />
             ))}
           </div>
@@ -300,7 +323,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                         isFavorite={favorites.includes(l.id)} 
                         onToggleFavorite={toggleFav} 
                         currentUser={user} 
-                        // Đã xóa hideViews={true}
                     />
                 ))}
               </div>
@@ -310,7 +332,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 5. DANH SÁCH CHÍNH */}
+      {/* 5. DANH SÁCH CHÍNH (ĐÃ ĐƯỢC SẮP XẾP: VIP -> BASIC -> THƯỜNG) */}
       <section className="space-y-4">
         <div className="flex items-center justify-between px-2">
            <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
@@ -347,7 +369,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                     isFavorite={favorites.includes(l.id)} 
                     onToggleFavorite={toggleFav} 
                     currentUser={user} 
-                    // Đã xóa hideViews={true}
                 />
               ))}
             </div>
@@ -362,7 +383,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         )}
       </section>
 
-      {/* 6. FOOTER (GIỮ NGUYÊN MÀU SẮC VÀ UIX NGUYÊN BẢN) */}
+      {/* 6. FOOTER */}
       <footer className="hidden md:block pt-16 border-t border-dashed border-gray-200 mt-20">
          <div className="bg-white border border-gray-200 rounded-[3rem] p-10 shadow-sm">
             <div className="flex items-center justify-between mb-8">

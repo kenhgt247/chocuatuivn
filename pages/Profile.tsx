@@ -20,7 +20,7 @@ import {
   Camera, Settings, Package, Heart, Shield, LogOut, Upload, MapPin, 
   User as UserIcon, Mail, Phone, Home, Crown, Diamond, CheckCircle, 
   AlertTriangle, Loader2, CreditCard, ChevronRight, Edit2, ShieldCheck, 
-  FileText, Clock, Zap
+  FileText, Clock, Zap, Trash2, MessageCircle
 } from 'lucide-react';
 
 let DefaultIcon = L.icon({
@@ -60,9 +60,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     const [myListings, setMyListings] = useState<Listing[]>([]);
     const [myFavs, setMyFavs] = useState<Listing[]>([]);
     const [settings, setSettings] = useState<SystemSettings | null>(null);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [isPushing, setIsPushing] = useState<string | null>(null);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [isFindingChat, setIsFindingChat] = useState<string | null>(null);
     const [modal, setModal] = useState<ModalState>({ show: false, title: '', message: '', type: 'alert', onConfirm: () => {} });
 
@@ -117,7 +115,17 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
 
     if (!user) return null;
 
-    // --- AVATAR LOGIC ---
+    // --- LOGIC HÀNH ĐỘNG ---
+    const handleGoToChat = async (listingId: string) => {
+        setIsFindingChat(listingId);
+        try {
+            const roomId = await db.findChatRoomByListing(listingId);
+            if (roomId) { navigate(`/chat/${roomId}`); } 
+            else { alert("Hiện chưa có cuộc hội thoại nào cho tin đăng này."); }
+        } catch (error) { alert("Lỗi khi tìm phòng chat."); } 
+        finally { setIsFindingChat(null); }
+    };
+
     const handleAvatarClick = () => avatarInputRef.current?.click();
     const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -135,7 +143,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
         }
     };
 
-    // --- KYC LOGIC ---
     const handleKycFileChange = (field: 'front' | 'back', e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
@@ -156,7 +163,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                  return await db.uploadImage(base64, `kyc/${user.id}_${Date.now()}_${Math.random()}`);
             });
             const urls = await Promise.all(uploadPromises);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const updatedUser = await db.updateUserProfile(user.id, { 
                 verificationStatus: 'pending', verificationDocuments: urls 
             } as any);
@@ -167,7 +173,38 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
         finally { setIsSubmittingKyc(false); }
     };
 
-    // --- DELETE LOGIC ---
+    const handlePushListing = (listingId: string, title: string) => {
+        if (!user || !settings) return;
+        const originalPrice = settings.pushPrice;
+        const discount = settings.pushDiscount || 0;
+        const finalPrice = originalPrice * (1 - discount / 100);
+
+        if (user.walletBalance < finalPrice) {
+            setModal({
+                show: true, title: "Số dư không đủ",
+                message: `Ví không đủ ${formatPrice(finalPrice)}. Nạp thêm ngay?`,
+                type: 'alert', onConfirm: () => { setModal(prev => ({ ...prev, show: false })); navigate('/wallet'); }
+            });
+            return;
+        }
+        setModal({
+            show: true, title: "Xác nhận đẩy tin",
+            message: `Xác nhận đẩy tin "${title}" với phí ${formatPrice(finalPrice)}?`,
+            type: 'push',
+            onConfirm: async () => {
+                setModal(prev => ({ ...prev, show: false })); setIsPushing(listingId);
+                try {
+                    const res = await db.pushListing(listingId, user.id);
+                    if (res.success) {
+                        const all = await db.getListings(true); setMyListings(all.filter(l => String(l.sellerId) === String(user.id)));
+                        const updated = await db.getCurrentUser(); if (updated) onUpdateUser(updated);
+                        alert("Đẩy tin thành công!");
+                    }
+                } catch (err) { alert("Lỗi đẩy tin."); } finally { setIsPushing(null); }
+            }
+        });
+    };
+
     const handleDelete = (id: string) => {
         setModal({
             show: true, title: "Xóa tin đăng", message: "Hành động này không thể hoàn tác.", type: 'delete',
@@ -205,7 +242,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
         setEditForm(prev => ({ ...prev, address: info.address, location: info.city }));
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const renderVerificationStatus = (u: any) => {
         const s = u.verificationStatus || 'unverified';
         if (s === 'verified') return <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Xác thực</span>;
@@ -307,34 +343,78 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
             <div className="mt-8">
                 {activeTab === 'listings' && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                        {myListings.map(listing => (
-                            <div key={listing.id} className="flex flex-col gap-3 group animate-fade-in-up">
-                                <div className="relative">
-                                    <ListingCard listing={listing} />
-                                    {/* STATUS BADGES */}
-                                    {listing.status === 'sold' && (
-                                        <div className="absolute top-2 right-2 z-30 pointer-events-none">
-                                            <span className="bg-blue-600 text-white text-[7px] font-black px-2 py-1 rounded-lg uppercase shadow-lg border border-white flex items-center gap-1"><CheckCircle className="w-2 h-2" /> Thành công</span>
-                                        </div>
-                                    )}
-                                    {listing.status === 'pending' && (
-                                        <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center rounded-lg z-20 backdrop-blur-[1px]">
-                                            <span className="bg-white text-slate-900 text-[10px] font-black px-3 py-1.5 rounded-full uppercase shadow-xl flex items-center gap-1"><Clock className="w-3 h-3" /> Chờ duyệt</span>
-                                        </div>
-                                    )}
-                                    {listing.status === 'rejected' && (
-                                        <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center rounded-lg z-20 backdrop-blur-[1px]">
-                                            <span className="bg-white text-red-500 text-[10px] font-black px-3 py-1.5 rounded-full uppercase shadow-xl flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Từ chối</span>
-                                        </div>
-                                    )}
+                        {myListings.map(listing => {
+                            const originalPush = settings?.pushPrice || 0;
+                            const discPush = settings?.pushDiscount || 0;
+                            const finalPush = originalPush * (1 - discPush/100);
+
+                            return (
+                                <div key={listing.id} className="flex flex-col gap-3 group animate-fade-in-up">
+                                    <div className="relative">
+                                        <ListingCard listing={listing} />
+                                        {/* Status Indicators */}
+                                        {listing.status === 'sold' && (
+                                            <div className="absolute top-2 right-2 z-30 pointer-events-none">
+                                                <span className="bg-blue-600 text-white text-[7px] font-black px-2 py-1 rounded-lg uppercase shadow-lg border border-white flex items-center gap-1"><CheckCircle className="w-2 h-2" /> Thành công</span>
+                                            </div>
+                                        )}
+                                        {listing.status === 'pending' && (
+                                            <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center rounded-lg z-20 backdrop-blur-[1px]">
+                                                <span className="bg-white text-slate-900 text-[10px] font-black px-3 py-1.5 rounded-full uppercase shadow-xl flex items-center gap-1"><Clock className="w-3 h-3" /> Chờ duyệt</span>
+                                            </div>
+                                        )}
+                                        {listing.status === 'rejected' && (
+                                            <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center rounded-lg z-20 backdrop-blur-[1px]">
+                                                <span className="bg-white text-red-500 text-[10px] font-black px-3 py-1.5 rounded-full uppercase shadow-xl flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Từ chối</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* --- KHU VỰC NÚT BẤM (ĐÃ THÊM ĐẨY TIN, SỬA TIN, XÓA TIN) --- */}
+                                    <div className="flex flex-col gap-2 relative z-40 mt-1">
+                                        {listing.status === 'sold' ? (
+                                            <button 
+                                                onClick={() => handleGoToChat(listing.id)}
+                                                disabled={isFindingChat === listing.id}
+                                                className="w-full bg-green-50 text-green-600 border border-green-200 hover:bg-green-100 py-3 rounded-2xl text-[10px] font-black uppercase transition-all shadow-sm flex items-center justify-center gap-2"
+                                            >
+                                                {isFindingChat === listing.id ? <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div> : <><MessageCircle className="w-4 h-4" /> Nhắn tin</>}
+                                            </button>
+                                        ) : (
+                                            <>
+                                                {/* 1. NÚT ĐẨY TIN (TO RÕ Ở TRÊN) */}
+                                                <button 
+                                                    onClick={() => handlePushListing(listing.id, listing.title)} 
+                                                    disabled={isPushing !== null || listing.status !== 'approved'} 
+                                                    className={`w-full py-3 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2 border shadow-sm
+                                                        ${listing.status === 'approved' ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-none shadow-orange-200 hover:scale-[1.02]' : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'}
+                                                    `}
+                                                >
+                                                    {isPushing === listing.id ? (
+                                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                    ) : (
+                                                        <>
+                                                            <Zap className="w-4 h-4 fill-white" />
+                                                            <span>Đẩy tin {listing.status === 'approved' && `(${formatPrice(finalPush)})`}</span>
+                                                        </>
+                                                    )}
+                                                </button>
+
+                                                {/* 2. HÀNG DƯỚI: SỬA + XÓA (CHIA ĐÔI) */}
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <Link to={`/edit/${listing.id}`} className="flex items-center justify-center gap-1.5 bg-slate-50 text-slate-600 border border-slate-200 hover:bg-white hover:border-slate-300 py-3 rounded-2xl text-[10px] font-black uppercase transition-all shadow-sm">
+                                                        <Edit2 className="w-3.5 h-3.5" /> Sửa
+                                                    </Link>
+                                                    <button onClick={() => handleDelete(listing.id)} className="flex items-center justify-center gap-1.5 bg-red-50 text-red-500 border border-red-100 hover:bg-red-500 hover:text-white py-3 rounded-2xl text-[10px] font-black uppercase transition-all shadow-sm">
+                                                        <Trash2 className="w-3.5 h-3.5" /> Xóa
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
-                                
-                                <div className="flex flex-col gap-2 relative z-40">
-                                    <Link to={`/edit/${listing.id}`} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 py-3 rounded-2xl text-[10px] font-black uppercase text-center transition-all">Sửa tin</Link>
-                                    <button onClick={() => handleDelete(listing.id)} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white py-3 rounded-2xl text-[10px] font-black uppercase transition-all shadow-sm">Xóa tin</button>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                         {myListings.length === 0 && (
                             <div className="col-span-full py-40 text-center bg-white rounded-[3.5rem] border border-slate-100 flex flex-col items-center justify-center gap-4 shadow-inner">
                                 <Package className="w-16 h-16 text-slate-200" strokeWidth={1} />

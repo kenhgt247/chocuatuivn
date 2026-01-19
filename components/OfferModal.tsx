@@ -43,7 +43,7 @@ const OfferModal: React.FC<OfferModalProps> = ({
     const numValue = parseInt(rawValue, 10);
     setPriceStr(numValue.toLocaleString('vi-VN'));
 
-    // Logic cảnh báo UX
+    // Logic cảnh báo UX vui vẻ
     if (numValue > originalPrice) {
       setWarning("🤔 Bạn trả cao hơn giá gốc luôn hả? Đại gia quá!");
     } else if (numValue === originalPrice) {

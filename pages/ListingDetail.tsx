@@ -338,31 +338,32 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
               </>
             )}
           </div>
-       {/* Thumbnails - Đã sửa lỗi bị che & sát lề */}
-          <div className="hidden md:grid grid-cols-6 gap-4 px-1 mt-4">
-            {mediaList.map((item, idx) => (
-              <button 
-                key={idx} 
-                onClick={() => setActiveMedia(idx)} 
-                className={`aspect-square rounded-xl overflow-hidden border-2 transition-all relative group ${activeMedia === idx ? 'border-primary ring-2 ring-primary/20 scale-105 shadow-md z-10' : 'border-transparent opacity-70 hover:opacity-100 hover:border-gray-300'}`}
-              >
-                <img 
-                    src={listing.videoUrl && idx === 0 ? listing.images[0] : item} 
-                    className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" 
-                    alt="" 
-                />
-                
-                {/* Icon Video (Nếu là video) */}
-                {listing.videoUrl && idx === 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <div className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center shadow-sm">
-                            <svg className="w-3 h-3 text-primary ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                        </div>
-                    </div>
-                )}
-              </button>
-            ))}
-          </div>
+    {/* Thumbnails - Đã sửa: Hiện cả Mobile (lướt ngang) & Máy tính (lưới) */}
+<div className="flex md:grid md:grid-cols-6 gap-3 px-1 mt-4 overflow-x-auto md:overflow-visible pb-2 md:pb-0 snap-x scrollbar-hide">
+  {mediaList.map((item, idx) => (
+    <button 
+      key={idx} 
+      onClick={() => setActiveMedia(idx)} 
+      // Thêm w-20 h-20 flex-shrink-0 để ảnh không bị bóp méo trên điện thoại
+      className={`w-20 h-20 md:w-auto md:h-auto flex-shrink-0 aspect-square rounded-xl overflow-hidden border-2 transition-all relative group snap-start ${activeMedia === idx ? 'border-primary ring-2 ring-primary/20 scale-105 shadow-md z-10' : 'border-transparent opacity-70 hover:opacity-100 hover:border-gray-300'}`}
+    >
+      <img 
+        src={listing.videoUrl && idx === 0 ? listing.images[0] : item} 
+        className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" 
+        alt="" 
+      />
+      
+      {/* Icon Video (Nếu là video) */}
+      {listing.videoUrl && idx === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+            <div className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center shadow-sm">
+                <svg className="w-3 h-3 text-primary ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+        </div>
+      )}
+    </button>
+  ))}
+</div>
 
           {/* Attributes - Đã sửa lỗi dư thẻ đóng div */}
           {listing.attributes && Object.keys(listing.attributes).length > 0 && (

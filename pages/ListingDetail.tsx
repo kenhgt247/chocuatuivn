@@ -365,30 +365,49 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
   ))}
 </div>
 
-          {/* Attributes - Đã sửa lỗi dư thẻ đóng div */}
-          {listing.attributes && Object.keys(listing.attributes).length > 0 && (
-            <div className="bg-white md:rounded-xl p-6 border border-gray-100 shadow-sm">
-              <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-6 border-l-4 border-primary pl-4">⚡ Thông số kỹ thuật</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
-                {categoryConfig?.attributes?.map((attr) => {
+        {/* Attributes - Đã nâng cấp: Tự động ẩn nếu không có dữ liệu */}
+          {(() => {
+            // 1. Lọc trước danh sách các thuộc tính có dữ liệu thực sự
+            const validAttributes = categoryConfig?.attributes?.filter(attr => {
+                const val = listing.attributes?.[attr.key];
+                // Chỉ giữ lại nếu có giá trị và không phải là chuỗi rỗng
+                return val !== null && val !== undefined && String(val).trim() !== '';
+            }) || [];
+
+            // 2. Nếu danh sách rỗng -> Ẩn hoàn toàn (Không hiện gì cả)
+            if (validAttributes.length === 0) return null;
+
+            // 3. Nếu có dữ liệu -> Thì mới hiện khung
+            return (
+              <div className="bg-white md:rounded-xl p-6 border border-gray-100 shadow-sm">
+                <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-6 border-l-4 border-primary pl-4">
+                  ⚡ Thông số kỹ thuật
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
+                  {validAttributes.map((attr) => {
                     const value = listing.attributes?.[attr.key];
-                    if (!value) return null;
                     return (
-                        <div key={attr.key} className="flex items-center gap-3 group">
-                            {/* Icon: w-10 h-10 và rounded-xl (nhỏ và tinh tế hơn) */}
-                            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex-shrink-0 flex items-center justify-center border border-blue-100 group-hover:bg-primary group-hover:text-white transition-colors">
-                                {getAttributeIcon(attr.key)}
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{attr.label}</p>
-                                <p className="text-sm font-bold text-gray-800 truncate" title={String(value)}>{value} {attr.suffix || ''}</p>
-                            </div>
+                      <div key={attr.key} className="flex items-center gap-3 group">
+                        {/* Icon */}
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex-shrink-0 flex items-center justify-center border border-blue-100 group-hover:bg-primary group-hover:text-white transition-colors">
+                          {getAttributeIcon(attr.key)}
                         </div>
+                        {/* Text Info */}
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
+                            {attr.label}
+                          </p>
+                          <p className="text-sm font-bold text-gray-800 truncate" title={String(value)}>
+                            {value} {attr.suffix || ''}
+                          </p>
+                        </div>
+                      </div>
                     );
-                })}
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
         {/* Description - Đã sửa thành rounded-xl và p-6 */}
           <div className="bg-white md:rounded-xl p-6 border border-gray-100 shadow-sm space-y-4">

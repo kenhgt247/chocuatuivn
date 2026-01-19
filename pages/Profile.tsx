@@ -4,9 +4,7 @@ import { db, SystemSettings } from '../services/db';
 import { User, Listing } from '../types';
 import ListingCard from '../components/ListingCard';
 import { LOCATIONS } from '../constants';
-
-// --- SỬA LỖI IMPORT Ở ĐÂY ---
-import { formatPrice } from '../utils/format'; 
+import { formatPrice } from '../utils/format';
 import { getLocationFromCoords } from '../utils/locationHelper'; 
 import { compressAndGetBase64 } from '../utils/imageCompression';
 

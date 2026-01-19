@@ -438,26 +438,30 @@ const [showSwapModal, setShowSwapModal] = useState(false); // State bật tắt 
               </div>
             </div>
 
-            {/* --- ĐOẠN CODE MỚI: Check Online thật sự --- */}
-{(() => {
-    // Ép kiểu 'as any' để tránh lỗi đỏ nếu chưa cập nhật file types.ts
-    const isOnline = (seller as any)?.isOnline || false;
-    
-    return (
-        <div 
-            className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 border-2 border-white rounded-full transition-colors ${
-                isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
-            }`}
-            title={isOnline ? "Đang Online" : "Đang Offline"}
-        ></div>
-    );
-})()}
-{/* --- HẾT --- */}
+           {/* --- ĐOẠN CODE NGƯỜI BÁN (ĐÃ SỬA LỖI TAG) --- */}
+            <Link to={`/seller/${listing.sellerId}`} className="flex items-center gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:border-primary/30 transition-all group">
+                <div className="relative">
+                    <img src={listing.sellerAvatar} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md" alt="" />
+                    
+                    {/* Logic chấm xanh Online */}
+                    {(() => {
+                        const isUserOnline = (seller as any)?.isOnline || false;
+                        return (
+                            <div 
+                                className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 border-2 border-white rounded-full transition-colors ${
+                                    isUserOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
+                                }`}
+                                title={isUserOnline ? "Đang Online" : "Đang Offline"}
+                            ></div>
+                        );
+                    })()}
+                </div>
                 <div className="min-w-0">
                     <p className="font-bold text-sm text-gray-900 group-hover:text-primary">{listing.sellerName}</p>
                     {seller?.verificationStatus === 'verified' ? <p className="text-[10px] font-black text-blue-500 uppercase mt-1">✓ Đã xác thực</p> : <p className="text-[10px] font-bold text-gray-400 mt-1">Thành viên mới</p>}
                 </div>
             </Link>
+            {/* --- HẾT ĐOẠN NGƯỜI BÁN --- */}
 
                      <div className="space-y-3">
               {(isOwner || user?.role === 'admin') ? (

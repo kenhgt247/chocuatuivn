@@ -164,6 +164,17 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }, [user, loadSpecialSections, search, isUrlCategory]);
+  // 👉 [BẠN CHÈN ĐOẠN CODE NÀY VÀO ĐÂY] 👈
+    // Tự động hỏi vị trí khi vừa vào web (chỉ hỏi 1 lần/phiên)
+    useEffect(() => {
+        const hasAsked = sessionStorage.getItem('has_asked_location');
+
+        // Chỉ hỏi khi: Chưa có vị trí + Chưa có tham số trên URL + Chưa hỏi lần nào
+        if (!user?.location && !locationParam && !detectedLocation && !hasAsked) {
+            handleDetectLocation();
+            sessionStorage.setItem('has_asked_location', 'true');
+        }
+    }, [user, locationParam, detectedLocation, handleDetectLocation]);
 
   // 6. Fetch Listings Chính
   const fetchInitialData = useCallback(async () => {

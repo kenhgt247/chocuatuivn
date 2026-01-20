@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
-import { ToastContainer, toast } from 'react-toastify'; // [THÊM]
+import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-// Layout & Pages (GIỮ NGUYÊN 100% NHƯ CŨ)
+// --- Layout & Pages ---
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import ListingDetail from './pages/ListingDetail';
@@ -20,15 +20,15 @@ import Wallet from './pages/Wallet';
 import Admin from './pages/Admin';
 import StaticPage from './pages/StaticPage';
 
-// Component
+// --- Component ---
 import GoogleOneTap from './components/GoogleOneTap';
 
-// Services
+// --- Services ---
 import { db } from './services/db';
 import { User } from './types';
 import { formatPrice } from './utils/format';
 
-// [THÊM] Firebase Online/Offline
+// --- Firebase (Heartbeat) ---
 import { getFirestore, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 // Helper: Scroll to Top
@@ -45,7 +45,7 @@ const App: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const prevBalanceRef = useRef<number>(0);
 
-  // 1. INITIALIZE & WALLET LISTENER
+  // 1. KHỞI TẠO USER VÀ LẮNG NGHE VÍ TIỀN
   useEffect(() => {
     let unsubscribe: () => void;
 
@@ -59,11 +59,12 @@ const App: React.FC = () => {
 
             if (db.onUserChange) {
                 unsubscribe = db.onUserChange(currentUser.id, (updatedUser) => {
-                    // Ting Ting Logic
+                    // Chỉ thông báo nếu tiền tăng lên
                     if (updatedUser.walletBalance > prevBalanceRef.current) {
                         const amount = updatedUser.walletBalance - prevBalanceRef.current;
                         toast.success(`💰 Ting Ting! Ví vừa được cộng ${formatPrice(amount)}`);
                     }
+                    // Cập nhật state nhưng KHÔNG gây loop cho useEffect bên dưới
                     setUser(updatedUser);
                     prevBalanceRef.current = updatedUser.walletBalance;
                 });
@@ -80,54 +81,87 @@ const App: React.FC = () => {
     return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
-  // 2. [THÊM] HEARTBEAT ONLINE/OFFLINE
+  // 2. [QUAN TRỌNG] LOGIC BÁO ONLINE - ĐÃ CẮT VÒNG LẶP
   useEffect(() => {
-    if (!user) return;
+    // Nếu chưa có ID thì thoát ngay
+    if (!user?.id) return;
 
     const dbInstance = getFirestore();
     const userRef = doc(dbInstance, "users", user.id);
 
+    // Hàm báo Online
     const reportOnline = async () => {
+      // Kiểm tra nếu tab đang ẩn thì không báo để tiết kiệm
+      if (document.visibilityState !== 'visible') return;
+      
       try {
-        await updateDoc(userRef, { isOnline: true, lastActiveAt: serverTimestamp() });
-      } catch (e) {}
+        await updateDoc(userRef, {
+          isOnline: true,
+          lastActiveAt: serverTimestamp()
+        });
+      } catch (e) { /* Lỗi mạng bỏ qua */ }
     };
 
+    // Hàm báo Offline
     const reportOffline = async () => {
       try {
-        await updateDoc(userRef, { isOnline: false, lastActiveAt: serverTimestamp() });
+        await updateDoc(userRef, {
+          isOnline: false,
+          lastActiveAt: serverTimestamp()
+        });
       } catch (e) {}
     };
 
+    // Chạy ngay lần đầu
     reportOnline();
-    const interval = setInterval(reportOnline, 60000); // 1 phút
 
+    // Setup Interval: 2 phút báo 1 lần (Đủ để duy trì online, không quá tốn kém)
+    const intervalId = setInterval(reportOnline, 120000);
+
+    // Xử lý khi đóng tab/tắt trình duyệt
+    const handleBeforeUnload = () => { reportOffline(); };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    // Xử lý khi quay lại tab
     const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') reportOnline();
     };
-    const handleBeforeUnload = () => reportOffline();
-
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
-        clearInterval(interval);
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
-        window.removeEventListener("beforeunload", handleBeforeUnload);
-        reportOffline();
+      clearInterval(intervalId);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      // KHÔNG gọi reportOffline ở đây để tránh nhấp nháy khi re-render
     };
-  }, [user]); // Chỉ chạy lại khi login/logout
+    
+    // [CỰC KỲ QUAN TRỌNG]: Chỉ chạy lại khi ID thay đổi (Login/Logout)
+    // Tuyệt đối không để [user] ở đây.
+  }, [user?.id]); 
 
-  // HANDLERS
+
+  // --- HANDLERS ---
   const handleLogin = (u: User) => {
       setUser(u);
       prevBalanceRef.current = u.walletBalance;
   };
-  const handleLogout = () => {
+  
+  const handleLogout = async () => {
+    // Chủ động báo offline trước khi logout
+    if (user?.id) {
+        try {
+            const dbInstance = getFirestore();
+            await updateDoc(doc(dbInstance, "users", user.id), {
+                isOnline: false,
+                lastActiveAt: serverTimestamp()
+            });
+        } catch(e) {}
+    }
     db.logout();
     setUser(null);
     prevBalanceRef.current = 0;
   };
+  
   const handleUpdateUser = (u: User) => {
     setUser(u);
     prevBalanceRef.current = u.walletBalance;
@@ -136,8 +170,8 @@ const App: React.FC = () => {
   if (isInitializing) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-gray-50">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-primary font-black uppercase text-[10px] tracking-widest">Chợ Của Tui đang tải...</p>
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-blue-600 font-black uppercase text-[10px] tracking-widest">Chợ Của Tui đang tải...</p>
       </div>
     );
   }
@@ -157,14 +191,15 @@ const App: React.FC = () => {
 
             <Route path="/san-pham/:slugWithId" element={<ListingDetail user={user} />} />
             <Route path="/listings/:slugWithId" element={<ListingDetail user={user} />} />
-            <Route path="/listing/:slugWithId" element={<ListingDetail user={user} />} />
+            <Route path="/listing/:id" element={<ListingDetail user={user} />} />
 
             <Route path="/profile" element={user ? <Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
             <Route path="/profile/:id" element={<SellerProfile currentUser={user} />} />
             <Route path="/seller/:id" element={<SellerProfile currentUser={user} />} />
             
             <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
-            {/* GIỮ NGUYÊN ROUTE CŨ: Dùng PostListing cho Edit */}
+            
+            {/* SỬA LẠI: Dùng PostListing cho chức năng Edit (theo code cũ của bạn) */}
             <Route path="/edit/:id" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
             
             <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />

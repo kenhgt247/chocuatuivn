@@ -13,7 +13,7 @@ import {
 
 const PRESET_AMOUNTS = [50000, 100000, 200000, 500000, 1000000, 2000000];
 
-// 1. Hàm sinh mã giao dịch ngắn (4 ký tự)
+// Hàm sinh mã giao dịch ngắn
 const generateRefCode = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let result = '';
@@ -23,7 +23,7 @@ const generateRefCode = () => {
     return result;
 };
 
-// 2. Hàm xóa dấu tiếng Việt (Để đưa tên vào nội dung CK an toàn)
+// Hàm xóa dấu tiếng Việt
 const removeVietnameseTones = (str: string) => {
     str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g,"a"); 
     str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g,"e"); 
@@ -39,10 +39,11 @@ const removeVietnameseTones = (str: string) => {
     str = str.replace(/Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ/g, "U");
     str = str.replace(/Ỳ|Ý|Ỵ|Ỷ|Ỹ/g, "Y");
     str = str.replace(/Đ/g, "D");
-    return str.toUpperCase(); // Chuyển thành chữ hoa
+    return str.toUpperCase();
 }
 
-const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> = ({ user, onUpdateUser }) => {
+// [SỬA LỖI] Bỏ onUpdateUser ra khỏi props vì không cần dùng nữa (App lo rồi)
+const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> = ({ user }) => {
   const navigate = useNavigate();
   
   // State
@@ -54,9 +55,12 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // State lưu mã giao dịch hiện tại
+  // State mã giao dịch
   const [currentRefCode, setCurrentRefCode] = useState<string>("");
 
+  // ------------------------------------------------------------------
+  // 1. [QUAN TRỌNG] FIX LỖI TRẮNG TRANG
+  // ------------------------------------------------------------------
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
     
@@ -64,25 +68,28 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
 
     const loadData = async () => {
       try {
-        const [s, txs, updatedUser] = await Promise.all([
+        // Chỉ tải Cài đặt và Lịch sử giao dịch
+        // KHÔNG tải User nữa để tránh vòng lặp vô tận với App.tsx
+        const [s, txs] = await Promise.all([
             db.getSettings(), 
-            db.getTransactions(user.id),
-            db.getUserById(user.id)
+            db.getTransactions(user.id)
         ]);
         
         setSettings(s);
         setTransactions(txs);
-        if (updatedUser) onUpdateUser(updatedUser);
       } catch (error) {
         console.error("Lỗi tải ví:", error);
       }
     };
 
     loadData();
-    interval = setInterval(loadData, 10000); 
+    // Tự động tải lại lịch sử giao dịch mỗi 5 giây
+    interval = setInterval(loadData, 5000); 
 
     return () => clearInterval(interval);
-  }, [user, navigate, onUpdateUser]);
+    
+    // [FIX]: Dependency chỉ phụ thuộc ID, không phụ thuộc object user
+  }, [user?.id, navigate]); 
 
   if (!user) return null;
 
@@ -100,17 +107,14 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
         alert("Vui lòng nạp tối thiểu 10.000đ");
         return;
     }
-    // Sinh mã mới mỗi lần mở modal
     const newRefCode = generateRefCode();
     setCurrentRefCode(newRefCode);
     setShowQRModal(true);
   };
 
-  // --- [SỬA ĐỔI] NỘI DUNG CHUYỂN KHOẢN ---
-  // Cấu trúc: NAP [MÃ] [TÊN KHÔNG DẤU] -> VD: NAP A8X2 BUI VAN BAC
-  // Admin nhìn vào tin nhắn ngân hàng là biết ngay Bùi Văn Bắc nạp.
-  const sanitizedName = removeVietnameseTones(user.name).replace(/[^A-Z0-9 ]/g, ''); // Chỉ giữ lại chữ cái, số và khoảng trắng
-  const transferContent = `NAP ${currentRefCode} ${sanitizedName}`.trim().substring(0, 50); // Cắt ngắn nếu quá dài
+  // Nội dung chuyển khoản
+  const sanitizedName = removeVietnameseTones(user.name).replace(/[^A-Z0-9 ]/g, ''); 
+  const transferContent = `NAP ${currentRefCode} ${sanitizedName}`.trim().substring(0, 50);
 
   const handleConfirmTransfer = async () => {
     const finalAmount = parseInt(amount);
@@ -135,7 +139,6 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
     const template = 'compact2'; 
     const finalAmount = parseInt(amount) || 0;
     const accountName = encodeURI(settings.accountName || '');
-    // Thêm nội dung có tên người dùng vào QR
     return `https://img.vietqr.io/image/${bankId}-${accountNo}-${template}.png?amount=${finalAmount}&addInfo=${encodeURI(transferContent)}&accountName=${accountName}`;
   };
 
@@ -147,8 +150,7 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
 
   const handleManualRefresh = async () => {
       setIsRefreshing(true);
-      const updatedUser = await db.getUserById(user.id);
-      if(updatedUser) onUpdateUser(updatedUser);
+      // Chỉ tải lại giao dịch, số dư sẽ tự cập nhật nhờ App.tsx
       const txs = await db.getTransactions(user.id);
       setTransactions(txs);
       setTimeout(() => setIsRefreshing(false), 800);
@@ -157,7 +159,7 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
   return (
     <div className="w-full max-w-4xl mx-auto space-y-5 pb-24 px-3 md:px-4 font-sans animate-fade-in pt-4 overflow-x-hidden">
       
-      {/* 1. THẺ VÍ TIỀN (ĐÃ NÂNG CẤP HIỂN THỊ TÊN) */}
+      {/* 1. THẺ VÍ TIỀN */}
       <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[1.5rem] p-5 md:p-8 text-white shadow-xl relative overflow-hidden group">
         <div className="relative z-10 flex flex-col justify-between h-full gap-6">
           
@@ -181,14 +183,13 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
              </div>
           </div>
           
-          {/* Hàng 2: Thông tin Người dùng (HIỆN TÊN TO RÕ) */}
+          {/* Hàng 2: Thông tin Người dùng */}
           <div className="pt-4 border-t border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-3">
              <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center border border-white/30 text-lg">
                     {user.avatar ? <img src={user.avatar} className="w-full h-full rounded-full object-cover" alt="" /> : <UserIcon className="w-5 h-5 text-white" />}
                 </div>
                 <div>
-                    {/* TÊN NGƯỜI DÙNG HIỂN THỊ Ở ĐÂY */}
                     <p className="font-bold text-sm text-white uppercase tracking-wide">{user.name}</p>
                     <div className="flex items-center gap-2 text-[10px] opacity-70">
                         <span className="font-mono">ID: {user.id.slice(-8).toUpperCase()}</span>
@@ -199,7 +200,6 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
                 </div>
              </div>
              
-             {/* Trạng thái hạng thành viên (Nếu có) */}
              {user.subscriptionTier && user.subscriptionTier !== 'free' && (
                  <div className="bg-yellow-400 text-yellow-900 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-md self-start md:self-auto">
                      {user.subscriptionTier === 'pro' ? '👑 VIP PRO' : '💎 VIP BASIC'}
@@ -287,7 +287,6 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
                           {tx.type === 'deposit' ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
                       </div>
                       <div className="min-w-0 pr-2">
-                        {/* Hiển thị nội dung gọn gàng */}
                         <p className="text-[10px] font-black uppercase text-slate-700 truncate leading-tight mb-0.5 max-w-[120px]">
                             {tx.type === 'deposit' ? 'Nạp tiền' : 'Thanh toán'}
                         </p>
@@ -317,13 +316,12 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
         </div>
       </div>
 
-      {/* 4. MODAL VIETQR (ĐÃ THÊM TÊN VÀO NỘI DUNG) */}
+      {/* 4. MODAL VIETQR */}
       {showQRModal && settings && (
         <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center sm:p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onClick={() => setShowQRModal(false)}></div>
           
           <div className="bg-white w-full md:max-w-sm rounded-t-[2rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl relative animate-slide-up md:animate-fade-in-up flex flex-col max-h-[90vh]">
-            
             <div className="bg-primary px-6 py-4 text-white text-center relative shrink-0">
                 <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-3 md:hidden"></div> 
                 <h3 className="text-base font-black uppercase tracking-wider flex items-center justify-center gap-2">
@@ -337,7 +335,6 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
             <div className="p-5 overflow-y-auto scrollbar-hide space-y-5">
                 <div className="flex justify-center">
                     <div className="p-2 bg-white border-2 border-dashed border-primary/30 rounded-2xl shadow-lg w-[200px] h-[200px] flex items-center justify-center relative">
-                        {/* Ảnh QR đã bao gồm Tên người dùng trong nội dung */}
                         <img src={getVietQRUrl()} className="w-full h-full object-contain rounded-xl" alt="VietQR Payment" />
                     </div>
                 </div>

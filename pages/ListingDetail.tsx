@@ -398,22 +398,26 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             )}
           </div>
 
-          {/* 2. Thumbnails List - ĐÃ FIX LỖI VUỐT NGANG MOBILE */}
-          {/* Wrapper div này cực quan trọng: Nó ép nội dung không được tràn ra khỏi màn hình */}
-          <div className="w-full max-w-full overflow-hidden mt-4">
-            
-            <div className="flex gap-2 overflow-x-auto pb-4 px-1 snap-x scrollbar-hide touch-pan-x flex-nowrap">
+         {/* 2. Thumbnails List - PHIÊN BẢN "BULLETPROOF" (KHÔNG THỂ VỠ) */}
+          <div className="mt-4 w-full">
+            <div 
+              className="w-full overflow-x-auto overflow-y-hidden pb-2 px-1 scrollbar-hide"
+              style={{ 
+                whiteSpace: 'nowrap',           // Bắt buộc nằm trên 1 dòng
+                WebkitOverflowScrolling: 'touch' // Kích hoạt cuộn mượt trên iOS
+              }}
+            >
               {mediaList.map((item, idx) => (
                 <button 
                   key={idx} 
                   onClick={() => setActiveMedia(idx)} 
-                  // Sử dụng style cứng min-width để đảm bảo mobile không bao giờ co ảnh lại
-                  style={{ minWidth: '70px', minHeight: '70px' }} 
+                  // Sử dụng inline-block để hoạt động với whitespace-nowrap
+                  // width cố định cứng bằng px để không bao giờ bị méo
                   className={`
-                    relative flex-shrink-0 
-                    w-[70px] h-[70px] md:w-24 md:h-24 
-                    aspect-square rounded-xl overflow-hidden border-2 
-                    snap-start transition-all duration-200
+                    inline-block relative 
+                    w-16 h-16 md:w-24 md:h-24 
+                    rounded-xl overflow-hidden border-2 mr-2 align-top
+                    transition-all duration-200
                     ${activeMedia === idx 
                       ? 'border-primary ring-2 ring-primary/20 scale-105 z-10 shadow-md' 
                       : 'border-transparent opacity-70 hover:opacity-100 hover:border-gray-300'
@@ -423,7 +427,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                   <img 
                     src={listing.videoUrl && idx === 0 ? listing.images[0] : item} 
                     className="w-full h-full object-cover" 
-                    alt={`Ảnh nhỏ ${idx + 1}`} 
+                    alt={`Thumbnail ${idx + 1}`} 
                     loading="lazy"
                   />
                   

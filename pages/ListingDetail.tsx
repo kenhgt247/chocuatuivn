@@ -398,28 +398,36 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             )}
           </div>
 
-     {/* ================================================================================= */}
-          {/* 2. Thumbnails List - ĐÃ FIX LỖI TRÀN MÀN HÌNH (VIEWPORT CONSTRAINT) */}
+  {/* ================================================================================= */}
+          {/* 2. Thumbnails List - HYBRID: MOBILE VUỐT, DESKTOP MŨI TÊN */}
           {/* ================================================================================= */}
           
-          <div className="mt-4 w-full flex justify-start">
+          <div className="mt-4 w-full relative group">
             
-            {/* QUAN TRỌNG NHẤT: 
-                max-w-[calc(100vw-32px)] -> Ép chiều rộng thanh cuộn = chiều rộng màn hình trừ đi 32px lề.
-                Điều này ngăn tuyệt đối việc thanh cuộn đẩy vỡ giao diện web sang hai bên.
-            */}
+            {/* NÚT MŨI TÊN TRÁI (CHỈ HIỆN TRÊN MÁY TÍNH) */}
+            <button 
+              onClick={(e) => {
+                e.preventDefault();
+                const container = document.getElementById('thumbnails-container');
+                if (container) container.scrollBy({ left: -200, behavior: 'smooth' });
+              }}
+              className="hidden md:flex absolute -left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 bg-white/90 shadow-md rounded-full items-center justify-center text-gray-600 hover:text-primary hover:scale-110 transition-all border border-gray-100 opacity-0 group-hover:opacity-100"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+
+            {/* CONTAINER CHÍNH */}
+            {/* Vẫn giữ max-w-[calc(100vw-32px)] để Mobile không bị vỡ layout */}
             <div className="w-full max-w-[calc(100vw-32px)] md:max-w-full overflow-hidden">
-              
               <div 
-                className="flex gap-3 overflow-x-auto pb-4 snap-x scrollbar-hide touch-pan-x"
+                id="thumbnails-container"
+                className="flex gap-3 overflow-x-auto pb-4 snap-x scrollbar-hide touch-pan-x scroll-smooth"
                 style={{ WebkitOverflowScrolling: 'touch' }} 
               >
                 {mediaList.map((item, idx) => (
                   <button 
                     key={idx} 
                     onClick={() => setActiveMedia(idx)} 
-                    // flex-shrink-0: Không cho phép co ảnh
-                    // w-16 h-16: Kích thước cố định
                     className={`
                       relative flex-shrink-0 
                       w-16 h-16 md:w-24 md:h-24 
@@ -438,7 +446,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                       loading="lazy"
                     />
                     
-                    {/* SVG PLAY ICON (Hardcoded để tránh lỗi crash) */}
+                    {/* SVG PLAY ICON */}
                     {listing.videoUrl && idx === 0 && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                           <div className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center shadow-sm backdrop-blur-sm">
@@ -452,8 +460,21 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                 ))}
               </div>
             </div>
+
+            {/* NÚT MŨI TÊN PHẢI (CHỈ HIỆN TRÊN MÁY TÍNH) */}
+            <button 
+              onClick={(e) => {
+                e.preventDefault();
+                const container = document.getElementById('thumbnails-container');
+                if (container) container.scrollBy({ left: 200, behavior: 'smooth' });
+              }}
+              className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 bg-white/90 shadow-md rounded-full items-center justify-center text-gray-600 hover:text-primary hover:scale-110 transition-all border border-gray-100 opacity-0 group-hover:opacity-100"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+
           </div>
-          
+          {/* ================================================================================= */}
 
 
         {/* Attributes - Vector Icons */}

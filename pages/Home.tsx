@@ -460,11 +460,11 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             {/* Copyright */}
             <div className="relative z-10 flex flex-col md:flex-row items-center justify-between pt-8 border-t border-slate-100">
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                    © 2026 ChoCuaTui.vn - Nền tảng rao vặt AI.
+                    © 2026 ChoCuaTui.vn - Nền tảng rao vặt AI miễn phí.
                 </p>
                 <div className="flex gap-2 mt-2 md:mt-0">
                     <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                    <span className="text-[10px] font-bold text-green-600">Hệ thống hoạt động ổn định</span>
+                    <span className="text-[10px] font-bold text-green-600">Đang chừo cấp phép</span>
                 </div>
             </div>
          </div>

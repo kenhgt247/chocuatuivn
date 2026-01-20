@@ -398,30 +398,41 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             )}
           </div>
 
-  {/* ================================================================================= */}
-          {/* 2. Thumbnails List - HYBRID: MOBILE VUỐT, DESKTOP MŨI TÊN */}
+ {/* ================================================================================= */}
+          {/* 2. Thumbnails List - ĐÃ FIX: ẨN TUYỆT ĐỐI THANH CUỘN + MŨI TÊN HOVER */}
           {/* ================================================================================= */}
           
           <div className="mt-4 w-full relative group">
             
-            {/* NÚT MŨI TÊN TRÁI (CHỈ HIỆN TRÊN MÁY TÍNH) */}
+            {/* CSS ĐẶC BIỆT: Bắt buộc ẩn thanh cuộn trên mọi trình duyệt */}
+            <style>{`
+              #thumbnails-container::-webkit-scrollbar {
+                display: none; /* Ẩn cho Chrome/Safari/Opera */
+              }
+              #thumbnails-container {
+                -ms-overflow-style: none;  /* Ẩn cho IE/Edge */
+                scrollbar-width: none;  /* Ẩn cho Firefox */
+              }
+            `}</style>
+
+            {/* MŨI TÊN TRÁI (Ẩn đi, chỉ hiện khi Hover chuột vào khu vực ảnh) */}
             <button 
               onClick={(e) => {
                 e.preventDefault();
                 const container = document.getElementById('thumbnails-container');
                 if (container) container.scrollBy({ left: -200, behavior: 'smooth' });
               }}
-              className="hidden md:flex absolute -left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 bg-white/90 shadow-md rounded-full items-center justify-center text-gray-600 hover:text-primary hover:scale-110 transition-all border border-gray-100 opacity-0 group-hover:opacity-100"
+              className="hidden md:flex absolute -left-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 bg-white shadow-lg rounded-full items-center justify-center text-gray-700 hover:text-primary hover:scale-110 transition-all border border-gray-100 opacity-0 group-hover:opacity-100 duration-300"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
             </button>
 
             {/* CONTAINER CHÍNH */}
-            {/* Vẫn giữ max-w-[calc(100vw-32px)] để Mobile không bị vỡ layout */}
             <div className="w-full max-w-[calc(100vw-32px)] md:max-w-full overflow-hidden">
               <div 
                 id="thumbnails-container"
-                className="flex gap-3 overflow-x-auto pb-4 snap-x scrollbar-hide touch-pan-x scroll-smooth"
+                // Đã xóa pb-4 xuống còn pb-1 để sát đáy hơn, không chừa chỗ cho thanh cuộn
+                className="flex gap-3 overflow-x-auto pb-1 snap-x touch-pan-x scroll-smooth"
                 style={{ WebkitOverflowScrolling: 'touch' }} 
               >
                 {mediaList.map((item, idx) => (
@@ -442,7 +453,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                     <img 
                       src={listing.videoUrl && idx === 0 ? listing.images[0] : item} 
                       className="w-full h-full object-cover" 
-                      alt={`Thumb ${idx}`} 
+                      alt={`Thumbnail ${idx}`} 
                       loading="lazy"
                     />
                     
@@ -461,21 +472,20 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               </div>
             </div>
 
-            {/* NÚT MŨI TÊN PHẢI (CHỈ HIỆN TRÊN MÁY TÍNH) */}
+            {/* MŨI TÊN PHẢI (Ẩn đi, chỉ hiện khi Hover) */}
             <button 
               onClick={(e) => {
                 e.preventDefault();
                 const container = document.getElementById('thumbnails-container');
                 if (container) container.scrollBy({ left: 200, behavior: 'smooth' });
               }}
-              className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 bg-white/90 shadow-md rounded-full items-center justify-center text-gray-600 hover:text-primary hover:scale-110 transition-all border border-gray-100 opacity-0 group-hover:opacity-100"
+              className="hidden md:flex absolute -right-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 bg-white shadow-lg rounded-full items-center justify-center text-gray-700 hover:text-primary hover:scale-110 transition-all border border-gray-100 opacity-0 group-hover:opacity-100 duration-300"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
             </button>
 
           </div>
           {/* ================================================================================= */}
-
 
         {/* Attributes - Vector Icons */}
           {(() => {

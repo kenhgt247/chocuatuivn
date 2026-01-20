@@ -398,58 +398,62 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             )}
           </div>
 
-      {/* 2. Thumbnails List – MOBILE SAFE (KHÔNG BAO GIỜ TRÀN NGANG) */}
-<div className="mt-4 w-full max-w-full overflow-hidden">
-  <div
-    className="
-      flex gap-3
-      overflow-x-auto
-      max-w-full
-      pb-2 px-1
-      scrollbar-hide
-      touch-pan-x
-    "
-  >
-    {mediaList.map((item, idx) => {
-      const isActive = activeMedia === idx;
-
-      return (
-        <button
-          key={idx}
-          onClick={() => setActiveMedia(idx)}
-          className={`
-            relative
-            flex-shrink-0
-            w-16 h-16 md:w-20 md:h-20
-            rounded-xl overflow-hidden
-            border-2
-            transition-colors duration-200
-            ${isActive
-              ? 'border-primary ring-2 ring-primary/20'
-              : 'border-transparent opacity-70 hover:opacity-100 hover:border-gray-300'
-            }
-          `}
-        >
-          <img
-            src={listing.videoUrl && idx === 0 ? listing.images[0] : item}
-            className="w-full h-full object-cover"
-            alt={`Ảnh ${idx + 1}`}
-            loading="lazy"
-          />
-
-          {/* Icon Play nếu là Video */}
-          {listing.videoUrl && idx === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-              <div className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center shadow-sm">
-                <Play className="w-3 h-3 text-primary ml-0.5" fill="currentColor" />
+     {/* ================================================================================= */}
+          {/* 2. Thumbnails List - ĐÃ FIX LỖI TRÀN MÀN HÌNH (VIEWPORT CONSTRAINT) */}
+          {/* ================================================================================= */}
+          
+          <div className="mt-4 w-full flex justify-start">
+            
+            {/* QUAN TRỌNG NHẤT: 
+                max-w-[calc(100vw-32px)] -> Ép chiều rộng thanh cuộn = chiều rộng màn hình trừ đi 32px lề.
+                Điều này ngăn tuyệt đối việc thanh cuộn đẩy vỡ giao diện web sang hai bên.
+            */}
+            <div className="w-full max-w-[calc(100vw-32px)] md:max-w-full overflow-hidden">
+              
+              <div 
+                className="flex gap-3 overflow-x-auto pb-4 snap-x scrollbar-hide touch-pan-x"
+                style={{ WebkitOverflowScrolling: 'touch' }} 
+              >
+                {mediaList.map((item, idx) => (
+                  <button 
+                    key={idx} 
+                    onClick={() => setActiveMedia(idx)} 
+                    // flex-shrink-0: Không cho phép co ảnh
+                    // w-16 h-16: Kích thước cố định
+                    className={`
+                      relative flex-shrink-0 
+                      w-16 h-16 md:w-24 md:h-24 
+                      rounded-xl overflow-hidden border-2 
+                      snap-start transition-all duration-200
+                      ${activeMedia === idx 
+                        ? 'border-primary ring-2 ring-primary/20 scale-105 z-10 shadow-md' 
+                        : 'border-transparent opacity-70 hover:opacity-100 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    <img 
+                      src={listing.videoUrl && idx === 0 ? listing.images[0] : item} 
+                      className="w-full h-full object-cover" 
+                      alt={`Thumb ${idx}`} 
+                      loading="lazy"
+                    />
+                    
+                    {/* SVG PLAY ICON (Hardcoded để tránh lỗi crash) */}
+                    {listing.videoUrl && idx === 0 && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                          <div className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center shadow-sm backdrop-blur-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-blue-600 ml-0.5">
+                              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                          </div>
+                      </div>
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
-          )}
-        </button>
-      );
-    })}
-  </div>
-</div>
+          </div>
+          
 
 
         {/* Attributes - Vector Icons */}

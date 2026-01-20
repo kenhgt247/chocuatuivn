@@ -13,6 +13,9 @@ import { CATEGORIES } from '../constants';
 import ProductZoom from '../components/ProductZoom';
 import SwapModal from '../components/SwapModal';
 
+// --- IMPORT FIREBASE FOR REALTIME STATUS ---
+import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
+
 // --- IMPORT LEAFLET MAP ---
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -30,7 +33,7 @@ import {
   ShieldCheck, AlertTriangle, X
 } from 'lucide-react';
 
-// Fix lỗi icon Leaflet mặc định
+// Fix Leaflet default icon issue
 let DefaultIcon = L.icon({
     iconUrl: icon,
     shadowUrl: iconShadow,
@@ -55,7 +58,7 @@ const STATIC_LINKS = [
   { slug: 'meo-mua-ban-an-toan', title: 'An toàn' },
 ];
 
-// --- HÀM LẤY ICON ĐỘNG DỰA TRÊN KEY (DÙNG VECTOR) ---
+// --- HELPER: GET DYNAMIC ATTRIBUTE ICON ---
 const getAttributeIcon = (key: string): React.ReactNode => {
     const k = key.toLowerCase();
     const style = "w-5 h-5";
@@ -78,6 +81,8 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const { slugWithId } = useParams();
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
+  
+  // State
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [listing, setListing] = useState<Listing | null>(null);
   const [seller, setSeller] = useState<User | null>(null);
@@ -85,6 +90,9 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const [activeMedia, setActiveMedia] = useState(0); 
   const [userFavorites, setUserFavorites] = useState<string[]>([]);
   
+  // [NEW] Realtime Online Status State
+  const [isSellerOnline, setIsSellerOnline] = useState(false);
+
   // Modals State
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -114,6 +122,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     return list;
   }, [listing]);
 
+  // Load Listing Data
   useEffect(() => {
     if (!id) return;
     db.incrementListingView(id);
@@ -130,7 +139,37 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     window.scrollTo(0, 0);
   }, [id, user]);
 
- // --- LOGIC GỢI Ý THÔNG MINH ---
+  // [CRITICAL] Realtime Online Status Listener
+  useEffect(() => {
+    if (!listing?.sellerId) return;
+
+    const dbInstance = getFirestore();
+    const sellerRef = doc(dbInstance, "users", listing.sellerId);
+
+    const unsubscribe = onSnapshot(sellerRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const isOnline = data.isOnline === true;
+            
+            // Check last active time (within 5 minutes)
+            let isActiveRecently = true;
+            if (data.lastActiveAt) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const lastActiveTime = (data.lastActiveAt as any).toMillis ? (data.lastActiveAt as any).toMillis() : new Date(data.lastActiveAt).getTime();
+                const now = Date.now();
+                if (now - lastActiveTime > 5 * 60 * 1000) {
+                    isActiveRecently = false;
+                }
+            }
+
+            setIsSellerOnline(isOnline && isActiveRecently);
+        }
+    });
+
+    return () => unsubscribe();
+  }, [listing?.sellerId]);
+
+ // --- SMART RECOMMENDATION LOGIC ---
   const similarListings = useMemo(() => {
     if (!listing) return [];
     const LIMIT = 12;
@@ -436,23 +475,17 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               </div>
             </div>
 
-           {/* SELLER INFO */}
+           {/* SELLER INFO - [UPDATED: Realtime Online Status] */}
             <Link to={`/seller/${listing.sellerId}`} className="flex items-center gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:border-primary/30 transition-all group">
                 <div className="relative">
                     <img src={listing.sellerAvatar} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md" alt="" />
                     {/* Online Status */}
-                    {(() => {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const isUserOnline = (seller as any)?.isOnline || false;
-                        return (
-                            <div 
-                                className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 border-2 border-white rounded-full transition-colors ${
-                                    isUserOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
-                                }`}
-                                title={isUserOnline ? "Đang Online" : "Đang Offline"}
-                            ></div>
-                        );
-                    })()}
+                    <div 
+                        className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 border-2 border-white rounded-full transition-colors ${
+                            isSellerOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
+                        }`}
+                        title={isSellerOnline ? "Đang Online" : "Đang Offline"}
+                    ></div>
                 </div>
                 <div className="min-w-0">
                     <p className="font-bold text-sm text-gray-900 group-hover:text-primary">{listing.sellerName}</p>

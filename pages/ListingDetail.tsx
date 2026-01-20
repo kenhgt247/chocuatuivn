@@ -398,44 +398,45 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             )}
           </div>
 
-          {/* 2. Thumbnails List (ĐÃ FIX HOÀN TOÀN) */}
-          <div className="flex gap-2 mt-4 overflow-x-auto pb-2 px-1 snap-x scrollbar-hide touch-pan-x">
-            {mediaList.map((item, idx) => (
-              <button 
-                key={idx} 
-                onClick={() => setActiveMedia(idx)} 
-                // --- GIẢI THÍCH CÁC CLASS QUAN TRỌNG ---
-                // flex-shrink-0: Ngăn không cho ảnh bị co lại khi hết chỗ (BẮT BUỘC cho mobile)
-                // w-16 h-16: Kích thước cố định trên Mobile (64px)
-                // md:w-20 md:h-20: Kích thước cố định trên Desktop (80px)
-                // snap-start: Giúp cuộn mượt mà từng ảnh một
-                className={`
-                  relative flex-shrink-0 
-                  w-16 h-16 md:w-20 md:h-20 
-                  aspect-square rounded-xl overflow-hidden border-2 
-                  snap-start transition-all duration-300
-                  ${activeMedia === idx 
-                    ? 'border-primary ring-2 ring-primary/20 scale-105 z-10 shadow-md' 
-                    : 'border-transparent opacity-70 hover:opacity-100 hover:border-gray-300 grayscale hover:grayscale-0'
-                  }
-                `}
-              >
-                <img 
-                  src={listing.videoUrl && idx === 0 ? listing.images[0] : item} 
-                  className="w-full h-full object-cover" 
-                  alt={`Thumbnail ${idx + 1}`} 
-                />
-                
-                {/* Icon Play hiển thị trên Thumbnail nếu là Video */}
-                {listing.videoUrl && idx === 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                      <div className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center shadow-sm backdrop-blur-sm">
-                          <Play className="w-3 h-3 text-primary ml-0.5" fill="currentColor" />
-                      </div>
-                  </div>
-                )}
-              </button>
-            ))}
+          {/* 2. Thumbnails List - ĐÃ FIX LỖI VUỐT NGANG MOBILE */}
+          {/* Wrapper div này cực quan trọng: Nó ép nội dung không được tràn ra khỏi màn hình */}
+          <div className="w-full max-w-full overflow-hidden mt-4">
+            
+            <div className="flex gap-2 overflow-x-auto pb-4 px-1 snap-x scrollbar-hide touch-pan-x flex-nowrap">
+              {mediaList.map((item, idx) => (
+                <button 
+                  key={idx} 
+                  onClick={() => setActiveMedia(idx)} 
+                  // Sử dụng style cứng min-width để đảm bảo mobile không bao giờ co ảnh lại
+                  style={{ minWidth: '70px', minHeight: '70px' }} 
+                  className={`
+                    relative flex-shrink-0 
+                    w-[70px] h-[70px] md:w-24 md:h-24 
+                    aspect-square rounded-xl overflow-hidden border-2 
+                    snap-start transition-all duration-200
+                    ${activeMedia === idx 
+                      ? 'border-primary ring-2 ring-primary/20 scale-105 z-10 shadow-md' 
+                      : 'border-transparent opacity-70 hover:opacity-100 hover:border-gray-300'
+                    }
+                  `}
+                >
+                  <img 
+                    src={listing.videoUrl && idx === 0 ? listing.images[0] : item} 
+                    className="w-full h-full object-cover" 
+                    alt={`Ảnh nhỏ ${idx + 1}`} 
+                    loading="lazy"
+                  />
+                  
+                  {listing.videoUrl && idx === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <div className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center shadow-sm">
+                            <Play className="w-3 h-3 text-primary ml-0.5" fill="currentColor" />
+                        </div>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
 
         {/* Attributes - Vector Icons */}

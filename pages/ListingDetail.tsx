@@ -393,12 +393,14 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           </div>
 
           {/* Thumbnails */}
-          <div className="flex md:grid md:grid-cols-6 gap-3 px-1 mt-4 overflow-x-auto md:overflow-visible pb-2 md:pb-0 snap-x scrollbar-hide">
+          <div className="flex gap-3 px-1 mt-4 overflow-x-auto pb-2 snap-x scrollbar-hide">
             {mediaList.map((item, idx) => (
               <button 
                 key={idx} 
                 onClick={() => setActiveMedia(idx)} 
-                className={`w-20 h-20 md:w-auto md:h-auto flex-shrink-0 aspect-square rounded-xl overflow-hidden border-2 transition-all relative group snap-start ${activeMedia === idx ? 'border-primary ring-2 ring-primary/20 scale-105 shadow-md z-10' : 'border-transparent opacity-70 hover:opacity-100 hover:border-gray-300'}`}
+                // Quan trọng: Thêm 'flex-shrink-0' để ảnh không bị co lại khi hết chỗ
+                // Đổi 'md:w-auto' thành kích thước cố định (ví dụ md:w-24) để đảm bảo đều nhau trên Desktop
+                className={`flex-shrink-0 w-20 h-20 md:w-24 md:h-24 aspect-square rounded-xl overflow-hidden border-2 transition-all relative group snap-start ${activeMedia === idx ? 'border-primary ring-2 ring-primary/20 scale-105 shadow-md z-10' : 'border-transparent opacity-70 hover:opacity-100 hover:border-gray-300'}`}
               >
                 <img 
                   src={listing.videoUrl && idx === 0 ? listing.images[0] : item} 

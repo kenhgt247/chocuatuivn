@@ -398,45 +398,59 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             )}
           </div>
 
-       {/* 2. Thumbnails List - PHIÊN BẢN GRID FLOW (Cứng nhất, không thể xuống dòng) */}
-          <div className="mt-4 w-full min-w-0"> {/* min-w-0 rất quan trọng để tránh lỗi trên grid cha */}
-            
-            <div className="grid grid-flow-col auto-cols-max gap-3 overflow-x-auto pb-2 px-1 snap-x scrollbar-hide">
-              {mediaList.map((item, idx) => (
-                <button 
-                  key={idx} 
-                  onClick={() => setActiveMedia(idx)} 
-                  className={`
-                    relative 
-                    w-20 h-20           /* Kích thước cố định cho cả Mobile & Desktop */
-                    flex-shrink-0       /* Không cho phép co lại */
-                    snap-start 
-                    rounded-xl overflow-hidden border-2 
-                    transition-all duration-200
-                    ${activeMedia === idx 
-                      ? 'border-primary ring-2 ring-primary/20 opacity-100 scale-105 shadow-md z-10' 
-                      : 'border-transparent opacity-60 hover:opacity-100 hover:border-gray-300'
-                    }
-                  `}
-                >
-                  <img 
-                    src={listing.videoUrl && idx === 0 ? listing.images[0] : item} 
-                    className="w-full h-full object-cover" 
-                    alt={`Ảnh ${idx + 1}`} 
-                    loading="lazy"
-                  />
-                  
-                  {listing.videoUrl && idx === 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <div className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center shadow-sm">
-                            <Play className="w-3 h-3 text-primary ml-0.5" fill="currentColor" />
-                        </div>
-                    </div>
-                  )}
-                </button>
-              ))}
+      {/* 2. Thumbnails List – MOBILE SAFE (KHÔNG BAO GIỜ TRÀN NGANG) */}
+<div className="mt-4 w-full max-w-full overflow-hidden">
+  <div
+    className="
+      flex gap-3
+      overflow-x-auto
+      max-w-full
+      pb-2 px-1
+      scrollbar-hide
+      touch-pan-x
+    "
+  >
+    {mediaList.map((item, idx) => {
+      const isActive = activeMedia === idx;
+
+      return (
+        <button
+          key={idx}
+          onClick={() => setActiveMedia(idx)}
+          className={`
+            relative
+            flex-shrink-0
+            w-16 h-16 md:w-20 md:h-20
+            rounded-xl overflow-hidden
+            border-2
+            transition-colors duration-200
+            ${isActive
+              ? 'border-primary ring-2 ring-primary/20'
+              : 'border-transparent opacity-70 hover:opacity-100 hover:border-gray-300'
+            }
+          `}
+        >
+          <img
+            src={listing.videoUrl && idx === 0 ? listing.images[0] : item}
+            className="w-full h-full object-cover"
+            alt={`Ảnh ${idx + 1}`}
+            loading="lazy"
+          />
+
+          {/* Icon Play nếu là Video */}
+          {listing.videoUrl && idx === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+              <div className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center shadow-sm">
+                <Play className="w-3 h-3 text-primary ml-0.5" fill="currentColor" />
+              </div>
             </div>
-          </div>
+          )}
+        </button>
+      );
+    })}
+  </div>
+</div>
+
 
         {/* Attributes - Vector Icons */}
           {(() => {

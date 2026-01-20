@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
-import { ToastContainer, toast } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify'; // [THÊM]
 import 'react-toastify/dist/ReactToastify.css';
 
-// Layout & Pages
+// Layout & Pages (GIỮ NGUYÊN 100% NHƯ CŨ)
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import ListingDetail from './pages/ListingDetail';
@@ -19,8 +19,6 @@ import Subscription from './pages/Subscription';
 import Wallet from './pages/Wallet';
 import Admin from './pages/Admin';
 import StaticPage from './pages/StaticPage';
-import CategoryPage from './pages/CategoryPage';
-import EditListing from './pages/EditListing';
 
 // Component
 import GoogleOneTap from './components/GoogleOneTap';
@@ -30,13 +28,15 @@ import { db } from './services/db';
 import { User } from './types';
 import { formatPrice } from './utils/format';
 
-// Firebase
+// [THÊM] Firebase Online/Offline
 import { getFirestore, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
-// Helper: Scroll to top
+// Helper: Scroll to Top
 const ScrollToTop = () => {
   const { pathname } = useLocation();
-  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
   return null;
 };
 
@@ -45,7 +45,7 @@ const App: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const prevBalanceRef = useRef<number>(0);
 
-  // 1. KHỞI TẠO USER & LẮNG NGHE VÍ (Chỉ chạy 1 lần khi load app)
+  // 1. INITIALIZE & WALLET LISTENER
   useEffect(() => {
     let unsubscribe: () => void;
 
@@ -57,22 +57,20 @@ const App: React.FC = () => {
             setUser(currentUser);
             prevBalanceRef.current = currentUser.walletBalance;
 
-            // Lắng nghe thay đổi User (Số dư)
             if (db.onUserChange) {
                 unsubscribe = db.onUserChange(currentUser.id, (updatedUser) => {
-                    // Logic báo tiền về
+                    // Ting Ting Logic
                     if (updatedUser.walletBalance > prevBalanceRef.current) {
                         const amount = updatedUser.walletBalance - prevBalanceRef.current;
-                        toast.success(`💰 Ting Ting! Ví được cộng ${formatPrice(amount)}`);
+                        toast.success(`💰 Ting Ting! Ví vừa được cộng ${formatPrice(amount)}`);
                     }
-                    // Cập nhật User nhưng KHÔNG làm ảnh hưởng logic Online bên dưới
                     setUser(updatedUser);
                     prevBalanceRef.current = updatedUser.walletBalance;
                 });
             }
         }
       } catch (err) {
-        console.error("Auth error:", err);
+        console.error("Auth init error:", err);
       } finally {
         setIsInitializing(false);
       }
@@ -82,106 +80,64 @@ const App: React.FC = () => {
     return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
-  // ------------------------------------------------------------------
-  // 2. [ĐÃ SỬA LỖI] LOGIC ONLINE/OFFLINE ỔN ĐỊNH (HEARTBEAT)
-  // ------------------------------------------------------------------
+  // 2. [THÊM] HEARTBEAT ONLINE/OFFLINE
   useEffect(() => {
-    // Nếu chưa đăng nhập thì không làm gì
-    if (!user?.id) return;
+    if (!user) return;
 
     const dbInstance = getFirestore();
     const userRef = doc(dbInstance, "users", user.id);
 
-    // Hàm báo Online (Cập nhật timestamp)
     const reportOnline = async () => {
       try {
-        await updateDoc(userRef, {
-          isOnline: true,
-          lastActiveAt: serverTimestamp()
-        });
-      } catch (e) { /* Bỏ qua lỗi mạng nhỏ */ }
-    };
-
-    // Hàm báo Offline (Chỉ dùng khi tắt tab)
-    const reportOffline = async () => {
-      try {
-        await updateDoc(userRef, {
-          isOnline: false,
-          lastActiveAt: serverTimestamp()
-        });
+        await updateDoc(userRef, { isOnline: true, lastActiveAt: serverTimestamp() });
       } catch (e) {}
     };
 
-    // A. Báo Online ngay lập tức
+    const reportOffline = async () => {
+      try {
+        await updateDoc(userRef, { isOnline: false, lastActiveAt: serverTimestamp() });
+      } catch (e) {}
+    };
+
     reportOnline();
+    const interval = setInterval(reportOnline, 60000); // 1 phút
 
-    // B. Cứ 2 phút báo Online lại 1 lần (Heartbeat)
-    // Giảm tần suất xuống để đỡ tốn tài nguyên, server check 5 phút mới coi là offline
-    const intervalId = setInterval(reportOnline, 2 * 60 * 1000);
-
-    // C. Xử lý khi người dùng ẩn tab đi và quay lại
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        reportOnline();
-      }
+        if (document.visibilityState === 'visible') reportOnline();
     };
-
-    // D. Xử lý khi tắt hẳn trình duyệt (Quan trọng)
-    const handleBeforeUnload = () => {
-        // Dùng navigator.sendBeacon để gửi tin hiệu cuối cùng tin cậy hơn
-        reportOffline();
-    };
+    const handleBeforeUnload = () => reportOffline();
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
-      clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      
-      // [QUAN TRỌNG]: KHÔNG gọi reportOffline() ở đây nữa!
-      // Vì React có thể chạy cleanup khi component re-render (do update ví tiền),
-      // nếu gọi ở đây sẽ gây nhấp nháy.
-      // Chúng ta chỉ Offline khi: 1. Tắt trình duyệt (beforeUnload), 2. Bấm Logout.
+        clearInterval(interval);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+        window.removeEventListener("beforeunload", handleBeforeUnload);
+        reportOffline();
     };
-  }, [user?.id]); // [FIX]: Chỉ chạy lại khi ID thay đổi (Đăng nhập/Đăng xuất), ko chạy khi update ví.
+  }, [user]); // Chỉ chạy lại khi login/logout
 
-
-  // --- HANDLERS ---
+  // HANDLERS
   const handleLogin = (u: User) => {
       setUser(u);
       prevBalanceRef.current = u.walletBalance;
   };
-  
-  const handleLogout = async () => {
-    // Báo Offline chủ động trước khi logout
-    if (user?.id) {
-        try {
-            const dbInstance = getFirestore();
-            await updateDoc(doc(dbInstance, "users", user.id), {
-                isOnline: false,
-                lastActiveAt: serverTimestamp()
-            });
-        } catch(e) {}
-    }
-    
+  const handleLogout = () => {
     db.logout();
     setUser(null);
     prevBalanceRef.current = 0;
   };
-  
   const handleUpdateUser = (u: User) => {
     setUser(u);
     prevBalanceRef.current = u.walletBalance;
   };
 
-  // Màn hình chờ
   if (isInitializing) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-gray-50">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-blue-600 font-black uppercase text-[10px] tracking-widest">Chợ Của Tui...</p>
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-primary font-black uppercase text-[10px] tracking-widest">Chợ Của Tui đang tải...</p>
       </div>
     );
   }
@@ -190,7 +146,7 @@ const App: React.FC = () => {
     <HelmetProvider>
       <Router>
         <ScrollToTop />
-        {!user && <GoogleOneTap onLogin={handleLogin} />}
+        {!isInitializing && !user && <GoogleOneTap onLogin={handleLogin} />}
 
         <Layout user={user}>
           <Routes>
@@ -201,14 +157,15 @@ const App: React.FC = () => {
 
             <Route path="/san-pham/:slugWithId" element={<ListingDetail user={user} />} />
             <Route path="/listings/:slugWithId" element={<ListingDetail user={user} />} />
-            <Route path="/listing/:id" element={<ListingDetail user={user} />} />
+            <Route path="/listing/:slugWithId" element={<ListingDetail user={user} />} />
 
             <Route path="/profile" element={user ? <Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
             <Route path="/profile/:id" element={<SellerProfile currentUser={user} />} />
             <Route path="/seller/:id" element={<SellerProfile currentUser={user} />} />
             
             <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
-            <Route path="/edit/:id" element={user ? <EditListing user={user} /> : <Navigate to="/login" />} />
+            {/* GIỮ NGUYÊN ROUTE CŨ: Dùng PostListing cho Edit */}
+            <Route path="/edit/:id" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
             
             <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
             

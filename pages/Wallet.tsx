@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Transaction } from '../types';
 import { formatPrice } from '../utils/format';
+
+// [SỬA LỖI] Dùng bộ Icon cơ bản hơn để tránh lỗi version cũ gây trắng trang
 import { 
   Wallet as WalletIcon, QrCode, CreditCard, Copy, Check, 
-  Clock, XCircle, ArrowUpRight, ArrowDownLeft, Loader2, 
-  Banknote, History, CheckCircle, RefreshCw, User as UserIcon
+  Clock, XCircle, ArrowUp, ArrowDown, Loader2, // Thay ArrowUpRight/DownLeft bằng ArrowUp/Down
+  Banknote, History, CheckCircle, RefreshCcw, User as UserIcon // Thay RefreshCw bằng RefreshCcw
 } from 'lucide-react';
 
 const PRESET_AMOUNTS = [50000, 100000, 200000, 500000, 1000000, 2000000];
@@ -25,7 +27,6 @@ const removeVietnameseTones = (str: string) => {
     return str.toUpperCase();
 }
 
-// [FIX] Không nhận onUpdateUser nữa để cắt vòng lặp
 const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> = ({ user }) => {
   const navigate = useNavigate();
   const [amount, setAmount] = useState<string>('100000'); 
@@ -40,7 +41,7 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
     
-    // Chỉ tải lịch sử giao dịch và cài đặt
+    // Chỉ tải lịch sử và cài đặt
     const loadData = async () => {
       try {
         const [s, txs] = await Promise.all([db.getSettings(), db.getTransactions(user.id)]);
@@ -50,14 +51,14 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
     };
 
     loadData();
-    // Tự động làm mới lịch sử mỗi 5 giây (nhẹ nhàng)
+    // Tự động tải lại lịch sử (nhẹ nhàng)
     const interval = setInterval(loadData, 5000); 
     return () => clearInterval(interval);
-  }, [user?.id, navigate]); // [QUAN TRỌNG] Chỉ phụ thuộc user.id
+  }, [user?.id, navigate]); 
 
   if (!user) return null;
 
-  // ... Logic handlers ...
+  // Handlers
   const handleSelectPreset = (value: number) => setAmount(value.toString());
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => setAmount(e.target.value.replace(/\D/g, ''));
   
@@ -108,7 +109,7 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
                 <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mb-1 flex items-center gap-2"><WalletIcon className="w-3.5 h-3.5" /> Số dư khả dụng</p>
                 <div className="flex items-center gap-2">
                     <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter">{formatPrice(user.walletBalance || 0)}</h2>
-                    <button onClick={handleManualRefresh} className={`p-1.5 bg-white/10 rounded-full hover:bg-white/20 transition-all ${isRefreshing ? 'animate-spin' : ''}`}><RefreshCw className="w-4 h-4" /></button>
+                    <button onClick={handleManualRefresh} className={`p-1.5 bg-white/10 rounded-full hover:bg-white/20 transition-all ${isRefreshing ? 'animate-spin' : ''}`}><RefreshCcw className="w-4 h-4" /></button>
                 </div>
              </div>
              <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10"><CreditCard className="w-6 h-6" /></div>
@@ -143,7 +144,8 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
               {transactions.length > 0 ? transactions.map(tx => (
                 <div key={tx.id} className="flex items-center justify-between p-3 bg-gray-50/30 border border-gray-100 rounded-xl">
                   <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${tx.type === 'deposit' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>{tx.type === 'deposit' ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}</div>
+                      {/* [QUAN TRỌNG] Đã thay ArrowUpRight/ArrowDownLeft bằng ArrowUp/ArrowDown để tránh lỗi */}
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${tx.type === 'deposit' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>{tx.type === 'deposit' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}</div>
                       <div><p className="text-[10px] font-black uppercase text-slate-700">{tx.type === 'deposit' ? 'Nạp tiền' : 'Thanh toán'}</p><p className="text-[9px] text-gray-400 font-bold">{new Date(tx.createdAt).toLocaleDateString('vi-VN')}</p></div>
                   </div>
                   <div className="text-right"><p className={`text-xs font-black ${tx.type === 'deposit' ? 'text-green-600' : 'text-red-600'}`}>{tx.type === 'deposit' ? '+' : '-'}{formatPrice(tx.amount)}</p><span className={`text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase ${tx.status === 'pending' ? 'bg-yellow-100 text-yellow-600' : tx.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>{tx.status === 'pending' ? 'Đang duyệt' : tx.status === 'success' ? 'Thành công' : 'Thất bại'}</span></div>

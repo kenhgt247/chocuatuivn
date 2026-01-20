@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { HelmetProvider } from 'react-helmet-async'; 
-import { ToastContainer, toast } from 'react-toastify'; // [THÊM] Toast
+import { HelmetProvider } from 'react-helmet-async'; // [QUAN TRỌNG] Hỗ trợ SEO Facebook/Zalo
+import { ToastContainer, toast } from 'react-toastify'; // [THÊM] Thông báo đẹp
 import 'react-toastify/dist/ReactToastify.css';
 
 // Layout & Pages (GIỮ NGUYÊN CẤU TRÚC CỦA BẠN)
@@ -9,7 +9,7 @@ import Layout from './components/Layout';
 import Home from './pages/Home';
 import ListingDetail from './pages/ListingDetail';
 import PostListing from './pages/PostListing';
-import Chat from './pages/Chat';
+import Chat from './pages/Chat'; // Giữ nguyên Chat
 import Profile from './pages/Profile';
 import SellerProfile from './pages/SellerProfile';
 import Auth from './pages/Auth';
@@ -17,7 +17,7 @@ import Register from './pages/Register';
 import ManageAds from './pages/ManageAds';
 import Subscription from './pages/Subscription';
 import Wallet from './pages/Wallet';
-import Admin from './pages/Admin';
+import Admin from './pages/Admin'; // Giữ nguyên Admin
 import StaticPage from './pages/StaticPage';
 
 // Component Google One Tap
@@ -66,7 +66,7 @@ const App: React.FC = () => {
                     // Kiểm tra tiền về: Nếu số dư mới > số dư cũ
                     if (updatedUser.walletBalance > prevBalanceRef.current) {
                         const amount = updatedUser.walletBalance - prevBalanceRef.current;
-                        // Thông báo "Ting Ting"
+                        // Thông báo "Ting Ting" khi được cộng tiền
                         toast.success(`💰 Ting Ting! Ví của bạn vừa được cộng ${formatPrice(amount)}`);
                     }
                     
@@ -93,7 +93,7 @@ const App: React.FC = () => {
   }, []);
 
   // ----------------------------------------------------------------
-  // [THÊM MỚI] LOGIC ONLINE/OFFLINE (HEARTBEAT)
+  // [THÊM MỚI] LOGIC ONLINE/OFFLINE (HEARTBEAT) - ĐỂ NÚT XANH HOẠT ĐỘNG
   // ----------------------------------------------------------------
   useEffect(() => {
     if (!user) return;
@@ -124,7 +124,7 @@ const App: React.FC = () => {
     // 1. Báo online ngay khi chạy
     reportOnline();
 
-    // 2. Báo lại mỗi 60s
+    // 2. Báo lại mỗi 60s (Nhịp tim)
     const interval = setInterval(reportOnline, 60000);
 
     // 3. Xử lý khi ẩn/hiện tab
@@ -164,7 +164,7 @@ const App: React.FC = () => {
     prevBalanceRef.current = u.walletBalance;
   };
 
-  // Màn hình loading khi đang check login
+  // Màn hình loading khi đang check login (Xử lý UX khi mở app)
   if (isInitializing) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-bgMain">
@@ -175,7 +175,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <HelmetProvider> 
+    <HelmetProvider> {/* [BẮT BUỘC] Bao bọc toàn bộ để SEO Helmet hoạt động */}
       <Router>
         <ScrollToTop />
 
@@ -184,30 +184,30 @@ const App: React.FC = () => {
 
         <Layout user={user}>
           <Routes>
-            {/* TRANG CHỦ & TÌM KIẾM (Giữ nguyên Home) */}
+            {/* TRANG CHỦ & TÌM KIẾM */}
             <Route path="/" element={<Home user={user} />} />
             <Route path="/search" element={<Home user={user} />} />
             <Route path="/danh-muc/:slug" element={<Home user={user} />} />
             <Route path="/danh-muc/:parentSlug/:childSlug" element={<Home user={user} />} />
 
-            {/* CHI TIẾT SẢN PHẨM */}
+            {/* CHI TIẾT SẢN PHẨM (Hỗ trợ nhiều định dạng URL) */}
             <Route path="/san-pham/:slugWithId" element={<ListingDetail user={user} />} />
             <Route path="/listings/:slugWithId" element={<ListingDetail user={user} />} />
             <Route path="/listing/:slugWithId" element={<ListingDetail user={user} />} />
 
-            {/* TRANG CÁ NHÂN & QUẢN LÝ */}
+            {/* TRANG CÁ NHÂN & QUẢN LÝ (Yêu cầu Đăng nhập) */}
             <Route path="/profile" element={user ? <Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
             <Route path="/profile/:id" element={<SellerProfile currentUser={user} />} />
             <Route path="/seller/:id" element={<SellerProfile currentUser={user} />} />
             
-            {/* ĐĂNG TIN & CHỈNH SỬA (Giữ nguyên PostListing cho cả 2) */}
+            {/* ĐĂNG TIN & CHỈNH SỬA */}
             <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
             <Route path="/edit/:id" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
             
             {/* QUẢN LÝ TIN ĐĂNG */}
             <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
             
-            {/* HỆ THỐNG CHAT (Giữ nguyên Chat) */}
+            {/* HỆ THỐNG CHAT (Dùng component Chat cho cả 2 route) */}
             <Route path="/chat" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
             <Route path="/chat/:roomId" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
             
@@ -218,7 +218,7 @@ const App: React.FC = () => {
             {/* QUẢN TRỊ VIÊN (ADMIN) */}
             <Route path="/admin" element={user?.role === 'admin' ? <Admin user={user} /> : <Navigate to="/" />} />
 
-            {/* XÁC THỰC */}
+            {/* XÁC THỰC (Ẩn khi đã đăng nhập) */}
             <Route 
               path="/login" 
               element={!user ? <Auth onLogin={handleLogin} /> : <Navigate to="/" replace />} 
@@ -234,8 +234,8 @@ const App: React.FC = () => {
           </Routes>
         </Layout>
 
-        {/* [THÊM] Toast Container để hiện thông báo đẹp */}
-        <ToastContainer position="bottom-center" autoClose={3000} hideProgressBar={true} newestOnTop={true} theme="light" />
+        {/* Thông báo toàn cục */}
+        <ToastContainer position="bottom-center" autoClose={2000} hideProgressBar={true} newestOnTop={true} theme="light" />
       </Router>
     </HelmetProvider>
   );

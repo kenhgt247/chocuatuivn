@@ -58,9 +58,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   }, [user?.id]);
 
-  // Tính toán số tin chưa đọc
+  // Tính toán số tin chưa đọc (Thêm optional chaining cho an toàn)
   const unreadChatCount = user ? chatRooms.filter(r => 
-    r.messages.length > 0 && 
+    r.messages?.length > 0 && 
     !r.seenBy?.includes(user.id) // Nếu user chưa xem thì đếm
   ).length : 0;
 
@@ -155,15 +155,13 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
       {/* HEADER */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 px-3 md:px-6 lg:px-10 h-auto min-h-[5rem] flex items-center justify-between gap-2 md:gap-4 shadow-sm pt-[env(safe-area-inset-top)] transition-all">
         
-       {/* LOGO - STYLE 1: GRADIENT SANG CHẢNH */}
-<div className="flex items-center flex-shrink-0 h-14 md:h-20">
-  <Link to="/" className="flex items-center gap-2.5 group">
-    <div className="w-10 h-10 md:w-11 md:h-11 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl md:rounded-2xl flex items-center justify-center text-white text-xl md:text-2xl shadow-lg shadow-blue-500/40 group-hover:rotate-12 transition-all duration-500 border border-white/20">⚡</div>
-    <span className="hidden lg:block font-black text-xl md:text-2xl tracking-tighter bg-gradient-to-r from-blue-700 via-blue-500 to-yellow-500 bg-clip-text text-transparent group-hover:scale-[1.02] transition-transform origin-left drop-shadow-sm">
-      Chợ của tui
-    </span>
-  </Link>
-</div>
+        {/* LOGO */}
+        <div className="flex items-center flex-shrink-0 h-14 md:h-20">
+          <Link to="/" className="flex items-center gap-2 group">
+            <div className="w-9 h-9 md:w-11 md:h-11 bg-gradient-to-tr from-primary to-blue-400 rounded-xl md:rounded-2xl flex items-center justify-center text-white text-lg md:text-2xl shadow-lg shadow-primary/25 group-hover:rotate-6 transition-all duration-300">⚡</div>
+            <span className="font-black text-lg md:text-xl text-slate-800 hidden lg:block tracking-tighter group-hover:text-primary transition-colors">Chợ của tui</span>
+          </Link>
+        </div>
 
         {/* SEARCH BAR */}
         <form onSubmit={handleSearch} className="flex-1 max-w-2xl relative group px-1 md:px-0">

@@ -4,8 +4,8 @@ import { Listing, User } from '../types';
 import { formatPrice, formatTimeAgo } from '../utils/format';
 import { db } from '../services/db';
 
-// --- IMPORT ICON VECTOR ---
-import { Heart, Zap, MapPin, Eye, Loader2, Clock, User as UserIcon } from 'lucide-react';
+// --- IMPORT ICON VECTOR (Thêm ArrowUpCircle) ---
+import { Heart, Zap, MapPin, Eye, Loader2, Clock, User as UserIcon, ArrowUpCircle } from 'lucide-react';
 
 interface ListingCardProps {
   listing: Listing;
@@ -61,7 +61,6 @@ const ListingCard: React.FC<ListingCardProps> = ({
 
     const finalPrice = pushConfig.price * (1 - pushConfig.discount / 100);
 
-    // Kiểm tra số dư ví
     if ((currentUser.walletBalance || 0) < finalPrice) {
         if (window.confirm(`⚠️ Số dư không đủ (${formatPrice(currentUser.walletBalance || 0)} < ${formatPrice(finalPrice)}).\nBạn có muốn nạp tiền ngay không?`)) {
             navigate('/wallet');
@@ -88,11 +87,9 @@ const ListingCard: React.FC<ListingCardProps> = ({
     }
   };
 
-  // Kiểm tra quyền chủ sở hữu
   const isOwner = currentUser && (String(currentUser.id) === String(listing.sellerId));
   const canPush = isOwner && (listing.status === 'approved');
 
-  // --- LOGIC PHÂN LOẠI TIN (Giữ nguyên logic cũ) ---
   const getCardStyle = () => {
     switch (listing.tier) {
       case 'pro': // TIN VIP
@@ -143,7 +140,6 @@ const ListingCard: React.FC<ListingCardProps> = ({
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none"></div>
         </Link>
         
-        {/* Badges */}
         <div className="absolute top-2 left-2 flex flex-col gap-1 z-10 pointer-events-none">
             {cardStyle.badge}
         </div>
@@ -157,32 +153,38 @@ const ListingCard: React.FC<ListingCardProps> = ({
           <Heart className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} strokeWidth={2.5} />
         </button>
 
-        {/* Nút Đẩy tin (Chỉ hiện cho chủ tin) */}
+        {/* --- NÚT ĐẨY TIN (MŨI TÊN XANH + TOOLTIP) --- */}
         {canPush && (
-            <button 
-                onClick={handlePushClick}
-                disabled={isPushing}
-                className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg hover:bg-green-600 transition-all active:scale-90 animate-bounce-slow z-30 disabled:opacity-50 disabled:animate-none border-2 border-white"
-                title={`Đẩy tin lên đầu (${formatPrice(pushConfig.price * (1 - pushConfig.discount/100))})`}
-            >
-                {isPushing ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                    <Zap className="w-4 h-4" fill="currentColor" />
-                )}
-            </button>
+            <div className="absolute bottom-2 right-2 z-40 group/push">
+                {/* TOOLTIP HIỆN KHI HOVER */}
+                <div className="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-black/80 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover/push:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
+                    Đẩy tin lên đầu tiên
+                    {/* Mũi tên trỏ xuống của tooltip */}
+                    <div className="absolute top-full right-3 border-4 border-transparent border-t-black/80"></div>
+                </div>
+
+                {/* NÚT BẤM CHÍNH */}
+                <button 
+                    onClick={handlePushClick}
+                    disabled={isPushing}
+                    className="w-9 h-9 rounded-full bg-white text-green-600 flex items-center justify-center shadow-lg hover:bg-green-50 transition-all active:scale-90 animate-bounce-slow disabled:opacity-50 disabled:animate-none border border-green-100"
+                >
+                    {isPushing ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                        <ArrowUpCircle className="w-6 h-6" strokeWidth={2} />
+                    )}
+                </button>
+            </div>
         )}
       </div>
 
       {/* --- PHẦN NỘI DUNG --- */}
       <Link to={`/san-pham/${listing.slug}-${listing.id}`} className={`flex flex-col flex-1 p-3 space-y-2 ${cardStyle.bgTitle}`}>
-        
-        {/* Tiêu đề */}
         <h3 className={`text-xs ${listing.tier === 'pro' ? 'font-black text-black' : 'font-bold text-slate-700'} line-clamp-2 min-h-[2.5em] leading-relaxed group-hover:text-primary transition-colors`}>
           {listing.title}
         </h3>
 
-        {/* GIÁ TIỀN & LƯỢT XEM */}
         <div className="flex items-center justify-between mt-1">
             <span className="text-sm font-black text-red-600">
                 {formatPrice(listing.price)}
@@ -196,7 +198,6 @@ const ListingCard: React.FC<ListingCardProps> = ({
             )}
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-auto">
             <div className="flex items-center gap-1.5 min-w-0">
                 {listing.sellerAvatar ? (

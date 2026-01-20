@@ -10,7 +10,7 @@ import Home from './pages/Home';
 import ListingDetail from './pages/ListingDetail';
 import PostListing from './pages/PostListing';
 import Chat from './pages/Chat';
-import ChatList from './pages/ChatList'; // Thêm nếu bạn có trang danh sách chat
+//import ChatList from './pages/ChatList'; // Thêm nếu bạn có trang danh sách chat
 import Profile from './pages/Profile';
 import SellerProfile from './pages/SellerProfile';
 import Auth from './pages/Auth';

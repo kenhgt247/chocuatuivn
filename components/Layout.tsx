@@ -155,13 +155,12 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
       {/* HEADER */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 px-3 md:px-6 lg:px-10 h-auto min-h-[5rem] flex items-center justify-between gap-2 md:gap-4 shadow-sm pt-[env(safe-area-inset-top)] transition-all">
         
-        {/* LOGO */}
+       {/* LOGO - STYLE 1: GRADIENT SANG CHẢNH */}
 <div className="flex items-center flex-shrink-0 h-14 md:h-20">
-  <Link to="/" className="flex items-center gap-2 group">
-    <div className="w-9 h-9 md:w-11 md:h-11 bg-gradient-to-tr from-blue-600 to-cyan-400 rounded-xl md:rounded-2xl flex items-center justify-center text-white text-lg md:text-2xl shadow-lg shadow-blue-500/30 group-hover:rotate-6 transition-all duration-300">⚡</div>
-    {/* TEXT PHỐI MÀU: CHỢ (XANH ĐẬM) - TUI (VÀNG) */}
-    <span className="font-black text-lg md:text-xl hidden lg:block tracking-tighter text-slate-700 group-hover:text-blue-700 transition-colors">
-      Chợ của <span className="text-yellow-500 text-2xl relative top-[1px]">tui</span>
+  <Link to="/" className="flex items-center gap-2.5 group">
+    <div className="w-10 h-10 md:w-11 md:h-11 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl md:rounded-2xl flex items-center justify-center text-white text-xl md:text-2xl shadow-lg shadow-blue-500/40 group-hover:rotate-12 transition-all duration-500 border border-white/20">⚡</div>
+    <span className="hidden lg:block font-black text-xl md:text-2xl tracking-tighter bg-gradient-to-r from-blue-700 via-blue-500 to-yellow-500 bg-clip-text text-transparent group-hover:scale-[1.02] transition-transform origin-left drop-shadow-sm">
+      Chợ của tui
     </span>
   </Link>
 </div>

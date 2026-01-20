@@ -333,11 +333,11 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
 
       <div className="grid lg:grid-cols-12 gap-0 md:gap-8">
         
-        {/* LEFT: MEDIA GALLERY & DETAILS */}
+       {/* LEFT: MEDIA GALLERY & DETAILS */}
         <div className="lg:col-span-8 space-y-6">
           
-         {/* Main Media (Video/Image) */}
-          <div className={`relative aspect-square md:aspect-video md:rounded-xl group shadow-sm border border-gray-100 z-20 ${isVideoActive ? 'bg-gray-900 border-gray-800 overflow-hidden' : 'bg-white'}`}>
+          {/* 1. Main Media (Video/Image) */}
+          <div className={`relative w-full aspect-square md:aspect-video md:rounded-xl group shadow-sm border border-gray-100 z-20 overflow-hidden ${isVideoActive ? 'bg-gray-900 border-gray-800' : 'bg-white'}`}>
             
             {/* Watermark */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden select-none">
@@ -349,7 +349,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             </div>
             
             {isVideoActive ? (
-                // VIDEO
+                // VIDEO PLAYER
                 <div className="relative w-full h-full cursor-pointer" onClick={handleVideoPlayPause}>
                     <video ref={videoRef} src={listing.videoUrl || ""} poster={listing.images[0] || ""} className="w-full h-full object-contain bg-black" autoPlay loop muted={isMuted} playsInline />
                     <div className="absolute bottom-6 left-6 right-6 z-30 flex justify-between items-end">
@@ -362,7 +362,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                     </div>
                 </div>
             ) : (
-                // IMAGE
+                // IMAGE VIEWER
                 <>
                     {/* MOBILE: Click to Lightbox */}
                     <div className="md:hidden w-full h-full relative" onClick={() => setIsLightboxOpen(true)}>
@@ -379,29 +379,36 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                 </>
             )}
             
-            {/* Nav Buttons */}
+            {/* Navigation Buttons (Previous/Next) */}
             {mediaList.length > 1 && (
               <>
-                <button onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1); }} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-30 shadow-xl opacity-0 group-hover:opacity-100">
+                <button 
+                    onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev > 0 ? prev - 1 : mediaList.length - 1); }} 
+                    className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-30 shadow-xl opacity-0 group-hover:opacity-100 hidden md:block"
+                >
                     <ChevronLeft className="w-6 h-6" />
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev < mediaList.length - 1 ? prev + 1 : 0); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-30 shadow-xl opacity-0 group-hover:opacity-100">
+                <button 
+                    onClick={(e) => { e.stopPropagation(); setActiveMedia(prev => prev < mediaList.length - 1 ? prev + 1 : 0); }} 
+                    className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-primary transition-all z-30 shadow-xl opacity-0 group-hover:opacity-100 hidden md:block"
+                >
                     <ChevronRight className="w-6 h-6" />
                 </button>
               </>
             )}
           </div>
 
-          {/* Thumbnails - ĐÃ SỬA LỖI UI */}
-          <div className="flex gap-2 mt-4 overflow-x-auto pb-2 px-1 snap-x scrollbar-hide">
+          {/* 2. Thumbnails List (ĐÃ FIX HOÀN TOÀN) */}
+          <div className="flex gap-2 mt-4 overflow-x-auto pb-2 px-1 snap-x scrollbar-hide touch-pan-x">
             {mediaList.map((item, idx) => (
               <button 
                 key={idx} 
                 onClick={() => setActiveMedia(idx)} 
-                // --- CÁC CLASS QUAN TRỌNG ĐÃ SỬA ---
-                // 1. flex-shrink-0: Bắt buộc ảnh giữ nguyên kích thước, không bị bóp méo khi hết chỗ
-                // 2. w-16 h-16 (Mobile) & md:w-20 md:h-20 (Desktop): Kích thước vuông vức, cố định
-                // 3. snap-start: Giúp cảm giác vuốt trên điện thoại mượt mà (dừng đúng vị trí ảnh)
+                // --- GIẢI THÍCH CÁC CLASS QUAN TRỌNG ---
+                // flex-shrink-0: Ngăn không cho ảnh bị co lại khi hết chỗ (BẮT BUỘC cho mobile)
+                // w-16 h-16: Kích thước cố định trên Mobile (64px)
+                // md:w-20 md:h-20: Kích thước cố định trên Desktop (80px)
+                // snap-start: Giúp cuộn mượt mà từng ảnh một
                 className={`
                   relative flex-shrink-0 
                   w-16 h-16 md:w-20 md:h-20 
@@ -419,11 +426,11 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                   alt={`Thumbnail ${idx + 1}`} 
                 />
                 
-                {/* Icon Play cho Video */}
+                {/* Icon Play hiển thị trên Thumbnail nếu là Video */}
                 {listing.videoUrl && idx === 0 && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                      <div className="w-5 h-5 bg-white/90 rounded-full flex items-center justify-center shadow-sm backdrop-blur-sm">
-                          <Play className="w-2.5 h-2.5 text-primary ml-0.5" fill="currentColor" />
+                      <div className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center shadow-sm backdrop-blur-sm">
+                          <Play className="w-3 h-3 text-primary ml-0.5" fill="currentColor" />
                       </div>
                   </div>
                 )}

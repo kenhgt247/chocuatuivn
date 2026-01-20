@@ -5,7 +5,7 @@ import { User, Listing, Review } from '../types';
 import ListingCard from '../components/ListingCard';
 import { formatTimeAgo } from '../utils/format';
 import ReviewSection from '../components/ReviewSection';
-import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { QueryDocumentSnapshot, DocumentData, getFirestore, doc, onSnapshot } from 'firebase/firestore';
 
 // --- IMPORT ICON VECTOR ---
 import { 
@@ -30,6 +30,9 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
   const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
   const [isPhoneVisible, setIsPhoneVisible] = useState(false);
   
+  // [NEW] State Online Realtime
+  const [isSellerOnline, setIsSellerOnline] = useState(false);
+
   // State Loading & Error
   const [loading, setLoading] = useState(true);
   const [chatLoading, setChatLoading] = useState(false);
@@ -53,7 +56,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
     setQueryError(null);
 
     try {
-      // 1. Lấy thông tin người bán
+      // 1. Lấy thông tin người bán (Lần đầu)
       const found = await db.getUserById(id);
       
       if (found) {
@@ -108,6 +111,36 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
     loadInitialData();
     window.scrollTo(0, 0);
   }, [loadInitialData]);
+
+  // [QUAN TRỌNG] Lắng nghe trạng thái Online Realtime
+  useEffect(() => {
+    if (!id) return;
+
+    const dbInstance = getFirestore();
+    const userRef = doc(dbInstance, "users", id);
+
+    const unsubscribe = onSnapshot(userRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const isOnline = data.isOnline === true;
+            
+            // Kiểm tra thêm thời gian hoạt động cuối cùng (trong vòng 5 phút)
+            let isActiveRecently = true;
+            if (data.lastActiveAt) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const lastActiveTime = (data.lastActiveAt as any).toMillis ? (data.lastActiveAt as any).toMillis() : new Date(data.lastActiveAt).getTime();
+                const now = Date.now();
+                if (now - lastActiveTime > 5 * 60 * 1000) {
+                    isActiveRecently = false;
+                }
+            }
+
+            setIsSellerOnline(isOnline && isActiveRecently);
+        }
+    });
+
+    return () => unsubscribe();
+  }, [id]);
 
   const handleLoadMore = async () => {
     if (isFetchingMore || !hasMore || !lastDoc || !id) return;
@@ -195,7 +228,6 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
 
   // --- LOGIC HIỆN SỐ ĐIỆN THOẠI ---
   const handlePhoneClick = () => {
-    // 1. Nếu chưa đăng nhập -> Chuyển sang Login, kèm state để quay lại đây
     if (!currentUser) {
         if(window.confirm("Bạn cần đăng nhập để xem số điện thoại.")) {
             navigate('/login', { state: { from: location.pathname } });
@@ -203,7 +235,6 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
         return;
     }
 
-    // 2. Nếu đã đăng nhập:
     if (isPhoneVisible && seller?.phone) {
         window.location.href = `tel:${seller.phone}`;
     } else {
@@ -244,17 +275,11 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
               className="w-32 h-32 md:w-44 md:h-44 rounded-[3rem] border-4 border-white shadow-2xl object-cover" 
             />
             
-            {/* Online Status Badge */}
-            {(() => {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const isUserOnline = (seller as any).isOnline || false; 
-              return (
-                <div className={`absolute -bottom-2 right-4 px-3 py-1 rounded-xl border-4 border-white shadow-lg flex items-center gap-1.5 transition-colors duration-300 ${isUserOnline ? 'bg-green-500' : 'bg-gray-400'}`}>
-                   <div className={`w-1.5 h-1.5 bg-white rounded-full ${isUserOnline ? 'animate-pulse' : ''}`}></div>
-                   <span className="text-[8px] font-black text-white uppercase">{isUserOnline ? 'Online' : 'Offline'}</span>
-                </div>
-              );
-            })()}
+            {/* [UPDATED] Online Status Badge (Realtime) */}
+            <div className={`absolute -bottom-2 right-4 px-3 py-1 rounded-xl border-4 border-white shadow-lg flex items-center gap-1.5 transition-colors duration-300 ${isSellerOnline ? 'bg-green-500' : 'bg-gray-400'}`}>
+                <div className={`w-1.5 h-1.5 bg-white rounded-full ${isSellerOnline ? 'animate-pulse' : ''}`}></div>
+                <span className="text-[8px] font-black text-white uppercase">{isSellerOnline ? 'Online' : 'Offline'}</span>
+            </div>
           </div>
 
           {/* Info Section */}

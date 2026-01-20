@@ -1,453 +1,256 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { db, SystemSettings } from '../services/db';
-import { User, Listing } from '../types';
-import ListingCard from '../components/ListingCard';
-import { LOCATIONS } from '../constants';
-import { formatPrice } from '../utils/format';
-import { getLocationFromCoords } from '../utils/locationHelper'; 
+import React, { useState, useRef, useEffect } from 'react';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { User, ChatRoom } from '../types'; 
+import { identifyProductForSearch } from '../services/geminiService';
+import { db, app } from '../services/db'; 
+import UniversalInstallPrompt from './UniversalInstallPrompt';
 import { compressAndGetBase64 } from '../utils/imageCompression';
+import NotificationMenu from '../components/NotificationMenu';
 
-// --- Import Leaflet cho bản đồ ---
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+// ⚠️ TUYỆT ĐỐI KHÔNG IMPORT firebase/messaging Ở ĐÂY
 
-// --- IMPORT ICON VECTOR ---
-import { 
-  Camera, Settings, Package, Heart, Shield, LogOut, Upload, MapPin, 
-  User as UserIcon, Mail, Phone, Home, Crown, Diamond, CheckCircle, 
-  AlertTriangle, Loader2, CreditCard, ChevronRight, Edit2, ShieldCheck, 
-  FileText, Clock, Zap
-} from 'lucide-react';
+interface LayoutProps {
+  children: React.ReactNode;
+  user: User | null;
+}
 
-let DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
-
-const DraggableMarker = ({ position, onDragEnd }: { position: {lat: number, lng: number}, onDragEnd: (lat: number, lng: number) => void }) => {
-    const markerRef = useRef<L.Marker>(null);
-    useMapEvents({
-        click(e) { onDragEnd(e.latlng.lat, e.latlng.lng); },
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const eventHandlers = useMemo(() => ({
-        dragend() {
-          const marker = markerRef.current;
-          if (marker != null) {
-            const { lat, lng } = marker.getLatLng();
-            onDragEnd(lat, lng);
-          }
-        },
-    }), [onDragEnd]);
+const Layout: React.FC<LayoutProps> = ({ children, user }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams(); 
   
-    return <Marker draggable={true} eventHandlers={eventHandlers} position={position} ref={markerRef} />;
-}
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [isSearchingImage, setIsSearchingImage] = useState(false);
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
+  
+  // State an toàn cho quyền thông báo (tránh lỗi trên mobile cũ)
+  const [notifPermission, setNotifPermission] = useState(() => {
+    try {
+      return ("Notification" in window) ? Notification.permission : 'default';
+    } catch (e) { return 'default'; }
+  });
 
-interface ModalState {
-    show: boolean; title: string; message: string; onConfirm: () => void; type: 'push' | 'delete' | 'alert';
-}
+  const minPriceParam = searchParams.get('minPrice');
+  const maxPriceParam = searchParams.get('maxPrice');
+  const locationParam = searchParams.get('location');
 
-const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser: (u: User) => void }> = ({ user, onLogout, onUpdateUser }) => {
-    const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'listings' | 'favorites' | 'settings'>('listings');
-    const [myListings, setMyListings] = useState<Listing[]>([]);
-    const [myFavs, setMyFavs] = useState<Listing[]>([]);
-    const [settings, setSettings] = useState<SystemSettings | null>(null);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [isPushing, setIsPushing] = useState<string | null>(null);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [isFindingChat, setIsFindingChat] = useState<string | null>(null);
-    const [modal, setModal] = useState<ModalState>({ show: false, title: '', message: '', type: 'alert', onConfirm: () => {} });
+  // --- 1. ĐỒNG BỘ SEARCH ---
+  useEffect(() => {
+    setSearchQuery(searchParams.get('search') || '');
+  }, [searchParams]);
 
-    const avatarInputRef = useRef<HTMLInputElement>(null);
-    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-    const [kycFiles, setKycFiles] = useState<{front: File | null, back: File | null}>({ front: null, back: null });
-    const [kycPreviews, setKycPreviews] = useState<{front: string | null, back: string | null}>({ front: null, back: null });
-    const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
+  // --- 2. LẤY TIN NHẮN REALTIME (ĐỂ HIỆN SỐ ĐỎ) ---
+  useEffect(() => {
+    if (user?.id) {
+      // Gọi hàm lắng nghe tin nhắn từ DB
+      // @ts-ignore
+      const unsubChats = db.getChatRooms(user.id, (rooms: ChatRoom[]) => {
+        if (rooms) setChatRooms(rooms);
+      });
+      return () => {
+        // @ts-ignore
+        if (typeof unsubChats === 'function') unsubChats();
+      };
+    } else {
+      setChatRooms([]);
+    }
+  }, [user?.id]);
 
-    const [editForm, setEditForm] = useState({
-        name: user?.name || '',
-        email: user?.email || '',
-        phone: user?.phone || '',
-        location: user?.location || 'TPHCM',
-        address: user?.address || '',
-        lat: user?.lat || 10.762622,
-        lng: user?.lng || 106.660172
-    });
-    const [isSaving, setIsSaving] = useState(false);
+  // Tính toán số tin chưa đọc (Thêm optional chaining cho an toàn)
+  const unreadChatCount = user ? chatRooms.filter(r => 
+    r.messages?.length > 0 && 
+    !r.seenBy?.includes(user.id) // Nếu user chưa xem thì đếm
+  ).length : 0;
 
-    useEffect(() => {
-        if (!user) { navigate('/login'); return; }
-        const loadProfileData = async () => {
-            const [all, s] = await Promise.all([db.getListings(true), db.getSettings()]);
-            setMyListings(all.filter(l => String(l.sellerId) === String(user.id)));
-            setSettings(s);
-            const favIds = await db.getFavorites(user.id);
-            setMyFavs(all.filter(l => favIds.includes(l.id)));
-            setEditForm(prev => ({
-                ...prev, name: user.name, email: user.email, phone: user.phone || '',
-                location: user.location || 'TPHCM', address: user.address || '',
-                lat: user.lat || 10.762622, lng: user.lng || 106.660172
-            }));
-        };
-        loadProfileData();
-    }, [user, navigate]);
+  // --- 3. BẬT THÔNG BÁO (AN TOÀN - KHÔNG TRẮNG TRANG) ---
+  const handleEnableNotifications = async () => {
+    if (!("Notification" in window)) {
+      alert("Thiết bị này không hỗ trợ thông báo web.");
+      return;
+    }
 
-    const subscriptionData = useMemo(() => {
-        if (!user || user.subscriptionTier === 'free' || !user.subscriptionExpires) 
-            return { isExpired: true, daysRemaining: 0, effectiveTier: 'free', expiryDate: '' };
-        const expires = new Date(user.subscriptionExpires);
-        const now = new Date();
-        const diffTime = expires.getTime() - now.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        const isExpired = diffTime <= 0;
-        return {
-            daysRemaining: diffDays > 0 ? diffDays : 0,
-            expiryDate: expires.toLocaleDateString('vi-VN'),
-            isExpired, effectiveTier: isExpired ? 'free' : user.subscriptionTier
-        };
-    }, [user]);
+    try {
+      const permission = await Notification.requestPermission();
+      setNotifPermission(permission);
 
-    if (!user) return null;
-
-    // --- AVATAR LOGIC ---
-    const handleAvatarClick = () => avatarInputRef.current?.click();
-    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            if (!file.type.startsWith('image/')) return alert("Vui lòng chọn file ảnh");
-            setIsUploadingAvatar(true);
-            try {
-                const compressedBase64 = await compressAndGetBase64(file);
-                const url = await db.uploadImage(compressedBase64, `avatars/${user.id}_${Date.now()}`);
-                const updatedUser = await db.updateUserProfile(user.id, { avatar: url });
-                onUpdateUser(updatedUser);
-                alert("Đổi ảnh đại diện thành công!");
-            } catch (error) { alert("Lỗi khi tải ảnh lên."); } 
-            finally { setIsUploadingAvatar(false); }
+      if (permission === 'granted') {
+        if ('setAppBadge' in navigator) {
+            // @ts-ignore
+            navigator.setAppBadge(unreadChatCount).catch(() => {});
         }
-    };
 
-    // --- KYC LOGIC ---
-    const handleKycFileChange = (field: 'front' | 'back', e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setKycFiles(prev => ({ ...prev, [field]: file }));
-            const reader = new FileReader();
-            reader.onload = (ev) => setKycPreviews(prev => ({ ...prev, [field]: ev.target?.result as string }));
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handleSubmitKyc = async () => {
-        if (!kycFiles.front || !kycFiles.back) return alert("Vui lòng tải đủ 2 mặt giấy tờ");
-        if (!window.confirm("Xác nhận thông tin chính xác?")) return;
-        setIsSubmittingKyc(true);
+        // CHỈ TẢI THƯ VIỆN KHI BẤM NÚT (Lazy Load) -> Fix lỗi trắng trang
         try {
-            const uploadPromises = [kycFiles.front, kycFiles.back].map(async (file) => {
-                 const base64 = await compressAndGetBase64(file);
-                 return await db.uploadImage(base64, `kyc/${user.id}_${Date.now()}_${Math.random()}`);
+            console.log("Đang kích hoạt thông báo...");
+            const { getMessaging, getToken } = await import("firebase/messaging");
+            
+            const messaging = getMessaging(app);
+            const registration = await navigator.serviceWorker.ready;
+
+            const currentToken = await getToken(messaging, { 
+              // DÁN KEY CỦA BẠN VÀO ĐÂY (NẾU CÓ)
+              vapidKey: 'BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI', 
+              serviceWorkerRegistration: registration 
             });
-            const urls = await Promise.all(uploadPromises);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const updatedUser = await db.updateUserProfile(user.id, { 
-                verificationStatus: 'pending', verificationDocuments: urls 
-            } as any);
-            onUpdateUser(updatedUser);
-            alert("Đã gửi hồ sơ xác thực!");
-            setKycFiles({ front: null, back: null }); setKycPreviews({ front: null, back: null });
-        } catch (error) { alert("Lỗi gửi hồ sơ."); } 
-        finally { setIsSubmittingKyc(false); }
-    };
 
-    // --- DELETE LOGIC ---
-    const handleDelete = (id: string) => {
-        setModal({
-            show: true, title: "Xóa tin đăng", message: "Hành động này không thể hoàn tác.", type: 'delete',
-            onConfirm: async () => {
-                setModal(prev => ({ ...prev, show: false }));
-                try { await db.deleteListing(id); setMyListings(prev => prev.filter(l => l.id !== id)); } catch (e) { alert("Lỗi xóa tin"); }
+            if (currentToken && user?.id) {
+                // @ts-ignore
+                if (db.updateUserProfile) {
+                    // @ts-ignore
+                    await db.updateUserProfile(user.id, { fcmToken: currentToken });
+                    console.log("Đã đăng ký nhận tin thành công!");
+                }
             }
-        });
-    };
+            alert("✅ Đã bật thông báo! Bạn sẽ nhận được tin nhắn ngay cả khi tắt ứng dụng.");
+        } catch (err) {
+            console.error('Lỗi kích hoạt thông báo:', err);
+        }
+      }
+    } catch (error) {
+      console.error("Lỗi xin quyền:", error);
+    }
+  };
 
-    const handleLogout = async () => { await db.logout(); onLogout(); navigate('/'); };
-    const handleSaveSettings = async (e: React.FormEvent) => {
-        e.preventDefault(); setIsSaving(true);
-        try {
-            const updated = await db.updateUserProfile(user.id, editForm);
-            onUpdateUser(updated); alert('Cập nhật thành công!');
-        } catch (err) { alert("Lỗi cập nhật."); } finally { setIsSaving(false); }
-    };
+  // Cập nhật Badge liên tục
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'setAppBadge' in navigator && notifPermission === 'granted') {
+      if (unreadChatCount > 0) {
+          // @ts-ignore
+          navigator.setAppBadge(unreadChatCount).catch(() => {});
+      } else {
+          // @ts-ignore
+          navigator.clearAppBadge().catch(() => {});
+      }
+    }
+  }, [unreadChatCount, notifPermission]);
 
-    const pickCurrentLocation = () => {
-        if (!navigator.geolocation) return alert("Không hỗ trợ GPS");
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            const { latitude, longitude } = pos.coords;
-            setEditForm(prev => ({ ...prev, lat: latitude, lng: longitude }));
-            try {
-                const info = await getLocationFromCoords(latitude, longitude);
-                setEditForm(prev => ({ ...prev, address: info.address, location: info.city }));
-            } catch (e) { console.error(e); }
-        }, () => alert("Vui lòng bật định vị."));
-    };
+  // --- HANDLERS ---
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    navigate(q ? `/?search=${encodeURIComponent(q)}` : `/`);
+  };
 
-    const handleMarkerDragEnd = async (lat: number, lng: number) => {
-        setEditForm(prev => ({ ...prev, lat, lng }));
-        const info = await getLocationFromCoords(lat, lng);
-        setEditForm(prev => ({ ...prev, address: info.address, location: info.city }));
-    };
+  const handleImageSearchClick = () => {
+    fileInputRef.current?.click();
+  };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const renderVerificationStatus = (u: any) => {
-        const s = u.verificationStatus || 'unverified';
-        if (s === 'verified') return <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Xác thực</span>;
-        if (s === 'pending') return <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1"><Clock className="w-3 h-3" /> Chờ duyệt</span>;
-        return <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Chưa xác thực</span>;
-    };
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsSearchingImage(true);
+    try {
+        const base64 = await compressAndGetBase64(file);
+        const keywords = await identifyProductForSearch(base64);
+        navigate(`/?search=${encodeURIComponent(keywords.trim().toLowerCase())}&visual=true`);
+    } catch (err) { alert("Lỗi ảnh."); }
+    finally { setIsSearchingImage(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
+  };
 
-    return (
-        <div className="max-w-6xl mx-auto space-y-6 pb-20 px-4 md:px-0 relative font-sans animate-fade-in">
-            {/* Modal */}
-            {modal.show && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-                    <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl relative animate-fade-in-up border border-white">
-                        <h3 className="text-2xl font-black text-slate-900 mb-2">{modal.title}</h3>
-                        <p className="text-slate-500 text-sm font-medium mb-8 leading-relaxed">{modal.message}</p>
-                        <div className="flex gap-3">
-                            <button onClick={() => setModal(prev => ({ ...prev, show: false }))} className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">Hủy</button>
-                            <button onClick={modal.onConfirm} className={`flex-1 py-4 rounded-2xl font-black text-xs uppercase text-white shadow-lg transition-transform active:scale-95 ${modal.type === 'delete' ? 'bg-red-500' : 'bg-primary'}`}>Đồng ý</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Profile Header */}
-            <div className="bg-white border border-slate-100 rounded-[3rem] p-8 md:p-12 shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-                <div className="flex flex-col md:flex-row items-center gap-10 relative z-10">
-                    <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
-                        <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
-                        <img src={user.avatar} className="w-28 h-28 md:w-40 md:h-40 rounded-[2.5rem] border-4 border-white shadow-2xl object-cover transition-all group-hover:brightness-90" alt="" />
-                        {isUploadingAvatar ? (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-[2.5rem]"><Loader2 className="w-8 h-8 text-white animate-spin" /></div>
-                        ) : (
-                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-[2.5rem]"><Camera className="text-white w-8 h-8" /></div>
-                        )}
-                        <div className="absolute -bottom-2 -right-2 bg-primary text-white p-3 rounded-2xl shadow-xl border-4 border-white hover:bg-primaryHover transition-colors"><Edit2 className="w-4 h-4" /></div>
-                    </div>
-                    
-                    <div className="flex-1 text-center md:text-left space-y-4">
-                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
-                            <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter">{user.name}</h1>
-                            {renderVerificationStatus(user)}
-                            {user.role === 'admin' && (
-                                <Link to="/admin" className="bg-red-500 text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest shadow-lg shadow-red-200 hover:scale-105 transition-transform flex items-center gap-2">
-                                    <Shield className="w-3 h-3" /> Admin Panel
-                                </Link>
-                            )}
-                        </div>
-                        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest flex items-center justify-center md:justify-start gap-3">
-                            <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {user.email}</span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {user.phone || 'Chưa có SĐT'}</span>
-                        </p>
-                        
-                        <div className="flex flex-wrap justify-center md:justify-start gap-4 pt-4">
-                            {/* THẺ HẠNG THÀNH VIÊN */}
-                            <div className={`p-6 rounded-[2rem] border-2 shadow-lg min-w-[260px] relative overflow-hidden group ${subscriptionData.effectiveTier === 'free' ? 'bg-slate-50 border-slate-100' : 'bg-gradient-to-br from-yellow-500 to-orange-600 border-yellow-400 text-white shadow-yellow-100'}`}>
-                                <div className="flex justify-between items-start relative z-10">
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase opacity-70 tracking-widest flex items-center gap-1"><Crown className="w-3 h-3" /> Hạng thành viên</p>
-                                        <h4 className="text-2xl font-black uppercase mt-1">{(settings?.tierConfigs as any)?.[subscriptionData.effectiveTier]?.name || 'Cơ bản'}</h4>
-                                    </div>
-                                    <Diamond className={`w-8 h-8 ${subscriptionData.effectiveTier === 'free' ? 'text-slate-300' : 'text-white/80'}`} strokeWidth={1} />
-                                </div>
-                                <div className="mt-6 flex items-center justify-between relative z-10">
-                                    {!subscriptionData.isExpired ? <p className="text-xs font-bold opacity-80">Còn {subscriptionData.daysRemaining} ngày</p> : <p className="text-xs font-bold opacity-80">Trải nghiệm VIP ngay</p>}
-                                    <Link to="/upgrade" className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${subscriptionData.effectiveTier === 'free' ? 'bg-primary text-white shadow-lg hover:bg-primaryHover' : 'bg-white/20 border border-white/30 text-white hover:bg-white/30'}`}>Nâng cấp</Link>
-                                </div>
-                            </div>
-
-                            {/* THẺ VÍ */}
-                            <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-xl min-w-[200px] flex flex-col justify-center group hover:border-primary/20 transition-all">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1"><CreditCard className="w-3 h-3" /> Số dư ví</p>
-                                <p className="text-3xl font-black text-primary tracking-tighter">{formatPrice(user.walletBalance)}</p>
-                                <Link to="/wallet" className="text-[10px] font-black text-primary/60 hover:text-primary mt-3 uppercase flex items-center gap-1 group-hover:translate-x-1 transition-transform">Nạp thêm tiền <ChevronRight className="w-3 h-3" /></Link>
-                            </div>
-                        </div>
-                    </div>
-                    <button onClick={handleLogout} className="md:self-start text-slate-400 font-black px-6 py-2 text-[10px] uppercase tracking-[0.2em] hover:text-red-500 transition-colors flex items-center gap-2 bg-slate-50 rounded-xl">
-                        <LogOut className="w-3 h-3" /> Đăng xuất
-                    </button>
-                </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex p-1.5 bg-slate-100 rounded-[2rem] max-w-md mx-auto md:mx-0">
-                {[
-                    { id: 'listings', label: 'Tin đăng', icon: <Package className="w-4 h-4" /> },
-                    { id: 'favorites', label: 'Đã lưu', icon: <Heart className="w-4 h-4" /> },
-                    { id: 'settings', label: 'Cài đặt', icon: <Settings className="w-4 h-4" /> }
-                ].map(tab => (
-                    <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl text-[10px] font-black uppercase transition-all ${activeTab === tab.id ? 'bg-white text-primary shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>
-                        {tab.icon} <span>{tab.label}</span>
-                    </button>
-                ))}
-            </div>
-
-            {/* Content Area */}
-            <div className="mt-8">
-                {activeTab === 'listings' && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                        {myListings.map(listing => (
-                            <div key={listing.id} className="flex flex-col gap-3 group animate-fade-in-up">
-                                <div className="relative">
-                                    <ListingCard listing={listing} />
-                                    {/* STATUS BADGES */}
-                                    {listing.status === 'sold' && (
-                                        <div className="absolute top-2 right-2 z-30 pointer-events-none">
-                                            <span className="bg-blue-600 text-white text-[7px] font-black px-2 py-1 rounded-lg uppercase shadow-lg border border-white flex items-center gap-1"><CheckCircle className="w-2 h-2" /> Thành công</span>
-                                        </div>
-                                    )}
-                                    {listing.status === 'pending' && (
-                                        <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center rounded-lg z-20 backdrop-blur-[1px]">
-                                            <span className="bg-white text-slate-900 text-[10px] font-black px-3 py-1.5 rounded-full uppercase shadow-xl flex items-center gap-1"><Clock className="w-3 h-3" /> Chờ duyệt</span>
-                                        </div>
-                                    )}
-                                    {listing.status === 'rejected' && (
-                                        <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center rounded-lg z-20 backdrop-blur-[1px]">
-                                            <span className="bg-white text-red-500 text-[10px] font-black px-3 py-1.5 rounded-full uppercase shadow-xl flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Từ chối</span>
-                                        </div>
-                                    )}
-                                </div>
-                                
-                                <div className="flex flex-col gap-2 relative z-40">
-                                    <Link to={`/edit/${listing.id}`} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 py-3 rounded-2xl text-[10px] font-black uppercase text-center transition-all">Sửa tin</Link>
-                                    <button onClick={() => handleDelete(listing.id)} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white py-3 rounded-2xl text-[10px] font-black uppercase transition-all shadow-sm">Xóa tin</button>
-                                </div>
-                            </div>
-                        ))}
-                        {myListings.length === 0 && (
-                            <div className="col-span-full py-40 text-center bg-white rounded-[3.5rem] border border-slate-100 flex flex-col items-center justify-center gap-4 shadow-inner">
-                                <Package className="w-16 h-16 text-slate-200" strokeWidth={1} />
-                                <p className="text-slate-300 font-black uppercase tracking-widest text-sm">Trống trải quá, đăng tin ngay!</p>
-                                <Link to="/post" className="text-primary font-bold text-xs uppercase hover:underline">Đăng tin mới +</Link>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {activeTab === 'favorites' && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                        {myFavs.map(l => <ListingCard key={l.id} listing={l} isFavorite={true} />)}
-                        {myFavs.length === 0 && (
-                            <div className="col-span-full py-40 text-center bg-white rounded-[3.5rem] border border-slate-100 flex flex-col items-center justify-center gap-4 shadow-inner">
-                                <Heart className="w-16 h-16 text-slate-200" strokeWidth={1} />
-                                <p className="text-slate-300 font-black uppercase tracking-widest text-sm">Chưa lưu tin nào cả</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {activeTab === 'settings' && (
-                    <div className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-16 shadow-2xl space-y-16 animate-fade-in-up">
-                        <form onSubmit={handleSaveSettings} className="space-y-16">
-                            <div className="grid lg:grid-cols-2 gap-16">
-                                <div className="space-y-10">
-                                    <h3 className="text-2xl font-black text-slate-900 flex items-center gap-4">
-                                        <span className="w-12 h-12 bg-blue-50 text-blue-500 rounded-[1.2rem] flex items-center justify-center"><UserIcon className="w-6 h-6" /></span> Hồ sơ cá nhân
-                                    </h3>
-                                    <div className="space-y-6">
-                                        <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Họ và tên</label><input type="text" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full bg-slate-50 border-none rounded-[1.2rem] p-4 font-bold text-sm focus:ring-2 ring-primary/20 transition-all" /></div>
-                                        <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Email</label><input type="email" value={editForm.email} className="w-full bg-slate-50 border-none rounded-[1.2rem] p-4 font-bold text-sm opacity-50 cursor-not-allowed" disabled /></div>
-                                        <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Số điện thoại</label><input type="tel" value={editForm.phone} onChange={e => setEditForm({...editForm, phone: e.target.value})} className="w-full bg-slate-50 border-none rounded-[1.2rem] p-4 font-bold text-sm focus:ring-2 ring-primary/20 transition-all" /></div>
-                                        <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Địa chỉ cụ thể</label><textarea value={editForm.address} onChange={e => setEditForm({...editForm, address: e.target.value})} className="w-full bg-slate-50 border-none rounded-[1.2rem] p-4 font-bold text-sm h-32 resize-none focus:ring-2 ring-primary/20 transition-all" /></div>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-10">
-                                    <h3 className="text-2xl font-black text-slate-900 flex items-center gap-4">
-                                        <span className="w-12 h-12 bg-red-50 text-red-500 rounded-[1.2rem] flex items-center justify-center"><MapPin className="w-6 h-6" /></span> Vị trí hiển thị
-                                    </h3>
-                                    <div className="space-y-6">
-                                        <div className="flex gap-4">
-                                            <div className="flex-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Khu vực</label><select value={editForm.location} onChange={e => setEditForm({...editForm, location: e.target.value})} className="w-full bg-slate-50 border-none rounded-[1.2rem] p-4 font-bold text-sm mt-2">{LOCATIONS.map(l=><option key={l} value={l}>{l}</option>)}</select></div>
-                                            <button type="button" onClick={pickCurrentLocation} className="mt-8 bg-slate-900 text-white p-4 rounded-[1.2rem] hover:bg-primary transition-all shadow-lg active:scale-95"><Zap className="w-6 h-6" /></button>
-                                        </div>
-                                        <div className="relative aspect-video rounded-[2.5rem] overflow-hidden border-4 border-slate-50 shadow-inner z-0">
-                                            <MapContainer key={`${editForm.lat}-${editForm.lng}`} center={[editForm.lat, editForm.lng]} zoom={15} scrollWheelZoom={false} style={{height:'100%',width:'100%'}}>
-                                                <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                                                <DraggableMarker position={{ lat: editForm.lat, lng: editForm.lng }} onDragEnd={handleMarkerDragEnd} />
-                                            </MapContainer>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex justify-end"><button type="submit" disabled={isSaving} className="px-16 py-5 bg-primary text-white font-black rounded-[1.5rem] shadow-2xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all uppercase tracking-widest text-xs flex items-center gap-2">{isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} {isSaving ? 'Đang cập nhật...' : 'Lưu tất cả thay đổi'}</button></div>
-                        </form>
-
-                        <div className="pt-16 border-t-4 border-dashed border-slate-50 space-y-10">
-                            <h3 className="text-2xl font-black text-slate-900 flex items-center gap-4">
-                                <span className="w-12 h-12 bg-purple-50 text-purple-500 rounded-[1.2rem] flex items-center justify-center"><ShieldCheck className="w-6 h-6" /></span> Xác thực danh tính
-                            </h3>
-                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                            {((user as any).verificationStatus === 'verified') ? (
-                                <div className="bg-green-50 rounded-[2.5rem] p-10 text-center border border-green-100 shadow-inner flex flex-col items-center">
-                                    <ShieldCheck className="w-16 h-16 text-green-600 mb-4" strokeWidth={1.5} />
-                                    <h4 className="text-xl font-black text-green-700 uppercase tracking-widest">Tài khoản chính chủ</h4>
-                                    <p className="text-sm text-green-600/80 font-bold mt-2">Bạn đã có tích xanh uy tín và quyền lợi ưu tiên hiển thị.</p>
-                                </div>
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            ) : ((user as any).verificationStatus === 'pending') ? (
-                                <div className="bg-yellow-50 rounded-[2.5rem] p-10 text-center border border-yellow-100 shadow-inner animate-pulse flex flex-col items-center">
-                                    <Clock className="w-16 h-16 text-yellow-600 mb-4" strokeWidth={1.5} />
-                                    <h4 className="text-xl font-black text-yellow-700 uppercase tracking-widest">Đang kiểm duyệt</h4>
-                                    <p className="text-sm text-yellow-600/80 font-bold mt-2">Hồ sơ của bạn đang được Admin xác minh.</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-8">
-                                    <p className="text-slate-500 font-bold px-4">Tải lên ảnh CCCD để nhận dấu tích xanh uy tín và tăng tỉ lệ chốt đơn.</p>
-                                    <div className="grid md:grid-cols-2 gap-8">
-                                        {['front', 'back'].map((side) => (
-                                            <div key={side} className="space-y-3">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">{side === 'front' ? 'Mặt trước' : 'Mặt sau'}</label>
-                                                <div className="relative aspect-video bg-slate-50 border-4 border-dashed border-slate-100 rounded-[2.5rem] overflow-hidden group cursor-pointer hover:border-primary/30 transition-colors">
-                                                    <input type="file" className="absolute inset-0 opacity-0 z-10 cursor-pointer" onChange={(e) => handleKycFileChange(side as any, e)} accept="image/*" />
-                                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                                    {(kycPreviews as any)[side] ? (
-                                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                                        <img src={(kycPreviews as any)[side]} className="w-full h-full object-cover" alt="" />
-                                                    ) : (
-                                                        <div className="flex flex-col items-center justify-center h-full text-slate-300 group-hover:text-primary transition-colors">
-                                                            <Upload className="w-10 h-10 mb-2" strokeWidth={1.5} />
-                                                            <span className="text-[10px] font-black uppercase tracking-widest">Chọn ảnh</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="flex justify-end pt-4">
-                                        <button onClick={handleSubmitKyc} disabled={isSubmittingKyc || !kycFiles.front || !kycFiles.back} className="px-12 py-5 bg-purple-600 text-white font-black rounded-[1.5rem] shadow-2xl shadow-purple-200 hover:bg-purple-700 active:scale-95 disabled:opacity-50 transition-all uppercase tracking-widest text-xs flex items-center gap-2">
-                                            {isSubmittingKyc ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} {isSubmittingKyc ? 'Đang xử lý...' : 'Gửi hồ sơ xác thực'}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
+  return (
+    <div className="min-h-screen flex flex-col bg-bgMain">
+      
+      {/* HEADER */}
+      <header className="sticky top-0 z-50 bg-white border-b border-gray-200 px-3 md:px-6 lg:px-10 h-auto min-h-[5rem] flex items-center justify-between gap-2 md:gap-4 shadow-sm pt-[env(safe-area-inset-top)] transition-all">
+        
+        {/* LOGO */}
+        <div className="flex items-center flex-shrink-0 h-14 md:h-20">
+          <Link to="/" className="flex items-center gap-2 group">
+            <div className="w-9 h-9 md:w-11 md:h-11 bg-gradient-to-tr from-primary to-blue-400 rounded-xl md:rounded-2xl flex items-center justify-center text-white text-lg md:text-2xl shadow-lg shadow-primary/25 group-hover:rotate-6 transition-all duration-300">⚡</div>
+            <span className="font-black text-lg md:text-xl text-slate-800 hidden lg:block tracking-tighter group-hover:text-primary transition-colors">Chợ của tui</span>
+          </Link>
         </div>
-    );
+
+        {/* SEARCH BAR */}
+        <form onSubmit={handleSearch} className="flex-1 max-w-2xl relative group px-1 md:px-0">
+          <div className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-gray-400"><svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg></div>
+          <input type="text" placeholder={window.innerWidth < 768 ? "Tìm kiếm..." : "Tìm gì cũng có..."} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-gray-100 border-2 border-transparent hover:border-gray-200 rounded-xl md:rounded-[1.25rem] py-2.5 md:py-3 pl-9 md:pl-12 pr-10 md:pr-14 focus:outline-none focus:ring-0 focus:border-primary focus:bg-white transition-all text-xs md:text-sm font-bold text-slate-700 placeholder:text-gray-400 shadow-sm" />
+          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isSearchingImage} className={`absolute right-1.5 md:right-3 top-1/2 -translate-y-1/2 p-1.5 md:p-2 rounded-lg md:rounded-xl hover:bg-white text-gray-400 transition-all ${isSearchingImage ? 'animate-pulse text-primary' : 'hover:text-primary hover:shadow-sm'}`}>
+            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          </button>
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+        </form>
+
+        {/* ACTIONS */}
+        <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
+          
+          {/* NÚT BẬT THÔNG BÁO MOBILE */}
+          {user && notifPermission === 'default' && (
+            <button 
+              onClick={handleEnableNotifications}
+              className="flex items-center gap-1 bg-red-500 text-white px-2.5 py-1.5 rounded-lg text-[10px] font-black border border-red-400 animate-bounce md:hidden shadow-lg active:scale-95"
+            >
+              🔔 Bật báo tin
+            </button>
+          )}
+
+          <Link to="/chat" className={`hidden md:flex relative p-2.5 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-gray-100 hover:text-primary'}`}>
+            <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+            {unreadChatCount > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-bounce">{unreadChatCount}</span>}
+          </Link>
+
+          {user ? <NotificationMenu userId={user.id} /> : <Link to="/login" className="relative p-2 rounded-2xl text-slate-600 hover:bg-gray-100 hover:text-primary transition-all"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg></Link>}
+
+          <div className="hidden md:flex items-center gap-4">
+            <Link to="/post" className="flex items-center gap-2 bg-primary text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primaryHover hover:-translate-y-1 transition-all active:scale-95"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4"/></svg><span>Đăng tin</span></Link>
+            {user ? <Link to="/profile" className="flex items-center pl-2"><div className="w-11 h-11 rounded-2xl overflow-hidden border-2 border-white shadow-lg ring-1 ring-gray-200 hover:ring-primary hover:scale-110 transition-all"><img src={user.avatar} alt={user.name} className="w-full h-full object-cover" /></div></Link> : <Link to="/login" className="text-xs font-black text-primary hover:bg-primary/5 px-6 py-3.5 rounded-2xl border-2 border-primary transition-all uppercase tracking-widest">Đăng nhập</Link>}
+          </div>
+        </div>
+      </header>
+
+      {/* FILTER BAR */}
+      {(searchQuery || searchParams.get('visual')) && (
+        <div className="sticky top-[5rem] z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 py-3 animate-fade-in shadow-sm transition-all">
+          <div className="max-w-[1400px] mx-auto px-2 md:px-4 flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-shrink-0 pr-3 border-r border-gray-100 hidden md:flex"><div className="w-1.5 h-4 bg-primary rounded-full"></div><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Bộ lọc giá</span></div>
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+              <button onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}&maxPrice=2000000`)} className="flex-shrink-0 px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-bold text-slate-600 hover:border-primary hover:text-primary transition-all shadow-sm active:scale-95">💰 Dưới 2 Triệu</button>
+              <button onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}&minPrice=2000000&maxPrice=10000000`)} className="flex-shrink-0 px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-bold text-slate-600 hover:border-primary hover:text-primary transition-all shadow-sm active:scale-95">💎 2 - 10 Triệu</button>
+              <button onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}&minPrice=10000000`)} className="flex-shrink-0 px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-bold text-slate-600 hover:border-primary hover:text-primary transition-all shadow-sm active:scale-95">🔥 Trên 10 Triệu</button>
+              <button onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}&location=${encodeURIComponent(user?.location || 'TPHCM')}`)} className="flex-shrink-0 px-4 py-2 bg-primary/5 border border-primary/20 rounded-full text-[10px] font-black text-primary uppercase tracking-tight ml-2 hover:bg-primary/10 transition-all shadow-sm">📍 Gần tôi</button>
+              {(minPriceParam || maxPriceParam || locationParam) && <button onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}`)} className="flex-shrink-0 ml-2 px-3 py-2 text-[10px] font-black text-red-500 hover:bg-red-50 rounded-full transition-all uppercase tracking-tighter animate-fade-in">✕ Lọc</button>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MAIN CONTENT */}
+      <main className="flex-1 w-full max-w-screen-2xl mx-auto md:px-8 py-6 md:py-10 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-10">
+        {children}
+      </main>
+
+      {/* MOBILE NAV BAR (ĐÃ FIX SỐ ĐỎ) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex items-end justify-between h-[calc(4rem+env(safe-area-inset-bottom))] z-50 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
+        <Link to="/" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname === '/' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
+          <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/' ? 'bg-blue-50' : ''}`}><svg className="w-6 h-6" fill={location.pathname === '/' ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg></div>
+          <span className={`text-[10px] font-bold ${location.pathname === '/' ? 'opacity-100' : 'opacity-70'}`}>Trang chủ</span>
+        </Link>
+        <Link to="/manage-ads" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname === '/manage-ads' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
+          <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/manage-ads' ? 'bg-blue-50' : ''}`}><svg className="w-6 h-6" fill={location.pathname === '/manage-ads' ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg></div>
+          <span className={`text-[10px] font-bold ${location.pathname === '/manage-ads' ? 'opacity-100' : 'opacity-70'}`}>Quản lý</span>
+        </Link>
+        <div className="flex-1 flex flex-col items-center justify-end pb-3 relative z-10">
+           <Link to="/post" className="w-14 h-14 mb-1 bg-gradient-to-tr from-blue-600 to-cyan-400 text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(59,130,246,0.5)] border-[4px] border-white transform transition-all duration-300 active:scale-90 hover:scale-105 hover:-translate-y-2"><svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg></Link>
+          <span className="text-[10px] font-black text-blue-600 tracking-tight">Đăng tin</span>
+        </div>
+        <Link to="/chat" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 relative ${location.pathname.startsWith('/chat') ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
+          <div className={`p-1.5 rounded-xl transition-all duration-300 relative ${location.pathname.startsWith('/chat') ? 'bg-blue-50' : ''}`}>
+             <svg className="w-6 h-6" fill={location.pathname.startsWith('/chat') ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+             {unreadChatCount > 0 && <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-0.5 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-pulse">{unreadChatCount > 9 ? '9+' : unreadChatCount}</span>}
+          </div>
+          <span className={`text-[10px] font-bold ${location.pathname.startsWith('/chat') ? 'opacity-100' : 'opacity-70'}`}>Tin nhắn</span>
+        </Link>
+        <Link to="/profile" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname === '/profile' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
+          <div className={`p-0.5 rounded-full transition-all duration-300 border-2 ${location.pathname === '/profile' ? 'border-blue-500' : 'border-transparent'}`}>{user ? <img src={user.avatar} className="w-6 h-6 rounded-full object-cover" alt="User" /> : <svg className="w-6 h-6 m-0.5" fill={location.pathname === '/profile' ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}</div>
+          <span className={`text-[10px] font-bold ${location.pathname === '/profile' ? 'opacity-100' : 'opacity-70'}`}>Cá nhân</span>
+        </Link>
+      </nav>
+
+      <UniversalInstallPrompt />
+    </div>
+  );
 };
 
-export default Profile;
+export default Layout;

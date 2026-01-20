@@ -122,24 +122,39 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     return list;
   }, [listing]);
 
-  // Load Listing Data
+  // -----------------------------------------------------------
+  // 1. [SỬA LỖI] EFFECT RIÊNG ĐỂ TĂNG VIEW (CHỈ CHẠY 1 LẦN KHI CÓ ID)
+  // -----------------------------------------------------------
+  useEffect(() => {
+    if (id) {
+        db.incrementListingView(id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]); // <--- QUAN TRỌNG: Chỉ phụ thuộc vào ID, bỏ 'user' ra khỏi đây để tránh lặp
+
+  // -----------------------------------------------------------
+  // 2. EFFECT ĐỂ LOAD DỮ LIỆU (CHẠY KHI ID HOẶC USER THAY ĐỔI)
+  // -----------------------------------------------------------
   useEffect(() => {
     if (!id) return;
-    db.incrementListingView(id);
+    
     const loadListing = async () => {
         const l = await db.getListingById(id);
         if (l) {
             setListing(l);
             db.getUserById(l.sellerId).then(setSeller);
+            
+            // Cần user để biết đã favorite chưa
             if (user) db.getFavorites(user.id).then(setUserFavorites);
+            
             db.getListings().then(setAllListings);
         }
     };
     loadListing();
     window.scrollTo(0, 0);
-  }, [id, user]);
+  }, [id, user]); // Effect này vẫn cần user để load favorite
 
-  // [CRITICAL] Realtime Online Status Listener
+  // Realtime Online Status Listener
   useEffect(() => {
     if (!listing?.sellerId) return;
 

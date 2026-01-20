@@ -20,8 +20,8 @@ import Subscription from './pages/Subscription';
 import Wallet from './pages/Wallet';
 import Admin from './pages/Admin';
 import StaticPage from './pages/StaticPage';
-import CategoryPage from './pages/CategoryPage'; // Thêm trang danh mục nếu cần
-import EditListing from './pages/EditListing';   // Thêm trang sửa tin nếu cần
+//import CategoryPage from './pages/CategoryPage'; // Thêm trang danh mục nếu cần
+//import EditListing from './pages/EditListing';   // Thêm trang sửa tin nếu cần
 
 // --- Component Google ---
 import GoogleOneTap from './components/GoogleOneTap';

@@ -36,8 +36,8 @@ export interface User {
   status: UserStatus;
   phone?: string;
   joinedAt: string;
-  isOnline?: boolean;     
-  lastActive?: string;    
+ isOnline?: boolean;       // Trạng thái online
+  lastActiveAt?: any;  
   // --- THÔNG TIN VỊ TRÍ ---
   location?: string; 
   address?: string; 

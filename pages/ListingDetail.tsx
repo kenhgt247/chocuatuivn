@@ -398,36 +398,31 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             )}
           </div>
 
-         {/* 2. Thumbnails List - PHIÊN BẢN "BULLETPROOF" (KHÔNG THỂ VỠ) */}
-          <div className="mt-4 w-full">
-            <div 
-              className="w-full overflow-x-auto overflow-y-hidden pb-2 px-1 scrollbar-hide"
-              style={{ 
-                whiteSpace: 'nowrap',           // Bắt buộc nằm trên 1 dòng
-                WebkitOverflowScrolling: 'touch' // Kích hoạt cuộn mượt trên iOS
-              }}
-            >
+       {/* 2. Thumbnails List - PHIÊN BẢN GRID FLOW (Cứng nhất, không thể xuống dòng) */}
+          <div className="mt-4 w-full min-w-0"> {/* min-w-0 rất quan trọng để tránh lỗi trên grid cha */}
+            
+            <div className="grid grid-flow-col auto-cols-max gap-3 overflow-x-auto pb-2 px-1 snap-x scrollbar-hide">
               {mediaList.map((item, idx) => (
                 <button 
                   key={idx} 
                   onClick={() => setActiveMedia(idx)} 
-                  // Sử dụng inline-block để hoạt động với whitespace-nowrap
-                  // width cố định cứng bằng px để không bao giờ bị méo
                   className={`
-                    inline-block relative 
-                    w-16 h-16 md:w-24 md:h-24 
-                    rounded-xl overflow-hidden border-2 mr-2 align-top
+                    relative 
+                    w-20 h-20           /* Kích thước cố định cho cả Mobile & Desktop */
+                    flex-shrink-0       /* Không cho phép co lại */
+                    snap-start 
+                    rounded-xl overflow-hidden border-2 
                     transition-all duration-200
                     ${activeMedia === idx 
-                      ? 'border-primary ring-2 ring-primary/20 scale-105 z-10 shadow-md' 
-                      : 'border-transparent opacity-70 hover:opacity-100 hover:border-gray-300'
+                      ? 'border-primary ring-2 ring-primary/20 opacity-100 scale-105 shadow-md z-10' 
+                      : 'border-transparent opacity-60 hover:opacity-100 hover:border-gray-300'
                     }
                   `}
                 >
                   <img 
                     src={listing.videoUrl && idx === 0 ? listing.images[0] : item} 
                     className="w-full h-full object-cover" 
-                    alt={`Thumbnail ${idx + 1}`} 
+                    alt={`Ảnh ${idx + 1}`} 
                     loading="lazy"
                   />
                   

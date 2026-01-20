@@ -4,11 +4,22 @@ import { db, SystemSettings } from '../services/db';
 import { User, Transaction } from '../types';
 import { formatPrice } from '../utils/format';
 
-// [SỬA LỖI] Dùng bộ Icon cơ bản hơn để tránh lỗi version cũ gây trắng trang
+// [AN TOÀN TUYỆT ĐỐI] Chỉ dùng các icon cơ bản nhất để tránh lỗi version
 import { 
-  Wallet as WalletIcon, QrCode, CreditCard, Copy, Check, 
-  Clock, XCircle, ArrowUp, ArrowDown, Loader2, // Thay ArrowUpRight/DownLeft bằng ArrowUp/Down
-  Banknote, History, CheckCircle, RefreshCcw, User as UserIcon // Thay RefreshCw bằng RefreshCcw
+  Wallet as WalletIcon, 
+  CreditCard, 
+  Copy, 
+  Check, 
+  Clock, 
+  X as XIcon, // Dùng X thay vì XCircle
+  ArrowUp,    // Dùng ArrowUp thay vì ArrowUpRight
+  ArrowDown,  // Dùng ArrowDown thay vì ArrowDownLeft
+  Loader,     // Dùng Loader thay vì Loader2
+  Banknote, 
+  History, 
+  CheckCircle, 
+  RotateCcw,  // Dùng RotateCcw hoặc thay bằng text nếu vẫn lỗi
+  User as UserIcon
 } from 'lucide-react';
 
 const PRESET_AMOUNTS = [50000, 100000, 200000, 500000, 1000000, 2000000];
@@ -41,7 +52,7 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
     
-    // Chỉ tải lịch sử và cài đặt
+    // Chỉ tải dữ liệu cần thiết
     const loadData = async () => {
       try {
         const [s, txs] = await Promise.all([db.getSettings(), db.getTransactions(user.id)]);
@@ -51,7 +62,7 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
     };
 
     loadData();
-    // Tự động tải lại lịch sử (nhẹ nhàng)
+    // Refresh nhẹ nhàng mỗi 5s
     const interval = setInterval(loadData, 5000); 
     return () => clearInterval(interval);
   }, [user?.id, navigate]); 
@@ -95,7 +106,8 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
 
   const handleManualRefresh = async () => {
       setIsRefreshing(true);
-      setTransactions(await db.getTransactions(user.id));
+      const txs = await db.getTransactions(user.id);
+      setTransactions(txs);
       setTimeout(() => setIsRefreshing(false), 800);
   };
 
@@ -106,10 +118,15 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
         <div className="relative z-10 flex flex-col justify-between h-full gap-6">
           <div className="flex justify-between items-start">
              <div> 
-                <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mb-1 flex items-center gap-2"><WalletIcon className="w-3.5 h-3.5" /> Số dư khả dụng</p>
+                <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
+                    <WalletIcon className="w-3.5 h-3.5" /> Số dư khả dụng
+                </p>
                 <div className="flex items-center gap-2">
                     <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter">{formatPrice(user.walletBalance || 0)}</h2>
-                    <button onClick={handleManualRefresh} className={`p-1.5 bg-white/10 rounded-full hover:bg-white/20 transition-all ${isRefreshing ? 'animate-spin' : ''}`}><RefreshCcw className="w-4 h-4" /></button>
+                    {/* Nút Refresh */}
+                    <button onClick={handleManualRefresh} className={`p-1.5 bg-white/10 rounded-full hover:bg-white/20 transition-all ${isRefreshing ? 'animate-spin' : ''}`}>
+                        <RotateCcw className="w-4 h-4" />
+                    </button>
                 </div>
              </div>
              <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10"><CreditCard className="w-6 h-6" /></div>
@@ -125,14 +142,18 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
         {/* Nạp tiền */}
         <div className="lg:col-span-3 space-y-5">
           <div className="bg-white border border-gray-100 rounded-[1.5rem] p-5 shadow-sm">
-            <h3 className="font-black text-sm mb-5 flex items-center gap-2 uppercase text-slate-800"><span className="w-8 h-8 bg-green-50 text-green-600 rounded-lg flex items-center justify-center"><Banknote className="w-4 h-4" /></span> Nạp tiền nhanh</h3>
+            <h3 className="font-black text-sm mb-5 flex items-center gap-2 uppercase text-slate-800">
+                <span className="w-8 h-8 bg-green-50 text-green-600 rounded-lg flex items-center justify-center"><Banknote className="w-4 h-4" /></span> Nạp tiền nhanh
+            </h3>
             <div className="mb-5 relative">
                 <input type="text" value={amount ? parseInt(amount).toLocaleString('vi-VN') : ''} onChange={handleAmountChange} className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl pt-6 pb-2 px-4 font-black text-lg text-primary outline-none focus:border-primary" />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 mt-2 font-bold text-gray-400 text-xs">VNĐ</span>
                 <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest absolute top-2 left-4">Số tiền nạp</label>
             </div>
             <div className="grid grid-cols-3 gap-2 mb-6">{PRESET_AMOUNTS.map(a => (<button key={a} onClick={() => handleSelectPreset(a)} className={`py-3 rounded-xl border-2 font-black text-[10px] ${parseInt(amount) === a ? 'border-primary bg-primary/5 text-primary' : 'border-gray-50 bg-white text-gray-400'}`}>{a/1000}k</button>))}</div>
-            <button onClick={handleShowQR} disabled={!settings?.bankName || !amount} className="w-full bg-primary text-white font-black py-4 rounded-xl shadow-xl flex items-center justify-center gap-2 uppercase text-xs hover:bg-primaryHover disabled:opacity-50"><QrCode className="w-4 h-4" /> Tạo mã thanh toán</button>
+            <button onClick={handleShowQR} disabled={!settings?.bankName || !amount} className="w-full bg-primary text-white font-black py-4 rounded-xl shadow-xl flex items-center justify-center gap-2 uppercase text-xs hover:bg-primaryHover disabled:opacity-50">
+                <Banknote className="w-4 h-4" /> Tạo mã thanh toán
+            </button>
           </div>
         </div>
 
@@ -144,11 +165,23 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
               {transactions.length > 0 ? transactions.map(tx => (
                 <div key={tx.id} className="flex items-center justify-between p-3 bg-gray-50/30 border border-gray-100 rounded-xl">
                   <div className="flex items-center gap-3">
-                      {/* [QUAN TRỌNG] Đã thay ArrowUpRight/ArrowDownLeft bằng ArrowUp/ArrowDown để tránh lỗi */}
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${tx.type === 'deposit' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>{tx.type === 'deposit' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}</div>
-                      <div><p className="text-[10px] font-black uppercase text-slate-700">{tx.type === 'deposit' ? 'Nạp tiền' : 'Thanh toán'}</p><p className="text-[9px] text-gray-400 font-bold">{new Date(tx.createdAt).toLocaleDateString('vi-VN')}</p></div>
+                      {/* [ĐÃ SỬA] Dùng ArrowDown/ArrowUp chuẩn */}
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${tx.type === 'deposit' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                          {tx.type === 'deposit' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
+                      </div>
+                      <div>
+                          <p className="text-[10px] font-black uppercase text-slate-700">{tx.type === 'deposit' ? 'Nạp tiền' : 'Thanh toán'}</p>
+                          <p className="text-[9px] text-gray-400 font-bold">{new Date(tx.createdAt).toLocaleDateString('vi-VN')}</p>
+                      </div>
                   </div>
-                  <div className="text-right"><p className={`text-xs font-black ${tx.type === 'deposit' ? 'text-green-600' : 'text-red-600'}`}>{tx.type === 'deposit' ? '+' : '-'}{formatPrice(tx.amount)}</p><span className={`text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase ${tx.status === 'pending' ? 'bg-yellow-100 text-yellow-600' : tx.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>{tx.status === 'pending' ? 'Đang duyệt' : tx.status === 'success' ? 'Thành công' : 'Thất bại'}</span></div>
+                  <div className="text-right">
+                      <p className={`text-xs font-black ${tx.type === 'deposit' ? 'text-green-600' : 'text-red-600'}`}>
+                          {tx.type === 'deposit' ? '+' : '-'}{formatPrice(tx.amount)}
+                      </p>
+                      <span className={`text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase ${tx.status === 'pending' ? 'bg-yellow-100 text-yellow-600' : tx.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                          {tx.status === 'pending' ? 'Đang duyệt' : tx.status === 'success' ? 'Thành công' : 'Thất bại'}
+                      </span>
+                  </div>
                 </div>
               )) : <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-3 opacity-60"><History className="w-10 h-10" /><p className="text-[10px] font-black uppercase">Trống</p></div>}
             </div>
@@ -160,7 +193,10 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
       {showQRModal && settings && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowQRModal(false)}>
           <div className="bg-white w-full max-w-sm rounded-[2rem] overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <div className="bg-primary px-6 py-4 text-white text-center relative"><h3 className="font-black uppercase">Thanh toán</h3><button onClick={() => setShowQRModal(false)} className="absolute top-1/2 -translate-y-1/2 right-4"><XCircle className="w-6 h-6" /></button></div>
+            <div className="bg-primary px-6 py-4 text-white text-center relative">
+                <h3 className="font-black uppercase">Thanh toán</h3>
+                <button onClick={() => setShowQRModal(false)} className="absolute top-1/2 -translate-y-1/2 right-4"><XIcon className="w-6 h-6" /></button>
+            </div>
             <div className="p-5 space-y-5">
                 <div className="flex justify-center"><img src={getVietQRUrl()} className="w-[200px] h-[200px] object-contain border-2 border-dashed border-primary/30 rounded-xl" /></div>
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3">
@@ -168,7 +204,9 @@ const Wallet: React.FC<{ user: User | null; onUpdateUser: (u: User) => void }> =
                     <div className="flex justify-between text-xs"><span className="font-bold text-gray-400">Nội dung:</span> <span className="font-black text-red-500">{transferContent}</span></div>
                     <div className="flex justify-between text-xs"><span className="font-bold text-gray-400">Số tiền:</span> <span className="font-black text-primary">{formatPrice(parseInt(amount))}</span></div>
                 </div>
-                <button onClick={handleConfirmTransfer} disabled={isProcessing} className="w-full bg-slate-900 text-white font-black py-4 rounded-xl shadow-xl uppercase text-xs flex items-center justify-center gap-2">{isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} Tôi đã chuyển khoản</button>
+                <button onClick={handleConfirmTransfer} disabled={isProcessing} className="w-full bg-slate-900 text-white font-black py-4 rounded-xl shadow-xl uppercase text-xs flex items-center justify-center gap-2">
+                    {isProcessing ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} Tôi đã chuyển khoản
+                </button>
             </div>
           </div>
         </div>

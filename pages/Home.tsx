@@ -9,7 +9,7 @@ import CategoryBar from '../components/CategoryBar';
 import { getLocationFromCoords } from '../utils/locationHelper'; 
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import StoryBar from '../components/StoryBar';
-// ⚠️ ĐÃ LOẠI BỎ LUCIDE-REACT ĐỂ TRÁNH LỖI CRASH
+
 // --- BỘ ICON VẼ TAY (SVG THUẦN) ---
 const IconZap = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 const IconCrown = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>;
@@ -83,6 +83,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     });
   }, []);
 
+  
   // 1. Tải danh mục
   useEffect(() => {
     const fetchCats = async () => {
@@ -125,13 +126,20 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   // 4. Load VIP & Nearby
   const loadSpecialSections = useCallback(async (locationToUse: string | null) => {
     if (search || isUrlCategory || typeParam) return; 
+    
+    // Tin VIP (Ai cũng xem được)
     const vipRes = await db.getVIPListings(LIMIT_VIP);
     if (!vipRes.error) setVipListings(vipRes.listings);
 
+    // [FIX] Tin gần bạn (Chỉ load khi có user hoặc location, tránh lỗi permission denied)
     const targetLoc = locationToUse || user?.location;
-    if (targetLoc) {
-      const nearbyRes = await db.getListingsPaged({ pageSize: LIMIT_NEARBY, location: targetLoc });
-      if (!nearbyRes.error) setNearbyListings(nearbyRes.listings);
+    if (targetLoc && user) {
+        try {
+            const nearbyRes = await db.getListingsPaged({ pageSize: LIMIT_NEARBY, location: targetLoc });
+            if (!nearbyRes.error) setNearbyListings(nearbyRes.listings);
+        } catch (e) {
+            console.warn("Chưa tải được tin gần bạn (có thể do chưa login)");
+        }
     }
   }, [user, search, isUrlCategory, typeParam]);
 
@@ -220,12 +228,20 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         setHasMore(result.hasMore);
       }
 
+      // [FIX] Chỉ tải Favorite nếu đã đăng nhập
       if (user) {
-        const favs = await db.getFavorites(user.id);
-        setFavorites(favs);
+        try {
+            const favs = await db.getFavorites(user.id);
+            setFavorites(favs);
+        } catch (e) {
+            console.warn("Lỗi tải yêu thích (bỏ qua):", e);
+        }
+      } else {
+          setFavorites([]);
       }
+
     } catch (e) {
-      console.error("Home fetch error:", e);
+      console.warn("Home fetch warning:", e);
     } finally {
       setIsLoading(false);
     }
@@ -284,15 +300,16 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       <div className="mt-4">
         <CategoryBar />
       </div>
-{/* 👇 CHÈN STORY BAR VÀO ĐÂY 👇 */}
-    <div className="animate-fade-in-up">
+
+      {/* 2. STORY BAR */}
+      <div className="animate-fade-in-up">
         <StoryBar user={user} />
-    </div>
-    {/* 👆 KẾT THÚC CHÈN 👆 */}
-      {/* 2. BANNER */}
+      </div>
+
+      {/* 3. BANNER */}
       {!search && !isUrlCategory && !typeParam && !locationParam && <HomeBanner />}
 
-      {/* 3. TIN VIP */}
+      {/* 4. TIN VIP */}
       {!search && !isUrlCategory && !typeParam && !locationParam && vipListings.length > 0 && (
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
@@ -320,7 +337,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 4. TIN QUANH ĐÂY */}
+      {/* 5. TIN QUANH ĐÂY */}
       {!search && !isUrlCategory && !typeParam && !locationParam && (
         <section className="space-y-4 animate-fade-in-up">
           <div className="flex items-center justify-between px-2">
@@ -366,7 +383,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 5. DANH SÁCH CHÍNH */}
+      {/* 6. DANH SÁCH CHÍNH */}
       <section className="space-y-4">
         <div className="flex items-center justify-between px-2">
            <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
@@ -439,7 +456,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         )}
       </section>
 
-      {/* 6. FOOTER */}
+      {/* 7. FOOTER */}
       <footer className="hidden md:block pt-16 border-t border-dashed border-gray-200 mt-20">
          <div className="bg-white border border-gray-200 rounded-[3rem] p-10 shadow-sm">
             <div className="flex items-center justify-between mb-8">

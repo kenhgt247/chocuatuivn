@@ -233,6 +233,7 @@ const App: React.FC = () => {
             newestOnTop={true} 
             theme="light" 
             icon={false} // <--- QUAN TRỌNG: Tắt icon mặc định
+          closeButton={false}
         />
       </Router>
     </HelmetProvider>

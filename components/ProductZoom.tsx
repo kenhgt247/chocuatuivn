@@ -1,4 +1,4 @@
-import React, { useState, MouseEvent, useRef } from 'react';
+import React, { useState, MouseEvent, useRef, useEffect } from 'react';
 
 interface ProductZoomProps {
   src: string;
@@ -8,77 +8,65 @@ interface ProductZoomProps {
 const ProductZoom: React.FC<ProductZoomProps> = ({ src, alt = "" }) => {
   const [showZoom, setShowZoom] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [imgSize, setImgSize] = useState({ width: 0, height: 0 });
   const imgRef = useRef<HTMLImageElement>(null);
-  const cursorRef = useRef<HTMLDivElement>(null);
 
   // Cấu hình độ phóng đại
-  const cursorSize = 100; // Kích thước ô vuông soi trên ảnh nhỏ
-  const zoomSize = 400;   // Kích thước khung hiển thị ảnh to
+  const zoomLevel = 2.5; // Phóng to 2.5 lần
+
+  // Cập nhật kích thước ảnh khi load xong hoặc resize
+  useEffect(() => {
+    if (imgRef.current) {
+        setImgSize({
+            width: imgRef.current.offsetWidth,
+            height: imgRef.current.offsetHeight
+        });
+    }
+  }, [src, showZoom]);
 
   const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
-    if (!imgRef.current || !cursorRef.current) return;
+    if (!imgRef.current) return;
 
     const { left, top, width, height } = imgRef.current.getBoundingClientRect();
     
-    // Tính toán vị trí chuột so với ảnh
-    let x = e.pageX - left - window.scrollX;
-    let y = e.pageY - top - window.scrollY;
-
-    // Giới hạn ô vuông không chạy ra ngoài ảnh
-    x = Math.max(cursorSize / 2, Math.min(x, width - cursorSize / 2));
-    y = Math.max(cursorSize / 2, Math.min(y, height - cursorSize / 2));
+    // Tính toán vị trí chuột tương đối trong khung (0 -> 100%)
+    // Cần trừ đi window scroll để chính xác
+    const x = ((e.pageX - left - window.scrollX) / width) * 100;
+    const y = ((e.pageY - top - window.scrollY) / height) * 100;
 
     setPosition({ x, y });
   };
 
   return (
     <div 
-      className="relative w-full h-full cursor-crosshair"
+      className="relative w-full h-full overflow-hidden bg-white"
       onMouseEnter={() => setShowZoom(true)}
       onMouseLeave={() => setShowZoom(false)}
       onMouseMove={handleMouseMove}
+      style={{ cursor: 'zoom-in' }} // Con trỏ hình kính lúp
     >
-      {/* 1. Ảnh gốc (Thumbnail) */}
+      {/* 1. Ảnh gốc (Luôn hiển thị) */}
       <img
         ref={imgRef}
         src={src}
         alt={alt}
-        className="w-full h-full object-contain bg-gray-50" 
+        className="w-full h-full object-contain pointer-events-none" // QUAN TRỌNG: pointer-events-none để click xuyên qua
       />
 
-      {/* 2. Ô vuông soi (Lens) - Chỉ hiện khi hover */}
-      {showZoom && (
-        <div
-          ref={cursorRef}
-          className="absolute border border-primary/50 bg-primary/20 pointer-events-none z-10"
-          style={{
-            width: `${cursorSize}px`,
-            height: `${cursorSize}px`,
-            left: `${position.x - cursorSize / 2}px`,
-            top: `${position.y - cursorSize / 2}px`,
-          }}
-        />
-      )}
-
-      {/* 3. Khung hiển thị ảnh to (Zoom Window) */}
-      {showZoom && (
-        <div
-          className="absolute z-50 overflow-hidden bg-white border border-gray-200 shadow-2xl rounded-xl"
-          style={{
-            // Vị trí khung to: Nằm bên phải ảnh gốc, cách 20px
-            left: '105%', 
-            top: '0',
-            width: `${zoomSize}px`,
-            height: `${zoomSize}px`,
-            // Hiển thị ảnh phóng to
-            backgroundImage: `url(${src})`,
-            // Tính toán tỷ lệ zoom khớp với vị trí chuột
-            backgroundPosition: `-${(position.x * (zoomSize / cursorSize)) - zoomSize / 2}px -${(position.y * (zoomSize / cursorSize)) - zoomSize / 2}px`,
-            backgroundSize: `${imgRef.current?.width ? imgRef.current.width * (zoomSize / cursorSize) : 0}px ${imgRef.current?.height ? imgRef.current.height * (zoomSize / cursorSize) : 0}px`,
-            backgroundRepeat: 'no-repeat'
-          }}
-        />
-      )}
+      {/* 2. Lớp Phóng To (Hiện đè lên ảnh gốc khi hover - Kiểu Inner Zoom) */}
+      {/* Cách này gọn gàng hơn, không bị vỡ layout khi hiện khung bên cạnh */}
+      <div
+        className={`absolute inset-0 pointer-events-none transition-opacity duration-200 ease-out z-10 ${
+          showZoom ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{
+          backgroundImage: `url(${src})`,
+          backgroundPosition: `${position.x}% ${position.y}%`,
+          backgroundSize: `${zoomLevel * 100}%`, // Phóng to ảnh nền
+          backgroundRepeat: 'no-repeat',
+          backgroundColor: '#fff' // Nền trắng để che ảnh gốc bên dưới
+        }}
+      />
     </div>
   );
 };

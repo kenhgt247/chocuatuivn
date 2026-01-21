@@ -7,8 +7,7 @@ import { getLocationFromCoords } from '../utils/locationHelper';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import { LOCATIONS } from '../constants';
 
-// ⚠️ ĐÃ LOẠI BỎ LUCIDE-REACT ĐỂ TRÁNH LỖI CRASH
-// --- BỘ ICON VẼ TAY (SVG THUẦN) ---
+// ⚠️ GIỮ NGUYÊN BỘ ICON VẼ TAY (AN TOÀN TUYỆT ĐỐI)
 const IconTag = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l5 5a2 2 0 0 0 2.828 0l7.172-7.172a2 2 0 0 0 0-2.828l-5-5z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>;
 const IconGavel = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0a2.12 2.12 0 0 1 0-3L11 10"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/></svg>;
 const IconVideo = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>;
@@ -41,7 +40,6 @@ interface ListingFormData {
   images: string[];
   attributes: Record<string, string>;
   affiliateLink?: string | null;
-  // --- Đấu giá ---
   isAuction: boolean;
   auctionEndAt: string;
   bidIncrement: string;
@@ -86,9 +84,9 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     isAuction: false, auctionEndAt: '', bidIncrement: '50000'
   });
 
-  // [UI STYLES]
-  const inputStyle = "w-full min-w-0 bg-white border border-gray-200 rounded-xl p-3 md:p-4 text-sm font-semibold focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all shadow-sm placeholder:font-normal placeholder:text-gray-400";
-  const labelStyle = "text-[11px] font-bold text-gray-500 uppercase tracking-wide px-1 mb-1.5 block truncate";
+  // [UI STYLES NÂNG CẤP - SẮC NÉT HƠN]
+  const inputStyle = "w-full min-w-0 bg-white border border-slate-300 rounded-xl p-4 text-sm font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm hover:border-blue-400";
+  const labelStyle = "text-xs font-black text-slate-500 uppercase tracking-widest px-1 mb-2 block";
 
   // --- INITIALIZE ---
   useEffect(() => {
@@ -270,22 +268,17 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     e.preventDefault();
     if (!user || !settings) return;
 
-    // --- [LOGIC BẢO MẬT] CHỐT CHẶN KIỂM TRA QUYỀN TRƯỚC KHI LƯU ---
     const currentTierConfig = (settings.tierConfigs as any)[user.subscriptionTier || 'free'];
     
-    // 1. Chặn hack Video
     if ((videoFile || existingVideoUrl) && !currentTierConfig.allowVideo) {
         return alert("❌ Gói cước của bạn không hỗ trợ đăng Video. Vui lòng nâng cấp!");
     }
-    // 2. Chặn hack Đấu giá
     if (formData.isAuction && !['basic', 'pro'].includes(user.subscriptionTier || '')) {
         return alert("❌ Tính năng Đấu giá chỉ dành cho VIP. Vui lòng nâng cấp!");
     }
-    // 3. Chặn hack số lượng ảnh
     if (formData.images.length > currentTierConfig.maxImages) {
         return alert(`❌ Bạn chỉ được đăng tối đa ${currentTierConfig.maxImages} ảnh!`);
     }
-    // --------------------------------------------------------------
 
     if (!isEditing && postsToday >= maxPosts) {
       return alert(`⚠️ Hạn mức đăng tin trong ngày đã hết!`);
@@ -383,8 +376,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const renderDynamicFields = () => {
     if (currentAttributes.length === 0) return null;
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
-        <div className="col-span-1 md:col-span-2 text-xs font-black text-blue-500 uppercase tracking-widest mb-2 border-b border-blue-100 pb-2">Thông tin chi tiết</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in-up bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-100 shadow-inner">
+        <div className="col-span-1 md:col-span-2 text-xs font-black text-blue-600 uppercase tracking-widest mb-2 border-b border-blue-200 pb-2 flex items-center gap-2">
+            <IconFileText className="w-4 h-4" /> Thông tin chi tiết
+        </div>
         {currentAttributes.map((attr) => (
           <div key={attr.key} className="space-y-1">
             <label className={labelStyle}>{attr.label} {attr.required && <span className="text-red-500">*</span>}</label>
@@ -396,7 +391,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             ) : (
               <div className="relative">
                 <input type={attr.type === 'number' ? 'number' : 'text'} className={inputStyle} placeholder={`Nhập ${attr.label.toLowerCase()}...`} value={formData.attributes[attr.key] || ''} onChange={(e) => setFormData(prev => ({ ...prev, attributes: { ...prev.attributes, [attr.key]: e.target.value } }))} required={attr.required} />
-                {attr.suffix && <span className="absolute right-4 top-4 text-gray-400 text-xs font-bold pointer-events-none">{attr.suffix}</span>}
+                {attr.suffix && <span className="absolute right-4 top-4 text-slate-400 text-xs font-bold pointer-events-none">{attr.suffix}</span>}
               </div>
             )}
           </div>
@@ -434,17 +429,18 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const hasChildren = childCategories.length > 0;
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6 px-4 pb-24 pt-4 font-sans overflow-x-hidden">
+    <div className="w-full max-w-4xl mx-auto space-y-8 px-4 pb-24 pt-8 font-sans overflow-x-hidden">
       
-      <div className="text-center space-y-3 mb-6">
-        <h1 className="text-xl md:text-3xl font-black text-gray-900 uppercase tracking-tight">{isEditing ? 'Sửa Tin' : 'Đăng Tin'}</h1>
+      {/* HEADER */}
+      <div className="text-center space-y-4 mb-8">
+        <h1 className="text-3xl md:text-4xl font-black text-slate-900 uppercase tracking-tighter drop-shadow-sm">{isEditing ? 'Sửa Tin' : 'Đăng Tin'}</h1>
         {!isEditing && (
-          <div className="flex flex-col items-center gap-2">
-            <div className={`inline-flex items-center gap-3 px-5 py-2 rounded-full border shadow-sm ${remainingPosts <= 1 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
-              <span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
-                 <IconCrown className="w-3 h-3 text-yellow-500" /> {currentTierConfig.name}
+          <div className="flex justify-center">
+            <div className={`inline-flex items-center gap-4 px-6 py-2.5 rounded-full border shadow-sm backdrop-blur-sm ${remainingPosts <= 1 ? 'bg-red-50 border-red-200 ring-4 ring-red-50' : 'bg-white border-slate-200 ring-4 ring-slate-50'}`}>
+              <span className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
+                 <IconCrown className="w-4 h-4 text-yellow-500" /> {currentTierConfig.name}
               </span>
-              <div className="h-4 w-[1px] bg-gray-300"></div>
+              <div className="h-4 w-[1px] bg-slate-300"></div>
               <span className={`text-xs font-black ${remainingPosts <= 1 ? 'text-red-500 animate-pulse' : 'text-primary'}`}>
                 Còn {remainingPosts}/{maxPosts} tin
               </span>
@@ -454,72 +450,82 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       </div>
 
       {!isEditing && (
-        <div className="bg-gray-100 p-1 rounded-xl flex max-w-md mx-auto shadow-inner mb-6">
-          <button onClick={() => setListingType('normal')} className={`flex-1 py-2.5 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${listingType === 'normal' ? 'bg-white shadow text-primary' : 'text-gray-400'}`}>
+        <div className="bg-slate-100 p-1.5 rounded-2xl flex max-w-md mx-auto shadow-inner mb-8">
+          <button onClick={() => setListingType('normal')} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${listingType === 'normal' ? 'bg-white shadow-md text-primary scale-[1.02]' : 'text-gray-400 hover:text-gray-600'}`}>
             <IconPackage className="w-4 h-4" /> Bán ngay
           </button>
-          <button onClick={() => setListingType('affiliate')} className={`flex-1 py-2.5 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow' : 'text-gray-400'}`}>
+          <button onClick={() => setListingType('affiliate')} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md scale-[1.02]' : 'text-gray-400 hover:text-gray-600'}`}>
             <IconCoins className="w-4 h-4" /> Tiếp thị VIP
           </button>
         </div>
       )}
 
-      {/* --- KHỐI MEDIA --- */}
+      {/* --- KHỐI MEDIA (NÂNG CẤP VISUAL) --- */}
       {listingType === 'affiliate' && user?.subscriptionTier !== 'pro' ? (
-        <div className="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center space-y-4 flex flex-col items-center">
-          <IconCrown className="w-16 h-16 text-orange-400" />
-          <h3 className="text-sm font-black text-orange-600 uppercase">Dành cho VIP PRO</h3>
-          <Link to="/upgrade" className="block w-full max-w-xs bg-orange-500 text-white py-4 rounded-xl font-bold text-xs hover:bg-orange-600 transition">Nâng cấp ngay</Link>
+        <div className="bg-orange-50 border-2 border-orange-100 rounded-[2.5rem] p-10 text-center space-y-6 flex flex-col items-center shadow-lg shadow-orange-100/50">
+          <div className="bg-white p-4 rounded-full shadow-md"><IconCrown className="w-16 h-16 text-orange-400" /></div>
+          <div className="space-y-2">
+              <h3 className="text-lg font-black text-orange-600 uppercase tracking-widest">Dành cho VIP PRO</h3>
+              <p className="text-sm text-orange-800 font-medium">Nâng cấp để mở khóa tính năng tiếp thị liên kết và kiếm tiền thụ động.</p>
+          </div>
+          <Link to="/upgrade" className="block w-full max-w-xs bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 rounded-2xl font-black text-sm uppercase shadow-lg shadow-orange-300 hover:scale-105 transition-transform">Nâng cấp ngay</Link>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-          <div className="flex justify-between items-center mb-4">
-            <label className={labelStyle}>Media ({formData.images.length}/{currentTierConfig.maxImages})</label>
+        <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-xl shadow-slate-100/50 relative overflow-hidden group">
+          {/* Background decoration */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+
+          <div className="flex justify-between items-center mb-6 relative z-10">
+            <label className={labelStyle}>Hình ảnh & Video ({formData.images.length}/{currentTierConfig.maxImages})</label>
             {aiAnalyzing && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
                     <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
-                    <span className="text-[10px] font-bold text-blue-500 uppercase">AI đang tự điền...</span>
+                    <span className="text-[10px] font-bold text-blue-600 uppercase">AI đang phân tích...</span>
                 </div>
             )}
           </div>
-          {/* Grid ảnh */}
-          <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
+          
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 relative z-10">
             {formData.images.map((img, i) => (
-              <div key={i} className="aspect-square rounded-xl overflow-hidden border border-gray-200 relative group">
+              <div key={i} className="aspect-square rounded-2xl overflow-hidden border-2 border-slate-100 relative group shadow-sm hover:shadow-md transition-all">
                 <img src={img} className="w-full h-full object-cover" alt="" />
-                <button type="button" onClick={() => setFormData(p => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 group-hover:bg-red-500 transition-all">
+                <button type="button" onClick={() => setFormData(p => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))} className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white rounded-full p-1.5 backdrop-blur-sm transition-all scale-90 hover:scale-100">
                     <IconX className="w-3 h-3" />
                 </button>
               </div>
             ))}
+            
             {formData.images.length < currentTierConfig.maxImages && (
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-all">
-                <IconImagePlus className="w-8 h-8 opacity-50" />
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center text-slate-400 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-500 transition-all group">
+                <div className="bg-white p-2 rounded-full shadow-sm mb-2 group-hover:scale-110 transition-transform">
+                    <IconImagePlus className="w-6 h-6" />
+                </div>
+                <span className="text-[10px] font-bold uppercase">Thêm ảnh</span>
               </button>
             )}
 
-            {/* --- NÚT VIDEO (CÓ LOGIC KHÓA & ICON VECTOR) --- */}
             {!videoPreview ? (
               currentTierConfig.allowVideo ? (
-                <button type="button" onClick={handleVideoClick} className="aspect-square rounded-xl border-2 border-dashed border-blue-200 bg-blue-50 text-blue-500 hover:border-blue-400 flex flex-col items-center justify-center transition-all">
-                  <IconVideo className="w-8 h-8 mb-1" />
+                <button type="button" onClick={handleVideoClick} className="aspect-square rounded-2xl border-2 border-dashed border-purple-200 bg-purple-50 text-purple-500 hover:border-purple-500 hover:bg-purple-100 flex flex-col items-center justify-center transition-all group">
+                  <div className="bg-white p-2 rounded-full shadow-sm mb-2 group-hover:scale-110 transition-transform">
+                      <IconVideo className="w-6 h-6" />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase">Video</span>
                 </button>
               ) : (
                 <button type="button" onClick={() => {
-                    if(window.confirm("📹 Tính năng đăng Video chỉ dành cho VIP.\nNâng cấp ngay để bán hàng sinh động hơn?")) {
-                      navigate('/upgrade');
-                    }
-                  }} className="aspect-square rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 text-gray-400 flex flex-col items-center justify-center cursor-not-allowed opacity-70 hover:bg-gray-100 transition-all relative">
+                    if(window.confirm("📹 Tính năng đăng Video chỉ dành cho VIP.\nNâng cấp ngay?")) { navigate('/upgrade'); }
+                  }} className="aspect-square rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 text-slate-300 flex flex-col items-center justify-center cursor-not-allowed transition-all relative">
                   <IconVideo className="w-8 h-8 grayscale opacity-50" />
-                  <div className="absolute top-1 right-1 bg-gray-200 rounded-full p-1.5 text-gray-500 shadow-sm">
+                  <div className="absolute top-2 right-2 bg-slate-200 rounded-full p-1.5 text-slate-500">
                     <IconLock className="w-3 h-3" />
                   </div>
                 </button>
               )
             ) : (
-              <div className="aspect-square rounded-xl overflow-hidden border border-blue-200 relative group shadow-lg">
+              <div className="aspect-square rounded-2xl overflow-hidden border-2 border-purple-500 relative group shadow-lg">
                 <video src={videoPreview} className="w-full h-full object-cover" />
-                <button type="button" onClick={() => { setVideoFile(null); setVideoPreview(""); setExistingVideoUrl(null); }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow-md">
+                <button type="button" onClick={() => { setVideoFile(null); setVideoPreview(""); setExistingVideoUrl(null); }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 shadow-md hover:scale-110 transition-transform">
                     <IconX className="w-3 h-3" />
                 </button>
               </div>
@@ -532,68 +538,57 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
       {/* KHỐI FORM */}
       {(listingType === 'normal' || user?.subscriptionTier === 'pro') && (
-        <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xl shadow-gray-100/50 space-y-6">
+        <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-[2.5rem] p-8 md:p-10 shadow-xl shadow-slate-200/50 space-y-8 relative">
+          
+          {/* Form Header Decoration */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-transparent via-slate-300 to-transparent rounded-b-full"></div>
 
           {!isEditing && remainingPosts === 1 && (
-            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-xl mb-2 animate-pulse">
-              <div className="flex items-center gap-3">
-                <IconAlertTriangle className="w-6 h-6 text-yellow-600" />
-                <div>
-                  <h4 className="text-xs font-black text-yellow-700 uppercase">Lưu ý quan trọng</h4>
-                  <p className="text-[11px] text-yellow-800">Tin cuối cùng trong ngày.</p>
-                </div>
+            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-2xl flex items-center gap-4 animate-pulse shadow-sm">
+              <div className="bg-yellow-100 p-2 rounded-full text-yellow-600"><IconAlertTriangle className="w-6 h-6" /></div>
+              <div>
+                <h4 className="text-xs font-black text-yellow-800 uppercase tracking-wide">Lưu ý quan trọng</h4>
+                <p className="text-xs text-yellow-700 font-medium">Đây là tin đăng cuối cùng miễn phí trong ngày của bạn.</p>
               </div>
             </div>
           )}
 
           {listingType === 'normal' && (
-            <div className="bg-gray-50 p-1.5 rounded-2xl flex relative mb-4 max-w-sm">
-              <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-xl shadow-sm transition-all duration-300 ${formData.isAuction ? 'left-[calc(50%+3px)]' : 'left-1.5'}`}></div>
+            <div className="bg-slate-100 p-1.5 rounded-2xl flex relative max-w-sm">
+              <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-xl shadow-md transition-all duration-300 ease-spring ${formData.isAuction ? 'left-[calc(50%+3px)]' : 'left-1.5'}`}></div>
               
-              <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: false }))} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 ${!formData.isAuction ? 'text-primary' : 'text-gray-400'}`}>
+              <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: false }))} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 ${!formData.isAuction ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
                 <IconTag className="w-3.5 h-3.5" /> Giá cố định
               </button>
               
-              {/* --- NÚT ĐẤU GIÁ (CÓ ICON VECTOR & LOGIC KHÓA) --- */}
               {['basic', 'pro'].includes(user?.subscriptionTier || '') ? (
-                <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: true }))} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 ${formData.isAuction ? 'text-purple-600' : 'text-gray-400'}`}>
+                <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: true }))} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 ${formData.isAuction ? 'text-purple-600' : 'text-slate-400 hover:text-slate-600'}`}>
                     <IconGavel className="w-3.5 h-3.5" /> Đấu giá
                 </button>
               ) : (
-                <button type="button" onClick={() => {
-                    if(window.confirm("💎 Tính năng Đấu Giá chỉ dành cho thành viên VIP.\nBạn có muốn nâng cấp ngay không?")) {
-                      navigate('/upgrade');
-                    }
-                  }} className="flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest text-gray-400 cursor-not-allowed flex items-center justify-center gap-1 opacity-60">
+                <button type="button" onClick={() => { if(window.confirm("💎 Tính năng Đấu Giá chỉ dành cho thành viên VIP.\nBạn có muốn nâng cấp ngay không?")) { navigate('/upgrade'); } }} className="flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest text-slate-300 cursor-not-allowed flex items-center justify-center gap-1">
                   <IconGavel className="w-3.5 h-3.5" /> <span>Đấu giá</span>
-                  <IconLock className="w-3 h-3 text-gray-400 ml-1" />
+                  <IconLock className="w-3 h-3 ml-1" />
                 </button>
               )}
             </div>
           )}
 
-          {listingType === 'affiliate' && (
-            <div className="space-y-2 bg-orange-50 p-6 rounded-2xl border border-orange-100">
-              <label className={labelStyle}>Link Tiếp Thị Liên Kết *</label>
-              <input type="url" required placeholder="Dán link Shopee, Lazada..." value={formData.affiliateLink || ''} onChange={(e) => setFormData({ ...formData, affiliateLink: e.target.value })} className={inputStyle} />
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <label className={labelStyle}>Tiêu đề *</label>
-            <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max 256GB..." value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={inputStyle} />
+          <div className="space-y-2">
+            <label className={labelStyle}>Tiêu đề tin đăng *</label>
+            <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max 256GB Chính hãng..." value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={`${inputStyle} text-lg`} />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-            <div className="space-y-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 rounded-3xl border border-slate-100">
+            <div className="space-y-2">
               <label className={labelStyle}>Danh mục Chính *</label>
               <select value={selectedParentId} onChange={handleParentCategoryChange} className={inputStyle}>
-                <option value="">-- Chọn --</option>
+                <option value="">-- Chọn danh mục --</option>
                 {parentCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
               </select>
             </div>
-            <div className="space-y-1">
-              <label className={labelStyle}>Chi tiết</label>
+            <div className="space-y-2">
+              <label className={labelStyle}>Chi tiết danh mục</label>
               <select value={selectedChildId} onChange={handleChildCategoryChange} className={inputStyle} disabled={!selectedParentId || !hasChildren}>
                 <option value="">{hasChildren ? "-- Chọn loại --" : "Không có mục con"}</option>
                 {childCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
@@ -603,22 +598,22 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
           {renderDynamicFields()}
 
-          {/* KHUNG GIÁ / ĐẤU GIÁ */}
-          <div className={`p-4 rounded-2xl border transition-all ${formData.isAuction ? 'bg-purple-50 border-purple-100' : 'bg-white border-transparent'}`}>
+          {/* SECTION GIÁ */}
+          <div className={`p-6 rounded-3xl border-2 transition-all shadow-sm ${formData.isAuction ? 'bg-purple-50 border-purple-200' : 'bg-white border-slate-100'}`}>
             {formData.isAuction ? (
-              <div className="space-y-4 animate-fade-in">
-                <div className="flex items-center gap-2 mb-2">
-                  <IconGavel className="w-5 h-5 text-purple-600" />
-                  <h3 className="font-black text-purple-700 uppercase text-xs tracking-widest">Thiết lập đấu giá</h3>
+              <div className="space-y-6 animate-fade-in">
+                <div className="flex items-center gap-3 border-b border-purple-200 pb-4">
+                  <div className="bg-purple-200 p-2 rounded-lg text-purple-700"><IconGavel className="w-6 h-6" /></div>
+                  <h3 className="font-black text-purple-800 uppercase text-sm tracking-widest">Thiết lập phiên đấu giá</h3>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Giá khởi điểm *</label>
-                    <input type="text" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-black text-purple-700 focus:ring-2 focus:ring-purple-500" placeholder="0" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black uppercase text-purple-500 tracking-widest">Giá khởi điểm *</label>
+                    <input type="text" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className="w-full bg-white border border-purple-200 rounded-xl p-4 font-black text-lg text-purple-700 focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 outline-none" placeholder="0" />
                   </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Bước giá *</label>
-                    <select value={formData.bidIncrement} onChange={(e) => setFormData({ ...formData, bidIncrement: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:ring-2 focus:ring-purple-500">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black uppercase text-purple-500 tracking-widest">Bước giá tối thiểu *</label>
+                    <select value={formData.bidIncrement} onChange={(e) => setFormData({ ...formData, bidIncrement: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-4 font-bold text-slate-700 focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 outline-none">
                       <option value="10000">10.000 đ</option>
                       <option value="20000">20.000 đ</option>
                       <option value="50000">50.000 đ</option>
@@ -626,44 +621,54 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                     </select>
                   </div>
                 </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase text-purple-400 tracking-widest">Kết thúc lúc *</label>
-                  <input type="datetime-local" value={formData.auctionEndAt} onChange={(e) => setFormData({ ...formData, auctionEndAt: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-3 font-bold text-slate-700 focus:ring-2 focus:ring-purple-500" />
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase text-purple-500 tracking-widest">Thời gian kết thúc *</label>
+                  <input type="datetime-local" value={formData.auctionEndAt} onChange={(e) => setFormData({ ...formData, auctionEndAt: e.target.value })} className="w-full bg-white border border-purple-200 rounded-xl p-4 font-bold text-slate-700 focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 outline-none" />
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                  <div className="space-y-1">
-                    <label className={labelStyle}>Giá bán (VNĐ) *</label>
-                    <input type="text" placeholder="0" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className={inputStyle} />
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className={labelStyle}>Giá bán mong muốn (VNĐ) *</label>
+                    <div className="relative">
+                        <input type="text" placeholder="0" value={formData.price ? Number(formData.price).toLocaleString('vi-VN') : ''} onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/\D/g, '') })} className={`${inputStyle} text-lg pl-4 pr-12 font-black text-blue-600`} />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">VNĐ</span>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className={labelStyle}>Tình trạng</label>
+                  <div className="space-y-2">
+                    <label className={labelStyle}>Tình trạng sản phẩm</label>
                     <select value={formData.condition} onChange={(e) => setFormData({ ...formData, condition: e.target.value as any })} className={inputStyle}>
                       <option value="used">Đã qua sử dụng</option>
-                      <option value="new">Mới 100%</option>
+                      <option value="new">Mới 100% (Chưa bóc seal)</option>
                     </select>
                   </div>
                 </div>
                 
                 {priceSuggestions && (
-                    <div className="w-full overflow-hidden mt-2">
-                        <div className="flex gap-2 overflow-x-auto pb-2 w-full no-scrollbar touch-pan-x snap-x">
-                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.fast.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition whitespace-nowrap">
-                                <IconZap className="w-3 h-3 text-green-600" />
-                                <span className="text-[10px] font-bold text-green-600 uppercase">Bán nhanh</span>
-                                <span className="text-xs font-black text-green-700">{Number(priceSuggestions.fast).toLocaleString('vi-VN')}</span>
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-3 flex items-center gap-1"><IconZap className="w-3 h-3 text-yellow-500" /> Gợi ý giá từ AI:</p>
+                        <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.fast.toString()}))} className="flex items-center gap-2 px-4 py-2 bg-white border border-green-200 rounded-xl hover:bg-green-50 transition shadow-sm">
+                                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Bán nhanh</p>
+                                    <p className="text-xs font-black text-green-600">{Number(priceSuggestions.fast).toLocaleString('vi-VN')}</p>
+                                </div>
                             </button>
-                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.market.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition whitespace-nowrap">
-                                <IconThumbsUp className="w-3 h-3 text-blue-600" />
-                                <span className="text-[10px] font-bold text-blue-600 uppercase">Hợp lý</span>
-                                <span className="text-xs font-black text-blue-700">{Number(priceSuggestions.market).toLocaleString('vi-VN')}</span>
+                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.market.toString()}))} className="flex items-center gap-2 px-4 py-2 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition shadow-sm ring-1 ring-blue-100">
+                                <IconThumbsUp className="w-4 h-4 text-blue-500" />
+                                <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Giá thị trường</p>
+                                    <p className="text-xs font-black text-blue-600">{Number(priceSuggestions.market).toLocaleString('vi-VN')}</p>
+                                </div>
                             </button>
-                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.high.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition whitespace-nowrap">
-                                <IconTrendingUp className="w-3 h-3 text-purple-600" />
-                                <span className="text-[10px] font-bold text-purple-600 uppercase">Lời cao</span>
-                                <span className="text-xs font-black text-purple-700">{Number(priceSuggestions.high).toLocaleString('vi-VN')}</span>
+                            <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.high.toString()}))} className="flex items-center gap-2 px-4 py-2 bg-white border border-purple-200 rounded-xl hover:bg-purple-50 transition shadow-sm">
+                                <IconTrendingUp className="w-4 h-4 text-purple-500" />
+                                <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Giá cao</p>
+                                    <p className="text-xs font-black text-purple-600">{Number(priceSuggestions.high).toLocaleString('vi-VN')}</p>
+                                </div>
                             </button>
                         </div>
                     </div>
@@ -672,66 +677,69 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className={labelStyle}>Khu vực</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className={labelStyle}>Khu vực bán</label>
               <select value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} className={inputStyle}>
                 {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
               </select>
             </div>
-            <div className="space-y-1">
-              <div className="flex justify-between items-center mb-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Địa chỉ chi tiết</label>
-                <button type="button" onClick={handleManualLocate} className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 hover:text-blue-600">
-                    <IconMapPin className="w-3 h-3" /> Lấy vị trí
+            <div className="space-y-2">
+              <div className="flex justify-between items-center mb-2">
+                <label className={labelStyle}>Địa chỉ chi tiết</label>
+                <button type="button" onClick={handleManualLocate} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1 hover:underline bg-blue-50 px-2 py-1 rounded-lg">
+                    <IconMapPin className="w-3 h-3" /> Lấy vị trí hiện tại
                 </button>
               </div>
-              <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={inputStyle} placeholder="Số nhà, đường..." />
+              <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={inputStyle} placeholder="Số nhà, tên đường, phường/xã..." />
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className={labelStyle}>Mô tả chi tiết</label>
-            <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className={`${inputStyle} h-40 leading-relaxed`} placeholder="Mô tả kỹ về sản phẩm..." />
+          <div className="space-y-2">
+            <label className={labelStyle}>Mô tả chi tiết sản phẩm</label>
+            <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className={`${inputStyle} h-48 leading-relaxed resize-none`} placeholder="Hãy mô tả chi tiết về sản phẩm: xuất xứ, tình trạng, phụ kiện đi kèm, bảo hành..." />
           </div>
 
-          {/* QUY TẮC & MẸO - ĐẸP HƠN VỚI ICON */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-5 rounded-2xl relative overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-100 p-6 rounded-3xl relative overflow-hidden">
             <div className="relative z-10">
-              <h3 className="flex items-center gap-2 font-black text-xs uppercase text-blue-600 mb-3 tracking-wider">
-                <IconShieldAlert className="w-4 h-4" /> Quy tắc & Mẹo Bán Nhanh
+              <h3 className="flex items-center gap-2 font-black text-xs uppercase text-blue-700 mb-4 tracking-wider">
+                <IconShieldAlert className="w-5 h-5" /> Quy tắc & Mẹo Bán Nhanh
               </h3>
-              <ul className="space-y-2">
-                  <li className="flex items-start gap-2 text-xs text-gray-700 font-medium">
-                    <IconBan className="w-3.5 h-3.5 text-red-400 mt-0.5" /> <span>Không đăng hàng cấm, hàng giả.</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-xs text-gray-700 font-medium">
-                    <IconCamera className="w-3.5 h-3.5 text-blue-400 mt-0.5" /> <span>Hình ảnh tự chụp, rõ nét, không mờ.</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-xs text-gray-700 font-medium">
-                    <IconFileText className="w-3.5 h-3.5 text-green-400 mt-0.5" /> <span>Mô tả chi tiết tình trạng, xuất xứ.</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-xs text-gray-700 font-medium">
-                    <IconMessageCircle className="w-3.5 h-3.5 text-purple-400 mt-0.5" /> <span>Trả lời khách hàng lịch sự, nhanh chóng.</span>
-                  </li>
-              </ul>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex items-start gap-3 bg-white/60 p-3 rounded-xl">
+                    <div className="bg-red-100 p-1.5 rounded-lg text-red-500"><IconBan className="w-4 h-4" /></div>
+                    <span className="text-xs text-slate-700 font-medium pt-0.5">Không đăng hàng cấm, hàng giả, hàng nhái.</span>
+                  </div>
+                  <div className="flex items-start gap-3 bg-white/60 p-3 rounded-xl">
+                    <div className="bg-blue-100 p-1.5 rounded-lg text-blue-500"><IconCamera className="w-4 h-4" /></div>
+                    <span className="text-xs text-slate-700 font-medium pt-0.5">Hình ảnh tự chụp, rõ nét, đầy đủ góc cạnh.</span>
+                  </div>
+                  <div className="flex items-start gap-3 bg-white/60 p-3 rounded-xl">
+                    <div className="bg-green-100 p-1.5 rounded-lg text-green-500"><IconFileText className="w-4 h-4" /></div>
+                    <span className="text-xs text-slate-700 font-medium pt-0.5">Mô tả trung thực tình trạng, lỗi lầm (nếu có).</span>
+                  </div>
+                  <div className="flex items-start gap-3 bg-white/60 p-3 rounded-xl">
+                    <div className="bg-purple-100 p-1.5 rounded-lg text-purple-500"><IconMessageCircle className="w-4 h-4" /></div>
+                    <span className="text-xs text-slate-700 font-medium pt-0.5">Trả lời khách hàng lịch sự, nhanh chóng.</span>
+                  </div>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+          <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
             <div className="relative flex items-center">
-                <input type="checkbox" id="rules" checked={agreedToRules} onChange={e => setAgreedToRules(e.target.checked)} className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-gray-300 transition-all checked:border-primary checked:bg-primary" />
-                <IconCheckSquare className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 w-3.5 h-3.5" />
+                <input type="checkbox" id="rules" checked={agreedToRules} onChange={e => setAgreedToRules(e.target.checked)} className="peer h-6 w-6 cursor-pointer appearance-none rounded-lg border-2 border-slate-300 transition-all checked:border-blue-600 checked:bg-blue-600 hover:border-blue-400" />
+                <IconCheckSquare className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 w-4 h-4" />
             </div>
-            <label htmlFor="rules" className="text-[11px] font-bold text-gray-500 uppercase cursor-pointer select-none">Tôi cam kết tuân thủ quy tắc cộng đồng</label>
+            <label htmlFor="rules" className="text-xs font-bold text-slate-600 uppercase cursor-pointer select-none hover:text-blue-600 transition-colors">Tôi cam kết tuân thủ quy tắc cộng đồng của Chợ Của Tui</label>
           </div>
 
-          <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl font-black text-sm uppercase shadow-xl text-white transition-all transform active:scale-95 flex items-center justify-center gap-2 ${formData.isAuction ? 'bg-gradient-to-r from-purple-600 to-indigo-600 shadow-purple-200' : (listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-primary hover:bg-primaryHover')}`}>
+          <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl font-black text-sm uppercase shadow-xl text-white transition-all transform active:scale-[0.98] hover:shadow-2xl flex items-center justify-center gap-3 ${formData.isAuction ? 'bg-gradient-to-r from-purple-600 to-indigo-600 shadow-purple-200' : (listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500 shadow-orange-200' : 'bg-gradient-to-r from-blue-600 to-cyan-600 shadow-blue-200 hover:brightness-110')}`}>
             {loading ? (
                 <span>Đang xử lý...</span>
             ) : (
                 <>
-                    {formData.isAuction && <IconGavel className="w-4 h-4" />}
+                    {formData.isAuction ? <IconGavel className="w-5 h-5" /> : <IconPackage className="w-5 h-5" />}
                     {isEditing ? 'Lưu thay đổi' : (formData.isAuction ? 'Tạo phiên đấu giá' : (remainingPosts === 1 ? 'Đăng tin cuối cùng' : 'Đăng tin ngay'))}
                 </>
             )}

@@ -7,10 +7,10 @@ import UniversalInstallPrompt from './UniversalInstallPrompt';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import NotificationMenu from '../components/NotificationMenu';
 
-// ⚠️ TUYỆT ĐỐI KHÔNG IMPORT firebase/messaging Ở ĐÂY (Để tránh lỗi build trên server/môi trường ko hỗ trợ)
+// ⚠️ TUYỆT ĐỐI KHÔNG IMPORT firebase/messaging Ở ĐÂY
 
 /* ====================================================================================
-   BỘ ICON VẼ TAY (AN TOÀN TUYỆT ĐỐI 100%)
+   BỘ ICON VẼ TAY (SVG THUẦN - GIỮ NGUYÊN)
    ==================================================================================== */
 const IconZap = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 const IconBell = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
@@ -38,6 +38,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [isSearchingImage, setIsSearchingImage] = useState(false);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   
+  // Kiểm tra quyền thông báo an toàn
   const [notifPermission, setNotifPermission] = useState(() => {
     try {
       return ("Notification" in window) ? Notification.permission : 'default';
@@ -50,23 +51,33 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const maxPriceParam = searchParams.get('maxPrice');
   const locationParam = searchParams.get('location');
 
+  // Đồng bộ search query với URL
   useEffect(() => {
     setSearchQuery(searchParams.get('search') || '');
   }, [searchParams]);
 
+  // [FIX] Lắng nghe tin nhắn an toàn (tránh lỗi permission-denied khi logout)
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
     if (user?.id) {
-      // @ts-ignore
-      const unsubChats = db.getChatRooms(user.id, (rooms: ChatRoom[]) => {
-        if (rooms) setChatRooms(rooms);
-      });
-      return () => {
-        // @ts-ignore
-        if (typeof unsubChats === 'function') unsubChats();
-      };
+      try {
+        // @ts-ignore: db.getChatRooms trả về hàm unsubscribe
+        unsubscribe = db.getChatRooms(user.id, (rooms: ChatRoom[]) => {
+          if (rooms) setChatRooms(rooms);
+        });
+      } catch (error) {
+        console.warn("Lỗi lắng nghe chat (có thể do logout):", error);
+      }
     } else {
       setChatRooms([]);
     }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [user?.id]);
 
   const unreadChatCount = user ? chatRooms.filter(r => 
@@ -74,7 +85,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     !r.seenBy?.includes(user.id) 
   ).length : 0;
 
-  // --- LOGIC KÍCH HOẠT THÔNG BÁO (ĐÃ FIX) ---
+  // --- LOGIC KÍCH HOẠT THÔNG BÁO ---
   const handleEnableNotifications = async () => {
     setHasInteractedWithNotif(true);
 
@@ -88,7 +99,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
       setNotifPermission(permission);
 
       if (permission === 'granted') {
-        // Cập nhật Badge (số tin nhắn chưa đọc) trên icon ứng dụng
+        // Cập nhật Badge
         if ('setAppBadge' in navigator) {
             // @ts-ignore
             navigator.setAppBadge(unreadChatCount).catch(() => {});
@@ -97,30 +108,24 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         try {
             console.log("🚀 Đang kích hoạt FCM...");
             
-            // 1. Đợi Service Worker sẵn sàng (Quan trọng!)
             if ('serviceWorker' in navigator) {
                 const registration = await navigator.serviceWorker.ready;
                 
-                // 2. Dynamic import Firebase Messaging
+                // Import động để tránh lỗi build
                 const { getMessaging, getToken } = await import("firebase/messaging");
                 const messaging = getMessaging(app);
 
-                // 3. Lấy Token
                 const currentToken = await getToken(messaging, { 
-                  vapidKey: 'BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI', // Thay bằng key thật của bạn nếu khác
+                  vapidKey: 'BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI', // Key của bạn
                   serviceWorkerRegistration: registration 
                 });
 
-                if (currentToken) {
-                    console.log("FCM Token:", currentToken);
-                    if (user?.id) {
-                        // Lưu token vào User Profile để Backend gửi tin
+                if (currentToken && user?.id) {
+                    // @ts-ignore
+                    if (db.updateUserProfile) {
                         // @ts-ignore
-                        if (db.updateUserProfile) {
-                            // @ts-ignore
-                            await db.updateUserProfile(user.id, { fcmToken: currentToken });
-                            alert("✅ Đã bật thông báo thành công!");
-                        }
+                        await db.updateUserProfile(user.id, { fcmToken: currentToken });
+                        alert("✅ Đã bật thông báo thành công!");
                     }
                 } else {
                     console.warn("Không lấy được FCM Token.");
@@ -130,7 +135,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             }
         } catch (err) {
             console.error('Lỗi kích hoạt thông báo:', err);
-            // Không alert lỗi kỹ thuật để tránh làm phiền user, chỉ log
         }
       } else {
           alert("Bạn đã chặn thông báo. Hãy vào cài đặt trình duyệt để mở lại.");
@@ -140,6 +144,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   };
 
+  // Cập nhật App Badge khi số tin nhắn thay đổi
   useEffect(() => {
     if (typeof window !== 'undefined' && 'setAppBadge' in navigator && notifPermission === 'granted') {
       if (unreadChatCount > 0) {
@@ -184,7 +189,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         <div className="flex items-center flex-shrink-0 h-14 md:h-20">
           <Link to="/" className="flex items-center gap-2.5 group">
             <div className="w-10 h-10 md:w-11 md:h-11 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl md:rounded-2xl flex items-center justify-center text-white text-xl md:text-2xl shadow-lg shadow-blue-500/40 group-hover:rotate-12 transition-all duration-500 border border-white/20">
-                {/* Dùng IconZap vẽ tay */}
                 <div className="w-6 h-6"><IconZap /></div>
             </div>
             <span className="hidden lg:block font-black text-xl md:text-2xl tracking-tighter bg-gradient-to-r from-blue-700 via-blue-500 to-yellow-500 bg-clip-text text-transparent group-hover:scale-[1.02] transition-transform origin-left drop-shadow-sm">
@@ -208,7 +212,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {/* ACTIONS */}
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
           
-          {/* NÚT BẬT THÔNG BÁO MOBILE (Dùng IconBell) */}
+          {/* NÚT BẬT THÔNG BÁO MOBILE */}
           {user && notifPermission === 'default' && !hasInteractedWithNotif && (
             <button 
               onClick={handleEnableNotifications}
@@ -256,7 +260,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {children}
       </main>
 
-      {/* MOBILE NAV BAR (Dùng Icon vẽ tay) */}
+      {/* MOBILE NAV BAR */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex items-end justify-between h-[calc(4rem+env(safe-area-inset-bottom))] z-50 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
         <Link to="/" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname === '/' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
           <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/' ? 'bg-blue-50' : ''}`}>

@@ -4,15 +4,10 @@ import { db } from '../services/db';
 import { formatTimeAgo } from '../utils/format';
 import { Notification } from '../types'; 
 
-// --- IMPORT ICON VECTOR (LUCIDE) ---
+// --- IMPORT ICON VECTOR ---
 import { 
-  Home, ChevronRight, ChevronLeft, Volume2, VolumeX, Maximize2, 
-  Play, Pause, Flag, MapPin, Clock, Eye, BadgeCheck, Edit, 
-  ExternalLink, Tag, RefreshCcw, MessageCircle, Phone, Heart, 
-  Share2, Flame, BedDouble, Bath, Gauge, Calendar, Fuel, 
-  Settings, HardDrive, Banknote, Briefcase, Info, Scaling, 
-  ShieldCheck, AlertTriangle, X,
-  Zap // <--- THÊM CÁI NÀY VÀO ĐÂY
+  Bell, Check, RefreshCw, Zap, Star, Wallet, Package, 
+  MessageCircle, Info 
 } from 'lucide-react';
 const NotificationMenu: React.FC<{ userId: string }> = ({ userId }) => {
   const navigate = useNavigate();

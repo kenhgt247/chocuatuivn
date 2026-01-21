@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 
 // --- Layout & Pages ---
 import Layout from './components/Layout';
@@ -40,13 +38,30 @@ const ScrollToTop = () => {
   return null;
 };
 
-// --- ICON VẼ TAY CHO TOAST (AN TOÀN) ---
-const IconSuccess = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+// --- ICON VẼ TAY (AN TOÀN TUYỆT ĐỐI) ---
+const IconCheckCircle = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const prevBalanceRef = useRef<number>(0);
+
+  // --- STATE CHO THÔNG BÁO TỰ CHẾ (CUSTOM TOAST) ---
+  const [notification, setNotification] = useState<{ show: boolean; message: string } | null>(null);
+
+  // Hàm hiển thị thông báo an toàn
+  const showSafeToast = (message: string) => {
+    setNotification({ show: true, message });
+    // Tự động tắt sau 4 giây
+    setTimeout(() => {
+      setNotification(null);
+    }, 4000);
+  };
 
   // 1. KHỞI TẠO USER VÀ LẮNG NGHE VÍ TIỀN
   useEffect(() => {
@@ -65,11 +80,11 @@ const App: React.FC = () => {
                     // Chỉ thông báo nếu tiền tăng lên
                     if (updatedUser.walletBalance > prevBalanceRef.current) {
                         const amount = updatedUser.walletBalance - prevBalanceRef.current;
-                        // [FIX] Dùng icon vẽ tay để tránh lỗi Crash
-                        toast.success(`Ví vừa được cộng ${formatPrice(amount)}`, {
-                            icon: <IconSuccess />
-                        });
+                        
+                        // [FIX] GỌI HÀM THÔNG BÁO TỰ CHẾ (KHÔNG DÙNG THƯ VIỆN)
+                        showSafeToast(`Ting ting! Ví vừa cộng ${formatPrice(amount)}`);
                     }
+                    
                     // Cập nhật state nhưng KHÔNG gây loop cho useEffect bên dưới
                     setUser(updatedUser);
                     prevBalanceRef.current = updatedUser.walletBalance;
@@ -87,48 +102,30 @@ const App: React.FC = () => {
     return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
-  // 2. [QUAN TRỌNG] LOGIC BÁO ONLINE - ĐÃ CẮT VÒNG LẶP
+  // 2. LOGIC BÁO ONLINE
   useEffect(() => {
-    // Nếu chưa có ID thì thoát ngay
     if (!user?.id) return;
 
     const dbInstance = getFirestore();
     const userRef = doc(dbInstance, "users", user.id);
 
-    // Hàm báo Online
     const reportOnline = async () => {
-      // Kiểm tra nếu tab đang ẩn thì không báo để tiết kiệm
       if (document.visibilityState !== 'visible') return;
-      
       try {
-        await updateDoc(userRef, {
-          isOnline: true,
-          lastActiveAt: serverTimestamp()
-        });
-      } catch (e) { /* Lỗi mạng bỏ qua */ }
+        await updateDoc(userRef, { isOnline: true, lastActiveAt: serverTimestamp() });
+      } catch (e) { /* Ignore */ }
     };
 
-    // Hàm báo Offline
     const reportOffline = async () => {
       try {
-        await updateDoc(userRef, {
-          isOnline: false,
-          lastActiveAt: serverTimestamp()
-        });
+        await updateDoc(userRef, { isOnline: false, lastActiveAt: serverTimestamp() });
       } catch (e) {}
     };
 
-    // Chạy ngay lần đầu
     reportOnline();
-
-    // Setup Interval: 2 phút báo 1 lần (Đủ để duy trì online, không quá tốn kém)
     const intervalId = setInterval(reportOnline, 120000);
-
-    // Xử lý khi đóng tab/tắt trình duyệt
     const handleBeforeUnload = () => { reportOffline(); };
     window.addEventListener("beforeunload", handleBeforeUnload);
-
-    // Xử lý khi quay lại tab
     const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') reportOnline();
     };
@@ -138,13 +135,8 @@ const App: React.FC = () => {
       clearInterval(intervalId);
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      // KHÔNG gọi reportOffline ở đây để tránh nhấp nháy khi re-render
     };
-    
-    // [CỰC KỲ QUAN TRỌNG]: Chỉ chạy lại khi ID thay đổi (Login/Logout)
-    // Tuyệt đối không để [user] ở đây.
   }, [user?.id]); 
-
 
   // --- HANDLERS ---
   const handleLogin = (u: User) => {
@@ -153,7 +145,6 @@ const App: React.FC = () => {
   };
   
   const handleLogout = async () => {
-    // Chủ động báo offline trước khi logout
     if (user?.id) {
         try {
             const dbInstance = getFirestore();
@@ -198,13 +189,11 @@ const App: React.FC = () => {
             <Route path="/san-pham/:slugWithId" element={<ListingDetail user={user} />} />
             <Route path="/listings/:slugWithId" element={<ListingDetail user={user} />} />
             
-
             <Route path="/profile" element={user ? <Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
             <Route path="/profile/:id" element={<SellerProfile currentUser={user} />} />
             <Route path="/seller/:id" element={<SellerProfile currentUser={user} />} />
             
             <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
-            
             <Route path="/edit/:id" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
             
             <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
@@ -225,16 +214,18 @@ const App: React.FC = () => {
           </Routes>
         </Layout>
 
-        {/* THAY ĐỔI: Tắt icon mặc định để tránh lỗi */}
-        <ToastContainer 
-            position="bottom-center" 
-            autoClose={3000} 
-            hideProgressBar={true} 
-            newestOnTop={true} 
-            theme="light" 
-            icon={false} // <--- QUAN TRỌNG: Tắt icon mặc định
-          closeButton={false}
-        />
+        {/* --- [CUSTOM TOAST] THÔNG BÁO TIỀN VỀ (AN TOÀN 100%) --- */}
+        {notification && notification.show && (
+            <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[9999] animate-bounce-in">
+                <div className="bg-green-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border-2 border-white/20 backdrop-blur-md">
+                    <div className="bg-white/20 p-1 rounded-full">
+                        <IconCheckCircle />
+                    </div>
+                    <span className="font-bold text-sm tracking-wide">{notification.message}</span>
+                </div>
+            </div>
+        )}
+
       </Router>
     </HelmetProvider>
   );

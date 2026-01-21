@@ -703,18 +703,45 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       </div>
 
-      {/* FOOTER */}
-      <footer className="hidden md:block pt-20 border-t border-dashed border-gray-200 mt-20">
-         <div className="bg-white border border-gray-100 rounded-[3rem] p-12 shadow-sm">
-            <div className="flex items-center justify-between mb-10">
-               <h4 className="text-2xl font-black text-gray-800 flex items-center gap-3">
-                 <ShieldCheck className="w-8 h-8 text-yellow-500" /> Chợ Của Tui
-               </h4>
+       {/* 6. FOOTER - PHIÊN BẢN PREMIUM */}
+      <footer className="hidden md:block pt-20 pb-10 px-4 md:px-0 mt-10">
+         <div className="bg-white/80 backdrop-blur-xl border border-white/50 rounded-[3rem] p-12 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] relative overflow-hidden group">
+            
+            {/* Hiệu ứng nền trang trí (Blob) */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-50 to-purple-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-60 pointer-events-none transition-opacity group-hover:opacity-100"></div>
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-yellow-50 to-orange-50 rounded-full blur-3xl -ml-20 -mb-20 opacity-40 pointer-events-none"></div>
+
+            <div className="relative z-10 flex items-center justify-between mb-10">
+               {/* Logo Footer - Đồng bộ Gradient Tech */}
+               <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center text-white text-xl shadow-lg shadow-blue-500/30">
+                    <Zap className="w-5 h-5 fill-current" />
+                  </div>
+                  <span className="font-black text-2xl tracking-tighter bg-gradient-to-r from-blue-700 via-blue-500 to-yellow-500 bg-clip-text text-transparent">
+                    Chợ của tui
+                  </span>
+               </div>
+
+               {/* Links - Style tinh tế hơn */}
                <div className="flex gap-8">
-                  {STATIC_LINKS.map(link => <Link key={link.slug} to={`/page/${link.slug}`} className="text-[11px] font-black text-gray-400 hover:text-primary transition-colors uppercase tracking-widest">{link.title}</Link>)}
+                  {STATIC_LINKS.map(link => (
+                    <Link key={link.slug} to={`/page/${link.slug}`} className="text-[11px] font-black text-slate-400 hover:text-blue-600 transition-all uppercase tracking-widest hover:underline decoration-2 underline-offset-4">
+                        {link.title}
+                    </Link>
+                  ))}
                </div>
             </div>
-            <div className="text-[10px] text-gray-300 font-bold text-center border-t border-gray-50 pt-10 uppercase tracking-widest">© 2026 ChoCuaTui.vn - Trí tuệ nhân tạo phục vụ cộng đồng.</div>
+
+            {/* Copyright */}
+            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between pt-8 border-t border-slate-100">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                    © 2026 ChoCuaTui.vn - Nền tảng rao vặt AI miễn phí.
+                </p>
+                <div className="flex gap-2 mt-2 md:mt-0">
+                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                    <span className="text-[10px] font-bold text-green-600">Đang chừo cấp phép</span>
+                </div>
+            </div>
          </div>
       </footer>
 

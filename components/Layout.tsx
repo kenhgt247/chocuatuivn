@@ -32,6 +32,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     } catch (e) { return 'default'; }
   });
 
+  // [MỚI] State để ẩn nút sau khi bấm
+  const [hasInteractedWithNotif, setHasInteractedWithNotif] = useState(false);
+
   const minPriceParam = searchParams.get('minPrice');
   const maxPriceParam = searchParams.get('maxPrice');
   const locationParam = searchParams.get('location');
@@ -66,6 +69,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
 
   // --- 3. BẬT THÔNG BÁO (AN TOÀN - KHÔNG TRẮNG TRANG) ---
   const handleEnableNotifications = async () => {
+    // [CHANGE] Ẩn nút ngay lập tức khi bấm vào
+    setHasInteractedWithNotif(true);
+
     if (!("Notification" in window)) {
       alert("Thiết bị này không hỗ trợ thông báo web.");
       return;
@@ -156,14 +162,14 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 px-3 md:px-6 lg:px-10 h-auto min-h-[5rem] flex items-center justify-between gap-2 md:gap-4 shadow-sm pt-[env(safe-area-inset-top)] transition-all">
         
        {/* LOGO - STYLE 1: GRADIENT SANG CHẢNH */}
-<div className="flex items-center flex-shrink-0 h-14 md:h-20">
-  <Link to="/" className="flex items-center gap-2.5 group">
-    <div className="w-10 h-10 md:w-11 md:h-11 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl md:rounded-2xl flex items-center justify-center text-white text-xl md:text-2xl shadow-lg shadow-blue-500/40 group-hover:rotate-12 transition-all duration-500 border border-white/20">⚡</div>
-    <span className="hidden lg:block font-black text-xl md:text-2xl tracking-tighter bg-gradient-to-r from-blue-700 via-blue-500 to-yellow-500 bg-clip-text text-transparent group-hover:scale-[1.02] transition-transform origin-left drop-shadow-sm">
-      Chợ của tui
-    </span>
-  </Link>
-</div>
+        <div className="flex items-center flex-shrink-0 h-14 md:h-20">
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <div className="w-10 h-10 md:w-11 md:h-11 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl md:rounded-2xl flex items-center justify-center text-white text-xl md:text-2xl shadow-lg shadow-blue-500/40 group-hover:rotate-12 transition-all duration-500 border border-white/20">⚡</div>
+            <span className="hidden lg:block font-black text-xl md:text-2xl tracking-tighter bg-gradient-to-r from-blue-700 via-blue-500 to-yellow-500 bg-clip-text text-transparent group-hover:scale-[1.02] transition-transform origin-left drop-shadow-sm">
+              Chợ của tui
+            </span>
+          </Link>
+        </div>
 
         {/* SEARCH BAR */}
         <form onSubmit={handleSearch} className="flex-1 max-w-2xl relative group px-1 md:px-0">
@@ -179,7 +185,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
           
           {/* NÚT BẬT THÔNG BÁO MOBILE */}
-          {user && notifPermission === 'default' && (
+          {/* [CHANGE] Thêm điều kiện !hasInteractedWithNotif để ẩn nút nếu đã bấm */}
+          {user && notifPermission === 'default' && !hasInteractedWithNotif && (
             <button 
               onClick={handleEnableNotifications}
               className="flex items-center gap-1 bg-red-500 text-white px-2.5 py-1.5 rounded-lg text-[10px] font-black border border-red-400 animate-bounce md:hidden shadow-lg active:scale-95"

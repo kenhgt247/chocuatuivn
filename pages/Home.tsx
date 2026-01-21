@@ -9,11 +9,18 @@ import CategoryBar from '../components/CategoryBar';
 import { getLocationFromCoords } from '../utils/locationHelper'; 
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
-// --- IMPORT ICON VECTOR ---
-import { 
-  Crown, MapPin, Navigation, Sparkles, Search, Layers, 
-  PackageOpen, Zap, ChevronRight, Loader2 
-} from 'lucide-react';
+// ⚠️ ĐÃ LOẠI BỎ LUCIDE-REACT ĐỂ TRÁNH LỖI CRASH
+// --- BỘ ICON VẼ TAY (SVG THUẦN) ---
+const IconZap = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+const IconCrown = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>;
+const IconMapPin = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>;
+const IconNavigation = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>;
+const IconSparkles = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M9 5H5"/><path d="M19 15v4"/><path d="M23 17h-4"/></svg>;
+const IconSearch = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
+const IconLayers = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>;
+const IconPackageOpen = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M8 8.5A6 6 0 0 1 12 3a6 6 0 0 1 4 5.5"/></svg>;
+const IconChevronRight = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>;
+const IconLoader2 = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
 
 const STATIC_LINKS = [
   { slug: 'gioi-thieu', title: 'Giới thiệu' },
@@ -287,12 +294,12 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           <div className="flex items-center justify-between px-2">
             <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
               <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-md uppercase tracking-wider transform hover:scale-105 transition-transform flex items-center gap-1">
-                 <Crown className="w-3 h-3 fill-current animate-pulse" /> VIP
+                 <IconCrown className="w-3 h-3 fill-current animate-pulse" /> VIP
               </span>
               <span className="font-bold text-gray-800">Tin tài trợ</span>
             </h2>
             <Link to="/?type=vip" className="text-[10px] font-black text-primary uppercase hover:underline flex items-center gap-1">
-                Xem tất cả <ChevronRight className="w-3 h-3" />
+                Xem tất cả <IconChevronRight className="w-3 h-3" />
             </Link>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -315,22 +322,22 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                    <MapPin className="w-5 h-5 text-red-500" /> Tin Quanh Đây
+                    <IconMapPin className="w-5 h-5 text-red-500" /> Tin Quanh Đây
                 </h2>
                 {detectedLocation ? (
                     <span className="text-[10px] font-black text-green-600 uppercase bg-green-50 px-2 py-1 rounded-md flex items-center gap-1">
-                        <Navigation className="w-3 h-3" /> {detectedLocation}
+                        <IconNavigation className="w-3 h-3" /> {detectedLocation}
                     </span>
                 ) : (
                     <button onClick={handleDetectLocation} className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-md flex items-center gap-1 hover:bg-blue-100">
-                        {isLocating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Navigation className="w-3 h-3" />} 
+                        {isLocating ? <IconLoader2 className="w-3 h-3 animate-spin" /> : <IconNavigation className="w-3 h-3" />} 
                         {isLocating ? '...' : 'Định vị'}
                     </button>
                 )}
               </div>
               {detectedLocation && (
                   <Link to={`/?location=${encodeURIComponent(detectedLocation)}`} className="text-[10px] font-black text-primary uppercase hover:underline flex items-center gap-1">
-                      Xem thêm <ChevronRight className="w-3 h-3" />
+                      Xem thêm <IconChevronRight className="w-3 h-3" />
                   </Link>
               )}
           </div>
@@ -348,7 +355,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
               </div>
           ) : (
              <div className="text-center py-8 text-xs text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 flex flex-col items-center gap-2">
-                <MapPin className="w-8 h-8 opacity-20" />
+                <IconMapPin className="w-8 h-8 opacity-20" />
                 Chưa có tin đăng nào gần bạn.
              </div>
           )}
@@ -361,32 +368,32 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
            <h2 className="text-lg md:text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
              {search ? (
                  <>
-                    <Search className="w-5 h-5 text-gray-500" />
+                    <IconSearch className="w-5 h-5 text-gray-500" />
                     Kết quả: "{search}"
                  </>
              )
               : typeParam === 'vip' ? (
                   <>
-                    <Crown className="w-5 h-5 text-yellow-500 fill-current" />
+                    <IconCrown className="w-5 h-5 text-yellow-500 fill-current" />
                     Tất cả tin Tài Trợ (VIP)
                   </>
               )
               : locationParam ? (
                   <>
-                    <MapPin className="w-5 h-5 text-red-500" />
+                    <IconMapPin className="w-5 h-5 text-red-500" />
                     Tin đăng tại {locationParam}
                   </>
               )
               : activeCategoryId ? (
                   <>
-                    <Layers className="w-5 h-5 text-primary" />
+                    <IconLayers className="w-5 h-5 text-primary" />
                     <span className="text-primary">{activeCategoryName}</span>
                     <span className="text-gray-400 text-sm font-normal">({latestListings.length} tin)</span>
                   </>
               ) 
               : (
                   <span className="flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-yellow-500 fill-yellow-100" />
+                      <IconSparkles className="w-5 h-5 text-yellow-500 fill-yellow-100" />
                       <span>Tin mới đăng</span>
                   </span>
               )
@@ -400,7 +407,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           </div>
         ) : latestListings.length === 0 ? (
           <div className="py-24 text-center bg-white border border-gray-200 rounded-[3rem] shadow-sm flex flex-col items-center">
-              <PackageOpen className="w-20 h-20 text-gray-200 mb-4" strokeWidth={1} />
+              <IconPackageOpen className="w-20 h-20 text-gray-200 mb-4" strokeWidth={1} />
               <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest">Không tìm thấy tin đăng nào</p>
           </div>
         ) : (
@@ -419,7 +426,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             {hasMore && !search && (
               <div className="pt-12 flex justify-center">
                 <button onClick={handleLoadMore} disabled={isFetchingMore} className="px-12 py-4 bg-white border-2 border-primary text-primary font-black rounded-full text-[11px] uppercase tracking-widest hover:bg-primary hover:text-white transition-all shadow-md active:scale-95 flex items-center gap-2">
-                  {isFetchingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {isFetchingMore ? <IconLoader2 className="w-4 h-4 animate-spin" /> : null}
                   {isFetchingMore ? 'Đang tải...' : 'Khám phá thêm tin đăng'}
                 </button>
               </div>
@@ -428,45 +435,18 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         )}
       </section>
 
-      {/* 6. FOOTER - PHIÊN BẢN PREMIUM */}
-      <footer className="hidden md:block pt-20 pb-10 px-4 md:px-0 mt-10">
-         <div className="bg-white/80 backdrop-blur-xl border border-white/50 rounded-[3rem] p-12 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] relative overflow-hidden group">
-            
-            {/* Hiệu ứng nền trang trí (Blob) */}
-            <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-50 to-purple-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-60 pointer-events-none transition-opacity group-hover:opacity-100"></div>
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-yellow-50 to-orange-50 rounded-full blur-3xl -ml-20 -mb-20 opacity-40 pointer-events-none"></div>
-
-            <div className="relative z-10 flex items-center justify-between mb-10">
-               {/* Logo Footer - Đồng bộ Gradient Tech */}
-               <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center text-white text-xl shadow-lg shadow-blue-500/30">
-                    <Zap className="w-5 h-5 fill-current" />
-                  </div>
-                  <span className="font-black text-2xl tracking-tighter bg-gradient-to-r from-blue-700 via-blue-500 to-yellow-500 bg-clip-text text-transparent">
-                    Chợ của tui
-                  </span>
-               </div>
-
-               {/* Links - Style tinh tế hơn */}
-               <div className="flex gap-8">
-                  {STATIC_LINKS.map(link => (
-                    <Link key={link.slug} to={`/page/${link.slug}`} className="text-[11px] font-black text-slate-400 hover:text-blue-600 transition-all uppercase tracking-widest hover:underline decoration-2 underline-offset-4">
-                        {link.title}
-                    </Link>
-                  ))}
+      {/* 6. FOOTER */}
+      <footer className="hidden md:block pt-16 border-t border-dashed border-gray-200 mt-20">
+         <div className="bg-white border border-gray-200 rounded-[3rem] p-10 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+               <h4 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                   <IconZap className="w-6 h-6 text-yellow-500 fill-current" /> Chợ Của Tui
+               </h4>
+               <div className="flex gap-4">
+                  {STATIC_LINKS.map(link => <Link key={link.slug} to={`/page/${link.slug}`} className="text-xs font-bold text-gray-400 hover:text-primary transition-colors uppercase">{link.title}</Link>)}
                </div>
             </div>
-
-            {/* Copyright */}
-            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between pt-8 border-t border-slate-100">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                    © 2026 ChoCuaTui.vn - Nền tảng rao vặt AI miễn phí.
-                </p>
-                <div className="flex gap-2 mt-2 md:mt-0">
-                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                    <span className="text-[10px] font-bold text-green-600">Đang chừo cấp phép</span>
-                </div>
-            </div>
+            <div className="text-[10px] text-gray-400 font-medium text-center border-t border-gray-100 pt-8">© 2026 ChoCuaTui.vn - Nền tảng rao vặt AI phục vụ cộng đồng.</div>
          </div>
       </footer>
     </div>

@@ -4,8 +4,15 @@ import { Listing, User } from '../types';
 import { formatPrice, formatTimeAgo } from '../utils/format';
 import { db } from '../services/db';
 
-// --- IMPORT ICON VECTOR (Thêm ArrowUpCircle) ---
-import { Heart, Zap, MapPin, Eye, Loader2, Clock, User as UserIcon, ArrowUpCircle } from 'lucide-react';
+// ⚠️ ĐÃ LOẠI BỎ LUCIDE-REACT ĐỂ TRÁNH LỖI CRASH
+// --- BỘ ICON VẼ TAY (SVG THUẦN) ---
+const IconZap = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+const IconHeart = ({ fill, className }: { fill?: string, className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill={fill || "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>;
+const IconLoader2 = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
+const IconEye = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+const IconUser = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+const IconClock = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+const IconMapPin = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>;
 
 interface ListingCardProps {
   listing: Listing;
@@ -61,6 +68,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
 
     const finalPrice = pushConfig.price * (1 - pushConfig.discount / 100);
 
+    // Kiểm tra số dư ví
     if ((currentUser.walletBalance || 0) < finalPrice) {
         if (window.confirm(`⚠️ Số dư không đủ (${formatPrice(currentUser.walletBalance || 0)} < ${formatPrice(finalPrice)}).\nBạn có muốn nạp tiền ngay không?`)) {
             navigate('/wallet');
@@ -87,9 +95,11 @@ const ListingCard: React.FC<ListingCardProps> = ({
     }
   };
 
+  // Kiểm tra quyền chủ sở hữu
   const isOwner = currentUser && (String(currentUser.id) === String(listing.sellerId));
   const canPush = isOwner && (listing.status === 'approved');
 
+  // --- LOGIC PHÂN LOẠI TIN (Giữ nguyên logic cũ) ---
   const getCardStyle = () => {
     switch (listing.tier) {
       case 'pro': // TIN VIP
@@ -97,7 +107,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
           container: "border-yellow-400 shadow-md ring-1 ring-yellow-400/50",
           badge: (
             <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[9px] font-black px-2 py-1 rounded-lg uppercase shadow-sm tracking-wider flex items-center gap-1">
-              <Zap className="w-2.5 h-2.5 fill-current" /> VIP
+              <IconZap className="w-2.5 h-2.5 fill-current" /> VIP
             </span>
           ),
           bgTitle: "bg-yellow-50/50"
@@ -134,12 +144,13 @@ const ListingCard: React.FC<ListingCardProps> = ({
             <img 
               src={listing.images?.[0] || 'https://placehold.co/400?text=No+Image'} 
               alt={listing.title} 
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
               loading="lazy"
             />
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none"></div>
         </Link>
         
+        {/* Badges */}
         <div className="absolute top-2 left-2 flex flex-col gap-1 z-10 pointer-events-none">
             {cardStyle.badge}
         </div>
@@ -150,41 +161,35 @@ const ListingCard: React.FC<ListingCardProps> = ({
           className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-all active:scale-90 z-40 cursor-pointer ${isFavorite ? 'bg-red-500 text-white' : 'bg-white/90 text-gray-400 hover:text-red-500 hover:bg-white'}`}
           title="Lưu tin"
         >
-          <Heart className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} strokeWidth={2.5} />
+          <IconHeart className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} />
         </button>
 
-        {/* --- NÚT ĐẨY TIN (MŨI TÊN XANH + TOOLTIP) --- */}
+        {/* Nút Đẩy tin (Chỉ hiện cho chủ tin) */}
         {canPush && (
-            <div className="absolute bottom-2 right-2 z-40 group/push">
-                {/* TOOLTIP HIỆN KHI HOVER */}
-                <div className="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-black/80 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover/push:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
-                    Đẩy tin lên đầu tiên
-                    {/* Mũi tên trỏ xuống của tooltip */}
-                    <div className="absolute top-full right-3 border-4 border-transparent border-t-black/80"></div>
-                </div>
-
-                {/* NÚT BẤM CHÍNH */}
-                <button 
-                    onClick={handlePushClick}
-                    disabled={isPushing}
-                    className="w-9 h-9 rounded-full bg-white text-green-600 flex items-center justify-center shadow-lg hover:bg-green-50 transition-all active:scale-90 animate-bounce-slow disabled:opacity-50 disabled:animate-none border border-green-100"
-                >
-                    {isPushing ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                        <ArrowUpCircle className="w-6 h-6" strokeWidth={2} />
-                    )}
-                </button>
-            </div>
+            <button 
+                onClick={handlePushClick}
+                disabled={isPushing}
+                className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg hover:bg-green-600 transition-all active:scale-90 animate-bounce-slow z-30 disabled:opacity-50 disabled:animate-none border-2 border-white"
+                title={`Đẩy tin lên đầu (${formatPrice(pushConfig.price * (1 - pushConfig.discount/100))})`}
+            >
+                {isPushing ? (
+                    <IconLoader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                    <IconZap className="w-4 h-4 fill-current" />
+                )}
+            </button>
         )}
       </div>
 
       {/* --- PHẦN NỘI DUNG --- */}
       <Link to={`/san-pham/${listing.slug}-${listing.id}`} className={`flex flex-col flex-1 p-3 space-y-2 ${cardStyle.bgTitle}`}>
+        
+        {/* Tiêu đề */}
         <h3 className={`text-xs ${listing.tier === 'pro' ? 'font-black text-black' : 'font-bold text-slate-700'} line-clamp-2 min-h-[2.5em] leading-relaxed group-hover:text-primary transition-colors`}>
           {listing.title}
         </h3>
 
+        {/* GIÁ TIỀN & LƯỢT XEM */}
         <div className="flex items-center justify-between mt-1">
             <span className="text-sm font-black text-red-600">
                 {formatPrice(listing.price)}
@@ -192,12 +197,13 @@ const ListingCard: React.FC<ListingCardProps> = ({
             
             {!hideViews && (
                 <div className="flex items-center gap-1 text-gray-400 text-[10px] bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">
-                    <Eye className="w-3 h-3" />
+                    <IconEye className="w-3 h-3" />
                     <span className="font-bold">{listing.views || listing.viewCount || 0}</span>
                 </div>
             )}
         </div>
 
+        {/* Footer */}
         <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-auto">
             <div className="flex items-center gap-1.5 min-w-0">
                 {listing.sellerAvatar ? (
@@ -208,17 +214,17 @@ const ListingCard: React.FC<ListingCardProps> = ({
                     />
                 ) : (
                     <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center border border-gray-200">
-                        <UserIcon className="w-3 h-3 text-slate-400" />
+                        <IconUser className="w-3 h-3 text-slate-400" />
                     </div>
                 )}
                 <span className="text-[9px] font-bold text-gray-400 truncate flex items-center gap-1">
-                    <Clock className="w-2.5 h-2.5" />
+                    <IconClock className="w-2.5 h-2.5" />
                     {formatTimeAgo(listing.createdAt)}
                 </span>
             </div>
             
             <div className="flex items-center gap-0.5 text-gray-400 max-w-[45%]">
-                <MapPin className="w-3 h-3 flex-shrink-0" />
+                <IconMapPin className="w-3 h-3 flex-shrink-0" />
                 <span className="text-[9px] font-bold truncate">{listing.location}</span>
             </div>
         </div>

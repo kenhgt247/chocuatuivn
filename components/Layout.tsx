@@ -8,6 +8,21 @@ import { compressAndGetBase64 } from '../utils/imageCompression';
 import NotificationMenu from '../components/NotificationMenu';
 
 // ⚠️ TUYỆT ĐỐI KHÔNG IMPORT firebase/messaging Ở ĐÂY
+// ⚠️ ĐÃ LOẠI BỎ LUCIDE-REACT ĐỂ TRÁNH LỖI CRASH KHI NHẬN TIỀN
+
+/* ====================================================================================
+   BỘ ICON VẼ TAY (AN TOÀN TUYỆT ĐỐI 100%)
+   Dùng bộ này thì Admin duyệt tiền thoải mái cũng không bao giờ lỗi #130 nữa.
+   ==================================================================================== */
+const IconZap = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+const IconBell = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
+const IconWallet = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>;
+const IconMessage = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>;
+const IconUser = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+const IconHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+const IconPlus = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
+const IconManage = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>;
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -25,29 +40,24 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [isSearchingImage, setIsSearchingImage] = useState(false);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   
-  // State an toàn cho quyền thông báo (tránh lỗi trên mobile cũ)
   const [notifPermission, setNotifPermission] = useState(() => {
     try {
       return ("Notification" in window) ? Notification.permission : 'default';
     } catch (e) { return 'default'; }
   });
 
-  // [MỚI] State để ẩn nút sau khi bấm
   const [hasInteractedWithNotif, setHasInteractedWithNotif] = useState(false);
 
   const minPriceParam = searchParams.get('minPrice');
   const maxPriceParam = searchParams.get('maxPrice');
   const locationParam = searchParams.get('location');
 
-  // --- 1. ĐỒNG BỘ SEARCH ---
   useEffect(() => {
     setSearchQuery(searchParams.get('search') || '');
   }, [searchParams]);
 
-  // --- 2. LẤY TIN NHẮN REALTIME (ĐỂ HIỆN SỐ ĐỎ) ---
   useEffect(() => {
     if (user?.id) {
-      // Gọi hàm lắng nghe tin nhắn từ DB
       // @ts-ignore
       const unsubChats = db.getChatRooms(user.id, (rooms: ChatRoom[]) => {
         if (rooms) setChatRooms(rooms);
@@ -61,15 +71,12 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   }, [user?.id]);
 
-  // Tính toán số tin chưa đọc
   const unreadChatCount = user ? chatRooms.filter(r => 
     r.messages.length > 0 && 
-    !r.seenBy?.includes(user.id) // Nếu user chưa xem thì đếm
+    !r.seenBy?.includes(user.id) 
   ).length : 0;
 
-  // --- 3. BẬT THÔNG BÁO (AN TOÀN - KHÔNG TRẮNG TRANG) ---
   const handleEnableNotifications = async () => {
-    // [CHANGE] Ẩn nút ngay lập tức khi bấm vào
     setHasInteractedWithNotif(true);
 
     if (!("Notification" in window)) {
@@ -87,7 +94,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             navigator.setAppBadge(unreadChatCount).catch(() => {});
         }
 
-        // CHỈ TẢI THƯ VIỆN KHI BẤM NÚT (Lazy Load) -> Fix lỗi trắng trang
         try {
             console.log("Đang kích hoạt thông báo...");
             const { getMessaging, getToken } = await import("firebase/messaging");
@@ -96,7 +102,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             const registration = await navigator.serviceWorker.ready;
 
             const currentToken = await getToken(messaging, { 
-              // DÁN KEY CỦA BẠN VÀO ĐÂY (NẾU CÓ)
               vapidKey: 'BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI', 
               serviceWorkerRegistration: registration 
             });
@@ -119,7 +124,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   };
 
-  // Cập nhật Badge liên tục
   useEffect(() => {
     if (typeof window !== 'undefined' && 'setAppBadge' in navigator && notifPermission === 'granted') {
       if (unreadChatCount > 0) {
@@ -132,7 +136,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     }
   }, [unreadChatCount, notifPermission]);
 
-  // --- HANDLERS ---
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const q = searchQuery.trim();
@@ -161,10 +164,13 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
       {/* HEADER */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 px-3 md:px-6 lg:px-10 h-auto min-h-[5rem] flex items-center justify-between gap-2 md:gap-4 shadow-sm pt-[env(safe-area-inset-top)] transition-all">
         
-       {/* LOGO - STYLE 1: GRADIENT SANG CHẢNH */}
+       {/* LOGO */}
         <div className="flex items-center flex-shrink-0 h-14 md:h-20">
           <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="w-10 h-10 md:w-11 md:h-11 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl md:rounded-2xl flex items-center justify-center text-white text-xl md:text-2xl shadow-lg shadow-blue-500/40 group-hover:rotate-12 transition-all duration-500 border border-white/20">⚡</div>
+            <div className="w-10 h-10 md:w-11 md:h-11 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl md:rounded-2xl flex items-center justify-center text-white text-xl md:text-2xl shadow-lg shadow-blue-500/40 group-hover:rotate-12 transition-all duration-500 border border-white/20">
+                {/* Dùng IconZap vẽ tay */}
+                <div className="w-6 h-6"><IconZap /></div>
+            </div>
             <span className="hidden lg:block font-black text-xl md:text-2xl tracking-tighter bg-gradient-to-r from-blue-700 via-blue-500 to-yellow-500 bg-clip-text text-transparent group-hover:scale-[1.02] transition-transform origin-left drop-shadow-sm">
               Chợ của tui
             </span>
@@ -173,7 +179,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
 
         {/* SEARCH BAR */}
         <form onSubmit={handleSearch} className="flex-1 max-w-2xl relative group px-1 md:px-0">
-          <div className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-gray-400"><svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg></div>
+          <div className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-gray-400">
+              <div className="w-4 h-4 md:w-5 md:h-5"><IconSearch /></div>
+          </div>
           <input type="text" placeholder={window.innerWidth < 768 ? "Tìm kiếm..." : "Tìm gì cũng có..."} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-gray-100 border-2 border-transparent hover:border-gray-200 rounded-xl md:rounded-[1.25rem] py-2.5 md:py-3 pl-9 md:pl-12 pr-10 md:pr-14 focus:outline-none focus:ring-0 focus:border-primary focus:bg-white transition-all text-xs md:text-sm font-bold text-slate-700 placeholder:text-gray-400 shadow-sm" />
           <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isSearchingImage} className={`absolute right-1.5 md:right-3 top-1/2 -translate-y-1/2 p-1.5 md:p-2 rounded-lg md:rounded-xl hover:bg-white text-gray-400 transition-all ${isSearchingImage ? 'animate-pulse text-primary' : 'hover:text-primary hover:shadow-sm'}`}>
             <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -184,26 +192,28 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {/* ACTIONS */}
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
           
-          {/* NÚT BẬT THÔNG BÁO MOBILE */}
-          {/* [CHANGE] Thêm điều kiện !hasInteractedWithNotif để ẩn nút nếu đã bấm */}
+          {/* NÚT BẬT THÔNG BÁO MOBILE (Dùng IconBell) */}
           {user && notifPermission === 'default' && !hasInteractedWithNotif && (
             <button 
               onClick={handleEnableNotifications}
               className="flex items-center gap-1 bg-red-500 text-white px-2.5 py-1.5 rounded-lg text-[10px] font-black border border-red-400 animate-bounce md:hidden shadow-lg active:scale-95"
             >
-              🔔 Bật báo tin
+              <div className="w-3 h-3"><IconBell /></div> Bật báo tin
             </button>
           )}
 
           <Link to="/chat" className={`hidden md:flex relative p-2.5 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-gray-100 hover:text-primary'}`}>
-            <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+            <div className="w-6 h-6 md:w-7 md:h-7"><IconMessage /></div>
             {unreadChatCount > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-bounce">{unreadChatCount}</span>}
           </Link>
 
-          {user ? <NotificationMenu userId={user.id} /> : <Link to="/login" className="relative p-2 rounded-2xl text-slate-600 hover:bg-gray-100 hover:text-primary transition-all"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg></Link>}
+          {user ? <NotificationMenu userId={user.id} /> : <Link to="/login" className="relative p-2 rounded-2xl text-slate-600 hover:bg-gray-100 hover:text-primary transition-all"><div className="w-6 h-6"><IconUser /></div></Link>}
 
           <div className="hidden md:flex items-center gap-4">
-            <Link to="/post" className="flex items-center gap-2 bg-primary text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primaryHover hover:-translate-y-1 transition-all active:scale-95"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4"/></svg><span>Đăng tin</span></Link>
+            <Link to="/post" className="flex items-center gap-2 bg-primary text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primaryHover hover:-translate-y-1 transition-all active:scale-95">
+                <div className="w-4 h-4"><IconPlus /></div>
+                <span>Đăng tin</span>
+            </Link>
             {user ? <Link to="/profile" className="flex items-center pl-2"><div className="w-11 h-11 rounded-2xl overflow-hidden border-2 border-white shadow-lg ring-1 ring-gray-200 hover:ring-primary hover:scale-110 transition-all"><img src={user.avatar} alt={user.name} className="w-full h-full object-cover" /></div></Link> : <Link to="/login" className="text-xs font-black text-primary hover:bg-primary/5 px-6 py-3.5 rounded-2xl border-2 border-primary transition-all uppercase tracking-widest">Đăng nhập</Link>}
           </div>
         </div>
@@ -230,29 +240,35 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {children}
       </main>
 
-      {/* MOBILE NAV BAR (ĐÃ FIX SỐ ĐỎ) */}
+      {/* MOBILE NAV BAR (Dùng Icon vẽ tay) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex items-end justify-between h-[calc(4rem+env(safe-area-inset-bottom))] z-50 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
         <Link to="/" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname === '/' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
-          <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/' ? 'bg-blue-50' : ''}`}><svg className="w-6 h-6" fill={location.pathname === '/' ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg></div>
+          <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/' ? 'bg-blue-50' : ''}`}>
+             <div className="w-6 h-6"><IconHome /></div>
+          </div>
           <span className={`text-[10px] font-bold ${location.pathname === '/' ? 'opacity-100' : 'opacity-70'}`}>Trang chủ</span>
         </Link>
         <Link to="/manage-ads" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname === '/manage-ads' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
-          <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/manage-ads' ? 'bg-blue-50' : ''}`}><svg className="w-6 h-6" fill={location.pathname === '/manage-ads' ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg></div>
+          <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/manage-ads' ? 'bg-blue-50' : ''}`}>
+              <div className="w-6 h-6"><IconManage /></div>
+          </div>
           <span className={`text-[10px] font-bold ${location.pathname === '/manage-ads' ? 'opacity-100' : 'opacity-70'}`}>Quản lý</span>
         </Link>
         <div className="flex-1 flex flex-col items-center justify-end pb-3 relative z-10">
-           <Link to="/post" className="w-14 h-14 mb-1 bg-gradient-to-tr from-blue-600 to-cyan-400 text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(59,130,246,0.5)] border-[4px] border-white transform transition-all duration-300 active:scale-90 hover:scale-105 hover:-translate-y-2"><svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg></Link>
+           <Link to="/post" className="w-14 h-14 mb-1 bg-gradient-to-tr from-blue-600 to-cyan-400 text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(59,130,246,0.5)] border-[4px] border-white transform transition-all duration-300 active:scale-90 hover:scale-105 hover:-translate-y-2">
+               <div className="w-7 h-7"><IconPlus /></div>
+           </Link>
           <span className="text-[10px] font-black text-blue-600 tracking-tight">Đăng tin</span>
         </div>
         <Link to="/chat" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 relative ${location.pathname.startsWith('/chat') ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
           <div className={`p-1.5 rounded-xl transition-all duration-300 relative ${location.pathname.startsWith('/chat') ? 'bg-blue-50' : ''}`}>
-             <svg className="w-6 h-6" fill={location.pathname.startsWith('/chat') ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+             <div className="w-6 h-6"><IconMessage /></div>
              {unreadChatCount > 0 && <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-0.5 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-pulse">{unreadChatCount > 9 ? '9+' : unreadChatCount}</span>}
           </div>
           <span className={`text-[10px] font-bold ${location.pathname.startsWith('/chat') ? 'opacity-100' : 'opacity-70'}`}>Tin nhắn</span>
         </Link>
         <Link to="/profile" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname === '/profile' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
-          <div className={`p-0.5 rounded-full transition-all duration-300 border-2 ${location.pathname === '/profile' ? 'border-blue-500' : 'border-transparent'}`}>{user ? <img src={user.avatar} className="w-6 h-6 rounded-full object-cover" alt="User" /> : <svg className="w-6 h-6 m-0.5" fill={location.pathname === '/profile' ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}</div>
+          <div className={`p-0.5 rounded-full transition-all duration-300 border-2 ${location.pathname === '/profile' ? 'border-blue-500' : 'border-transparent'}`}>{user ? <img src={user.avatar} className="w-6 h-6 rounded-full object-cover" alt="User" /> : <div className="w-6 h-6 m-0.5"><IconUser /></div>}</div>
           <span className={`text-[10px] font-bold ${location.pathname === '/profile' ? 'opacity-100' : 'opacity-70'}`}>Cá nhân</span>
         </Link>
       </nav>

@@ -30,7 +30,8 @@ import {
   ExternalLink, Tag, RefreshCcw, MessageCircle, Phone, Heart, 
   Share2, Flame, BedDouble, Bath, Gauge, Calendar, Fuel, 
   Settings, HardDrive, Banknote, Briefcase, Info, Scaling, 
-  ShieldCheck, AlertTriangle, X
+  ShieldCheck, AlertTriangle, X,
+  Zap // <--- THÊM CÁI NÀY VÀO ĐÂY
 } from 'lucide-react';
 
 // Fix Leaflet default icon issue

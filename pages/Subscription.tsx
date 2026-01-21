@@ -4,12 +4,23 @@ import { User, SubscriptionTier } from '../types';
 import { db, SystemSettings } from '../services/db';
 import { formatPrice } from '../utils/format';
 
-// --- IMPORT ICON VECTOR ---
-import { 
-  Check, X, Zap, Crown, Star, Shield, Clock, CreditCard, 
-  QrCode, ChevronRight, Loader2, AlertTriangle, CheckCircle, 
-  Sparkles, Wallet, Landmark, ArrowRight
-} from 'lucide-react';
+// ⚠️ ĐÃ LOẠI BỎ LUCIDE-REACT ĐỂ TRÁNH LỖI CRASH
+// --- BỘ ICON VẼ TAY (SVG THUẦN) ---
+const IconCheckCircle = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
+const IconAlertTriangle = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+const IconLoader2 = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
+const IconCrown = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>;
+const IconSparkles = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M9 5H5"/><path d="M19 15v4"/><path d="M23 17h-4"/></svg>;
+const IconZap = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+const IconStar = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
+const IconShield = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
+const IconCheck = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+const IconCreditCard = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>;
+const IconX = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>;
+const IconClock = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+const IconWallet = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>;
+const IconLandmark = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>;
+const IconChevronRight = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>;
 
 const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => void }> = ({ user, onUpdateUser }) => {
   const navigate = useNavigate();
@@ -151,7 +162,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
   if (!user || !settings) {
     return (
         <div className="h-screen flex flex-col items-center justify-center font-bold text-gray-400 animate-pulse gap-4">
-            <Loader2 className="w-10 h-10 animate-spin text-primary" />
+            <IconLoader2 className="w-10 h-10 animate-spin text-primary" />
             <span>Đang tải dữ liệu...</span>
         </div>
     );
@@ -171,14 +182,14 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
       {/* Toast */}
       {toast.show && (
         <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[150] px-8 py-4 rounded-2xl shadow-2xl font-black text-xs uppercase tracking-widest animate-fade-in-up flex items-center gap-3 ${toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-           {toast.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />} {toast.message}
+           {toast.type === 'success' ? <IconCheckCircle className="w-5 h-5" /> : <IconAlertTriangle className="w-5 h-5" />} {toast.message}
         </div>
       )}
 
       {/* Header */}
       <div className="text-center mb-16 space-y-6">
         <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter flex items-center justify-center gap-3">
-            <Crown className="w-10 h-10 text-yellow-500 fill-current" /> Gói Thành Viên
+            <IconCrown className="w-10 h-10 text-yellow-500 fill-current" /> Gói Thành Viên
         </h1>
         <p className="text-slate-500 max-w-2xl mx-auto text-lg leading-relaxed">Nâng cấp đặc quyền để tiếp cận khách hàng và bán hàng nhanh chóng hơn.</p>
         
@@ -222,15 +233,15 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
               
               {isPro && (
                 <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-[11px] font-black px-6 py-2 rounded-full shadow-xl uppercase tracking-[0.2em] whitespace-nowrap animate-bounce-subtle flex items-center gap-2">
-                  <Sparkles className="w-3 h-3 fill-white" /> Phổ biến nhất
+                  <IconSparkles className="w-3 h-3 fill-white" /> Phổ biến nhất
                 </div>
               )}
               
               <div className="mb-10 text-center">
                 <div className="flex justify-center mb-4">
-                    {tier === 'pro' ? <Zap className="w-12 h-12 text-yellow-500 fill-yellow-100" /> : 
-                     tier === 'basic' ? <Star className="w-12 h-12 text-blue-500 fill-blue-50" /> :
-                     <Shield className="w-12 h-12 text-gray-400" />
+                    {tier === 'pro' ? <IconZap className="w-12 h-12 text-yellow-500 fill-yellow-100" /> : 
+                     tier === 'basic' ? <IconStar className="w-12 h-12 text-blue-500 fill-blue-50" /> :
+                     <IconShield className="w-12 h-12 text-gray-400" />
                     }
                 </div>
                 <h3 className={`text-xl font-black mb-6 uppercase tracking-widest ${isPro ? 'text-yellow-600' : 'text-slate-800'}`}>
@@ -261,7 +272,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
               <div className="space-y-4 mb-10 flex-1">
                 {/* Stats */}
                 <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-white transition-colors">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><CheckCircle className="w-5 h-5" /></div>
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><IconCheckCircle className="w-5 h-5" /></div>
                   <div>
                     <p className="text-[10px] font-black uppercase text-slate-400 leading-none mb-1">Hạn mức đăng tin</p>
                     <p className="text-sm font-bold text-slate-800">{config.postsPerDay >= 900 ? 'Không giới hạn' : `${config.postsPerDay} tin mỗi ngày`}</p>
@@ -270,7 +281,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
 
                 <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-white transition-colors">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${config.autoApprove ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}`}>
-                      {config.autoApprove ? <Zap className="w-5 h-5 fill-current" /> : <Clock className="w-5 h-5" />}
+                      {config.autoApprove ? <IconZap className="w-5 h-5 fill-current" /> : <IconClock className="w-5 h-5" />}
                   </div>
                   <div>
                     <p className="text-[10px] font-black uppercase text-slate-400 leading-none mb-1">Kiểm duyệt</p>
@@ -285,7 +296,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                   {config.features.map((f: string, i: number) => (
                     <li key={i} className="flex items-start gap-3 text-sm">
                       <div className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center ${isPro ? 'bg-yellow-500' : 'bg-primary'}`}>
-                        <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />
+                        <IconCheck className="w-2.5 h-2.5 text-white" />
                       </div>
                       <span className="text-slate-600 font-semibold leading-tight">{f}</span>
                     </li>
@@ -293,7 +304,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                   
                   {tier === 'pro' && (
                       <li className="flex items-start gap-3 text-sm font-bold text-orange-600 animate-pulse">
-                          <CreditCard className="w-4 h-4 text-orange-600 mt-0.5" />
+                          <IconCreditCard className="w-4 h-4 text-orange-600 mt-0.5" />
                           Mở khóa Tiếp thị liên kết (Affiliate)
                       </li>
                   )}
@@ -312,7 +323,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                                 : 'bg-slate-900 text-white shadow-slate-200 hover:bg-slate-800 hover:-translate-y-1'
                         }`}
                   >
-                    {processingTier === tier && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {processingTier === tier && <IconLoader2 className="w-4 h-4 animate-spin" />}
                     {buttonText}
                   </button>
                   
@@ -324,8 +335,8 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                           : 'text-slate-500 border-slate-100'
                         }`}>
                           {status.isExpired 
-                            ? <><X className="w-3 h-3" /> Gói đã hết hạn</> 
-                            : <><Clock className="w-3 h-3" /> Hiệu lực: {status.daysLeft} ngày</>}
+                            ? <><IconX className="w-3 h-3" /> Gói đã hết hạn</> 
+                            : <><IconClock className="w-3 h-3" /> Hiệu lực: {status.daysLeft} ngày</>}
                       </div>
                   )}
               </div>
@@ -357,27 +368,27 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                   <button onClick={payWithWallet} disabled={processingTier !== null} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 ${processingMethod === 'wallet' ? 'border-primary bg-primary/5' : 'border-slate-100 hover:border-primary hover:shadow-md'}`}>
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">
-                          <Wallet className="w-6 h-6" />
+                          <IconWallet className="w-6 h-6" />
                       </div>
                       <div className="text-left">
                         <p className="text-[10px] font-black uppercase text-slate-400">Thanh toán qua</p>
                         <p className="text-xs font-black text-slate-800">Ví Chợ Của Tui</p>
                       </div>
                     </div>
-                    {processingMethod === 'wallet' ? <Loader2 className="w-5 h-5 text-primary animate-spin" /> : <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"></div>}
+                    {processingMethod === 'wallet' ? <IconLoader2 className="w-5 h-5 text-primary animate-spin" /> : <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"></div>}
                   </button>
 
                   <button onClick={handleSelectTransfer} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 border-slate-100 hover:border-primary hover:shadow-md`}>
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">
-                          <Landmark className="w-6 h-6" />
+                          <IconLandmark className="w-6 h-6" />
                       </div>
                       <div className="text-left">
                         <p className="text-[10px] font-black uppercase text-slate-400">Thanh toán qua</p>
                         <p className="text-xs font-black text-slate-800">Chuyển khoản</p>
                       </div>
                     </div>
-                    <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"><ChevronRight className="w-4 h-4 text-white" /></div>
+                    <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"><IconChevronRight className="w-4 h-4 text-white" /></div>
                   </button>
                 </div>
             )}
@@ -394,12 +405,12 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                             <p className="text-xs font-black bg-yellow-100 text-yellow-800 px-3 py-1.5 rounded-lg select-all break-all border border-yellow-200">{transferContent}</p>
                         </div>
                         <div className="text-[10px] text-slate-500 font-medium px-4 flex items-center gap-2">
-                            <Clock className="w-3 h-3" /> Hệ thống sẽ tự động duyệt sau 5-10 phút.
+                            <IconClock className="w-3 h-3" /> Hệ thống sẽ tự động duyệt sau 5-10 phút.
                         </div>
                     </div>
                     
                     <button onClick={confirmTransfer} disabled={processingTier !== null} className="w-full bg-green-500 text-white font-black py-4 rounded-[1.5rem] hover:bg-green-600 transition-all shadow-lg active:scale-95 uppercase text-xs tracking-widest flex items-center justify-center gap-2">
-                        {processingTier ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4" /> Tôi đã chuyển khoản</>}
+                        {processingTier ? <IconLoader2 className="w-4 h-4 animate-spin" /> : <><IconCheckCircle className="w-4 h-4" /> Tôi đã chuyển khoản</>}
                     </button>
                 </div>
             )}

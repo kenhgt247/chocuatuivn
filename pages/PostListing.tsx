@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, Link, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Category, CategoryAttribute } from '../types';
 import { analyzeListingImages } from '../services/geminiService';
 import { getLocationFromCoords } from '../utils/locationHelper';
+// [QUAN TRỌNG] Import hàm nén ảnh từ utils của bạn
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import { LOCATIONS } from '../constants';
 
@@ -84,7 +85,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     isAuction: false, auctionEndAt: '', bidIncrement: '50000'
   });
 
-  // [UI STYLES NÂNG CẤP - SẮC NÉT HƠN]
+  // [UI STYLES]
   const inputStyle = "w-full min-w-0 bg-white border border-slate-300 rounded-xl p-4 text-sm font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm hover:border-blue-400";
   const labelStyle = "text-xs font-black text-slate-500 uppercase tracking-widest px-1 mb-2 block";
 
@@ -183,6 +184,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     );
   };
 
+  // [CHỨC NĂNG NÉN ẢNH ĐÃ ĐƯỢC TÍCH HỢP]
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
     if (files.length === 0 || !settings) return;
@@ -194,14 +196,19 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     }
 
     try {
+      // Dùng hàm nén ảnh từ utils (như yêu cầu của bạn)
       const compressedResults = await Promise.all(files.map(file => compressAndGetBase64(file)));
       const updatedImages = [...formData.images, ...compressedResults];
       setFormData(prev => ({ ...prev, images: updatedImages }));
 
+      // Tự động phân tích ảnh bằng AI nếu chưa có tiêu đề
       if (!isEditing && compressedResults.length > 0 && !formData.title) {
         runAIAnalysis(updatedImages);
       }
-    } catch (error) { alert("Lỗi xử lý ảnh."); }
+    } catch (error) { 
+        console.error(error); 
+        alert("Lỗi xử lý ảnh."); 
+    }
     finally { if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
 
@@ -460,7 +467,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       )}
 
-      {/* --- KHỐI MEDIA (NÂNG CẤP VISUAL) --- */}
+      {/* --- KHỐI MEDIA --- */}
       {listingType === 'affiliate' && user?.subscriptionTier !== 'pro' ? (
         <div className="bg-orange-50 border-2 border-orange-100 rounded-[2.5rem] p-10 text-center space-y-6 flex flex-col items-center shadow-lg shadow-orange-100/50">
           <div className="bg-white p-4 rounded-full shadow-md"><IconCrown className="w-16 h-16 text-orange-400" /></div>
@@ -472,7 +479,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-xl shadow-slate-100/50 relative overflow-hidden group">
-          {/* Background decoration */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-50 group-hover:opacity-100 transition-opacity"></div>
 
           <div className="flex justify-between items-center mb-6 relative z-10">
@@ -540,7 +546,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       {(listingType === 'normal' || user?.subscriptionTier === 'pro') && (
         <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-[2.5rem] p-8 md:p-10 shadow-xl shadow-slate-200/50 space-y-8 relative">
           
-          {/* Form Header Decoration */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-transparent via-slate-300 to-transparent rounded-b-full"></div>
 
           {!isEditing && remainingPosts === 1 && (

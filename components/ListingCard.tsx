@@ -13,6 +13,8 @@ const IconEye = ({ className }: { className?: string }) => <svg xmlns="http://ww
 const IconUser = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
 const IconClock = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
 const IconMapPin = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>;
+// Icon Mũi tên lên (Dùng cho nút Đẩy tin)
+const IconArrowUp = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>;
 
 interface ListingCardProps {
   listing: Listing;
@@ -164,19 +166,29 @@ const ListingCard: React.FC<ListingCardProps> = ({
           <IconHeart className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} />
         </button>
 
-        {/* Nút Đẩy tin (Chỉ hiện cho chủ tin) */}
+        {/* Nút Đẩy tin (ĐÃ SỬA: MŨI TÊN XANH + HOVER HIỆN CHỮ) */}
         {canPush && (
             <button 
                 onClick={handlePushClick}
                 disabled={isPushing}
-                className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg hover:bg-green-600 transition-all active:scale-90 animate-bounce-slow z-30 disabled:opacity-50 disabled:animate-none border-2 border-white"
+                // Group để trigger hover text
+                className="group/push absolute bottom-2 right-2 h-8 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg transition-all duration-300 z-30 border-2 border-white
+                           hover:pr-3 hover:pl-1 min-w-[32px] w-auto"
                 title={`Đẩy tin lên đầu (${formatPrice(pushConfig.price * (1 - pushConfig.discount/100))})`}
             >
-                {isPushing ? (
-                    <IconLoader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                    <IconZap className="w-4 h-4 fill-current" />
-                )}
+                {/* Icon (Luôn hiện) */}
+                <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                    {isPushing ? (
+                        <IconLoader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                        <IconArrowUp className="w-4 h-4" />
+                    )}
+                </div>
+
+                {/* Chữ (Chỉ hiện khi hover) */}
+                <span className="max-w-0 overflow-hidden group-hover/push:max-w-[120px] transition-all duration-300 text-[10px] font-black uppercase whitespace-nowrap">
+                    Đẩy tin lên đầu
+                </span>
             </button>
         )}
       </div>

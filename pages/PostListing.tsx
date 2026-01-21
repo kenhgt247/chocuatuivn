@@ -2,17 +2,34 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Category, CategoryAttribute } from '../types';
-import { analyzeListingImages, ListingAnalysis } from '../services/geminiService';
+import { analyzeListingImages } from '../services/geminiService';
 import { getLocationFromCoords } from '../utils/locationHelper';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import { LOCATIONS } from '../constants';
 
-// Import Icons chuyên nghiệp từ lucide-react
-import { 
-  Tag, Gavel, Video, Lock, Package, Coins, Crown, ImagePlus, X, MapPin, 
-  ShieldAlert, Ban, Camera, FileText, MessageCircle, AlertTriangle, 
-  Zap, ThumbsUp, TrendingUp, AlertOctagon, CheckSquare 
-} from 'lucide-react';
+// ⚠️ ĐÃ LOẠI BỎ LUCIDE-REACT ĐỂ TRÁNH LỖI CRASH
+// --- BỘ ICON VẼ TAY (SVG THUẦN) ---
+const IconTag = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l5 5a2 2 0 0 0 2.828 0l7.172-7.172a2 2 0 0 0 0-2.828l-5-5z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>;
+const IconGavel = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0a2.12 2.12 0 0 1 0-3L11 10"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/></svg>;
+const IconVideo = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>;
+const IconLock = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+const IconPackage = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16.5 9.4-9-5.19"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
+const IconCoins = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/><path d="m14.59 15.29.7.71"/></svg>;
+const IconCrown = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>;
+const IconImagePlus = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>;
+const IconX = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>;
+const IconMapPin = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>;
+const IconShieldAlert = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+const IconBan = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 14.14 14.14"/></svg>;
+const IconCamera = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>;
+const IconFileText = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>;
+const IconMessageCircle = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>;
+const IconAlertTriangle = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+const IconZap = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+const IconThumbsUp = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></svg>;
+const IconTrendingUp = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>;
+const IconAlertOctagon = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+const IconCheckSquare = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>;
 
 interface ListingFormData {
   title: string;
@@ -396,7 +413,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     return (
       <div className="max-w-2xl mx-auto mt-10 px-4 pb-20">
         <div className="bg-red-50 border-2 border-red-100 rounded-[2.5rem] p-10 text-center space-y-6 shadow-xl animate-fade-in-up flex flex-col items-center">
-          <AlertOctagon className="w-20 h-20 text-red-500 animate-bounce mb-4" strokeWidth={1.5} />
+          <IconAlertOctagon className="w-20 h-20 text-red-500 animate-bounce mb-4" />
           <h2 className="text-2xl font-black text-red-600 uppercase">Hết hạn mức đăng tin</h2>
           <p className="text-gray-600 font-medium leading-relaxed">
             Bạn đã sử dụng hết <span className="font-bold text-black">{maxPosts}/{maxPosts}</span> lượt đăng tin miễn phí trong ngày hôm nay.
@@ -404,7 +421,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           <div className="flex gap-4 justify-center pt-4">
             <Link to="/" className="px-6 py-3 bg-white border border-gray-200 rounded-xl font-bold text-sm uppercase hover:bg-gray-50">Về trang chủ</Link>
             <Link to="/upgrade" className="px-6 py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl font-bold text-sm uppercase shadow-lg hover:scale-105 transition-transform flex items-center gap-2">
-              <Crown className="w-4 h-4" /> Nâng cấp VIP
+              <IconCrown className="w-4 h-4" /> Nâng cấp VIP
             </Link>
           </div>
         </div>
@@ -425,7 +442,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           <div className="flex flex-col items-center gap-2">
             <div className={`inline-flex items-center gap-3 px-5 py-2 rounded-full border shadow-sm ${remainingPosts <= 1 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
               <span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
-                 <Crown className="w-3 h-3 text-yellow-500" /> {currentTierConfig.name}
+                 <IconCrown className="w-3 h-3 text-yellow-500" /> {currentTierConfig.name}
               </span>
               <div className="h-4 w-[1px] bg-gray-300"></div>
               <span className={`text-xs font-black ${remainingPosts <= 1 ? 'text-red-500 animate-pulse' : 'text-primary'}`}>
@@ -439,10 +456,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       {!isEditing && (
         <div className="bg-gray-100 p-1 rounded-xl flex max-w-md mx-auto shadow-inner mb-6">
           <button onClick={() => setListingType('normal')} className={`flex-1 py-2.5 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${listingType === 'normal' ? 'bg-white shadow text-primary' : 'text-gray-400'}`}>
-            <Package className="w-4 h-4" /> Bán ngay
+            <IconPackage className="w-4 h-4" /> Bán ngay
           </button>
           <button onClick={() => setListingType('affiliate')} className={`flex-1 py-2.5 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${listingType === 'affiliate' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow' : 'text-gray-400'}`}>
-            <Coins className="w-4 h-4" /> Tiếp thị VIP
+            <IconCoins className="w-4 h-4" /> Tiếp thị VIP
           </button>
         </div>
       )}
@@ -450,7 +467,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       {/* --- KHỐI MEDIA --- */}
       {listingType === 'affiliate' && user?.subscriptionTier !== 'pro' ? (
         <div className="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center space-y-4 flex flex-col items-center">
-          <Crown className="w-16 h-16 text-orange-400" strokeWidth={1} />
+          <IconCrown className="w-16 h-16 text-orange-400" />
           <h3 className="text-sm font-black text-orange-600 uppercase">Dành cho VIP PRO</h3>
           <Link to="/upgrade" className="block w-full max-w-xs bg-orange-500 text-white py-4 rounded-xl font-bold text-xs hover:bg-orange-600 transition">Nâng cấp ngay</Link>
         </div>
@@ -471,13 +488,13 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
               <div key={i} className="aspect-square rounded-xl overflow-hidden border border-gray-200 relative group">
                 <img src={img} className="w-full h-full object-cover" alt="" />
                 <button type="button" onClick={() => setFormData(p => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 group-hover:bg-red-500 transition-all">
-                    <X className="w-3 h-3" />
+                    <IconX className="w-3 h-3" />
                 </button>
               </div>
             ))}
             {formData.images.length < currentTierConfig.maxImages && (
               <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-all">
-                <ImagePlus className="w-8 h-8 opacity-50" strokeWidth={1.5} />
+                <IconImagePlus className="w-8 h-8 opacity-50" />
               </button>
             )}
 
@@ -485,7 +502,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             {!videoPreview ? (
               currentTierConfig.allowVideo ? (
                 <button type="button" onClick={handleVideoClick} className="aspect-square rounded-xl border-2 border-dashed border-blue-200 bg-blue-50 text-blue-500 hover:border-blue-400 flex flex-col items-center justify-center transition-all">
-                  <Video className="w-8 h-8 mb-1" strokeWidth={1.5} />
+                  <IconVideo className="w-8 h-8 mb-1" />
                 </button>
               ) : (
                 <button type="button" onClick={() => {
@@ -493,9 +510,9 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                       navigate('/upgrade');
                     }
                   }} className="aspect-square rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 text-gray-400 flex flex-col items-center justify-center cursor-not-allowed opacity-70 hover:bg-gray-100 transition-all relative">
-                  <Video className="w-8 h-8 grayscale opacity-50" strokeWidth={1.5} />
+                  <IconVideo className="w-8 h-8 grayscale opacity-50" />
                   <div className="absolute top-1 right-1 bg-gray-200 rounded-full p-1.5 text-gray-500 shadow-sm">
-                    <Lock className="w-3 h-3" />
+                    <IconLock className="w-3 h-3" />
                   </div>
                 </button>
               )
@@ -503,7 +520,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
               <div className="aspect-square rounded-xl overflow-hidden border border-blue-200 relative group shadow-lg">
                 <video src={videoPreview} className="w-full h-full object-cover" />
                 <button type="button" onClick={() => { setVideoFile(null); setVideoPreview(""); setExistingVideoUrl(null); }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow-md">
-                    <X className="w-3 h-3" />
+                    <IconX className="w-3 h-3" />
                 </button>
               </div>
             )}
@@ -520,7 +537,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           {!isEditing && remainingPosts === 1 && (
             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-xl mb-2 animate-pulse">
               <div className="flex items-center gap-3">
-                <AlertTriangle className="w-6 h-6 text-yellow-600" />
+                <IconAlertTriangle className="w-6 h-6 text-yellow-600" />
                 <div>
                   <h4 className="text-xs font-black text-yellow-700 uppercase">Lưu ý quan trọng</h4>
                   <p className="text-[11px] text-yellow-800">Tin cuối cùng trong ngày.</p>
@@ -534,13 +551,13 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
               <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-xl shadow-sm transition-all duration-300 ${formData.isAuction ? 'left-[calc(50%+3px)]' : 'left-1.5'}`}></div>
               
               <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: false }))} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 ${!formData.isAuction ? 'text-primary' : 'text-gray-400'}`}>
-                <Tag className="w-3.5 h-3.5" /> Giá cố định
+                <IconTag className="w-3.5 h-3.5" /> Giá cố định
               </button>
               
               {/* --- NÚT ĐẤU GIÁ (CÓ ICON VECTOR & LOGIC KHÓA) --- */}
               {['basic', 'pro'].includes(user?.subscriptionTier || '') ? (
                 <button type="button" onClick={() => setFormData(prev => ({ ...prev, isAuction: true }))} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 ${formData.isAuction ? 'text-purple-600' : 'text-gray-400'}`}>
-                    <Gavel className="w-3.5 h-3.5" /> Đấu giá
+                    <IconGavel className="w-3.5 h-3.5" /> Đấu giá
                 </button>
               ) : (
                 <button type="button" onClick={() => {
@@ -548,8 +565,8 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                       navigate('/upgrade');
                     }
                   }} className="flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-widest text-gray-400 cursor-not-allowed flex items-center justify-center gap-1 opacity-60">
-                  <Gavel className="w-3.5 h-3.5" /> <span>Đấu giá</span>
-                  <Lock className="w-3 h-3 text-gray-400 ml-1" />
+                  <IconGavel className="w-3.5 h-3.5" /> <span>Đấu giá</span>
+                  <IconLock className="w-3 h-3 text-gray-400 ml-1" />
                 </button>
               )}
             </div>
@@ -591,7 +608,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             {formData.isAuction ? (
               <div className="space-y-4 animate-fade-in">
                 <div className="flex items-center gap-2 mb-2">
-                  <Gavel className="w-5 h-5 text-purple-600" />
+                  <IconGavel className="w-5 h-5 text-purple-600" />
                   <h3 className="font-black text-purple-700 uppercase text-xs tracking-widest">Thiết lập đấu giá</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -634,17 +651,17 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                     <div className="w-full overflow-hidden mt-2">
                         <div className="flex gap-2 overflow-x-auto pb-2 w-full no-scrollbar touch-pan-x snap-x">
                             <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.fast.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition whitespace-nowrap">
-                                <Zap className="w-3 h-3 text-green-600" fill="currentColor" />
+                                <IconZap className="w-3 h-3 text-green-600" />
                                 <span className="text-[10px] font-bold text-green-600 uppercase">Bán nhanh</span>
                                 <span className="text-xs font-black text-green-700">{Number(priceSuggestions.fast).toLocaleString('vi-VN')}</span>
                             </button>
                             <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.market.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition whitespace-nowrap">
-                                <ThumbsUp className="w-3 h-3 text-blue-600" />
+                                <IconThumbsUp className="w-3 h-3 text-blue-600" />
                                 <span className="text-[10px] font-bold text-blue-600 uppercase">Hợp lý</span>
                                 <span className="text-xs font-black text-blue-700">{Number(priceSuggestions.market).toLocaleString('vi-VN')}</span>
                             </button>
                             <button type="button" onClick={() => setFormData(p => ({...p, price: priceSuggestions.high.toString()}))} className="snap-start flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition whitespace-nowrap">
-                                <TrendingUp className="w-3 h-3 text-purple-600" />
+                                <IconTrendingUp className="w-3 h-3 text-purple-600" />
                                 <span className="text-[10px] font-bold text-purple-600 uppercase">Lời cao</span>
                                 <span className="text-xs font-black text-purple-700">{Number(priceSuggestions.high).toLocaleString('vi-VN')}</span>
                             </button>
@@ -666,7 +683,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
               <div className="flex justify-between items-center mb-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Địa chỉ chi tiết</label>
                 <button type="button" onClick={handleManualLocate} className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 hover:text-blue-600">
-                    <MapPin className="w-3 h-3" /> Lấy vị trí
+                    <IconMapPin className="w-3 h-3" /> Lấy vị trí
                 </button>
               </div>
               <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={inputStyle} placeholder="Số nhà, đường..." />
@@ -682,20 +699,20 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-5 rounded-2xl relative overflow-hidden">
             <div className="relative z-10">
               <h3 className="flex items-center gap-2 font-black text-xs uppercase text-blue-600 mb-3 tracking-wider">
-                <ShieldAlert className="w-4 h-4" /> Quy tắc & Mẹo Bán Nhanh
+                <IconShieldAlert className="w-4 h-4" /> Quy tắc & Mẹo Bán Nhanh
               </h3>
               <ul className="space-y-2">
                   <li className="flex items-start gap-2 text-xs text-gray-700 font-medium">
-                    <Ban className="w-3.5 h-3.5 text-red-400 mt-0.5" /> <span>Không đăng hàng cấm, hàng giả.</span>
+                    <IconBan className="w-3.5 h-3.5 text-red-400 mt-0.5" /> <span>Không đăng hàng cấm, hàng giả.</span>
                   </li>
                   <li className="flex items-start gap-2 text-xs text-gray-700 font-medium">
-                    <Camera className="w-3.5 h-3.5 text-blue-400 mt-0.5" /> <span>Hình ảnh tự chụp, rõ nét, không mờ.</span>
+                    <IconCamera className="w-3.5 h-3.5 text-blue-400 mt-0.5" /> <span>Hình ảnh tự chụp, rõ nét, không mờ.</span>
                   </li>
                   <li className="flex items-start gap-2 text-xs text-gray-700 font-medium">
-                    <FileText className="w-3.5 h-3.5 text-green-400 mt-0.5" /> <span>Mô tả chi tiết tình trạng, xuất xứ.</span>
+                    <IconFileText className="w-3.5 h-3.5 text-green-400 mt-0.5" /> <span>Mô tả chi tiết tình trạng, xuất xứ.</span>
                   </li>
                   <li className="flex items-start gap-2 text-xs text-gray-700 font-medium">
-                    <MessageCircle className="w-3.5 h-3.5 text-purple-400 mt-0.5" /> <span>Trả lời khách hàng lịch sự, nhanh chóng.</span>
+                    <IconMessageCircle className="w-3.5 h-3.5 text-purple-400 mt-0.5" /> <span>Trả lời khách hàng lịch sự, nhanh chóng.</span>
                   </li>
               </ul>
             </div>
@@ -704,7 +721,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
             <div className="relative flex items-center">
                 <input type="checkbox" id="rules" checked={agreedToRules} onChange={e => setAgreedToRules(e.target.checked)} className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-gray-300 transition-all checked:border-primary checked:bg-primary" />
-                <CheckSquare className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 w-3.5 h-3.5" />
+                <IconCheckSquare className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 w-3.5 h-3.5" />
             </div>
             <label htmlFor="rules" className="text-[11px] font-bold text-gray-500 uppercase cursor-pointer select-none">Tôi cam kết tuân thủ quy tắc cộng đồng</label>
           </div>
@@ -714,7 +731,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                 <span>Đang xử lý...</span>
             ) : (
                 <>
-                    {formData.isAuction && <Gavel className="w-4 h-4" />}
+                    {formData.isAuction && <IconGavel className="w-4 h-4" />}
                     {isEditing ? 'Lưu thay đổi' : (formData.isAuction ? 'Tạo phiên đấu giá' : (remainingPosts === 1 ? 'Đăng tin cuối cùng' : 'Đăng tin ngay'))}
                 </>
             )}

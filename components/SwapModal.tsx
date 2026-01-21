@@ -3,8 +3,13 @@ import { Listing, User } from '../types';
 import { db } from '../services/db';
 import { formatPrice } from '../utils/format';
 
-// --- IMPORT ICON VECTOR ---
-import { RefreshCw, CheckCircle, PackageX, DollarSign, X } from 'lucide-react';
+// ⚠️ ĐÃ LOẠI BỎ LUCIDE-REACT ĐỂ TRÁNH LỖI CRASH
+// --- BỘ ICON VẼ TAY (SVG THUẦN) ---
+const IconRefresh = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>;
+const IconCheckCircle = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
+const IconPackageX = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="m7.5 4.27 9 5.15"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/><path d="m17 13 5 5m-5 0 5-5"/></svg>;
+const IconDollar = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
+const IconX = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
 
 interface SwapModalProps {
   isOpen: boolean;
@@ -61,13 +66,13 @@ const SwapModal: React.FC<SwapModalProps> = ({ isOpen, onClose, targetListing, c
         <div className="flex items-center justify-between mb-6">
             <div>
                 <h3 className="text-xl font-black text-slate-900 uppercase flex items-center gap-2">
-                    <RefreshCw className="w-5 h-5 text-purple-600" /> 
+                    <IconRefresh className="w-5 h-5 text-purple-600" /> 
                     Đổi đồ lấy:
                 </h3>
                 <p className="text-sm font-bold text-primary truncate mt-1 max-w-[250px]">{targetListing.title}</p>
             </div>
             <button onClick={onClose} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors">
-                <X className="w-5 h-5 text-gray-500" />
+                <IconX className="w-5 h-5 text-gray-500" />
             </button>
         </div>
 
@@ -82,7 +87,7 @@ const SwapModal: React.FC<SwapModalProps> = ({ isOpen, onClose, targetListing, c
              </div>
           ) : myListings.length === 0 ? (
             <div className="text-center py-10 text-gray-400 text-sm bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center gap-3">
-              <PackageX className="w-10 h-10 opacity-30" />
+              <IconPackageX className="w-10 h-10 opacity-30" />
               <p className="font-medium">Bạn chưa có món nào để đổi.<br/>Hãy đăng bán sản phẩm trước nhé!</p>
             </div>
           ) : (
@@ -102,7 +107,7 @@ const SwapModal: React.FC<SwapModalProps> = ({ isOpen, onClose, targetListing, c
                 </div>
                 {selectedItem?.id === item.id && (
                     <div className="flex items-center pr-2">
-                        <CheckCircle className="w-6 h-6 text-purple-600 fill-purple-100" />
+                        <IconCheckCircle className="w-6 h-6 text-purple-600 fill-purple-100" />
                     </div>
                 )}
               </div>
@@ -113,7 +118,7 @@ const SwapModal: React.FC<SwapModalProps> = ({ isOpen, onClose, targetListing, c
         {/* Ô nhập tiền bù */}
         <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 mb-6 relative group focus-within:border-purple-200 focus-within:bg-purple-50/30 transition-colors">
            <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
-               <DollarSign className="w-3 h-3" /> Bù thêm tiền (Tùy chọn)
+               <IconDollar className="w-3 h-3" /> Bù thêm tiền (Tùy chọn)
            </label>
            <div className="relative">
              <input 
@@ -146,7 +151,7 @@ const SwapModal: React.FC<SwapModalProps> = ({ isOpen, onClose, targetListing, c
                         ? 'bg-gray-300 cursor-not-allowed shadow-none' 
                         : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:shadow-purple-200'}`}
             >
-                <RefreshCw className="w-4 h-4" /> Gửi đề nghị
+                <IconRefresh className="w-4 h-4" /> Gửi đề nghị
             </button>
         </div>
 

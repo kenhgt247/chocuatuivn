@@ -40,6 +40,9 @@ const ScrollToTop = () => {
   return null;
 };
 
+// --- ICON VẼ TAY CHO TOAST (AN TOÀN) ---
+const IconSuccess = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -62,7 +65,10 @@ const App: React.FC = () => {
                     // Chỉ thông báo nếu tiền tăng lên
                     if (updatedUser.walletBalance > prevBalanceRef.current) {
                         const amount = updatedUser.walletBalance - prevBalanceRef.current;
-                        toast.success(`💰 Ting Ting! Ví vừa được cộng ${formatPrice(amount)}`);
+                        // [FIX] Dùng icon vẽ tay để tránh lỗi Crash
+                        toast.success(`Ví vừa được cộng ${formatPrice(amount)}`, {
+                            icon: <IconSuccess />
+                        });
                     }
                     // Cập nhật state nhưng KHÔNG gây loop cho useEffect bên dưới
                     setUser(updatedUser);
@@ -199,7 +205,6 @@ const App: React.FC = () => {
             
             <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
             
-            {/* SỬA LẠI: Dùng PostListing cho chức năng Edit (theo code cũ của bạn) */}
             <Route path="/edit/:id" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
             
             <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
@@ -208,7 +213,7 @@ const App: React.FC = () => {
             <Route path="/chat/:roomId" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
             
             <Route path="/upgrade" element={user ? <Subscription user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
-            <Route path="/wallet" element={user ? <Wallet user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
+            <Route path="/wallet" element={user ? <Wallet user={user} /> : <Navigate to="/login" />} />
             
             <Route path="/admin" element={user?.role === 'admin' ? <Admin user={user} /> : <Navigate to="/" />} />
 
@@ -220,7 +225,15 @@ const App: React.FC = () => {
           </Routes>
         </Layout>
 
-        <ToastContainer position="bottom-center" autoClose={3000} hideProgressBar={true} newestOnTop={true} theme="light" />
+        {/* THAY ĐỔI: Tắt icon mặc định để tránh lỗi */}
+        <ToastContainer 
+            position="bottom-center" 
+            autoClose={3000} 
+            hideProgressBar={true} 
+            newestOnTop={true} 
+            theme="light" 
+            icon={false} // <--- QUAN TRỌNG: Tắt icon mặc định
+        />
       </Router>
     </HelmetProvider>
   );

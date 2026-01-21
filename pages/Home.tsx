@@ -8,7 +8,7 @@ import HomeBanner from '../components/HomeBanner';
 import CategoryBar from '../components/CategoryBar'; 
 import { getLocationFromCoords } from '../utils/locationHelper'; 
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
-
+import StoryBar from '../components/StoryBar';
 // ⚠️ ĐÃ LOẠI BỎ LUCIDE-REACT ĐỂ TRÁNH LỖI CRASH
 // --- BỘ ICON VẼ TAY (SVG THUẦN) ---
 const IconZap = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
@@ -284,7 +284,11 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       <div className="mt-4">
         <CategoryBar />
       </div>
-
+{/* 👇 CHÈN STORY BAR VÀO ĐÂY 👇 */}
+    <div className="animate-fade-in-up">
+        <StoryBar user={user} />
+    </div>
+    {/* 👆 KẾT THÚC CHÈN 👆 */}
       {/* 2. BANNER */}
       {!search && !isUrlCategory && !typeParam && !locationParam && <HomeBanner />}
 

@@ -23,7 +23,7 @@ import { getStorage, ref, uploadString, getDownloadURL, uploadBytes } from "fire
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 // Import Types
-import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus, Offer, Category, Bid, Message } from '../types';
+import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus, Offer, Category, Bid, Message, Story } from '../types';
 
 // IMPORT LOGIC TÌM KIẾM & FORMAT
 import { isSearchMatch, calculateRelevanceScore, generateKeywords } from '../utils/format';
@@ -1100,7 +1100,8 @@ export const db = {
     // 1. Tạo tin nhắn mới
     const newMessage = {
       ...message,
-      id: crypto.randomUUID(),
+      // Thay crypto.randomUUID() bằng chuỗi ngẫu nhiên thủ công
+      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`,
       timestamp: new Date().toISOString()
     };
 
@@ -1704,6 +1705,123 @@ export const db = {
     } catch (e: any) {
       console.error("Lỗi seed:", e);
       return { success: false, message: e.message };
+    }
+  },
+ // 👇 DÁN 3 HÀM NÀY VÀO ĐÂY (Ngang hàng với các hàm trên) 👇
+  
+  // --- STORY FEATURES ---
+  async uploadStoryVideo(file: File, userId: string): Promise<string> {
+    const storageRef = ref(storage, `stories/${userId}/${Date.now()}_${file.name}`);
+    const snapshot = await uploadBytes(storageRef, file);
+    return await getDownloadURL(snapshot.ref);
+  },
+
+  async createStory(user: User, mediaUrl: string, mediaType: 'image' | 'video') {
+    const now = Date.now();
+    const expiresAt = now + 24 * 60 * 60 * 1000; 
+
+    // Dùng Omit để loại bỏ 'id' vì Firestore tự sinh ID
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const storyData: any = {
+      sellerId: user.id,
+      sellerName: user.name,
+      sellerAvatar: user.avatar || '',
+      videoUrl: mediaUrl,
+      mediaType: mediaType,
+      createdAt: now,
+      expiresAt: expiresAt,
+      views: 0
+    };
+
+    // Đảm bảo dùng biến 'firestore' (không phải dbInstance nếu bạn chưa khai báo)
+    await addDoc(collection(firestore, 'stories'), storyData);
+  },
+
+  async getActiveStories(): Promise<Story[]> {
+    const now = Date.now();
+    try {
+      const q = query(
+        collection(firestore, 'stories'),
+        where('expiresAt', '>', now),
+        orderBy('expiresAt', 'desc')
+      );
+      
+      const snapshot = await getDocs(q);
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      } as any));
+    } catch (error) {
+      console.error("Lỗi lấy Story:", error);
+      return [];
+    }
+  },
+
+  // --- STORY INTERACTION (CHAT) ---
+  async replyToStory(story: Story, sender: User, text: string) {
+    try {
+        if (!story || !sender || story.sellerId === sender.id) return { success: false };
+
+        const roomId = `${sender.id}_${story.sellerId}`;
+        const roomRef = doc(firestore, "chats", roomId);
+        const roomSnap = await getDoc(roomRef);
+
+        // Đảm bảo dữ liệu không bị undefined (Firestore không nhận undefined)
+        const safeStoryUrl = story.videoUrl || ""; 
+        const safeStoryType = story.mediaType || "image";
+        const safeSellerName = story.sellerName || "Người bán";
+        const safeSellerAvatar = story.sellerAvatar || "";
+
+        if (!roomSnap.exists()) {
+             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             const newRoom: any = {
+                id: roomId,
+                participantIds: [sender.id, story.sellerId],
+                participantsData: {
+                  [sender.id]: { name: sender.name, avatar: sender.avatar || "" },
+                  [story.sellerId]: { name: safeSellerName, avatar: safeSellerAvatar }
+                },
+                listingId: `story_${story.id}`,
+                listingTitle: "Phản hồi Story",
+                listingImage: safeStoryUrl, 
+                listingPrice: 0,
+                lastMessage: text,
+                lastUpdate: new Date().toISOString(),
+                messages: [],
+                seenBy: [sender.id]
+            };
+            await setDoc(roomRef, newRoom);
+        }
+
+        const message = {
+            senderId: sender.id,
+            text: text,
+            type: 'text',
+            metadata: { 
+                isStoryReply: true, 
+                storyUrl: safeStoryUrl, // FIX: Đã xử lý undefined
+                storyType: safeStoryType // FIX: Đã xử lý undefined
+            }
+        };
+
+        await updateDoc(roomRef, {
+            messages: arrayUnion({
+                ...message,
+                id: `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                timestamp: new Date().toISOString()
+            }),
+            lastMessage: text,
+            lastUpdate: new Date().toISOString(),
+            seenBy: [sender.id]
+        });
+
+        return { success: true };
+
+    } catch (error) {
+        console.error("Lỗi reply story:", error);
+        return { success: false };
     }
   },
   init: () => {}

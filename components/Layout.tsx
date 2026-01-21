@@ -7,12 +7,10 @@ import UniversalInstallPrompt from './UniversalInstallPrompt';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import NotificationMenu from '../components/NotificationMenu';
 
-// ⚠️ TUYỆT ĐỐI KHÔNG IMPORT firebase/messaging Ở ĐÂY
-// ⚠️ ĐÃ LOẠI BỎ LUCIDE-REACT ĐỂ TRÁNH LỖI CRASH KHI NHẬN TIỀN
+// ⚠️ TUYỆT ĐỐI KHÔNG IMPORT firebase/messaging Ở ĐÂY (Để tránh lỗi build trên server/môi trường ko hỗ trợ)
 
 /* ====================================================================================
    BỘ ICON VẼ TAY (AN TOÀN TUYỆT ĐỐI 100%)
-   Dùng bộ này thì Admin duyệt tiền thoải mái cũng không bao giờ lỗi #130 nữa.
    ==================================================================================== */
 const IconZap = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 const IconBell = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
@@ -76,6 +74,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     !r.seenBy?.includes(user.id) 
   ).length : 0;
 
+  // --- LOGIC KÍCH HOẠT THÔNG BÁO (ĐÃ FIX) ---
   const handleEnableNotifications = async () => {
     setHasInteractedWithNotif(true);
 
@@ -89,35 +88,52 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
       setNotifPermission(permission);
 
       if (permission === 'granted') {
+        // Cập nhật Badge (số tin nhắn chưa đọc) trên icon ứng dụng
         if ('setAppBadge' in navigator) {
             // @ts-ignore
             navigator.setAppBadge(unreadChatCount).catch(() => {});
         }
 
         try {
-            console.log("Đang kích hoạt thông báo...");
-            const { getMessaging, getToken } = await import("firebase/messaging");
+            console.log("🚀 Đang kích hoạt FCM...");
             
-            const messaging = getMessaging(app);
-            const registration = await navigator.serviceWorker.ready;
+            // 1. Đợi Service Worker sẵn sàng (Quan trọng!)
+            if ('serviceWorker' in navigator) {
+                const registration = await navigator.serviceWorker.ready;
+                
+                // 2. Dynamic import Firebase Messaging
+                const { getMessaging, getToken } = await import("firebase/messaging");
+                const messaging = getMessaging(app);
 
-            const currentToken = await getToken(messaging, { 
-              vapidKey: 'BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI', 
-              serviceWorkerRegistration: registration 
-            });
+                // 3. Lấy Token
+                const currentToken = await getToken(messaging, { 
+                  vapidKey: 'BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI', // Thay bằng key thật của bạn nếu khác
+                  serviceWorkerRegistration: registration 
+                });
 
-            if (currentToken && user?.id) {
-                // @ts-ignore
-                if (db.updateUserProfile) {
-                    // @ts-ignore
-                    await db.updateUserProfile(user.id, { fcmToken: currentToken });
-                    console.log("Đã đăng ký nhận tin thành công!");
+                if (currentToken) {
+                    console.log("FCM Token:", currentToken);
+                    if (user?.id) {
+                        // Lưu token vào User Profile để Backend gửi tin
+                        // @ts-ignore
+                        if (db.updateUserProfile) {
+                            // @ts-ignore
+                            await db.updateUserProfile(user.id, { fcmToken: currentToken });
+                            alert("✅ Đã bật thông báo thành công!");
+                        }
+                    }
+                } else {
+                    console.warn("Không lấy được FCM Token.");
                 }
+            } else {
+                console.warn("Trình duyệt không hỗ trợ Service Worker.");
             }
-            alert("✅ Đã bật thông báo! Bạn sẽ nhận được tin nhắn ngay cả khi tắt ứng dụng.");
         } catch (err) {
             console.error('Lỗi kích hoạt thông báo:', err);
+            // Không alert lỗi kỹ thuật để tránh làm phiền user, chỉ log
         }
+      } else {
+          alert("Bạn đã chặn thông báo. Hãy vào cài đặt trình duyệt để mở lại.");
       }
     } catch (error) {
       console.error("Lỗi xin quyền:", error);
@@ -244,7 +260,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex items-end justify-between h-[calc(4rem+env(safe-area-inset-bottom))] z-50 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
         <Link to="/" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname === '/' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
           <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/' ? 'bg-blue-50' : ''}`}>
-             <div className="w-6 h-6"><IconHome /></div>
+              <div className="w-6 h-6"><IconHome /></div>
           </div>
           <span className={`text-[10px] font-bold ${location.pathname === '/' ? 'opacity-100' : 'opacity-70'}`}>Trang chủ</span>
         </Link>

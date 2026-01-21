@@ -283,3 +283,14 @@ export interface SystemSettings {
 
   bannerSlides?: BannerSlide[];
 }
+export interface Story {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  sellerAvatar: string;
+  videoUrl: string;       // (Ta vẫn dùng trường này để lưu link ảnh hoặc video)
+  mediaType: 'image' | 'video'; // <--- THÊM DÒNG NÀY
+  createdAt: number;
+  expiresAt: number;
+  views: number;
+}

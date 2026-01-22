@@ -7,8 +7,8 @@ import { QueryDocumentSnapshot, DocumentData, collection, getDocs, getFirestore 
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import { seedCategoriesToFirebase } from '../utils/seedCategories';
 
-// [CẬP NHẬT] Thêm 'categories' vào danh sách Tab
-type AdminTab = 'stats' | 'listings' | 'reports' | 'users' | 'payments' | 'settings' | 'categories';
+// Danh sách Tab
+type AdminTab = 'stats' | 'listings' | 'reports' | 'users' | 'payments' | 'settings' | 'categories' | 'ads';
 
 interface ConfirmState { show: boolean; title: string; message: string; onConfirm: () => void; type: 'success' | 'danger' | 'warning'; }
 interface ToastState { show: boolean; message: string; type: 'success' | 'error'; }
@@ -22,7 +22,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   
-  // State cho Listings
+  // Listings State
   const [listings, setListings] = useState<Listing[]>([]);
   const [listingLastDocs, setListingLastDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
   const [hasMoreListings, setHasMoreListings] = useState(true);
@@ -31,14 +31,14 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const [listingStatusFilter, setListingStatusFilter] = useState<'all' | 'pending'>('pending');
   const [selectedListings, setSelectedListings] = useState<Set<string>>(new Set());
   
-  // State cho Users
+  // Users State
   const [users, setUsers] = useState<User[]>([]);
   const [userLastDocs, setUserLastDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
   const [hasMoreUsers, setHasMoreUsers] = useState(true);
   const [userPage, setUserPage] = useState(1);
   const [isUserLoading, setIsUserLoading] = useState(false);
   
-  // [MỚI] State cho Categories
+  // Categories State
   const [categories, setCategories] = useState<Category[]>([]);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
 
@@ -59,7 +59,6 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
     if (activeTab === 'listings') {
         setListingPage(1); setListingLastDocs([]); loadListings(null);
     }
-    // [MỚI] Load danh mục khi chuyển tab
     if (activeTab === 'categories') {
         db.getCategories().then(setCategories);
     }
@@ -85,10 +84,10 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
       setReports(allReports);
       setTransactions(allTxs);
       
+      // Default Banner nếu chưa có
       const defaultSlides = [
          { id: 1, type: 'text', title: "Đăng tin siêu tốc 🚀", desc: "Tiếp cận hàng ngàn khách hàng mỗi ngày.", btnText: "Đăng ngay", btnLink: "/post", colorFrom: "from-blue-600", colorTo: "to-indigo-600", icon: "⚡", isActive: true },
-         { id: 2, type: 'text', title: "Nâng cấp VIP 👑", desc: "Tin đăng nổi bật, chốt đơn nhanh gấp 5 lần.", btnText: "Xem gói VIP", btnLink: "/profile", colorFrom: "from-orange-500", colorTo: "to-red-500", icon: "💎", isActive: true },
-         { id: 3, type: 'text', title: "Săn đồ cũ giá hời 🛍️", desc: "Hàng ngàn món đồ chất lượng đang chờ bạn.", btnText: "Khám phá", btnLink: "/", colorFrom: "from-green-500", colorTo: "to-teal-500", icon: "🔥", isActive: true }
+         { id: 2, type: 'text', title: "Nâng cấp VIP 👑", desc: "Tin đăng nổi bật, chốt đơn nhanh gấp 5 lần.", btnText: "Xem gói VIP", btnLink: "/profile", colorFrom: "from-orange-500", colorTo: "to-red-500", icon: "💎", isActive: true }
       ];
 
       setSettings({
@@ -349,6 +348,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                    { id: 'categories', label: 'Danh mục', icon: '📂', notify: false }, 
                    { id: 'reports', label: 'Báo cáo', icon: '🚨', notify: activeReports.length > 0 }, 
                    { id: 'users', label: 'Thành viên', icon: '👥', notify: pendingVerifications.length > 0 }, 
+                   { id: 'ads', label: 'Quảng cáo', icon: '📢', notify: false }, // Tab QC Mới
                    { id: 'settings', label: 'Cấu hình', icon: '⚙️', notify: false }
                ].map(tab => (
                    <button key={tab.id} onClick={() => setActiveTab(tab.id as AdminTab)} className={`w-full flex items-center justify-between px-5 py-3.5 rounded-2xl text-[11px] font-black uppercase transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}>
@@ -488,7 +488,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
              </div>
          )}
 
-         {/* [MỚI] TAB QUẢN LÝ DANH MỤC & TRƯỜNG DỮ LIỆU */}
+         {/* [MỚI] TAB QUẢN LÝ DANH MỤC */}
          {activeTab === 'categories' && (
              <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft flex flex-col h-[80vh]">
                  <div className="flex justify-between items-center mb-6">
@@ -512,7 +512,6 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                  </div>
 
                  <div className="flex gap-6 flex-1 min-h-0">
-                     {/* CỘT TRÁI: DANH SÁCH (Tree View) */}
                      <div className="w-1/3 overflow-y-auto pr-2 space-y-2">
                          {categories.filter(c => !c.parentId).map(parent => (
                              <div key={parent.id} className="space-y-1">
@@ -536,7 +535,6 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                          ))}
                      </div>
 
-                     {/* CỘT PHẢI: FORM CHỈNH SỬA */}
                      <div className="w-2/3 bg-gray-50 rounded-3xl p-6 border border-gray-200 overflow-y-auto">
                          {editingCat ? (
                              <div className="space-y-6">
@@ -562,73 +560,44 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
 
                                  <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-sm">
                                      <div className="flex justify-between items-center mb-4">
-                                         <label className="text-[10px] font-black uppercase text-blue-500">Các trường nhập liệu đặc thù (Dynamic Fields)</label>
-                                         <button 
-                                             onClick={() => setEditingCat({
-                                                 ...editingCat, 
-                                                 attributes: [...(editingCat.attributes || []), { key: '', label: '', type: 'text' }]
-                                             })}
-                                             className="text-[9px] font-bold bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 uppercase"
-                                         >+ Thêm trường</button>
+                                         <label className="text-[10px] font-black uppercase text-blue-500">Các trường nhập liệu đặc thù</label>
+                                         <button onClick={() => setEditingCat({...editingCat, attributes: [...(editingCat.attributes || []), { key: '', label: '', type: 'text' }]})} className="text-[9px] font-bold bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 uppercase">+ Thêm trường</button>
                                      </div>
 
                                      <div className="space-y-3">
                                          {(editingCat.attributes || []).map((attr, idx) => (
                                              <div key={idx} className="flex gap-2 items-start p-3 bg-gray-50 rounded-xl border border-gray-100 group hover:border-blue-200 transition-colors">
                                                  <div className="grid grid-cols-3 gap-2 flex-1">
-                                                     <input type="text" placeholder="Tên hiển thị (VD: Số Km)" value={attr.label} onChange={e => { const attrs = [...(editingCat.attributes || [])]; attrs[idx].label = e.target.value; setEditingCat({...editingCat, attributes: attrs}); }} className="border border-gray-200 rounded-lg p-2 text-xs font-bold" />
+                                                     <input type="text" placeholder="Tên hiển thị" value={attr.label} onChange={e => { const attrs = [...(editingCat.attributes || [])]; attrs[idx].label = e.target.value; setEditingCat({...editingCat, attributes: attrs}); }} className="border border-gray-200 rounded-lg p-2 text-xs font-bold" />
                                                      <input type="text" placeholder="Key (VD: odo)" value={attr.key} onChange={e => { const attrs = [...(editingCat.attributes || [])]; attrs[idx].key = e.target.value; setEditingCat({...editingCat, attributes: attrs}); }} className="border border-gray-200 rounded-lg p-2 text-xs font-mono" />
                                                      <select value={attr.type} onChange={e => { const attrs = [...(editingCat.attributes || [])]; attrs[idx].type = e.target.value as any; setEditingCat({...editingCat, attributes: attrs}); }} className="border border-gray-200 rounded-lg p-2 text-xs">
-                                                         <option value="text">Chữ (Text)</option>
-                                                         <option value="number">Số (Number)</option>
-                                                         <option value="select">Chọn (Select)</option>
+                                                         <option value="text">Chữ</option><option value="number">Số</option><option value="select">Chọn</option>
                                                      </select>
                                                      {attr.type === 'select' && (
-                                                         <input type="text" placeholder="Options (cách nhau dấu phẩy)" value={attr.options?.join(',') || ''} onChange={e => { const attrs = [...(editingCat.attributes || [])]; attrs[idx].options = e.target.value.split(','); setEditingCat({...editingCat, attributes: attrs}); }} className="col-span-3 border border-gray-200 rounded-lg p-2 text-xs bg-white" />
+                                                         <input type="text" placeholder="Options (phẩy)" value={attr.options?.join(',') || ''} onChange={e => { const attrs = [...(editingCat.attributes || [])]; attrs[idx].options = e.target.value.split(','); setEditingCat({...editingCat, attributes: attrs}); }} className="col-span-3 border border-gray-200 rounded-lg p-2 text-xs bg-white" />
                                                      )}
                                                  </div>
                                                  <button onClick={() => { const attrs = editingCat.attributes?.filter((_, i) => i !== idx); setEditingCat({...editingCat, attributes: attrs}); }} className="p-2 text-gray-400 hover:text-red-500">✕</button>
                                              </div>
                                          ))}
-                                         {(editingCat.attributes?.length === 0) && <p className="text-center text-[10px] text-gray-400 italic">Chưa có trường nào. Nhấn "+ Thêm trường" để tạo.</p>}
                                      </div>
                                  </div>
 
                                  <div className="flex gap-3 pt-4">
                                      <button onClick={() => setEditingCat(null)} className="flex-1 py-4 bg-white border border-gray-200 rounded-xl font-black uppercase text-xs hover:bg-gray-50">Hủy</button>
-                                     <button 
-                                         onClick={async () => {
+                                     <button onClick={async () => {
                                              setIsLoading(true);
-                                             if (!editingCat?.id || !editingCat?.name) {
-                                                 setIsLoading(false);
-                                                 return showToast("❌ Vui lòng nhập Tên và ID (Slug)!", "error");
-                                             }
-                                             const catToSave = {
-                                                 ...editingCat,
-                                                 order: editingCat.order !== undefined ? editingCat.order : Date.now() 
-                                             };
+                                             if (!editingCat?.id || !editingCat?.name) { setIsLoading(false); return showToast("❌ Nhập Tên và ID!", "error"); }
+                                             const catToSave = { ...editingCat, order: editingCat.order !== undefined ? editingCat.order : Date.now() };
                                              const res = await db.saveCategory(catToSave);
-                                             if (res.success) {
-                                                 showToast("✅ Đã lưu danh mục!");
-                                                 db.getCategories().then(setCategories); 
-                                                 setEditingCat(null); 
-                                             } else {
-                                                 showToast("❌ Lỗi: " + res.message, "error");
-                                             }
+                                             if (res.success) { showToast("✅ Đã lưu!"); db.getCategories().then(setCategories); setEditingCat(null); } 
+                                             else { showToast("❌ Lỗi: " + res.message, "error"); }
                                              setIsLoading(false);
-                                         }}
-                                         className="flex-1 py-4 bg-primary text-white rounded-xl font-black uppercase text-xs shadow-xl hover:scale-[1.01] transition-transform"
-                                     >
-                                         Lưu thay đổi
-                                     </button>
+                                         }} className="flex-1 py-4 bg-primary text-white rounded-xl font-black uppercase text-xs shadow-xl hover:scale-[1.01] transition-transform">Lưu thay đổi</button>
                                  </div>
                              </div>
                          ) : (
-                             <div className="h-full flex flex-col items-center justify-center text-gray-300">
-                                 <span className="text-4xl mb-4">👈</span>
-                                 <p className="text-xs font-bold uppercase">Chọn danh mục để sửa</p>
-                                 <p className="text-[10px]">hoặc bấm nút "Tạo mới"</p>
-                             </div>
+                             <div className="h-full flex flex-col items-center justify-center text-gray-300"><span className="text-4xl mb-4">👈</span><p className="text-xs font-bold uppercase">Chọn danh mục để sửa</p></div>
                          )}
                      </div>
                  </div>
@@ -643,6 +612,138 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
              <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft"><h3 className="text-xl font-black mb-8">Báo cáo vi phạm ({activeReports.length})</h3><div className="space-y-4">{activeReports.map(r => (<div key={r.id} className="border-2 border-red-50 bg-red-50/10 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6"><div className="flex-1 space-y-2"><div className="flex items-center gap-3"><span className="bg-red-500 text-white text-[9px] font-black px-2 py-1 rounded uppercase">VI PHẠM</span><h4 className="text-sm font-black text-textMain">{r.reason}</h4></div><p className="text-xs text-gray-600">{r.details}</p><p className="text-[10px] text-gray-400 font-bold uppercase">ID Tin: {r.listingId}</p></div><div className="flex gap-2"><button onClick={() => handleResolveReport(r.id)} className="bg-green-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:scale-105 transition-transform">Đánh dấu xử lý</button><button onClick={() => handleDeleteListingFromReport(r.id, r.listingId)} className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:scale-105 transition-transform">Xóa tin</button></div></div>))}{activeReports.length === 0 && <div className="text-center py-20 text-gray-400 font-bold bg-bgMain rounded-3xl uppercase text-[10px] tracking-widest">Không có báo cáo.</div>}</div></div>
          )}
 
+         {/* === TAB ADS (QUẢN LÝ QUẢNG CÁO) === */}
+         {activeTab === 'ads' && settings && (
+            <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-8 animate-fade-in">
+                <div className="flex flex-col md:flex-row justify-between items-center border-b border-gray-100 pb-6 gap-4">
+                    <div>
+                        <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">📢 Quản lý Quảng Cáo</h3>
+                        <p className="text-xs text-gray-500 font-medium mt-1">Tối ưu doanh thu với Banner ảnh, Văn bản hoặc Google AdSense.</p>
+                    </div>
+                    <div className="flex gap-2">
+                        {/* Nút Reset Cấu hình (QUAN TRỌNG: Bấm cái này để sửa lỗi DB) */}
+                        <button 
+                            onClick={async () => {
+                                if(confirm("Bạn có chắc muốn KHÔI PHỤC mặc định? (Sẽ nạp lại cấu hình màu sắc mới)")) {
+                                    setIsLoading(true);
+                                    await db.seedSystemSettings(); // Gọi hàm seed trong db.ts
+                                    await loadInitialData();       // Tải lại dữ liệu
+                                    setIsLoading(false);
+                                    alert("Đã khôi phục cấu hình & nạp dữ liệu mới!");
+                                }
+                            }}
+                            className="bg-gray-100 text-gray-600 px-4 py-3 rounded-xl text-xs font-black uppercase hover:bg-gray-200 transition-colors"
+                        >
+                            🔄 Nạp dữ liệu gốc
+                        </button>
+
+                        <button onClick={() => {
+                            const newId = prompt("Nhập mã vị trí (ID) mới (viết liền không dấu, vd: home_footer):");
+                            if (newId && /^[a-zA-Z0-9_]+$/.test(newId)) {
+                                const newAds = { ...settings.adsConfig };
+                                // @ts-ignore
+                                if (newAds[newId]) return alert("ID này đã tồn tại!");
+                                // @ts-ignore
+                                newAds[newId] = { id: newId, name: 'Vị trí mới', enabled: false, type: 'image', width: '100%', height: 'auto', bgColor: '#ffffff', textColor: '#000000' };
+                                setSettings({ ...settings, adsConfig: newAds });
+                            } else if (newId) { alert("Mã ID không hợp lệ"); }
+                        }} className="bg-green-50 text-green-600 px-4 py-3 rounded-xl text-xs font-black uppercase hover:bg-green-100 transition-colors">+ Thêm Vị Trí</button>
+                        
+                        <button onClick={handleSaveSettings} disabled={isLoading} className="bg-primary text-white px-6 py-3 rounded-xl text-xs font-black uppercase shadow-lg hover:scale-105 transition-transform flex items-center gap-2">{isLoading ? 'Đang lưu...' : '💾 Lưu Cấu Hình'}</button>
+                    </div>
+                </div>
+
+                <div className="grid gap-8">
+                    {/* Kiểm tra settings.adsConfig tồn tại trước khi map */}
+                    {settings.adsConfig && Object.entries(settings.adsConfig).map(([key, ad]: [string, any]) => (
+                        <div key={key} className={`border-2 rounded-[2rem] p-6 transition-all relative group ${ad.enabled ? 'border-blue-100 bg-white shadow-sm' : 'border-gray-100 bg-gray-50 opacity-70 grayscale-[0.5]'}`}>
+                            <button onClick={() => { if(confirm(`Xóa vị trí "${ad.name}"?`)) { const newAds = { ...settings.adsConfig }; delete (newAds as any)[key]; setSettings({ ...settings, adsConfig: newAds }); }}} className="absolute top-4 right-4 text-gray-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity" title="Xóa vị trí này">🗑</button>
+                            
+                            <div className="flex flex-col lg:flex-row gap-8">
+                                {/* CỘT TRÁI: CẤU HÌNH CƠ BẢN */}
+                                <div className="flex-1 space-y-5">
+                                    <div className="flex items-center justify-between">
+                                        <div className="space-y-1 w-full">
+                                            <div className="flex items-center gap-2"><span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-[10px] font-mono font-bold">ID: {key}</span></div>
+                                            <input type="text" value={ad.name} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].name = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="font-black text-sm text-slate-800 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-primary focus:outline-none w-full" />
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer ml-4">
+                                            <input type="checkbox" className="sr-only peer" checked={ad.enabled} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].enabled = e.target.checked; setSettings({ ...settings, adsConfig: newAds }); }} />
+                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                                        </label>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Loại hiển thị</label>
+                                            <select value={ad.type} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].type = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-bold bg-gray-50 focus:bg-white transition-colors">
+                                                <option value="image">🖼️ Banner Ảnh</option><option value="code">HTML / AdSense</option><option value="text">📝 Văn bản (Text)</option>
+                                            </select>
+                                        </div>
+                                        {key.includes('feed') && (<div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Lặp lại sau (tin)</label><input type="number" value={ad.interval || 5} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].interval = parseInt(e.target.value); setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-bold bg-gray-50 focus:bg-white" /></div>)}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Chiều rộng</label><input type="text" value={ad.width || '100%'} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].width = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-mono bg-gray-50 focus:bg-white" /></div>
+                                        <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Chiều cao</label><input type="text" value={ad.height || 'auto'} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].height = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-mono bg-gray-50 focus:bg-white" /></div>
+                                    </div>
+                                </div>
+
+                                {/* CỘT PHẢI: NỘI DUNG CHI TIẾT */}
+                                <div className="flex-[1.5] bg-gray-50 p-5 rounded-3xl border border-gray-200 flex flex-col justify-center">
+                                    {ad.type === 'image' ? (
+                                        <div className="space-y-4">
+                                            <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Link Ảnh</label><div className="flex gap-2"><input type="text" value={ad.image || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].image = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="flex-1 border border-gray-200 rounded-xl p-2.5 text-xs bg-white" placeholder="https://..." /><label className="bg-white border border-gray-200 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase hover:bg-gray-100 cursor-pointer flex items-center gap-1 shadow-sm"><span>Upload</span><input type="file" className="hidden" accept="image/*" onChange={async (e) => { if(e.target.files?.[0]) { setIsLoading(true); try { const compressed = await compressAndGetBase64(e.target.files[0]); const url = await db.uploadImage(compressed, `ads/${key}_${Date.now()}.jpg`); const newAds = { ...settings.adsConfig }; newAds[key].image = url; setSettings({ ...settings, adsConfig: newAds }); showToast("Đã tải ảnh lên!"); } catch (err) { showToast("Lỗi tải ảnh", "error"); } setIsLoading(false); } }} /></label></div></div>
+                                            <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Link Đích</label><input type="text" value={ad.link || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].link = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs bg-white text-blue-600 font-medium" placeholder="https://..." /></div>
+                                            {ad.image && <div className="mt-2 relative group rounded-lg overflow-hidden border border-gray-300 bg-white" style={{ maxHeight: '150px' }}><img src={ad.image} className="w-full h-full object-contain" /></div>}
+                                        </div>
+                                    ) : ad.type === 'code' ? (
+                                        <div className="h-full flex flex-col"><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Mã nhúng HTML</label><textarea rows={6} value={ad.code || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].code = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full h-full border border-gray-200 rounded-xl p-3 text-xs font-mono bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none" placeholder={'<script>...</script>'} /></div>
+                                    ) : (
+                                        <div className="space-y-4 animate-fade-in">
+                                            {/* Tiêu đề & Mô tả */}
+                                            <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Tiêu đề</label><input type="text" value={ad.textTitle || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].textTitle = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-black text-slate-700" placeholder="VD: SALE 50%" /></div>
+                                            <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Mô tả</label><textarea rows={2} value={ad.textDesc || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].textDesc = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-medium resize-none" /></div>
+                                            
+                                            {/* Chọn Màu Sắc (ĐÃ SỬA LỖI BIẾN n) */}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Màu Nền</label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input type="color" value={ad.bgColor || '#ffffff'} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].bgColor = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
+                                                        <input type="text" value={ad.bgColor || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].bgColor = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="flex-1 border border-gray-200 rounded-xl p-2 text-xs font-mono uppercase" placeholder="#ffffff" />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Màu Chữ</label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input type="color" value={ad.textColor || '#000000'} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].textColor = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
+                                                        <input type="text" value={ad.textColor || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].textColor = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="flex-1 border border-gray-200 rounded-xl p-2 text-xs font-mono uppercase" placeholder="#000000" />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Nút bấm & Link */}
+                                            <div className="flex gap-4"><div className="flex-1"><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Nút bấm</label><input type="text" value={ad.textBtnLabel || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].textBtnLabel = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-bold text-center" /></div><div className="flex-[2]"><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Link đích</label><input type="text" value={ad.link || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].link = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs text-blue-600" /></div></div>
+                                            
+                                            {/* Preview */}
+                                            <div className="mt-4 p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between gap-4" style={{ backgroundColor: ad.bgColor || '#ffffff', color: ad.textColor || '#000000' }}>
+                                                <div className="min-w-0">
+                                                    <h4 className="text-sm font-black uppercase truncate" style={{ color: 'inherit' }}>{ad.textTitle || 'Tiêu đề mẫu'}</h4>
+                                                    <p className="text-xs opacity-80 line-clamp-1" style={{ color: 'inherit' }}>{ad.textDesc || 'Mô tả mẫu...'}</p>
+                                                </div>
+                                                <button className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase whitespace-nowrap" style={{ backgroundColor: 'rgba(128,128,128,0.2)', color: 'inherit' }}>{ad.textBtnLabel || 'Nút bấm'}</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    {(!settings.adsConfig || Object.keys(settings.adsConfig).length === 0) && (
+                        <div className="text-center py-10 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200"><p className="text-gray-400 font-bold text-sm">Chưa có vị trí quảng cáo nào.</p><button onClick={() => db.seedSystemSettings().then(() => loadInitialData())} className="text-primary text-xs font-black uppercase mt-2 hover:underline">Khôi phục mặc định</button></div>
+                    )}
+                </div>
+            </div>
+         )}
          {/* === TAB SETTINGS (QUẢN LÝ TẤT CẢ CẤU HÌNH HỆ THỐNG) === */}
           {activeTab === 'settings' && settings && (
               <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft">
@@ -790,13 +891,12 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                         </div>
                     </div>
 
-                    {/* 3. Cấu hình các Gói Thành Viên (ĐÃ SỬA ĐỂ TỰ ĐỘNG) */}
+                    {/* 3. Cấu hình các Gói Thành Viên (DYNAMIC) */}
                     <div className="space-y-6 pt-6 border-t border-gray-100">
                         <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
                             <span className="w-2 h-2 bg-primary rounded-full"></span> Đặc quyền & Hạn mức Gói
                         </h4>
                         
-                        {/* Nút Thêm Gói Mới */}
                         <div className="flex justify-end mb-4">
                             <button
                                 type="button"
@@ -955,42 +1055,54 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                             <span className="w-2 h-2 bg-gray-800 rounded-full"></span> Công cụ Developer
                         </h4>
                         
-                        {/* --- BẮT ĐẦU GRID --- */}
                         <div className="grid md:grid-cols-2 gap-6">
-                            
-                            {/* Cột 1: Dữ liệu hệ thống (Đỏ) */}
+                            {/* Cột 1: Dữ liệu hệ thống */}
                             <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
                                 <h5 className="font-black text-sm text-red-700">Dữ liệu hệ thống</h5>
                                 <p className="text-[11px] text-red-600/70 mb-4 font-medium">Quản lý dữ liệu mẫu để test ứng dụng.</p>
                                 
                                 <div className="flex flex-col gap-3">
-                                    {/* Nút Reset & Seed */}
                                     <button 
                                         type="button" 
                                         onClick={async () => {
-                                            if(window.confirm("CẢNH BÁO: Hành động này sẽ xóa dữ liệu cũ và TẠO MỚI 100 tin mẫu. Tiếp tục?")){
+                                            if(window.confirm("Cập nhật lại gói cước & quảng cáo mặc định?")){
+                                                setIsLoading(true); 
+                                                await db.seedSystemSettings(); 
+                                                setIsLoading(false); 
+                                                loadInitialData();
+                                                showToast("Đã Reset Cấu hình!");
+                                            }
+                                        }} 
+                                        className="bg-blue-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-blue-600 transition-colors"
+                                    >
+                                        ⚙️ Cập nhật Gói Cước & Ads
+                                    </button>
+
+                                    <button 
+                                        type="button" 
+                                        onClick={async () => {
+                                            if(window.confirm("CẢNH BÁO: Xóa và tạo 100 tin mẫu?")){
                                                 setIsLoading(true); 
                                                 await db.seedDatabase(); 
                                                 setIsLoading(false); 
                                                 loadInitialData();
-                                                showToast("Đã Reset và tạo dữ liệu mẫu!");
+                                                showToast("Đã Reset DB!");
                                             }
                                         }} 
-                                        className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-red-200 hover:bg-red-600 transition-colors"
+                                        className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-red-600 transition-colors"
                                     >
                                         🔄 Reset & Tạo Sample
                                     </button>
 
-                                    {/* Nút Xóa sạch (Mới) */}
                                     <button 
                                         type="button" 
                                         onClick={async () => {
-                                            if(window.confirm("NGUY HIỂM: Hành động này sẽ XÓA SẠCH toàn bộ dữ liệu và KHÔNG tạo lại. Web sẽ trắng trơn. Bạn chắc chắn chứ?")){
+                                            if(window.confirm("NGUY HIỂM: Xóa sạch toàn bộ dữ liệu?")){
                                                 setIsLoading(true); 
                                                 await db.clearDatabase(); 
                                                 setIsLoading(false); 
                                                 loadInitialData();
-                                                showToast("🗑 Đã xóa sạch trơn dữ liệu!");
+                                                showToast("🗑 Đã xóa sạch!");
                                             }
                                         }} 
                                         className="bg-white border-2 border-red-200 text-red-500 px-6 py-3 rounded-xl text-[10px] font-black uppercase hover:bg-red-50 transition-colors"
@@ -1000,17 +1112,15 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                 </div>
                             </div>
 
-                            {/* Cột 2: Sitemap SEO (Xanh) */}
+                            {/* Cột 2: SEO */}
                             <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
                                 <h5 className="font-black text-sm text-blue-700">Sitemap SEO</h5>
-                                <p className="text-[11px] text-blue-600/70 mb-4 font-medium">Tạo file sitemap.xml chứa toàn bộ link sản phẩm cho Google.</p>
-                                <button type="button" onClick={handleDownloadSitemap} className="bg-blue-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-blue-200 w-full">Tải Sitemap.xml</button>
+                                <p className="text-[11px] text-blue-600/70 mb-4 font-medium">Tạo file sitemap.xml cho Google.</p>
+                                <button type="button" onClick={handleDownloadSitemap} className="bg-blue-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg w-full">Tải Sitemap.xml</button>
                             </div>
-
-                        </div> {/* --- KẾT THÚC GRID --- */}
+                        </div>
                     </div>
 
-                    {/* --- NÚT LƯU CẤU HÌNH (QUAN TRỌNG: PHẢI CÓ) --- */}
                     <button type="submit" disabled={isLoading} className="w-full bg-primary text-white font-black py-5 rounded-[2rem] shadow-2xl shadow-primary/30 hover:scale-[1.01] active:scale-95 transition-all uppercase tracking-widest text-xs">
                         {isLoading ? 'Đang lưu hệ thống...' : 'Lưu tất cả cấu hình'}
                     </button>

@@ -9,6 +9,7 @@ import CategoryBar from '../components/CategoryBar';
 import { getLocationFromCoords } from '../utils/locationHelper'; 
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import StoryBar from '../components/StoryBar';
+import AdPlacement from '../components/AdPlacement'; // <--- Import Quảng cáo
 
 // --- BỘ ICON VẼ TAY (SVG THUẦN) ---
 const IconZap = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
@@ -54,7 +55,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [nearbyListings, setNearbyListings] = useState<Listing[]>([]);
   const [latestListings, setLatestListings] = useState<Listing[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [settings, setSettings] = useState<SystemSettings | null>(null); 
     
   const [isLoading, setIsLoading] = useState(true);
@@ -175,7 +175,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         } catch (err) {
             console.error("Lỗi lấy địa chỉ:", err);
             setIsLocating(false);
-            // setDetectedLocation("TPHCM"); // Bỏ dòng này để không gán cứng
         }
       },
       () => {
@@ -305,12 +304,30 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         <CategoryBar />
       </div>
 
+      {/* [CHÈN QUẢNG CÁO 1] - KHU VỰC TOP (LINH HOẠT 1 HOẶC 2 CỘT) */}
+      {!search && !isUrlCategory && (
+         <div className="my-6 space-y-4">
+            
+            {/* Cách 1: Hiện 1 Banner dài (Nếu Admin bật) */}
+            <AdPlacement zone="home_below_categories" />
+
+            {/* Cách 2: Hiện 2 Banner cột (Nếu Admin bật) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="w-full">
+                    <AdPlacement zone="home_top_left" />
+                </div>
+                <div className="w-full">
+                    <AdPlacement zone="home_top_right" />
+                </div>
+            </div>
+
+         </div>
+      )}
+
       {/* 2. STORY BAR */}
       <div className="animate-fade-in-up">
         <StoryBar user={user} />
       </div>
-
-      
 
       {/* 4. TIN VIP */}
       {!search && !isUrlCategory && !typeParam && !locationParam && vipListings.length > 0 && (
@@ -340,7 +357,27 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 5. TIN QUANH ĐÂY (Đã sửa logic hiển thị) */}
+      {/* --- KHU VỰC QUẢNG CÁO GIỮA TRANG (LINH HOẠT) --- */}
+      {!search && !isUrlCategory && (
+         <div className="my-8 space-y-6">
+            
+            {/* Cách 1: Quảng cáo 1 cột dài (Nếu Admin bật) */}
+            <AdPlacement zone="home_middle_banner" />
+
+            {/* Cách 2: Quảng cáo 2 cột (Nếu Admin bật) */}
+            {/* Sử dụng grid để chia đôi màn hình desktop */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                <div className="w-full">
+                    <AdPlacement zone="home_grid_left" />
+                </div>
+                <div className="w-full">
+                    <AdPlacement zone="home_grid_right" />
+                </div>
+            </div>
+
+         </div>
+      )}
+      {/* 5. TIN QUANH ĐÂY */}
       {!search && !isUrlCategory && !typeParam && !locationParam && (
         <section className="space-y-4 animate-fade-in-up">
           <div className="flex items-center justify-between px-2">
@@ -396,32 +433,32 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                     Kết quả: "{search}"
                  </>
              )
-              : typeParam === 'vip' ? (
-                  <>
+             : typeParam === 'vip' ? (
+                 <>
                     <IconCrown className="w-5 h-5 text-yellow-500 fill-current" />
                     Tất cả tin Tài Trợ (VIP)
-                  </>
-              )
-              : locationParam ? (
-                  <>
+                 </>
+             )
+             : locationParam ? (
+                 <>
                     <IconMapPin className="w-5 h-5 text-red-500" />
                     Tin đăng tại {locationParam}
-                  </>
-              )
-              : activeCategoryId ? (
-                  <>
+                 </>
+             )
+             : activeCategoryId ? (
+                 <>
                     <IconLayers className="w-5 h-5 text-primary" />
                     <span className="text-primary">{activeCategoryName}</span>
                     <span className="text-gray-400 text-sm font-normal">({latestListings.length} tin)</span>
-                  </>
-              ) 
-              : (
-                  <span className="flex items-center gap-2">
-                      <IconSparkles className="w-5 h-5 text-yellow-500 fill-yellow-100" />
-                      <span>Tin mới đăng</span>
-                  </span>
-              )
-             }
+                 </>
+             ) 
+             : (
+                 <span className="flex items-center gap-2">
+                     <IconSparkles className="w-5 h-5 text-yellow-500 fill-yellow-100" />
+                     <span>Tin mới đăng</span>
+                 </span>
+             )
+            }
            </h2>
         </div>
 
@@ -437,14 +474,22 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {latestListings.map(l => (
-                <ListingCard 
-                    key={l.id} 
-                    listing={l} 
-                    isFavorite={favorites.includes(l.id)} 
-                    onToggleFavorite={toggleFav} 
-                    currentUser={user} 
-                />
+              {latestListings.map((l, index) => (
+                <React.Fragment key={l.id}>
+                    <ListingCard 
+                        listing={l} 
+                        isFavorite={favorites.includes(l.id)} 
+                        onToggleFavorite={toggleFav} 
+                        currentUser={user} 
+                    />
+                    
+                    {/* [CHÈN QUẢNG CÁO 3] - Xen kẽ mỗi 12 tin */}
+                    {(index + 1) % 12 === 0 && (
+                        <div className="col-span-2 sm:col-span-3 md:col-span-4 lg:col-span-6">
+                            <AdPlacement zone="in_feed" />
+                        </div>
+                    )}
+                </React.Fragment>
               ))}
             </div>
             {hasMore && !search && (
@@ -458,8 +503,10 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           </>
         )}
       </section>
- {/* 3. BANNER */}
+
+      {/* 3. BANNER (Chỉ hiện khi trang chủ thuần túy) */}
       {!search && !isUrlCategory && !typeParam && !locationParam && <HomeBanner />}
+      
       {/* 7. FOOTER */}
       <footer className="hidden md:block pt-16 border-t border-dashed border-gray-200 mt-20">
          <div className="bg-white border border-gray-200 rounded-[3rem] p-10 shadow-sm">

@@ -12,6 +12,7 @@ import AuctionBox from '../components/AuctionBox';
 import { CATEGORIES } from '../constants';
 import ProductZoom from '../components/ProductZoom';
 import SwapModal from '../components/SwapModal';
+import AdPlacement from '../components/AdPlacement'; // <--- Import Quảng cáo
 
 // --- IMPORT FIREBASE FOR REALTIME STATUS ---
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
@@ -59,7 +60,6 @@ const IconInfo = ({ className }: { className?: string }) => <svg xmlns="http://w
 const IconScaling = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 3 9 15"/><path d="M12 3H3v18h18v-9"/><path d="M16 3h5v5"/><path d="M14 15H9v-5"/></svg>;
 const IconAlertTriangle = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
 const IconX = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-const IconZap = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 
 // Fix Leaflet default icon issue
 let DefaultIcon = L.icon({
@@ -548,6 +548,9 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm font-medium border-l-4 border-gray-100 pl-6 py-2">{listing.description}</p>
           </div>
 
+          {/* [CHÈN QUẢNG CÁO] - Dưới mô tả sản phẩm */}
+          <AdPlacement zone="listing_below_desc" />
+
           {/* Reviews */}
           <div className="bg-white md:rounded-xl p-6 border border-gray-100 shadow-sm">
             <ReviewSection targetId={listing.id} targetType="listing" currentUser={user} />
@@ -689,6 +692,9 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
             )}
             
+            {/* [CHÈN QUẢNG CÁO] - Sidebar (ĐÃ CHUYỂN XUỐNG DƯỚI MAP) */}
+            <AdPlacement zone="listing_sidebar_top" className="shadow-sm border border-gray-100 bg-white rounded-2xl" />
+
             <button onClick={() => setShowReportModal(true)} className="w-full text-[9px] font-black text-gray-300 uppercase tracking-widest hover:text-red-400 transition-colors text-center pt-2 flex items-center justify-center gap-1">
                 <IconFlag className="w-3 h-3" /> Báo cáo tin này
             </button>

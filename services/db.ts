@@ -31,6 +31,25 @@ import { isSearchMatch, calculateRelevanceScore, generateKeywords } from '../uti
 // 2. CẤU HÌNH ADMIN EMAIL
 const ADMIN_EMAIL = "buivanbac@gmail.com"; 
 
+// --- [MỚI] Interface cho Quảng cáo ---
+export interface AdZoneConfig {
+  id: string;           
+  name: string;         
+  enabled: boolean;     
+  type: 'image' | 'code' | 'text'; 
+  image?: string;       
+  link?: string; 
+  textTitle?: string;    // Tiêu đề lớn (VD: Siêu Sale 50%)
+  textDesc?: string;     // Mô tả nhỏ (VD: Chỉ hôm nay...)
+  textBtnLabel?: string; // Chữ trên nút (VD: Xem ngay)   
+  code?: string;        
+  interval?: number;    
+  width?: string;       
+  height?: string;  
+  textColor?: string;    // Màu chữ (VD: #ffffff)
+  bgColor?: string;      // Màu nền (VD: #ff5722 hoặc gradient)    
+}
+
 // Interface chuẩn đầy đủ cho Admin Settings
 export interface SystemSettings {
   pushPrice: number;    
@@ -46,6 +65,16 @@ export interface SystemSettings {
   accountNumber: string;
   accountName: string;
   beneficiaryQR?: string;
+  
+  // [MỚI] Cấu hình Quảng cáo
+  adsConfig: {
+    home_below_categories: AdZoneConfig; 
+    home_middle_banner: AdZoneConfig;   
+    listing_sidebar_top: AdZoneConfig;   
+    listing_below_desc: AdZoneConfig;     
+    in_feed: AdZoneConfig;
+    category_sidebar_right: AdZoneConfig;           
+  };
 }
 
 const firebaseConfig = {
@@ -1740,6 +1769,209 @@ export const db = {
     }
   },
 
+  // --- HÀM KHÔI PHỤC CẤU HÌNH GỐC (BAO GỒM GÓI CƯỚC & ADS) ---
+  seedSystemSettings: async () => {
+    try {
+      console.log("⚙️ Đang thiết lập cấu hình chuẩn...");
+      
+      const defaultSettings: SystemSettings = {
+        pushPrice: 20000,
+        pushDiscount: 10,
+        tierDiscount: 20,
+        bankName: "MB",
+        accountNumber: "0912434666",
+        accountName: "BUI VAN BAC",
+        
+        // --- CẤU HÌNH 3 GÓI CƯỚC MỚI ---
+        tierConfigs: {
+          free: {
+            name: "Thành viên Mới",
+            price: 0,
+            maxImages: 3,         
+            postsPerDay: 5,       
+            autoApprove: false,   
+            allowVideo: false,    
+            features: [
+              "Đăng tối đa 5 tin/ngày",
+              "Tối đa 3 ảnh/tin",
+              "Tin chờ duyệt kiểm tra ⏳",
+              "Hiển thị tiêu chuẩn",
+              "Không hỗ trợ đăng Video/Story"
+            ]
+          },
+          basic: {
+            name: "Thành viên Bạc",
+            price: 20000,         
+            maxImages: 6,         
+            postsPerDay: 15,      
+            autoApprove: true,    
+            allowVideo: true,     
+            features: [
+              "Đăng tối đa 15 tin/ngày",
+              "Tối đa 6 ảnh/tin",
+              "Duyệt tin TỰ ĐỘNG nhanh chóng ✅",
+              "Huy hiệu Bạc & Ưu tiên hiển thị TB",
+              "Đăng Video Story ngắn (15s) 🎥",
+              "Mở khóa tính năng Đấu Giá 🔨"
+            ]
+          },
+          pro: {
+            name: "Đối tác Vàng",
+            price: 99000,         
+            maxImages: 10,        
+            postsPerDay: 999,     
+            autoApprove: true,    
+            allowVideo: true,     
+            features: [
+              "Không giới hạn tin đăng 🔥",
+              "Tối đa 10 ảnh/tin",
+              "Duyệt tin TỰ ĐỘNG ngay lập tức",
+              "Huy hiệu Vàng & Ưu tiên hiển thị CAO",
+              "Đăng Video Story 60s + Lưu vĩnh viễn 💎",
+              "Mở khóa Đấu Giá + Gắn thẻ sản phẩm"
+            ]
+          }
+        },
+
+        adsConfig: {
+    // 1. Dưới danh mục (Vị trí trên cùng)
+    // === KHU VỰC 1: DƯỚI DANH MỤC (TOP) ===
+    
+    // Cách 1: Banner Dài (1 Cột) - Mặc định BẬT
+    home_below_categories: { 
+        id: 'home_below_categories', 
+        name: '🏠 Trang chủ - Top (1 Cột Ngang)', 
+        enabled: true, 
+        type: 'image', 
+        image: 'https://via.placeholder.com/1200x120?text=Banner+Lon+Dau+Trang', 
+        link: '#', 
+        width: '100%', height: 'auto',
+        bgColor: '#ffffff', textColor: '#000000'
+    },
+
+    // Cách 2: Banner Đôi (2 Cột) - Mặc định TẮT (Bạn có thể bật trong Admin)
+    home_top_left: { 
+        id: 'home_top_left', 
+        name: '🏠 Trang chủ - Top (Trái 1/2)', 
+        enabled: false, 
+        type: 'text', 
+        textTitle: 'DEAL HỜI MỖI NGÀY',
+        textDesc: 'Săn ngay hàng ngàn món đồ giá rẻ.',
+        textBtnLabel: 'Xem ngay',
+        link: '/search?sort=cheap',
+        width: '100%', height: 'auto',
+        bgColor: '#fdf4ff', textColor: '#c026d3' // Tím
+    },
+    home_top_right: { 
+        id: 'home_top_right', 
+        name: '🏠 Trang chủ - Top (Phải 1/2)', 
+        enabled: false, 
+        type: 'text',
+        textTitle: 'ĐĂNG TIN MIỄN PHÍ',
+        textDesc: 'Tiếp cận hàng triệu khách hàng.',
+        textBtnLabel: 'Đăng ngay',
+        link: '/post',
+        width: '100%', height: 'auto',
+        bgColor: '#ecfccb', textColor: '#65a30d' // Xanh lá mạ
+    },
+    // 2. Banner Ngang (1 Cột) - Mặc định TẮT (để dùng 2 cột)
+    home_middle_banner: { 
+        id: 'home_middle_banner', 
+        name: '🏠 Trang chủ - Giữa (1 Cột Ngang)', 
+        enabled: false, // <--- Mặc định tắt
+        type: 'image', 
+        image: 'https://via.placeholder.com/1200x200?text=Sieu+Sale+Giua+Thang', 
+        link: '#', 
+        width: '100%', height: 'auto',
+        bgColor: '#ffffff', textColor: '#000000'
+    },
+
+    // 3. Banner Grid (2 Cột) - Mặc định BẬT
+    home_grid_left: { 
+        id: 'home_grid_left', 
+        name: '🏠 Trang chủ - Giữa (Trái 1/2)', 
+        enabled: true, // <--- Bật
+        type: 'text', 
+        textTitle: 'XẢ KHO CÔNG NGHỆ',
+        textDesc: 'Laptop, Điện thoại giảm đến 50%',
+        textBtnLabel: 'Săn ngay',
+        link: '/category/do-dien-tu',
+        width: '100%', height: 'auto',
+        bgColor: '#fff7ed', textColor: '#ea580c' // Cam
+    },
+    home_grid_right: { 
+        id: 'home_grid_right', 
+        name: '🏠 Trang chủ - Giữa (Phải 1/2)', 
+        enabled: true, // <--- Bật
+        type: 'text',
+        textTitle: 'THỜI TRANG HÈ',
+        textDesc: 'Đón đầu xu hướng thời trang 2026',
+        textBtnLabel: 'Khám phá',
+        link: '/category/thoi-trang',
+        width: '100%', height: 'auto',
+        bgColor: '#eff6ff', textColor: '#2563eb' // Xanh
+    },
+
+    // 4. Các vị trí khác (Giữ nguyên)
+    in_feed: { 
+        id: 'in_feed', 
+        name: '📂 Danh mục - Xen kẽ tin', 
+        enabled: true, 
+        type: 'text',
+        textTitle: 'TIN ĐĂNG VIP',
+        textDesc: 'Tiếp cận hàng ngàn khách hàng tiềm năng.',
+        textBtnLabel: 'Đăng ngay',
+        link: '/post', 
+        interval: 6, 
+        width: '100%', height: 'auto',
+        bgColor: '#f0fdf4', textColor: '#16a34a' 
+    },
+    listing_sidebar_top: { 
+        id: 'listing_sidebar_top', 
+        name: '📄 Chi tiết - Cột phải', 
+        enabled: true, 
+        type: 'image', 
+        image: 'https://via.placeholder.com/300x250?text=Doi+Tac+Van+Chuyen', 
+        link: '#', 
+        width: '100%', height: 'auto',
+        bgColor: '#ffffff', textColor: '#000000'
+    },
+    listing_below_desc: {
+        id: 'listing_below_desc',
+        name: '📄 Chi tiết - Dưới mô tả',
+        enabled: false, 
+        type: 'code',
+        code: '',
+        width: '100%', height: 'auto',
+        bgColor: '#ffffff', textColor: '#000000'
+    },
+    category_sidebar_right: {
+        id: 'category_sidebar_right',
+        name: '📂 Danh mục - Cột Phải (PC)',
+        enabled: true, 
+        type: 'image',
+        image: 'https://via.placeholder.com/300x600?text=Quang+Cao+Doc', 
+        link: '#', 
+        width: '100%', height: 'auto',
+        bgColor: '#ffffff', textColor: '#000000'
+    }
+  },
+
+        // Banner mặc định
+        bannerSlides: [
+           { id: 1, type: 'text', title: "Đăng tin siêu tốc 🚀", desc: "Tiếp cận hàng ngàn khách hàng mỗi ngày.", btnText: "Đăng ngay", btnLink: "/post", colorFrom: "from-blue-600", colorTo: "to-indigo-600", icon: "⚡", isActive: true },
+           { id: 2, type: 'text', title: "Nâng cấp VIP 👑", desc: "Tin đăng nổi bật, chốt đơn nhanh gấp 5 lần.", btnText: "Xem gói VIP", btnLink: "/profile", colorFrom: "from-orange-500", colorTo: "to-red-500", icon: "💎", isActive: true }
+        ]
+      };
+
+      await setDoc(doc(firestore, "system", "settings"), defaultSettings);
+      return { success: true, message: "Đã khôi phục cấu hình gói cước và quảng cáo thành công!" };
+    } catch (e: any) {
+      console.error("Lỗi seed settings:", e);
+      return { success: false, message: e.message };
+    }
+  },
+
   // --- STORY FEATURES (FINAL UPDATE) ---
 
   // 1. Tải video lên Storage
@@ -1754,7 +1986,7 @@ export const db = {
     console.log("🚀 BẮT ĐẦU TẠO STORY...");
     console.log("- User:", user.name);
     console.log("- Loại:", mediaType);
-    console.log("- ID Sản phẩm gắn kèm:", listingId); // Quan trọng: Xem cái này có hiện ID hay là undefined/rỗng
+    console.log("- ID Sản phẩm gắn kèm:", listingId);
 
     const tier = user.subscriptionTier || 'free';
     const isPro = tier === 'pro';
@@ -1789,20 +2021,13 @@ export const db = {
         console.log("👉 Phát hiện Video có gắn thẻ. Đang thử ghim vào Listing...");
         try {
             const listingRef = doc(firestore, 'listings', listingId);
-            
-            // Cập nhật videoUrl vào tin đăng
             await updateDoc(listingRef, {
                 videoUrl: mediaUrl 
             });
             console.log("🎉 THÀNH CÔNG: Đã ghim Video vào sản phẩm ID:", listingId);
         } catch (e) {
             console.error("❌ THẤT BẠI: Lỗi khi ghim video vào sản phẩm:", e);
-            // Gợi ý: Có thể do Rules chặn update
         }
-    } else {
-        console.log("⚠️ KHÔNG GHIM VIDEO VÌ: ", 
-            mediaType !== 'video' ? "Không phải Video" : "Không có ID sản phẩm"
-        );
     }
   },
 
@@ -1813,14 +2038,12 @@ export const db = {
       const q = query(
         collection(firestore, 'stories'),
         orderBy('createdAt', 'desc'),
-        limit(100) // Lấy 100 tin mới nhất để tối ưu hiệu năng
+        limit(100) 
       );
       
       const snapshot = await getDocs(q);
       const allStories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
-      // LỌC CLIENT SIDE:
-      // Giữ lại nếu: (Là tin Vĩnh viễn) HOẶC (Chưa hết hạn)
       return allStories.filter((s: any) => {
           if (s.isPermanent) return true; 
           return s.expiresAt > now; 

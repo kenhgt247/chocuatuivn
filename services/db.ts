@@ -705,7 +705,7 @@ export const db = {
     return d.exists() ? { id: d.id, ...d.data() } as User : undefined;
   },
 
-  // [Hàm này quan trọng cho App.tsx]
+  // [QUAN TRỌNG] Hàm lấy hồ sơ đầy đủ - Dùng cho App.tsx
   getUserProfile: async (userId: string): Promise<User | null> => {
     try {
       const docRef = doc(firestore, "users", userId);
@@ -1740,7 +1740,7 @@ export const db = {
     }
   },
 
-// --- STORY FEATURES (FINAL UPDATE) ---
+  // --- STORY FEATURES (FINAL UPDATE) ---
 
   // 1. Tải video lên Storage
   async uploadStoryVideo(file: File, userId: string): Promise<string> {
@@ -1775,7 +1775,20 @@ export const db = {
       tier: tier // Lưu gói cước để sau này lọc "Video Hot"
     };
 
+    // 1. Lưu vào kho Story
     await addDoc(collection(firestore, 'stories'), storyData);
+
+    // 2. [MỚI] Nếu là Video + Có gắn sản phẩm -> Cập nhật luôn vào Tin đăng (Để hiện ở trang chi tiết)
+    if (mediaType === 'video' && listingId) {
+        try {
+            const listingRef = doc(firestore, 'listings', listingId);
+            await updateDoc(listingRef, {
+                videoUrl: mediaUrl // Ghim video vào tin
+            });
+        } catch (e) {
+            console.error("Lỗi ghim video vào sản phẩm:", e);
+        }
+    }
   },
 
   // 3. Lấy danh sách Story hiển thị (Lọc tin hết hạn)

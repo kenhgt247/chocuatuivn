@@ -23,8 +23,7 @@ import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
-// ⚠️ ĐÃ LOẠI BỎ LUCIDE-REACT ĐỂ TRÁNH LỖI CRASH
-// --- BỘ ICON VẼ TAY (SVG THUẦN) ---
+// --- BỘ ICON VẼ TAY (SVG THUẦN - AN TOÀN TUYỆT ĐỐI) ---
 const IconHome = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
 const IconChevronRight = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>;
 const IconChevronLeft = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>;
@@ -58,7 +57,6 @@ const IconBanknote = ({ className }: { className?: string }) => <svg xmlns="http
 const IconBriefcase = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
 const IconInfo = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
 const IconScaling = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 3 9 15"/><path d="M12 3H3v18h18v-9"/><path d="M16 3h5v5"/><path d="M14 15H9v-5"/></svg>;
-const IconShieldCheck = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>;
 const IconAlertTriangle = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
 const IconX = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
 const IconZap = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
@@ -79,13 +77,6 @@ const REPORT_REASONS = [
   "Hàng cấm buôn bán",
   "Sản phẩm đã bán",
   "Lý do khác"
-];
-
-const STATIC_LINKS = [
-  { slug: 'gioi-thieu', title: 'Giới thiệu' },
-  { slug: 'quy-che-hoat-dong', title: 'Quy chế' },
-  { slug: 'chinh-sach-bao-mat', title: 'Bảo mật' },
-  { slug: 'meo-mua-ban-an-toan', title: 'An toàn' },
 ];
 
 // --- HELPER: GET DYNAMIC ATTRIBUTE ICON ---
@@ -120,7 +111,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const [activeMedia, setActiveMedia] = useState(0); 
   const [userFavorites, setUserFavorites] = useState<string[]>([]);
   
-  // [NEW] Realtime Online Status State
+  // Realtime Online Status State
   const [isSellerOnline, setIsSellerOnline] = useState(false);
 
   // Modals State
@@ -152,19 +143,14 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     return list;
   }, [listing]);
 
-  // -----------------------------------------------------------
-  // 1. [SỬA LỖI] EFFECT RIÊNG ĐỂ TĂNG VIEW (CHỈ CHẠY 1 LẦN KHI CÓ ID)
-  // -----------------------------------------------------------
+  // 1. TĂNG VIEW (CHỈ CHẠY 1 LẦN KHI CÓ ID)
   useEffect(() => {
     if (id) {
         db.incrementListingView(id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]); // <--- QUAN TRỌNG: Chỉ phụ thuộc vào ID, bỏ 'user' ra khỏi đây để tránh lặp
+  }, [id]);
 
-  // -----------------------------------------------------------
-  // 2. EFFECT ĐỂ LOAD DỮ LIỆU (CHẠY KHI ID HOẶC USER THAY ĐỔI)
-  // -----------------------------------------------------------
+  // 2. LOAD DỮ LIỆU
   useEffect(() => {
     if (!id) return;
     
@@ -174,15 +160,17 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             setListing(l);
             db.getUserById(l.sellerId).then(setSeller);
             
-            // Cần user để biết đã favorite chưa
-            if (user) db.getFavorites(user.id).then(setUserFavorites);
+            // Chỉ load favorite nếu có user
+            if (user) {
+                db.getFavorites(user.id).then(setUserFavorites).catch(() => {});
+            }
             
             db.getListings().then(setAllListings);
         }
     };
     loadListing();
     window.scrollTo(0, 0);
-  }, [id, user]); // Effect này vẫn cần user để load favorite
+  }, [id, user]);
 
   // Realtime Online Status Listener
   useEffect(() => {
@@ -250,7 +238,8 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     if (!user) return navigate('/login');
     const idToToggle = (typeof targetId === 'string') ? targetId : listing.id;
     await db.toggleFavorite(user.id, idToToggle);
-    db.getFavorites(user.id).then(setUserFavorites);
+    const favs = await db.getFavorites(user.id);
+    setUserFavorites(favs);
   };
 
   const handleStartChat = async () => {
@@ -392,7 +381,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                     </div>
                 </div>
             ) : (
-                // IMAGE VIEWER (ĐÃ SỬA: CÓ KÍNH LÚP CHO DESKTOP)
+                // IMAGE VIEWER
                 <>
                     {/* MOBILE: Hiển thị ảnh thường + Click mở Lightbox */}
                     <div 
@@ -412,12 +401,10 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                     {/* DESKTOP: Dùng ProductZoom (Kính lúp) + Click mở Lightbox */}
                     <div 
                         className="hidden md:block w-full h-full cursor-zoom-in"
-                        onClick={() => setIsLightboxOpen(true)} // <--- THÊM SỰ KIỆN CLICK VÀO BAO NGOÀI
+                        onClick={() => setIsLightboxOpen(true)}
                     >
-                        {/* Component này tạo hiệu ứng kính lúp */}
                         <ProductZoom src={mediaList[activeMedia]} alt={listing.title} />
                         
-                        {/* Icon phóng to gợi ý */}
                         <div className="absolute bottom-4 right-4 bg-black/50 text-white p-2 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                             <IconMaximize2 className="w-5 h-5" />
                         </div>
@@ -444,24 +431,13 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
             )}
           </div>
 
-          {/* ================================================================================= */}
-          {/* 2. Thumbnails List - ĐÃ FIX: ẨN TUYỆT ĐỐI THANH CUỘN + MŨI TÊN HOVER */}
-          {/* ================================================================================= */}
-          
+          {/* 2. Thumbnails List */}
           <div className="mt-4 w-full relative group">
-            
-            {/* CSS ĐẶC BIỆT: Bắt buộc ẩn thanh cuộn trên mọi trình duyệt */}
             <style>{`
-              #thumbnails-container::-webkit-scrollbar {
-                display: none; /* Ẩn cho Chrome/Safari/Opera */
-              }
-              #thumbnails-container {
-                -ms-overflow-style: none;  /* Ẩn cho IE/Edge */
-                scrollbar-width: none;  /* Ẩn cho Firefox */
-              }
+              #thumbnails-container::-webkit-scrollbar { display: none; }
+              #thumbnails-container { -ms-overflow-style: none; scrollbar-width: none; }
             `}</style>
 
-            {/* MŨI TÊN TRÁI (Ẩn đi, chỉ hiện khi Hover chuột vào khu vực ảnh) */}
             <button 
               onClick={(e) => {
                 e.preventDefault();
@@ -470,14 +446,12 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               }}
               className="hidden md:flex absolute -left-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 bg-white shadow-lg rounded-full items-center justify-center text-gray-700 hover:text-primary hover:scale-110 transition-all border border-gray-100 opacity-0 group-hover:opacity-100 duration-300"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              <IconChevronLeft className="w-5 h-5" />
             </button>
 
-            {/* CONTAINER CHÍNH */}
             <div className="w-full max-w-[calc(100vw-32px)] md:max-w-full overflow-hidden">
               <div 
                 id="thumbnails-container"
-                // Đã xóa pb-4 xuống còn pb-1 để sát đáy hơn, không chừa chỗ cho thanh cuộn
                 className="flex gap-3 overflow-x-auto pb-1 snap-x touch-pan-x scroll-smooth"
                 style={{ WebkitOverflowScrolling: 'touch' }} 
               >
@@ -503,13 +477,10 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
                       loading="lazy"
                     />
                     
-                    {/* SVG PLAY ICON */}
                     {listing.videoUrl && idx === 0 && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                           <div className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center shadow-sm backdrop-blur-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-blue-600 ml-0.5">
-                              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                            </svg>
+                            <IconPlay className="w-3 h-3 text-blue-600 ml-0.5" />
                           </div>
                       </div>
                     )}
@@ -518,7 +489,6 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               </div>
             </div>
 
-            {/* MŨI TÊN PHẢI (Ẩn đi, chỉ hiện khi Hover) */}
             <button 
               onClick={(e) => {
                 e.preventDefault();
@@ -527,11 +497,10 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               }}
               className="hidden md:flex absolute -right-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 bg-white shadow-lg rounded-full items-center justify-center text-gray-700 hover:text-primary hover:scale-110 transition-all border border-gray-100 opacity-0 group-hover:opacity-100 duration-300"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              <IconChevronRight className="w-5 h-5" />
             </button>
 
           </div>
-          {/* ================================================================================= */}
 
         {/* Attributes - Vector Icons */}
           {(() => {
@@ -606,7 +575,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
               </div>
             </div>
 
-           {/* SELLER INFO - [UPDATED: Realtime Online Status] */}
+           {/* SELLER INFO */}
             <Link to={`/seller/${listing.sellerId}`} className="flex items-center gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:border-primary/30 transition-all group">
                 <div className="relative">
                     <img src={listing.sellerAvatar} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md" alt="" />
@@ -749,49 +718,7 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
         </div>
       </div>
 
-       {/* 6. FOOTER - PHIÊN BẢN PREMIUM */}
-      <footer className="hidden md:block pt-20 pb-10 px-4 md:px-0 mt-10">
-         <div className="bg-white/80 backdrop-blur-xl border border-white/50 rounded-[3rem] p-12 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] relative overflow-hidden group">
-            
-            {/* Hiệu ứng nền trang trí (Blob) */}
-            <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-50 to-purple-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-60 pointer-events-none transition-opacity group-hover:opacity-100"></div>
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-yellow-50 to-orange-50 rounded-full blur-3xl -ml-20 -mb-20 opacity-40 pointer-events-none"></div>
-
-            <div className="relative z-10 flex items-center justify-between mb-10">
-               {/* Logo Footer - Đồng bộ Gradient Tech */}
-               <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center text-white text-xl shadow-lg shadow-blue-500/30">
-                    <IconZap className="w-5 h-5 fill-current" />
-                  </div>
-                  <span className="font-black text-2xl tracking-tighter bg-gradient-to-r from-blue-700 via-blue-500 to-yellow-500 bg-clip-text text-transparent">
-                    Chợ của tui
-                  </span>
-               </div>
-
-               {/* Links - Style tinh tế hơn */}
-               <div className="flex gap-8">
-                  {STATIC_LINKS.map(link => (
-                    <Link key={link.slug} to={`/page/${link.slug}`} className="text-[11px] font-black text-slate-400 hover:text-blue-600 transition-all uppercase tracking-widest hover:underline decoration-2 underline-offset-4">
-                        {link.title}
-                    </Link>
-                  ))}
-               </div>
-            </div>
-
-            {/* Copyright */}
-            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between pt-8 border-t border-slate-100">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                    © 2026 ChoCuaTui.vn - Nền tảng rao vặt AI miễn phí.
-                </p>
-                <div className="flex gap-2 mt-2 md:mt-0">
-                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                    <span className="text-[10px] font-bold text-green-600">Đang chừo cấp phép</span>
-                </div>
-            </div>
-         </div>
-      </footer>
-
-     {/* MODALS */}
+      {/* MODALS */}
       {showReportModal && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowReportModal(false)}></div>

@@ -50,10 +50,17 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const [verifyModal, setVerifyModal] = useState<VerificationModalState>({ show: false, user: null });
   const [editForm, setEditForm] = useState({ title: '', price: 0, status: '' });
 
+  // --- [FIX QUAN TRỌNG] CHỈ LOAD LẠI KHI ID THAY ĐỔI, KHÔNG PHẢI TOÀN BỘ USER OBJECT ---
   useEffect(() => {
-    if (!user || user.role !== 'admin') { navigate('/'); return; }
-    loadInitialData();
-  }, [user]);
+    if (!user) return; // Chưa đăng nhập thì chờ
+    if (user.role !== 'admin') { navigate('/'); return; }
+    
+    // Chỉ load data nếu chưa có settings (lần đầu vào)
+    if (!settings) {
+        loadInitialData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]); // <--- FIX: Chỉ theo dõi ID
 
   useEffect(() => {
     if (activeTab === 'listings') {
@@ -66,7 +73,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
 
   useEffect(() => {
     if (activeTab === 'users' && users.length === 0) loadUsers(null);
-  }, [activeTab]);
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ show: true, message, type });
@@ -312,8 +319,8 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                     <button onClick={() => setVerifyModal({ show: false, user: null })} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200">✕</button>
                 </div>
                 <div className="grid md:grid-cols-2 gap-4 mb-8">
-                    <div className="space-y-2"><p className="text-[10px] font-black uppercase text-gray-400">Mặt trước</p><div className="aspect-video bg-gray-100 rounded-2xl overflow-hidden border border-gray-200">{verifyModal.user.verificationDocuments?.[0] ? <a href={verifyModal.user.verificationDocuments[0]} target="_blank"><img src={verifyModal.user.verificationDocuments[0]} className="w-full h-full object-contain" /></a> : <div className="flex items-center justify-center h-full text-gray-400">Không có ảnh</div>}</div></div>
-                    <div className="space-y-2"><p className="text-[10px] font-black uppercase text-gray-400">Mặt sau</p><div className="aspect-video bg-gray-100 rounded-2xl overflow-hidden border border-gray-200">{verifyModal.user.verificationDocuments?.[1] ? <a href={verifyModal.user.verificationDocuments[1]} target="_blank"><img src={verifyModal.user.verificationDocuments[1]} className="w-full h-full object-contain" /></a> : <div className="flex items-center justify-center h-full text-gray-400">Không có ảnh</div>}</div></div>
+                    <div className="space-y-2"><p className="text-[10px] font-black uppercase text-gray-400">Mặt trước</p><div className="aspect-video bg-gray-100 rounded-2xl overflow-hidden border border-gray-200">{verifyModal.user.verificationDocuments?.[0] ? <a href={verifyModal.user.verificationDocuments[0]} target="_blank" rel="noreferrer"><img src={verifyModal.user.verificationDocuments[0]} className="w-full h-full object-contain" /></a> : <div className="flex items-center justify-center h-full text-gray-400">Không có ảnh</div>}</div></div>
+                    <div className="space-y-2"><p className="text-[10px] font-black uppercase text-gray-400">Mặt sau</p><div className="aspect-video bg-gray-100 rounded-2xl overflow-hidden border border-gray-200">{verifyModal.user.verificationDocuments?.[1] ? <a href={verifyModal.user.verificationDocuments[1]} target="_blank" rel="noreferrer"><img src={verifyModal.user.verificationDocuments[1]} className="w-full h-full object-contain" /></a> : <div className="flex items-center justify-center h-full text-gray-400">Không có ảnh</div>}</div></div>
                 </div>
                 <div className="flex gap-4">
                     <button onClick={() => handleProcessKyc(verifyModal.user!, 'rejected')} className="flex-1 py-4 bg-red-50 text-red-500 font-black rounded-2xl uppercase hover:bg-red-100">Từ chối</button>
@@ -348,7 +355,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                    { id: 'categories', label: 'Danh mục', icon: '📂', notify: false }, 
                    { id: 'reports', label: 'Báo cáo', icon: '🚨', notify: activeReports.length > 0 }, 
                    { id: 'users', label: 'Thành viên', icon: '👥', notify: pendingVerifications.length > 0 }, 
-                   { id: 'ads', label: 'Quảng cáo', icon: '📢', notify: false }, // Tab QC Mới
+                   { id: 'ads', label: 'Quảng cáo', icon: '📢', notify: false },
                    { id: 'settings', label: 'Cấu hình', icon: '⚙️', notify: false }
                ].map(tab => (
                    <button key={tab.id} onClick={() => setActiveTab(tab.id as AdminTab)} className={`w-full flex items-center justify-between px-5 py-3.5 rounded-2xl text-[11px] font-black uppercase transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}>
@@ -488,7 +495,6 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
              </div>
          )}
 
-         {/* [MỚI] TAB QUẢN LÝ DANH MỤC */}
          {activeTab === 'categories' && (
              <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft flex flex-col h-[80vh]">
                  <div className="flex justify-between items-center mb-6">
@@ -593,7 +599,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                              if (res.success) { showToast("✅ Đã lưu!"); db.getCategories().then(setCategories); setEditingCat(null); } 
                                              else { showToast("❌ Lỗi: " + res.message, "error"); }
                                              setIsLoading(false);
-                                         }} className="flex-1 py-4 bg-primary text-white rounded-xl font-black uppercase text-xs shadow-xl hover:scale-[1.01] transition-transform">Lưu thay đổi</button>
+                                     }} className="flex-1 py-4 bg-primary text-white rounded-xl font-black uppercase text-xs shadow-xl hover:scale-[1.01] transition-transform">Lưu thay đổi</button>
                                  </div>
                              </div>
                          ) : (
@@ -744,6 +750,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
             </div>
          )}
+
          {/* === TAB SETTINGS (QUẢN LÝ TẤT CẢ CẤU HÌNH HỆ THỐNG) === */}
           {activeTab === 'settings' && settings && (
               <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft">
@@ -751,23 +758,23 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                     
                     {/* 1. Cấu hình Phí & Ưu đãi */}
                     <div className="space-y-6">
-                       <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                           <span className="w-2 h-2 bg-primary rounded-full"></span> Quản lý Chiết khấu & Giá
-                       </h4>
-                       <div className="grid md:grid-cols-3 gap-6 bg-gray-50 p-6 rounded-[2rem]">
-                           <div className="space-y-2">
-                               <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giá Đẩy Tin (đ)</label>
-                               <input type="number" value={settings.pushPrice} onChange={e => setSettings({...settings, pushPrice: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold" />
-                           </div>
-                           <div className="space-y-2">
-                               <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giảm giá Đẩy Tin (%)</label>
-                               <input type="number" value={settings.pushDiscount} onChange={e => setSettings({...settings, pushDiscount: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-red-500" />
-                           </div>
-                           <div className="space-y-2">
-                               <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giảm giá Gói VIP (%)</label>
-                               <input type="number" value={settings.tierDiscount} onChange={e => setSettings({...settings, tierDiscount: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-red-500" />
-                           </div>
-                       </div>
+                        <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                            <span className="w-2 h-2 bg-primary rounded-full"></span> Quản lý Chiết khấu & Giá
+                        </h4>
+                        <div className="grid md:grid-cols-3 gap-6 bg-gray-50 p-6 rounded-[2rem]">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giá Đẩy Tin (đ)</label>
+                                <input type="number" value={settings.pushPrice} onChange={e => setSettings({...settings, pushPrice: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold" />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giảm giá Đẩy Tin (%)</label>
+                                <input type="number" value={settings.pushDiscount} onChange={e => setSettings({...settings, pushDiscount: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-red-500" />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Giảm giá Gói VIP (%)</label>
+                                <input type="number" value={settings.tierDiscount} onChange={e => setSettings({...settings, tierDiscount: parseInt(e.target.value)})} className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-red-500" />
+                            </div>
+                        </div>
                     </div>
 
                     {/* 2. Quản lý Banner */}
@@ -792,101 +799,101 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                             {(settings.bannerSlides || []).map((slide: any, idx: number) => (
                                <div key={idx} className={`border p-6 rounded-[2rem] space-y-4 transition-all ${slide.isActive ? 'bg-white border-gray-200 shadow-sm' : 'bg-gray-50 border-gray-100 opacity-60'}`}>
                                    <div className="flex justify-between items-center pb-4 border-b border-gray-100">
-                                        <div className="flex items-center gap-3">
-                                            <span className="bg-gray-100 text-gray-500 text-[10px] font-black px-2 py-1 rounded">#{idx + 1}</span>
-                                            <div className="flex items-center bg-gray-50 rounded-lg p-0.5 border border-gray-100">
-                                                 <button type="button" disabled={idx === 0} onClick={() => {
-                                                     const slides = [...(settings.bannerSlides || [])];
-                                                     [slides[idx], slides[idx - 1]] = [slides[idx - 1], slides[idx]];
-                                                     setSettings({...settings, bannerSlides: slides});
-                                                 }} className={`p-1.5 rounded ${idx === 0 ? 'text-gray-300' : 'text-gray-600 hover:bg-white shadow-sm'}`}>⬆️</button>
-                                                 <button type="button" disabled={idx === (settings.bannerSlides?.length || 0) - 1} onClick={() => {
-                                                     const slides = [...(settings.bannerSlides || [])];
-                                                     [slides[idx], slides[idx + 1]] = [slides[idx + 1], slides[idx]];
-                                                     setSettings({...settings, bannerSlides: slides});
-                                                 }} className={`p-1.5 rounded ${idx === (settings.bannerSlides?.length || 0) - 1 ? 'text-gray-300' : 'text-gray-600 hover:bg-white shadow-sm'}`}>⬇️</button>
-                                            </div>
-                                            <select value={slide.type || 'text'} onChange={e => {
-                                                 const newSlides = [...(settings.bannerSlides || [])];
-                                                 newSlides[idx].type = e.target.value;
-                                                 setSettings({...settings, bannerSlides: newSlides});
-                                            }} className="bg-gray-50 border-none text-[10px] font-black rounded-lg py-1 px-2 focus:ring-0">
-                                                 <option value="text">Dạng Chữ</option>
-                                                 <option value="image">Dạng Ảnh</option>
-                                            </select>
                                             <div className="flex items-center gap-3">
-                                                <label className="flex items-center cursor-pointer gap-2">
-                                                    <span className="text-[9px] font-black text-gray-400 uppercase">{slide.isActive ? 'Hiển thị' : 'Ẩn'}</span>
-                                                    <input type="checkbox" className="hidden" checked={slide.isActive} onChange={e => {
-                                                         const newSlides = [...(settings.bannerSlides || [])];
-                                                         newSlides[idx].isActive = e.target.checked;
-                                                         setSettings({...settings, bannerSlides: newSlides});
-                                                    }} />
-                                                    <div className={`w-8 h-4 rounded-full relative transition-colors ${slide.isActive ? 'bg-green-500' : 'bg-gray-300'}`}>
-                                                         <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${slide.isActive ? 'translate-x-4' : ''}`}></div>
-                                                    </div>
-                                                </label>
-                                                <button type="button" onClick={() => {if(window.confirm("Xóa slide này?")){const ns = settings.bannerSlides.filter((_:any, i:number) => i !== idx); setSettings({...settings, bannerSlides: ns});}}} className="text-red-400 hover:text-red-600 bg-red-50 p-1.5 rounded-lg">🗑</button>
-                                            </div>
-                                       </div>
+                                                <span className="bg-gray-100 text-gray-500 text-[10px] font-black px-2 py-1 rounded">#{idx + 1}</span>
+                                                <div className="flex items-center bg-gray-50 rounded-lg p-0.5 border border-gray-100">
+                                                     <button type="button" disabled={idx === 0} onClick={() => {
+                                                         const slides = [...(settings.bannerSlides || [])];
+                                                         [slides[idx], slides[idx - 1]] = [slides[idx - 1], slides[idx]];
+                                                         setSettings({...settings, bannerSlides: slides});
+                                                     }} className={`p-1.5 rounded ${idx === 0 ? 'text-gray-300' : 'text-gray-600 hover:bg-white shadow-sm'}`}>⬆️</button>
+                                                     <button type="button" disabled={idx === (settings.bannerSlides?.length || 0) - 1} onClick={() => {
+                                                         const slides = [...(settings.bannerSlides || [])];
+                                                         [slides[idx], slides[idx + 1]] = [slides[idx + 1], slides[idx]];
+                                                         setSettings({...settings, bannerSlides: slides});
+                                                     }} className={`p-1.5 rounded ${idx === (settings.bannerSlides?.length || 0) - 1 ? 'text-gray-300' : 'text-gray-600 hover:bg-white shadow-sm'}`}>⬇️</button>
+                                                </div>
+                                                <select value={slide.type || 'text'} onChange={e => {
+                                                     const newSlides = [...(settings.bannerSlides || [])];
+                                                     newSlides[idx].type = e.target.value;
+                                                     setSettings({...settings, bannerSlides: newSlides});
+                                                }} className="bg-gray-50 border-none text-[10px] font-black rounded-lg py-1 px-2 focus:ring-0">
+                                                     <option value="text">Dạng Chữ</option>
+                                                     <option value="image">Dạng Ảnh</option>
+                                                </select>
+                                                <div className="flex items-center gap-3">
+                                                    <label className="flex items-center cursor-pointer gap-2">
+                                                        <span className="text-[9px] font-black text-gray-400 uppercase">{slide.isActive ? 'Hiển thị' : 'Ẩn'}</span>
+                                                        <input type="checkbox" className="hidden" checked={slide.isActive} onChange={e => {
+                                                             const newSlides = [...(settings.bannerSlides || [])];
+                                                             newSlides[idx].isActive = e.target.checked;
+                                                             setSettings({...settings, bannerSlides: newSlides});
+                                                        }} />
+                                                        <div className={`w-8 h-4 rounded-full relative transition-colors ${slide.isActive ? 'bg-green-500' : 'bg-gray-300'}`}>
+                                                             <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${slide.isActive ? 'translate-x-4' : ''}`}></div>
+                                                        </div>
+                                                    </label>
+                                                    <button type="button" onClick={() => {if(window.confirm("Xóa slide này?")){const ns = settings.bannerSlides.filter((_:any, i:number) => i !== idx); setSettings({...settings, bannerSlides: ns});}}} className="text-red-400 hover:text-red-600 bg-red-50 p-1.5 rounded-lg">🗑</button>
+                                                </div>
+                                           </div>
 
-                                       {slide.type === 'image' ? (
-                                            <div className="flex gap-4 items-start">
-                                                 <div className="w-1/3 aspect-[3/1] bg-gray-100 rounded-2xl overflow-hidden border border-gray-200 relative group">
-                                                      {slide.imageUrl ? <img src={slide.imageUrl} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full text-[10px] text-gray-400 font-bold uppercase">Chưa có ảnh</div>}
-                                                      <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity text-white text-[10px] font-black">TẢI ẢNH<input type="file" className="hidden" accept="image/*" onChange={async (e) => {
-                                                          if(e.target.files?.[0]) {
-                                                              setIsLoading(true);
-                                                              try {
-                                                                  const compressed = await compressAndGetBase64(e.target.files[0]);
-                                                                  const url = await db.uploadImage(compressed, `banners/${Date.now()}.jpg`);
-                                                                  const ns = [...settings.bannerSlides];
-                                                                  ns[idx].imageUrl = url;
-                                                                  setSettings({...settings, bannerSlides: ns});
-                                                              } catch (err) { alert("Lỗi tải ảnh"); }
-                                                              setIsLoading(false);
-                                                          }
-                                                      }} /></label>
-                                                 </div>
-                                                 <input type="text" placeholder="Link (Ví dụ: /post)" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="flex-1 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
-                                            </div>
-                                       ) : (
-                                            <div className="space-y-3">
-                                                 <div className="grid md:grid-cols-2 gap-3">
-                                                      <input type="text" placeholder="Tiêu đề chính" value={slide.title} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].title=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black" />
-                                                      <input type="text" placeholder="Mô tả" value={slide.desc} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].desc=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
-                                                 </div>
-                                                 <div className="grid grid-cols-3 gap-3">
-                                                      <input type="text" placeholder="Chữ trên nút" value={slide.btnText} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnText=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black text-center" />
-                                                      <input type="text" placeholder="Link đích" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
-                                                      <input type="text" placeholder="Icon (VD: 🚀)" value={slide.icon} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].icon=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-center" />
-                                                 </div>
-                                                 <div className="grid grid-cols-2 gap-3">
-                                                      <select value={slide.colorFrom} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorFrom=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
-                                                          <option value="from-blue-600">Xanh Dương (Đậm)</option>
-                                                          <option value="from-red-600">Đỏ (Đậm)</option>
-                                                          <option value="from-green-600">Xanh Lá (Đậm)</option>
-                                                          <option value="from-yellow-500">Vàng (Đậm)</option>
-                                                          <option value="from-purple-600">Tím (Đậm)</option>
-                                                          <option value="from-orange-500">Cam (Đậm)</option>
-                                                          <option value="from-pink-500">Hồng (Đậm)</option>
-                                                          <option value="from-gray-800">Đen</option>
-                                                      </select>
-                                                      <select value={slide.colorTo} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorTo=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
-                                                          <option value="to-indigo-600">Indigo</option>
-                                                          <option value="to-blue-400">Xanh Nhạt</option>
-                                                          <option value="to-red-400">Đỏ Nhạt</option>
-                                                          <option value="to-green-400">Lá Nhạt</option>
-                                                          <option value="to-yellow-400">Vàng Nhạt</option>
-                                                          <option value="to-purple-400">Tím Nhạt</option>
-                                                          <option value="to-pink-400">Hồng Nhạt</option>
-                                                          <option value="to-orange-400">Cam Nhạt</option>
-                                                      </select>
-                                                 </div>
-                                            </div>
-                                       )}
+                                           {slide.type === 'image' ? (
+                                                <div className="flex gap-4 items-start">
+                                                     <div className="w-1/3 aspect-[3/1] bg-gray-100 rounded-2xl overflow-hidden border border-gray-200 relative group">
+                                                          {slide.imageUrl ? <img src={slide.imageUrl} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full text-[10px] text-gray-400 font-bold uppercase">Chưa có ảnh</div>}
+                                                          <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity text-white text-[10px] font-black">TẢI ẢNH<input type="file" className="hidden" accept="image/*" onChange={async (e) => {
+                                                              if(e.target.files?.[0]) {
+                                                                  setIsLoading(true);
+                                                                  try {
+                                                                      const compressed = await compressAndGetBase64(e.target.files[0]);
+                                                                      const url = await db.uploadImage(compressed, `banners/${Date.now()}.jpg`);
+                                                                      const ns = [...settings.bannerSlides];
+                                                                      ns[idx].imageUrl = url;
+                                                                      setSettings({...settings, bannerSlides: ns});
+                                                                  } catch (err) { alert("Lỗi tải ảnh"); }
+                                                                  setIsLoading(false);
+                                                              }
+                                                          }} /></label>
+                                                     </div>
+                                                     <input type="text" placeholder="Link (Ví dụ: /post)" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="flex-1 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
+                                                </div>
+                                           ) : (
+                                                <div className="space-y-3">
+                                                     <div className="grid md:grid-cols-2 gap-3">
+                                                          <input type="text" placeholder="Tiêu đề chính" value={slide.title} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].title=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black" />
+                                                          <input type="text" placeholder="Mô tả" value={slide.desc} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].desc=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
+                                                     </div>
+                                                     <div className="grid grid-cols-3 gap-3">
+                                                          <input type="text" placeholder="Chữ trên nút" value={slide.btnText} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnText=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-black text-center" />
+                                                          <input type="text" placeholder="Link đích" value={slide.btnLink} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].btnLink=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold" />
+                                                          <input type="text" placeholder="Icon (VD: 🚀)" value={slide.icon} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].icon=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-center" />
+                                                     </div>
+                                                     <div className="grid grid-cols-2 gap-3">
+                                                          <select value={slide.colorFrom} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorFrom=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
+                                                              <option value="from-blue-600">Xanh Dương (Đậm)</option>
+                                                              <option value="from-red-600">Đỏ (Đậm)</option>
+                                                              <option value="from-green-600">Xanh Lá (Đậm)</option>
+                                                              <option value="from-yellow-500">Vàng (Đậm)</option>
+                                                              <option value="from-purple-600">Tím (Đậm)</option>
+                                                              <option value="from-orange-500">Cam (Đậm)</option>
+                                                              <option value="from-pink-500">Hồng (Đậm)</option>
+                                                              <option value="from-gray-800">Đen</option>
+                                                          </select>
+                                                          <select value={slide.colorTo} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorTo=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
+                                                              <option value="to-indigo-600">Indigo</option>
+                                                              <option value="to-blue-400">Xanh Nhạt</option>
+                                                              <option value="to-red-400">Đỏ Nhạt</option>
+                                                              <option value="to-green-400">Lá Nhạt</option>
+                                                              <option value="to-yellow-400">Vàng Nhạt</option>
+                                                              <option value="to-purple-400">Tím Nhạt</option>
+                                                              <option value="to-pink-400">Hồng Nhạt</option>
+                                                              <option value="to-orange-400">Cam Nhạt</option>
+                                                          </select>
+                                                     </div>
+                                                </div>
+                                           )}
+                                      </div>
                                    </div>
-                               </div>
                             ))}
                         </div>
                     </div>

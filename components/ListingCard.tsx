@@ -138,7 +138,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
   const cardStyle = getCardStyle();
 
   return (
-    <div className={`group relative flex flex-col bg-white rounded-xl transition-all duration-300 overflow-hidden h-full hover:-translate-y-1 hover:shadow-lg ${cardStyle.container}`}>
+    <div className={`group relative flex flex-col bg-white rounded-lg transition-all duration-300 overflow-hidden h-full hover:-translate-y-1 hover:shadow-lg ${cardStyle.container}`}>
       
       {/* --- PHẦN HÌNH ẢNH --- */}
       <div className="relative aspect-square overflow-hidden bg-gray-100">

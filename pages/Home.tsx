@@ -310,8 +310,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         <StoryBar user={user} />
       </div>
 
-      {/* 3. BANNER */}
-      {!search && !isUrlCategory && !typeParam && !locationParam && <HomeBanner />}
+      
 
       {/* 4. TIN VIP */}
       {!search && !isUrlCategory && !typeParam && !locationParam && vipListings.length > 0 && (
@@ -459,7 +458,8 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           </>
         )}
       </section>
-
+ {/* 3. BANNER */}
+      {!search && !isUrlCategory && !typeParam && !locationParam && <HomeBanner />}
       {/* 7. FOOTER */}
       <footer className="hidden md:block pt-16 border-t border-dashed border-gray-200 mt-20">
          <div className="bg-white border border-gray-200 rounded-[3rem] p-10 shadow-sm">

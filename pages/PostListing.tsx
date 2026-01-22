@@ -30,6 +30,7 @@ const IconThumbsUp = ({ className }: { className?: string }) => <svg xmlns="http
 const IconTrendingUp = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>;
 const IconAlertOctagon = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
 const IconCheckSquare = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>;
+const IconLink = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>;
 
 interface ListingFormData {
   title: string;
@@ -184,7 +185,6 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     );
   };
 
-  // [CHỨC NĂNG NÉN ẢNH ĐÃ ĐƯỢC TÍCH HỢP]
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
     if (files.length === 0 || !settings) return;
@@ -196,12 +196,10 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     }
 
     try {
-      // Dùng hàm nén ảnh từ utils (như yêu cầu của bạn)
       const compressedResults = await Promise.all(files.map(file => compressAndGetBase64(file)));
       const updatedImages = [...formData.images, ...compressedResults];
       setFormData(prev => ({ ...prev, images: updatedImages }));
 
-      // Tự động phân tích ảnh bằng AI nếu chưa có tiêu đề
       if (!isEditing && compressedResults.length > 0 && !formData.title) {
         runAIAnalysis(updatedImages);
       }
@@ -584,6 +582,26 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
             <input type="text" placeholder="Ví dụ: iPhone 15 Pro Max 256GB Chính hãng..." value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={`${inputStyle} text-lg`} />
           </div>
 
+          {/* [ĐÃ SỬA LỖI] THÊM Ô NHẬP LINK AFFILIATE */}
+          {listingType === 'affiliate' && (
+            <div className="space-y-2 animate-fade-in">
+              <label className={labelStyle}>Link Sản phẩm (Affiliate) *</label>
+              <div className="relative">
+                <input
+                    type="url"
+                    placeholder="https://shopee.vn/san-pham-xyz..."
+                    value={formData.affiliateLink || ''}
+                    onChange={(e) => setFormData({ ...formData, affiliateLink: e.target.value })}
+                    className={`${inputStyle} pl-12 border-orange-200 focus:border-orange-500 text-orange-600`}
+                />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-400">
+                    <IconLink className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-[10px] text-orange-400 font-bold mt-1 ml-1">* Người mua sẽ được chuyển hướng đến link này khi bấm "Mua ngay".</p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 rounded-3xl border border-slate-100">
             <div className="space-y-2">
               <label className={labelStyle}>Danh mục Chính *</label>
@@ -641,13 +659,17 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">VNĐ</span>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className={labelStyle}>Tình trạng sản phẩm</label>
-                    <select value={formData.condition} onChange={(e) => setFormData({ ...formData, condition: e.target.value as any })} className={inputStyle}>
-                      <option value="used">Đã qua sử dụng</option>
-                      <option value="new">Mới 100% (Chưa bóc seal)</option>
-                    </select>
-                  </div>
+                  
+                  {/* Ẩn Tình trạng nếu là Affiliate (Mặc định New) */}
+                  {listingType !== 'affiliate' && (
+                    <div className="space-y-2">
+                        <label className={labelStyle}>Tình trạng sản phẩm</label>
+                        <select value={formData.condition} onChange={(e) => setFormData({ ...formData, condition: e.target.value as any })} className={inputStyle}>
+                        <option value="used">Đã qua sử dụng</option>
+                        <option value="new">Mới 100% (Chưa bóc seal)</option>
+                        </select>
+                    </div>
+                  )}
                 </div>
                 
                 {priceSuggestions && (

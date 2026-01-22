@@ -1751,13 +1751,14 @@ export const db = {
 
   // 2. Tạo Story mới (Logic phân loại VIP)
   async createStory(user: User, mediaUrl: string, mediaType: 'image' | 'video', listingId?: string) {
+    console.log("🚀 BẮT ĐẦU TẠO STORY...");
+    console.log("- User:", user.name);
+    console.log("- Loại:", mediaType);
+    console.log("- ID Sản phẩm gắn kèm:", listingId); // Quan trọng: Xem cái này có hiện ID hay là undefined/rỗng
+
     const tier = user.subscriptionTier || 'free';
     const isPro = tier === 'pro';
     const now = Date.now();
-    
-    // CHIẾN LƯỢC:
-    // - Pro: null (Vĩnh viễn)
-    // - Free/Basic: Hiện tại + 24h
     const expiresAt = isPro ? null : now + (24 * 60 * 60 * 1000); 
 
     const storyData: any = {
@@ -1766,28 +1767,42 @@ export const db = {
       sellerAvatar: user.avatar || '',
       videoUrl: mediaUrl,
       mediaType: mediaType,
-      createdAt: new Date().toISOString(), // Dùng ISO để sort
-      timestamp: now, // Dùng số để tính toán
+      createdAt: new Date().toISOString(),
+      timestamp: now,
       expiresAt: expiresAt,
       isPermanent: isPro,
       views: 0,
-      listingId: listingId || null, // ID sản phẩm gắn kèm
-      tier: tier // Lưu gói cước để sau này lọc "Video Hot"
+      listingId: listingId || null,
+      tier: tier
     };
 
-    // 1. Lưu vào kho Story
-    await addDoc(collection(firestore, 'stories'), storyData);
+    // 1. Lưu Story
+    try {
+        await addDoc(collection(firestore, 'stories'), storyData);
+        console.log("✅ Đã lưu Story vào Database");
+    } catch (e) {
+        console.error("❌ Lỗi lưu Story:", e);
+    }
 
-    // 2. [MỚI] Nếu là Video + Có gắn sản phẩm -> Cập nhật luôn vào Tin đăng (Để hiện ở trang chi tiết)
-    if (mediaType === 'video' && listingId) {
+    // 2. LOGIC GHIM VIDEO (QUAN TRỌNG NHẤT)
+    if (mediaType === 'video' && listingId && listingId.trim() !== "") {
+        console.log("👉 Phát hiện Video có gắn thẻ. Đang thử ghim vào Listing...");
         try {
             const listingRef = doc(firestore, 'listings', listingId);
+            
+            // Cập nhật videoUrl vào tin đăng
             await updateDoc(listingRef, {
-                videoUrl: mediaUrl // Ghim video vào tin
+                videoUrl: mediaUrl 
             });
+            console.log("🎉 THÀNH CÔNG: Đã ghim Video vào sản phẩm ID:", listingId);
         } catch (e) {
-            console.error("Lỗi ghim video vào sản phẩm:", e);
+            console.error("❌ THẤT BẠI: Lỗi khi ghim video vào sản phẩm:", e);
+            // Gợi ý: Có thể do Rules chặn update
         }
+    } else {
+        console.log("⚠️ KHÔNG GHIM VIDEO VÌ: ", 
+            mediaType !== 'video' ? "Không phải Video" : "Không có ID sản phẩm"
+        );
     }
   },
 

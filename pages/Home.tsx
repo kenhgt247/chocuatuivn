@@ -123,22 +123,22 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     loadSettings();
   }, []);
 
-  // 4. Load VIP & Nearby
+  // 4. Load VIP & Nearby (ĐÃ SỬA LỖI LOGIC)
   const loadSpecialSections = useCallback(async (locationToUse: string | null) => {
     if (search || isUrlCategory || typeParam) return; 
     
-    // Tin VIP (Ai cũng xem được)
+    // Tin VIP
     const vipRes = await db.getVIPListings(LIMIT_VIP);
     if (!vipRes.error) setVipListings(vipRes.listings);
 
-    // [FIX] Tin gần bạn (Chỉ load khi có user hoặc location, tránh lỗi permission denied)
+    // [FIX] Tin gần bạn: Bỏ check 'user', chỉ cần có 'location' là load được
     const targetLoc = locationToUse || user?.location;
-    if (targetLoc && user) {
+    if (targetLoc) {
         try {
             const nearbyRes = await db.getListingsPaged({ pageSize: LIMIT_NEARBY, location: targetLoc });
             if (!nearbyRes.error) setNearbyListings(nearbyRes.listings);
         } catch (e) {
-            console.warn("Chưa tải được tin gần bạn (có thể do chưa login)");
+            console.warn("Lỗi tải tin gần bạn:", e);
         }
     }
   }, [user, search, isUrlCategory, typeParam]);
@@ -157,21 +157,25 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             const locationInfo = await getLocationFromCoords(latitude, longitude);
             setDetectedLocation(locationInfo.city);
             setIsLocating(false);
-            if (user) {
+            
+            // Cập nhật Profile CHỈ KHI có user
+            if (user?.id) {
               db.updateUserProfile(user.id, { 
                   location: locationInfo.city, 
                   address: locationInfo.address, 
                   lat: latitude, 
                   lng: longitude 
-              }).catch(console.error);
+              }).catch(() => {});
             }
+            
+            // Luôn gọi load lại tin ngay khi có vị trí mới
             if (!search && !isUrlCategory) {
                 loadSpecialSections(locationInfo.city);
             }
         } catch (err) {
             console.error("Lỗi lấy địa chỉ:", err);
             setIsLocating(false);
-            setDetectedLocation("TPHCM"); 
+            // setDetectedLocation("TPHCM"); // Bỏ dòng này để không gán cứng
         }
       },
       () => {
@@ -228,20 +232,20 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         setHasMore(result.hasMore);
       }
 
-      // [FIX] Chỉ tải Favorite nếu đã đăng nhập
-      if (user) {
+      // [FIX] Chỉ tải Favorite nếu user đã đăng nhập (tránh lỗi permission)
+      if (user?.id) {
         try {
             const favs = await db.getFavorites(user.id);
             setFavorites(favs);
         } catch (e) {
-            console.warn("Lỗi tải yêu thích (bỏ qua):", e);
+            console.warn("Bỏ qua tải yêu thích (chưa login hoặc lỗi nhẹ):", e);
         }
       } else {
           setFavorites([]);
       }
 
     } catch (e) {
-      console.warn("Home fetch warning:", e);
+      console.error("Home fetch error:", e);
     } finally {
       setIsLoading(false);
     }
@@ -337,7 +341,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         </section>
       )}
 
-      {/* 5. TIN QUANH ĐÂY */}
+      {/* 5. TIN QUANH ĐÂY (Đã sửa logic hiển thị) */}
       {!search && !isUrlCategory && !typeParam && !locationParam && (
         <section className="space-y-4 animate-fade-in-up">
           <div className="flex items-center justify-between px-2">
@@ -377,7 +381,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           ) : (
              <div className="text-center py-8 text-xs text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 flex flex-col items-center gap-2">
                 <IconMapPin className="w-8 h-8 opacity-20" />
-                Chưa có tin đăng nào gần bạn.
+                {isLocating ? "Đang tìm kiếm quanh bạn..." : "Chưa có tin đăng nào gần bạn."}
              </div>
           )}
         </section>

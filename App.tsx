@@ -22,11 +22,12 @@ import StaticPage from './pages/StaticPage';
 import GoogleOneTap from './components/GoogleOneTap';
 
 // --- Services ---
-import { db } from './services/db';
+import { db, auth } from './services/db'; 
 import { User } from './types';
 import { formatPrice } from './utils/format';
 
-// --- Firebase (Heartbeat) ---
+// --- Firebase ---
+import { onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 // Helper: Scroll to Top
@@ -38,7 +39,7 @@ const ScrollToTop = () => {
   return null;
 };
 
-// --- ICON VẼ TAY (AN TOÀN TUYỆT ĐỐI) ---
+// --- ICON VẼ TAY ---
 const IconCheckCircle = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
@@ -49,92 +50,90 @@ const IconCheckCircle = () => (
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  
+  // Ref để theo dõi số dư cũ
   const prevBalanceRef = useRef<number>(0);
-
-  // --- STATE CHO THÔNG BÁO TỰ CHẾ (CUSTOM TOAST) ---
+  
   const [notification, setNotification] = useState<{ show: boolean; message: string } | null>(null);
 
-  // Hàm hiển thị thông báo an toàn
   const showSafeToast = (message: string) => {
     setNotification({ show: true, message });
-    // Tự động tắt sau 4 giây
-    setTimeout(() => {
-      setNotification(null);
-    }, 4000);
+    setTimeout(() => setNotification(null), 4000);
   };
 
-  // 1. KHỞI TẠO USER VÀ LẮNG NGHE VÍ TIỀN
+  // 1. LẮNG NGHE AUTH & VÍ TIỀN (ĐÃ FIX LỖI TING TING KHI LOGOUT)
   useEffect(() => {
-    let unsubscribe: () => void;
+    let unsubscribeUserChange: (() => void) | undefined;
 
-    const initialize = async () => {
-      try {
-        const currentUser = await db.getCurrentUser();
-        
-        if (currentUser) {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const currentUser = await db.getUserProfile(firebaseUser.uid);
+          if (currentUser) {
             setUser(currentUser);
             prevBalanceRef.current = currentUser.walletBalance;
 
+            // Lắng nghe thay đổi ví tiền
             if (db.onUserChange) {
-                unsubscribe = db.onUserChange(currentUser.id, (updatedUser) => {
-                    // Chỉ thông báo nếu tiền tăng lên
-                    if (updatedUser.walletBalance > prevBalanceRef.current) {
-                        const amount = updatedUser.walletBalance - prevBalanceRef.current;
-                        
-                        // [FIX] GỌI HÀM THÔNG BÁO TỰ CHẾ (KHÔNG DÙNG THƯ VIỆN)
-                        showSafeToast(`Ting ting! Ví vừa cộng ${formatPrice(amount)}`);
-                    }
-                    
-                    // Cập nhật state nhưng KHÔNG gây loop cho useEffect bên dưới
-                    setUser(updatedUser);
-                    prevBalanceRef.current = updatedUser.walletBalance;
-                });
+              unsubscribeUserChange = db.onUserChange(currentUser.id, (updatedUser) => {
+                // [FIX QUAN TRỌNG]: Kiểm tra nếu số dư TĂNG LÊN thì mới báo
+                // Và đảm bảo prevBalanceRef không phải là 0 do khởi tạo (tránh báo lúc mới load trang)
+                if (updatedUser.walletBalance > prevBalanceRef.current) {
+                   const amount = updatedUser.walletBalance - prevBalanceRef.current;
+                   // Chỉ báo nếu số tiền chênh lệch hợp lý (tránh lỗi logic)
+                   if (amount > 0) {
+                       showSafeToast(`Ting ting! Ví vừa cộng ${formatPrice(amount)}`);
+                   }
+                }
+                
+                // Cập nhật state
+                setUser(updatedUser);
+                prevBalanceRef.current = updatedUser.walletBalance;
+              });
             }
+          }
+        } catch (err) {
+          console.error("Lỗi auth:", err);
         }
-      } catch (err) {
-        console.error("Auth init error:", err);
-      } finally {
-        setIsInitializing(false);
+      } else {
+        // [QUAN TRỌNG]: Khi logout, phải HỦY LẮNG NGHE TRƯỚC khi reset biến
+        if (unsubscribeUserChange) unsubscribeUserChange();
+        
+        setUser(null);
+        prevBalanceRef.current = 0; 
       }
-    };
+      setIsInitializing(false);
+    });
 
-    initialize();
-    return () => { if (unsubscribe) unsubscribe(); };
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeUserChange) unsubscribeUserChange();
+    };
   }, []);
 
   // 2. LOGIC BÁO ONLINE
   useEffect(() => {
     if (!user?.id) return;
-
     const dbInstance = getFirestore();
     const userRef = doc(dbInstance, "users", user.id);
 
     const reportOnline = async () => {
       if (document.visibilityState !== 'visible') return;
-      try {
-        await updateDoc(userRef, { isOnline: true, lastActiveAt: serverTimestamp() });
-      } catch (e) { /* Ignore */ }
+      try { await updateDoc(userRef, { isOnline: true, lastActiveAt: serverTimestamp() }); } catch (e) {}
     };
-
     const reportOffline = async () => {
-      try {
-        await updateDoc(userRef, { isOnline: false, lastActiveAt: serverTimestamp() });
-      } catch (e) {}
+      try { await updateDoc(userRef, { isOnline: false, lastActiveAt: serverTimestamp() }); } catch (e) {}
     };
 
     reportOnline();
     const intervalId = setInterval(reportOnline, 120000);
-    const handleBeforeUnload = () => { reportOffline(); };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible') reportOnline();
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("beforeunload", reportOffline);
+    document.addEventListener("visibilitychange", reportOnline);
 
     return () => {
       clearInterval(intervalId);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("beforeunload", reportOffline);
+      document.removeEventListener("visibilitychange", reportOnline);
     };
   }, [user?.id]); 
 
@@ -145,6 +144,7 @@ const App: React.FC = () => {
   };
   
   const handleLogout = async () => {
+    // 1. Cập nhật offline
     if (user?.id) {
         try {
             const dbInstance = getFirestore();
@@ -154,9 +154,16 @@ const App: React.FC = () => {
             });
         } catch(e) {}
     }
-    db.logout();
-    setUser(null);
-    prevBalanceRef.current = 0;
+    
+    // 2. Gọi hàm logout
+    await db.logout();
+    
+    // 3. KHÔNG CẦN reset thủ công ở đây nữa, vì window.location.href sẽ lo việc dọn dẹp
+    // setUser(null); 
+    // prevBalanceRef.current = 0; 
+
+    // 4. Ép tải lại trang để xóa sạch bộ nhớ đệm (Fix triệt để lỗi lưu phiên)
+    window.location.href = '/login';
   };
   
   const handleUpdateUser = (u: User) => {
@@ -168,7 +175,7 @@ const App: React.FC = () => {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-gray-50">
         <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-blue-600 font-black uppercase text-[10px] tracking-widest">Chợ Của Tui đang tải...</p>
+        <p className="text-blue-600 font-black uppercase text-[10px] tracking-widest">Chợ Của Tui đang khởi động...</p>
       </div>
     );
   }
@@ -177,7 +184,7 @@ const App: React.FC = () => {
     <HelmetProvider>
       <Router>
         <ScrollToTop />
-        {!isInitializing && !user && <GoogleOneTap onLogin={handleLogin} />}
+        {!user && <GoogleOneTap onLogin={handleLogin} />}
 
         <Layout user={user}>
           <Routes>
@@ -214,7 +221,7 @@ const App: React.FC = () => {
           </Routes>
         </Layout>
 
-        {/* --- [CUSTOM TOAST] THÔNG BÁO TIỀN VỀ (AN TOÀN 100%) --- */}
+        {/* --- [CUSTOM TOAST] --- */}
         {notification && notification.show && (
             <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[9999] animate-bounce-in">
                 <div className="bg-green-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border-2 border-white/20 backdrop-blur-md">
@@ -225,7 +232,6 @@ const App: React.FC = () => {
                 </div>
             </div>
         )}
-
       </Router>
     </HelmetProvider>
   );

@@ -65,6 +65,7 @@ const auth = getAuth(app);
 const storage = getStorage(app);
 const functions = getFunctions(app);
 export { app, auth, storage, firestore };
+
 // 4. OBJECT DB
 export const db = {
   
@@ -203,7 +204,7 @@ export const db = {
       
       let results = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
 
-      // 8. TÌM KIẾM CLIENT SIDE
+      // 8. TÌM KIẾM CLIENT SIDE (Tinh chỉnh kết quả)
       if (options.search && options.search.trim().length > 0) {
           const queryText = options.search.trim();
           results = results.filter(l => isSearchMatch(l.title, queryText));
@@ -288,18 +289,21 @@ export const db = {
 
       const docRef = await addDoc(collection(firestore, "listings"), dataToSave);
       
-      await addDoc(collection(firestore, "mail"), {
-        to: [ADMIN_EMAIL],
-        message: {
-          subject: `[Tin Mới] ${listingData.title} - Cần duyệt`,
-          html: `
-            <h3 style="color: #0066cc;">Có người đăng tin bán hàng mới!</h3>
-            <p><strong>Tiêu đề:</strong> ${listingData.title}</p>
-            <p><strong>Giá:</strong> ${Number(listingData.price).toLocaleString()} VNĐ</p>
-            <p><strong>Người bán:</strong> ${listingData.sellerName}</p>
-          `
-        }
-      });
+      // Gửi email cho admin
+      try {
+          await addDoc(collection(firestore, "mail"), {
+            to: [ADMIN_EMAIL],
+            message: {
+              subject: `[Tin Mới] ${listingData.title} - Cần duyệt`,
+              html: `
+                <h3 style="color: #0066cc;">Có người đăng tin bán hàng mới!</h3>
+                <p><strong>Tiêu đề:</strong> ${listingData.title}</p>
+                <p><strong>Giá:</strong> ${Number(listingData.price).toLocaleString()} VNĐ</p>
+                <p><strong>Người bán:</strong> ${listingData.sellerName}</p>
+              `
+            }
+          });
+      } catch (e) { console.warn("Lỗi gửi mail admin:", e); }
 
       return docRef.id;
     } catch (e) {
@@ -406,6 +410,7 @@ export const db = {
       const listingRef = doc(firestore, "listings", listingId);
 
       batch.update(userRef, { walletBalance: (user.walletBalance || 0) - price });
+      // Đẩy tin = Cập nhật createdAt thành hiện tại
       batch.update(listingRef, { createdAt: new Date().toISOString() });
       
       await batch.commit();
@@ -418,13 +423,16 @@ export const db = {
           link: `/san-pham/${listingSlug}-${listingId}`
       });
 
-      await addDoc(collection(firestore, "mail"), {
-          to: [ADMIN_EMAIL],
-          message: {
-            subject: `[DOANH THU] User đẩy tin`,
-            html: `User ${userId} vừa đẩy tin: <strong>${listingTitle}</strong>.<br>Doanh thu: <strong>${price.toLocaleString()} VNĐ</strong>.`
-          }
-      });
+      // Email cho admin báo doanh thu
+      try {
+          await addDoc(collection(firestore, "mail"), {
+            to: [ADMIN_EMAIL],
+            message: {
+              subject: `[DOANH THU] User đẩy tin`,
+              html: `User ${userId} vừa đẩy tin: <strong>${listingTitle}</strong>.<br>Doanh thu: <strong>${price.toLocaleString()} VNĐ</strong>.`
+            }
+          });
+      } catch (e) {}
 
       return { success: true };
 
@@ -445,19 +453,21 @@ export const db = {
         createdAt: new Date().toISOString()
       });
 
-      await addDoc(collection(firestore, "mail"), {
-        to: [ADMIN_EMAIL],
-        message: {
-          subject: `[NẠP TIỀN] ${amount.toLocaleString()} VNĐ qua ${method}`,
-          html: `
-            <h3 style="color:green">Có yêu cầu nạp tiền mới!</h3>
-            <p><strong>User ID:</strong> ${userId}</p>
-            <p><strong>Số tiền:</strong> ${amount.toLocaleString()} VNĐ</p>
-            <p><strong>Hình thức:</strong> ${method}</p>
-            <p>Hãy kiểm tra tài khoản ngân hàng và duyệt giao dịch này trong Admin.</p>
-          `
-        }
-      });
+      try {
+          await addDoc(collection(firestore, "mail"), {
+            to: [ADMIN_EMAIL],
+            message: {
+              subject: `[NẠP TIỀN] ${amount.toLocaleString()} VNĐ qua ${method}`,
+              html: `
+                <h3 style="color:green">Có yêu cầu nạp tiền mới!</h3>
+                <p><strong>User ID:</strong> ${userId}</p>
+                <p><strong>Số tiền:</strong> ${amount.toLocaleString()} VNĐ</p>
+                <p><strong>Hình thức:</strong> ${method}</p>
+                <p>Hãy kiểm tra tài khoản ngân hàng và duyệt giao dịch này trong Admin.</p>
+              `
+            }
+          });
+      } catch (e) {}
 
       return res;
     } catch (e) {
@@ -479,17 +489,19 @@ export const db = {
       subscriptionExpires: expires.toISOString()
     });
 
-    await addDoc(collection(firestore, "mail"), {
-      to: [ADMIN_EMAIL],
-      message: {
-        subject: `[DOANH THU] User mua gói ${tier.toUpperCase()}`,
-        html: `
-          <h3 style="color:blue">Doanh thu mới từ Ví!</h3>
-          <p>User <strong>${userId}</strong> đã mua gói <strong>${tier}</strong> bằng số dư ví.</p>
-          <p>Giá trị: ${price.toLocaleString()} VNĐ.</p>
-        `
-      }
-    });
+    try {
+        await addDoc(collection(firestore, "mail"), {
+          to: [ADMIN_EMAIL],
+          message: {
+            subject: `[DOANH THU] User mua gói ${tier.toUpperCase()}`,
+            html: `
+              <h3 style="color:blue">Doanh thu mới từ Ví!</h3>
+              <p>User <strong>${userId}</strong> đã mua gói <strong>${tier}</strong> bằng số dư ví.</p>
+              <p>Giá trị: ${price.toLocaleString()} VNĐ.</p>
+            `
+          }
+        });
+    } catch (e) {}
 
     return { success: true };
   },
@@ -504,19 +516,21 @@ export const db = {
         createdAt: new Date().toISOString()
       });
 
-      await addDoc(collection(firestore, "mail"), {
-        to: [ADMIN_EMAIL],
-        message: {
-          subject: `[VIP PENDING] Yêu cầu duyệt gói ${tier.toUpperCase()}`,
-          html: `
-            <h3>Yêu cầu nâng cấp VIP qua Chuyển khoản</h3>
-            <p><strong>User ID:</strong> ${userId}</p>
-            <p><strong>Gói:</strong> ${tier.toUpperCase()}</p>
-            <p><strong>Số tiền:</strong> ${price.toLocaleString()} VNĐ</p>
-            <p>Vui lòng kiểm tra ngân hàng và duyệt giao dịch.</p>
-          `
-        }
-      });
+      try {
+          await addDoc(collection(firestore, "mail"), {
+            to: [ADMIN_EMAIL],
+            message: {
+              subject: `[VIP PENDING] Yêu cầu duyệt gói ${tier.toUpperCase()}`,
+              html: `
+                <h3>Yêu cầu nâng cấp VIP qua Chuyển khoản</h3>
+                <p><strong>User ID:</strong> ${userId}</p>
+                <p><strong>Gói:</strong> ${tier.toUpperCase()}</p>
+                <p><strong>Số tiền:</strong> ${price.toLocaleString()} VNĐ</p>
+                <p>Vui lòng kiểm tra ngân hàng và duyệt giao dịch.</p>
+              `
+            }
+          });
+      } catch (e) {}
 
       return res;
     } catch (e) {
@@ -691,7 +705,22 @@ export const db = {
     return d.exists() ? { id: d.id, ...d.data() } as User : undefined;
   },
 
-  // [HÀM MỚI CHÈN VÀO] - Lắng nghe thay đổi user (cho ví tự cập nhật)
+  // [Hàm này quan trọng cho App.tsx]
+  getUserProfile: async (userId: string): Promise<User | null> => {
+    try {
+      const docRef = doc(firestore, "users", userId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() } as User;
+      }
+      return null;
+    } catch (error) {
+      console.error("Lỗi lấy User Profile:", error);
+      return null;
+    }
+  },
+
+  // Lắng nghe thay đổi user (cho ví tự cập nhật)
   onUserChange: (userId: string, callback: (user: User) => void) => {
     const userRef = doc(firestore, "users", userId);
     return onSnapshot(userRef, (docSnap) => {
@@ -825,7 +854,11 @@ export const db = {
     return newUser;
   },
 
-  logout: async () => await signOut(auth),
+  logout: async () => {
+      await signOut(auth);
+      localStorage.clear();
+      sessionStorage.clear();
+  },
 
   // --- E. HỆ THỐNG FOLLOW ---
   
@@ -903,6 +936,9 @@ export const db = {
     return onSnapshot(q, (snapshot) => {
       const reviews = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Review));
       callback(reviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    }, (error) => {
+       // Silent error on permission denied (logout)
+       if(error.code !== 'permission-denied') console.error(error);
     });
   },
 
@@ -1005,6 +1041,9 @@ export const db = {
     return onSnapshot(q, (snapshot) => {
       const notifs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Notification));
       callback(notifs);
+    }, (error) => {
+       // Silent error on permission denied (logout)
+       if(error.code !== 'permission-denied') console.error(error);
     });
   },
 
@@ -1075,6 +1114,9 @@ export const db = {
     return onSnapshot(q, (s) => {
       const rooms = s.docs.map(d => ({...d.data(), id: d.id} as ChatRoom));
       cb(rooms.sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime()));
+    }, (error) => {
+       // Silent error on permission denied (logout)
+       if(error.code !== 'permission-denied') console.error(error);
     });
   },
   
@@ -1093,24 +1135,19 @@ export const db = {
     }
   },
   
-  // --- Thay thế toàn bộ hàm addMessage cũ bằng đoạn này ---
   addMessage: async (roomId: string, message: Omit<Message, 'id' | 'timestamp'>) => {
     const roomRef = doc(firestore, "chats", roomId);
     
-    // 1. Tạo tin nhắn mới
     const newMessage = {
       ...message,
-      // Thay crypto.randomUUID() bằng chuỗi ngẫu nhiên thủ công
       id: `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`,
       timestamp: new Date().toISOString()
     };
 
     try {
-      // 2. Lấy thông tin phòng chat
       const roomSnap = await getDoc(roomRef);
       
       if (!roomSnap.exists()) {
-          // Nếu chưa có phòng thì tạo mới (Logic cũ giữ nguyên)
           console.warn("Phòng chat không tồn tại, đang tự tạo lại...");
           await setDoc(roomRef, {
               id: roomId,
@@ -1121,7 +1158,6 @@ export const db = {
               seenBy: [message.senderId]
           }, { merge: true });
       } else {
-          // 3. Nếu phòng đã có, cập nhật tin nhắn
           await updateDoc(roomRef, {
             messages: arrayUnion(newMessage),
             lastMessage: message.type === 'image' ? '📷 Hình ảnh' : (message.type === 'offer' ? '💸 Đề nghị giá' : (message.type === 'swap' ? '🔄 Đề nghị đổi đồ' : message.text)),
@@ -1129,15 +1165,11 @@ export const db = {
             seenBy: [message.senderId] 
           });
 
-          // 🔥 [QUAN TRỌNG] ĐOẠN CODE MỚI THÊM ĐỂ BẮN THÔNG BÁO 🔥
-          // Logic: Tìm người nhận (là người kia trong phòng chat) và gửi thông báo cho họ
           const roomData = roomSnap.data() as ChatRoom;
           const receiverId = roomData.participantIds?.find(id => id !== message.senderId);
 
           if (receiverId) {
-            // Lấy tên người gửi để hiện lên thông báo cho đẹp
             const senderName = roomData.participantsData?.[message.senderId]?.name || "Ai đó";
-            
             await db.sendNotification({
               userId: receiverId,
               title: `Tin nhắn mới từ ${senderName} 💬`,
@@ -1146,7 +1178,6 @@ export const db = {
               link: `/chat/${roomId}`
             });
           }
-          // -----------------------------------------------------
       }
     } catch (error) {
       console.error("Lỗi gửi tin nhắn:", error);
@@ -1192,7 +1223,6 @@ export const db = {
     }
   },
 
-  // [FIXED] Đảm bảo dùng setDoc để tạo phòng
   createChatRoom: async (l: Listing, buyer: User): Promise<string> => {
     try {
         const roomId = `${buyer.id}_${l.id}`;
@@ -1228,7 +1258,6 @@ export const db = {
     }
   },
   
-  // Hàm xử lý Đồng ý/Từ chối đổi đồ
   respondToSwap: async (roomId: string, messageId: string, status: 'accepted' | 'rejected') => {
     const roomRef = doc(firestore, "chats", roomId);
     try {
@@ -1408,6 +1437,9 @@ export const db = {
     return onSnapshot(q, (snap) => {
       const bids = snap.docs.map(d => ({ id: d.id, ...d.data() } as Bid));
       callback(bids);
+    }, (error) => {
+       // Silent error on permission denied (logout)
+       if(error.code !== 'permission-denied') console.error(error);
     });
   },
 
@@ -1707,59 +1739,89 @@ export const db = {
       return { success: false, message: e.message };
     }
   },
- // 👇 DÁN 3 HÀM NÀY VÀO ĐÂY (Ngang hàng với các hàm trên) 👇
-  
-  // --- STORY FEATURES ---
+
+// --- STORY FEATURES (FINAL UPDATE) ---
+
+  // 1. Tải video lên Storage
   async uploadStoryVideo(file: File, userId: string): Promise<string> {
     const storageRef = ref(storage, `stories/${userId}/${Date.now()}_${file.name}`);
     const snapshot = await uploadBytes(storageRef, file);
     return await getDownloadURL(snapshot.ref);
   },
 
-  async createStory(user: User, mediaUrl: string, mediaType: 'image' | 'video') {
+  // 2. Tạo Story mới (Logic phân loại VIP)
+  async createStory(user: User, mediaUrl: string, mediaType: 'image' | 'video', listingId?: string) {
+    const tier = user.subscriptionTier || 'free';
+    const isPro = tier === 'pro';
     const now = Date.now();
-    const expiresAt = now + 24 * 60 * 60 * 1000; 
+    
+    // CHIẾN LƯỢC:
+    // - Pro: null (Vĩnh viễn)
+    // - Free/Basic: Hiện tại + 24h
+    const expiresAt = isPro ? null : now + (24 * 60 * 60 * 1000); 
 
-    // Dùng Omit để loại bỏ 'id' vì Firestore tự sinh ID
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const storyData: any = {
       sellerId: user.id,
       sellerName: user.name,
       sellerAvatar: user.avatar || '',
       videoUrl: mediaUrl,
       mediaType: mediaType,
-      createdAt: now,
+      createdAt: new Date().toISOString(), // Dùng ISO để sort
+      timestamp: now, // Dùng số để tính toán
       expiresAt: expiresAt,
-      views: 0
+      isPermanent: isPro,
+      views: 0,
+      listingId: listingId || null, // ID sản phẩm gắn kèm
+      tier: tier // Lưu gói cước để sau này lọc "Video Hot"
     };
 
-    // Đảm bảo dùng biến 'firestore' (không phải dbInstance nếu bạn chưa khai báo)
     await addDoc(collection(firestore, 'stories'), storyData);
   },
 
+  // 3. Lấy danh sách Story hiển thị (Lọc tin hết hạn)
   async getActiveStories(): Promise<Story[]> {
     const now = Date.now();
     try {
       const q = query(
         collection(firestore, 'stories'),
-        where('expiresAt', '>', now),
-        orderBy('expiresAt', 'desc')
+        orderBy('createdAt', 'desc'),
+        limit(100) // Lấy 100 tin mới nhất để tối ưu hiệu năng
       );
       
       const snapshot = await getDocs(q);
-      
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      } as any));
+      const allStories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+
+      // LỌC CLIENT SIDE:
+      // Giữ lại nếu: (Là tin Vĩnh viễn) HOẶC (Chưa hết hạn)
+      return allStories.filter((s: any) => {
+          if (s.isPermanent) return true; 
+          return s.expiresAt > now; 
+      });
+
     } catch (error) {
       console.error("Lỗi lấy Story:", error);
       return [];
     }
   },
 
-  // --- STORY INTERACTION (CHAT) ---
+  // 4. (MỚI) Lấy Video Hot cho Tab Khám Phá (Chỉ lấy Video của Pro)
+  async getHotVideos(): Promise<Story[]> {
+    try {
+      const q = query(
+        collection(firestore, 'stories'),
+        where('tier', '==', 'pro'), // Chỉ lấy PRO
+        where('mediaType', '==', 'video'), // Chỉ lấy VIDEO
+        orderBy('createdAt', 'desc'),
+        limit(20)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+    } catch (e) {
+      return [];
+    }
+  },
+
+  // 5. Phản hồi Story (Chat)
   async replyToStory(story: Story, sender: User, text: string) {
     try {
         if (!story || !sender || story.sellerId === sender.id) return { success: false };
@@ -1768,14 +1830,12 @@ export const db = {
         const roomRef = doc(firestore, "chats", roomId);
         const roomSnap = await getDoc(roomRef);
 
-        // Đảm bảo dữ liệu không bị undefined (Firestore không nhận undefined)
         const safeStoryUrl = story.videoUrl || ""; 
         const safeStoryType = story.mediaType || "image";
         const safeSellerName = story.sellerName || "Người bán";
         const safeSellerAvatar = story.sellerAvatar || "";
 
         if (!roomSnap.exists()) {
-             // eslint-disable-next-line @typescript-eslint/no-explicit-any
              const newRoom: any = {
                 id: roomId,
                 participantIds: [sender.id, story.sellerId],
@@ -1801,8 +1861,8 @@ export const db = {
             type: 'text',
             metadata: { 
                 isStoryReply: true, 
-                storyUrl: safeStoryUrl, // FIX: Đã xử lý undefined
-                storyType: safeStoryType // FIX: Đã xử lý undefined
+                storyUrl: safeStoryUrl, 
+                storyType: safeStoryType 
             }
         };
 
@@ -1824,5 +1884,6 @@ export const db = {
         return { success: false };
     }
   },
+  
   init: () => {}
 };

@@ -94,7 +94,7 @@ const AdPlacement: React.FC<AdPlacementProps> = ({ zone, className = "" }) => {
                 alt="Promotion" 
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
-              <span className="absolute top-1 right-1 bg-gray-200/80 text-[8px] font-bold text-gray-500 px-1.5 py-0.5 rounded backdrop-blur-sm uppercase">Sponsor</span>
+              <span className="absolute top-1 right-1 bg-gray-200/80 text-[8px] font-bold text-gray-500 px-1.5 py-0.5 rounded backdrop-blur-sm uppercase">QC</span>
             </a>
         )}
 
@@ -155,7 +155,7 @@ const AdPlacement: React.FC<AdPlacementProps> = ({ zone, className = "" }) => {
                       color: 'inherit'
                   }}
                >
-                  PR
+                  QC
                </span>
             </a>
         )}

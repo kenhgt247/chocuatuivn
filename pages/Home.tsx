@@ -78,7 +78,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [isLocating, setIsLocating] = useState(false);
 
   const LIMIT_VIP = 12;
-  const LIMIT_NEARBY = 24; 
+  const LIMIT_NEARBY = 12; 
   const PAGE_SIZE = 12;
 
   const sortListings = useCallback((items: Listing[]) => {

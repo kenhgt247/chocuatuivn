@@ -25,11 +25,94 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 // Import Types
 import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus, Offer, Category, Bid, Message, Story } from '../types';
 
-// IMPORT LOGIC TÌM KIẾM & FORMAT
-import { isSearchMatch, calculateRelevanceScore, generateKeywords } from '../utils/format';
+// IMPORT LOGIC FORMAT
+import { generateKeywords } from '../utils/format';
 
 // 2. CẤU HÌNH ADMIN EMAIL
 const ADMIN_EMAIL = "buivanbac@gmail.com"; 
+
+// --- [MỚI] TIỆN ÍCH TÌM KIẾM THÔNG MINH (NÂNG CẤP V2) ---
+
+// 1. Hàm xóa dấu Tiếng Việt
+const removeVietnameseTones = (str: string): string => {
+    if (!str) return "";
+    str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+    str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+    str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+    str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+    str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+    str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+    str = str.replace(/đ/g, "d");
+    str = str.replace(/À|Á|Ạ|Ả|Ã|Â|Ầ|Ấ|Ậ|Ẩ|Ẫ|Ă|Ằ|Ắ|Ặ|Ẳ|Ẵ/g, "A");
+    str = str.replace(/È|É|Ẹ|Ẻ|Ẽ|Ê|Ề|Ế|Ệ|Ể|Ễ/g, "E");
+    str = str.replace(/Ì|Í|Ị|Ỉ|Ĩ/g, "I");
+    str = str.replace(/Ò|Ó|Ọ|Ỏ|Õ|Ô|Ồ|Ố|Ộ|Ổ|Ỗ|Ơ|Ờ|Ớ|Ợ|Ở|Ỡ/g, "O");
+    str = str.replace(/Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ/g, "U");
+    str = str.replace(/Ỳ|Ý|Ỵ|Ỷ|Ỹ/g, "Y");
+    str = str.replace(/Đ/g, "D");
+    return str.toLowerCase().trim();
+};
+
+// 2. Hàm chấm điểm độ khớp (Scoring Algorithm - Fix lỗi "Honda" vs "Bật lửa")
+const calculateSearchScore = (itemText: string, query: string): number => {
+    if (!itemText || !query) return 0;
+    
+    const textLower = itemText.toLowerCase();
+    const queryLower = query.toLowerCase();
+    const textNoTone = removeVietnameseTones(itemText);
+    const queryNoTone = removeVietnameseTones(query);
+
+    // Ưu tiên 1: Khớp chính xác cụm từ (100 điểm) - VD: Tìm "zippo" ra "zippo"
+    if (textLower.includes(queryLower)) return 100; 
+    
+    // Ưu tiên 2: Khớp chính xác không dấu (80 điểm)
+    if (textNoTone.includes(queryNoTone)) return 80;
+
+    // Ưu tiên 3: Tách từ để chấm điểm chi tiết (KHẮC PHỤC LỖI SUBSTRING)
+    const queryWords = queryLower.split(/\s+/).filter(w => w.length > 0);
+    const queryWordsNoTone = queryNoTone.split(/\s+/).filter(w => w.length > 0);
+    
+    // Tách văn bản gốc thành mảng từ để so sánh "nguyên từ" (Whole Word)
+    // Dùng Regex để tách từ, loại bỏ ký tự đặc biệt
+    const itemWords = textLower.split(/[\s,.-]+/).filter(w => w.length > 0);
+    const itemWordsNoTone = textNoTone.split(/[\s,.-]+/).filter(w => w.length > 0);
+
+    if (queryWords.length === 0) return 0;
+
+    let score = 0;
+    let matchCount = 0;
+
+    queryWordsNoTone.forEach((wordNoTone, index) => {
+        const wordWithTone = queryWords[index];
+        
+        // A. Kiểm tra khớp CÓ DẤU (Chính xác từng từ) -> +20 điểm
+        if (itemWords.includes(wordWithTone)) {
+            score += 20; 
+            matchCount++;
+        } 
+        // B. Kiểm tra khớp KHÔNG DẤU (Chính xác từng từ) -> +5 điểm
+        // Fix: Dùng .includes() trên mảng từ (itemWordsNoTone) chứ không phải trên chuỗi
+        // Để tránh "lua" khớp với "luong"
+        else if (itemWordsNoTone.includes(wordNoTone)) {
+            score += 5;
+            matchCount++;
+        }
+    });
+
+    // --- BỘ LỌC NHIỄU ---
+    // Nếu query dài (> 1 từ) mà chỉ khớp đúng 1 từ không dấu -> Trừ điểm
+    // Ví dụ: "bật lửa" (2 từ) mà chỉ khớp "bát" (1 từ, 5đ) -> Phạt còn 0.5đ -> Loại.
+    if (queryWords.length > 1 && matchCount === 1 && score <= 5) {
+        return 0; // Loại hẳn
+    }
+
+    // Nếu khớp trên 50% số từ -> Bonus thêm
+    const matchRatio = matchCount / queryWords.length;
+    if (matchRatio >= 0.5) score += 10;
+    if (matchRatio === 1) score += 20; // Bonus khớp hết
+
+    return score;
+};
 
 // --- [MỚI] Interface cho Quảng cáo ---
 export interface AdZoneConfig {
@@ -39,15 +122,15 @@ export interface AdZoneConfig {
   type: 'image' | 'code' | 'text'; 
   image?: string;       
   link?: string; 
-  textTitle?: string;    // Tiêu đề lớn (VD: Siêu Sale 50%)
-  textDesc?: string;     // Mô tả nhỏ (VD: Chỉ hôm nay...)
-  textBtnLabel?: string; // Chữ trên nút (VD: Xem ngay)   
+  textTitle?: string;    
+  textDesc?: string;     
+  textBtnLabel?: string;    
   code?: string;        
   interval?: number;    
   width?: string;       
   height?: string;  
-  textColor?: string;    // Màu chữ (VD: #ffffff)
-  bgColor?: string;      // Màu nền (VD: #ff5722 hoặc gradient)    
+  textColor?: string;    
+  bgColor?: string;      
 }
 
 // Interface chuẩn đầy đủ cho Admin Settings
@@ -66,14 +149,17 @@ export interface SystemSettings {
   accountName: string;
   beneficiaryQR?: string;
   
-  // [MỚI] Cấu hình Quảng cáo
   adsConfig: {
     home_below_categories: AdZoneConfig; 
     home_middle_banner: AdZoneConfig;   
-    listing_sidebar_top: AdZoneConfig;   
-    listing_below_desc: AdZoneConfig;     
+    home_grid_left: AdZoneConfig;
+    home_grid_right: AdZoneConfig;
+    home_top_left: AdZoneConfig;
+    home_top_right: AdZoneConfig;
+    listing_sidebar_top: AdZoneConfig;    
+    listing_below_desc: AdZoneConfig;      
     in_feed: AdZoneConfig;
-    category_sidebar_right: AdZoneConfig;           
+    category_sidebar_right: AdZoneConfig;            
   };
 }
 
@@ -98,7 +184,6 @@ export { app, auth, storage, firestore };
 // 4. OBJECT DB
 export const db = {
   
-  // --- HÀM HELPER: Tạo đường dẫn đẹp (Slug) ---
   toSlug: (str: string) => {
     return str
       .toLowerCase()
@@ -162,6 +247,7 @@ export const db = {
     }
   },
 
+  // --- [NÂNG CẤP] TÌM KIẾM THÔNG MINH (FIXED) ---
   getListingsPaged: async (options: {
     pageSize: number,
     lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
@@ -177,79 +263,92 @@ export const db = {
   }) => {
     try {
       const colRef = collection(firestore, "listings");
+      const isSmartSearch = options.search && options.search.trim().length > 0;
+      
+      let q = query(colRef);
       let constraints: any[] = [];
 
-      // 1. TÌM KIẾM
-      if (options.search && options.search.trim().length > 0) {
-         const searchKeywords = generateKeywords(options.search);
-         if (searchKeywords.length > 0) {
-             const primaryKeyword = searchKeywords[0];
-             constraints.push(where("keywords", "array-contains", primaryKeyword));
-         }
-      }
-
-      // 2. TRẠNG THÁI
+      // 1. Lọc cơ bản
       if (options.status) {
           constraints.push(where("status", "==", options.status));
       } else if (!options.sellerId) {
           constraints.push(where("status", "==", "approved"));
       }
 
-      // 3. LỌC DANH MỤC
       if (options.categoryId) {
           constraints.push(where("category", "==", options.categoryId));
       } else if (options.parentCategoryId) {
           constraints.push(where("parentCategory", "==", options.parentCategoryId));
       }
 
-      // 4. CÁC BỘ LỌC KHÁC
       if (options.sellerId) constraints.push(where("sellerId", "==", options.sellerId));
-      if (options.location) constraints.push(where("location", "==", options.location));
       if (options.isVip) constraints.push(where("tier", "==", "pro"));
 
-      // 5. LỌC KHOẢNG GIÁ
-      if (typeof options.minPrice === 'number') {
-        constraints.push(where("price", ">=", options.minPrice));
-      }
-      if (typeof options.maxPrice === 'number') {
-        constraints.push(where("price", "<=", options.maxPrice));
+      // 2. Lọc giá (Chỉ dùng nếu không search, vì search cần lấy hết để chấm điểm)
+      if (!isSmartSearch) {
+          if (typeof options.minPrice === 'number') constraints.push(where("price", ">=", options.minPrice));
+          if (typeof options.maxPrice === 'number') constraints.push(where("price", "<=", options.maxPrice));
+          
+          if (typeof options.minPrice === 'number' || typeof options.maxPrice === 'number') {
+              constraints.push(orderBy("price", "desc"));
+          } else {
+              constraints.push(orderBy("createdAt", "desc"));
+          }
+
+          constraints.push(limit(options.pageSize));
+          if (options.lastDoc) constraints.push(startAfter(options.lastDoc));
       }
 
-      // 6. SẮP XẾP
-      if (typeof options.minPrice === 'number' || typeof options.maxPrice === 'number') {
-          constraints.push(orderBy("price", "desc"));
-      } else if (!options.search) {
-          constraints.push(orderBy("createdAt", "desc"));
-      }
-
-      // 7. PHÂN TRANG
-      constraints.push(limit(options.pageSize));
-      if (options.lastDoc) {
-        constraints.push(startAfter(options.lastDoc));
-      }
-
-      const q = query(colRef, ...constraints);
+      // Query Firebase
+      q = query(colRef, ...constraints);
       const snap = await getDocs(q);
-      
       let results = snap.docs.map(d => ({ ...d.data(), id: d.id } as Listing));
 
-      // 8. TÌM KIẾM CLIENT SIDE (Tinh chỉnh kết quả)
-      if (options.search && options.search.trim().length > 0) {
-          const queryText = options.search.trim();
-          results = results.filter(l => isSearchMatch(l.title, queryText));
-          results.sort((a, b) => {
-             const scoreA = calculateRelevanceScore(a.title, queryText);
-             const scoreB = calculateRelevanceScore(b.title, queryText);
-             return scoreB - scoreA;
+      // 3. XỬ LÝ TÌM KIẾM THÔNG MINH (CLIENT-SIDE)
+      if (isSmartSearch) {
+          const queryText = options.search!.trim();
+          
+          // Lọc theo giá (Client-side)
+          if (options.minPrice !== undefined) results = results.filter(l => l.price >= options.minPrice!);
+          if (options.maxPrice !== undefined) results = results.filter(l => l.price <= options.maxPrice!);
+
+          // Lọc địa điểm (Client-side Fuzzy)
+          if (options.location) {
+              const locKey = removeVietnameseTones(options.location);
+              results = results.filter(l => 
+                  removeVietnameseTones(l.location || '').includes(locKey) || 
+                  removeVietnameseTones(l.address || '').includes(locKey)
+              );
+          }
+
+          // CHẤM ĐIỂM (Scoring)
+          const scoredResults = results.map(l => {
+              const titleScore = calculateSearchScore(l.title, queryText);
+              // Mô tả điểm thấp hơn (để tránh rác)
+              const descScore = calculateSearchScore(l.description || '', queryText) * 0.3; 
+              // Danh mục cũng được tính điểm
+              const catScore = calculateSearchScore(l.categoryName || '', queryText) * 0.5;
+              
+              // Lấy điểm cao nhất trong các tiêu chí
+              return { ...l, score: Math.max(titleScore, descScore, catScore) };
           });
+
+          // Lọc & Sắp xếp
+          results = scoredResults
+              // @ts-ignore
+              .filter(l => l.score >= 10) // [QUAN TRỌNG] Chỉ lấy tin có điểm >= 10 (Lọc nhiễu Honda)
+              // @ts-ignore
+              .sort((a, b) => b.score - a.score); // Điểm cao lên đầu
+
+          results = results.slice(0, 50); // Lấy 50 kết quả tốt nhất
       }
 
-      const lastVisible = snap.docs[snap.docs.length - 1] || null;
+      const lastVisible = isSmartSearch ? null : (snap.docs[snap.docs.length - 1] || null);
 
       return {
         listings: results,
         lastDoc: lastVisible,
-        hasMore: snap.docs.length === options.pageSize,
+        hasMore: isSmartSearch ? false : (snap.docs.length === options.pageSize),
         error: null
       };
 
@@ -288,10 +387,10 @@ export const db = {
 
       let parentCategory = null;
       if (listingData.category) {
-         const catDoc = await getDoc(doc(firestore, "categories", listingData.category));
-         if (catDoc.exists()) {
-             parentCategory = catDoc.data().parentId || null;
-         }
+          const catDoc = await getDoc(doc(firestore, "categories", listingData.category));
+          if (catDoc.exists()) {
+              parentCategory = catDoc.data().parentId || null;
+          }
       }
 
       const finalLat = listingData.lat || seller?.lat || null;
@@ -318,7 +417,6 @@ export const db = {
 
       const docRef = await addDoc(collection(firestore, "listings"), dataToSave);
       
-      // Gửi email cho admin
       try {
           await addDoc(collection(firestore, "mail"), {
             to: [ADMIN_EMAIL],
@@ -439,7 +537,6 @@ export const db = {
       const listingRef = doc(firestore, "listings", listingId);
 
       batch.update(userRef, { walletBalance: (user.walletBalance || 0) - price });
-      // Đẩy tin = Cập nhật createdAt thành hiện tại
       batch.update(listingRef, { createdAt: new Date().toISOString() });
       
       await batch.commit();
@@ -452,7 +549,6 @@ export const db = {
           link: `/san-pham/${listingSlug}-${listingId}`
       });
 
-      // Email cho admin báo doanh thu
       try {
           await addDoc(collection(firestore, "mail"), {
             to: [ADMIN_EMAIL],
@@ -734,7 +830,6 @@ export const db = {
     return d.exists() ? { id: d.id, ...d.data() } as User : undefined;
   },
 
-  // [QUAN TRỌNG] Hàm lấy hồ sơ đầy đủ - Dùng cho App.tsx
   getUserProfile: async (userId: string): Promise<User | null> => {
     try {
       const docRef = doc(firestore, "users", userId);
@@ -749,7 +844,6 @@ export const db = {
     }
   },
 
-  // Lắng nghe thay đổi user (cho ví tự cập nhật)
   onUserChange: (userId: string, callback: (user: User) => void) => {
     const userRef = doc(firestore, "users", userId);
     return onSnapshot(userRef, (docSnap) => {
@@ -1787,10 +1881,10 @@ export const db = {
           free: {
             name: "Thành viên Mới",
             price: 0,
-            maxImages: 3,         
-            postsPerDay: 5,       
-            autoApprove: false,   
-            allowVideo: false,    
+            maxImages: 3,          
+            postsPerDay: 5,        
+            autoApprove: false,    
+            allowVideo: false,     
             features: [
               "Đăng tối đa 5 tin/ngày",
               "Tối đa 3 ảnh/tin",
@@ -1801,11 +1895,11 @@ export const db = {
           },
           basic: {
             name: "Thành viên Bạc",
-            price: 20000,         
-            maxImages: 6,         
-            postsPerDay: 15,      
-            autoApprove: true,    
-            allowVideo: true,     
+            price: 20000,          
+            maxImages: 6,          
+            postsPerDay: 15,       
+            autoApprove: true,     
+            allowVideo: true,      
             features: [
               "Đăng tối đa 15 tin/ngày",
               "Tối đa 6 ảnh/tin",
@@ -1817,11 +1911,11 @@ export const db = {
           },
           pro: {
             name: "Đối tác Vàng",
-            price: 99000,         
-            maxImages: 10,        
-            postsPerDay: 999,     
-            autoApprove: true,    
-            allowVideo: true,     
+            price: 99000,          
+            maxImages: 10,         
+            postsPerDay: 999,      
+            autoApprove: true,     
+            allowVideo: true,      
             features: [
               "Không giới hạn tin đăng 🔥",
               "Tối đa 10 ảnh/tin",
@@ -1834,7 +1928,6 @@ export const db = {
         },
 
         adsConfig: {
-    // 1. Dưới danh mục (Vị trí trên cùng)
     // === KHU VỰC 1: DƯỚI DANH MỤC (TOP) ===
     
     // Cách 1: Banner Dài (1 Cột) - Mặc định BẬT
@@ -1843,7 +1936,7 @@ export const db = {
         name: '🏠 Trang chủ - Top (1 Cột Ngang)', 
         enabled: true, 
         type: 'image', 
-        image: 'https://via.placeholder.com/1200x120?text=Banner+Lon+Dau+Trang', 
+        image: 'https://placehold.co/1200x120/png?text=Banner+Top', 
         link: '#', 
         width: '100%', height: 'auto',
         bgColor: '#ffffff', textColor: '#000000'
@@ -1874,23 +1967,26 @@ export const db = {
         width: '100%', height: 'auto',
         bgColor: '#ecfccb', textColor: '#65a30d' // Xanh lá mạ
     },
-    // 2. Banner Ngang (1 Cột) - Mặc định TẮT (để dùng 2 cột)
+
+    // === KHU VỰC 2: GIỮA TRANG (MIDDLE) ===
+
+    // Cách 1: Banner Ngang (1 Cột) - Mặc định TẮT
     home_middle_banner: { 
         id: 'home_middle_banner', 
         name: '🏠 Trang chủ - Giữa (1 Cột Ngang)', 
-        enabled: false, // <--- Mặc định tắt
+        enabled: false, 
         type: 'image', 
-        image: 'https://via.placeholder.com/1200x200?text=Sieu+Sale+Giua+Thang', 
+        image: 'https://placehold.co/1200x200/png?text=Banner+Giua', 
         link: '#', 
         width: '100%', height: 'auto',
         bgColor: '#ffffff', textColor: '#000000'
     },
 
-    // 3. Banner Grid (2 Cột) - Mặc định BẬT
+    // Cách 2: Banner Grid (2 Cột) - Mặc định BẬT
     home_grid_left: { 
         id: 'home_grid_left', 
         name: '🏠 Trang chủ - Giữa (Trái 1/2)', 
-        enabled: true, // <--- Bật
+        enabled: true, 
         type: 'text', 
         textTitle: 'XẢ KHO CÔNG NGHỆ',
         textDesc: 'Laptop, Điện thoại giảm đến 50%',
@@ -1902,7 +1998,7 @@ export const db = {
     home_grid_right: { 
         id: 'home_grid_right', 
         name: '🏠 Trang chủ - Giữa (Phải 1/2)', 
-        enabled: true, // <--- Bật
+        enabled: true, 
         type: 'text',
         textTitle: 'THỜI TRANG HÈ',
         textDesc: 'Đón đầu xu hướng thời trang 2026',
@@ -1931,7 +2027,7 @@ export const db = {
         name: '📄 Chi tiết - Cột phải', 
         enabled: true, 
         type: 'image', 
-        image: 'https://via.placeholder.com/300x250?text=Doi+Tac+Van+Chuyen', 
+        image: 'https://placehold.co/300x250/png?text=Quang+Cao', 
         link: '#', 
         width: '100%', height: 'auto',
         bgColor: '#ffffff', textColor: '#000000'
@@ -1949,8 +2045,8 @@ export const db = {
         id: 'category_sidebar_right',
         name: '📂 Danh mục - Cột Phải (PC)',
         enabled: true, 
-        type: 'image',
-        image: 'https://via.placeholder.com/300x600?text=Quang+Cao+Doc', 
+        type: 'image', 
+        image: 'https://placehold.co/300x600/png?text=Banner+Doc', 
         link: '#', 
         width: '100%', height: 'auto',
         bgColor: '#ffffff', textColor: '#000000'

@@ -55,6 +55,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [nearbyListings, setNearbyListings] = useState<Listing[]>([]);
   const [latestListings, setLatestListings] = useState<Listing[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [settings, setSettings] = useState<SystemSettings | null>(null); 
     
   const [isLoading, setIsLoading] = useState(true);
@@ -62,7 +63,10 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMore, setHasMore] = useState(true);
 
-  const [detectedLocation, setDetectedLocation] = useState<string | null>(locationParam || user?.location || null);
+  // [LOGIC MỚI] Chỉ lấy location nếu user có sẵn hoặc đã cho phép
+  const [detectedLocation, setDetectedLocation] = useState<string | null>(
+      locationParam || user?.location || sessionStorage.getItem('user_location') || null
+  );
   const [isLocating, setIsLocating] = useState(false);
 
   const LIMIT_VIP = 12;
@@ -123,27 +127,28 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     loadSettings();
   }, []);
 
-  // 4. Load VIP & Nearby (ĐÃ SỬA LỖI LOGIC)
+  // 4. Load VIP & Nearby
   const loadSpecialSections = useCallback(async (locationToUse: string | null) => {
     if (search || isUrlCategory || typeParam) return; 
     
-    // Tin VIP
+    // Tin VIP (Luôn load)
     const vipRes = await db.getVIPListings(LIMIT_VIP);
     if (!vipRes.error) setVipListings(vipRes.listings);
 
-    // [FIX] Tin gần bạn: Bỏ check 'user', chỉ cần có 'location' là load được
-    const targetLoc = locationToUse || user?.location;
-    if (targetLoc) {
+    // [LOGIC MỚI] Chỉ load Nearby nếu CÓ vị trí
+    if (locationToUse) {
         try {
-            const nearbyRes = await db.getListingsPaged({ pageSize: LIMIT_NEARBY, location: targetLoc });
+            const nearbyRes = await db.getListingsPaged({ pageSize: LIMIT_NEARBY, location: locationToUse });
             if (!nearbyRes.error) setNearbyListings(nearbyRes.listings);
         } catch (e) {
             console.warn("Lỗi tải tin gần bạn:", e);
         }
+    } else {
+        setNearbyListings([]); // Xóa nếu không có vị trí
     }
-  }, [user, search, isUrlCategory, typeParam]);
+  }, [search, isUrlCategory, typeParam]);
 
-  // 5. Định vị
+  // 5. Định vị (Khi bấm nút)
   const handleDetectLocation = useCallback(() => {
     if (!navigator.geolocation) {
         alert("Trình duyệt không hỗ trợ định vị.");
@@ -158,6 +163,9 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
             setDetectedLocation(locationInfo.city);
             setIsLocating(false);
             
+            // Lưu vào Session để không phải hỏi lại
+            sessionStorage.setItem('user_location', locationInfo.city);
+
             // Cập nhật Profile CHỈ KHI có user
             if (user?.id) {
               db.updateUserProfile(user.id, { 
@@ -168,7 +176,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
               }).catch(() => {});
             }
             
-            // Luôn gọi load lại tin ngay khi có vị trí mới
+            // Load ngay tin mới
             if (!search && !isUrlCategory) {
                 loadSpecialSections(locationInfo.city);
             }
@@ -179,20 +187,20 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       },
       () => {
         setIsLocating(false);
-        alert("Vui lòng cho phép truy cập vị trí.");
+        alert("Vui lòng cho phép truy cập vị trí để xem tin gần bạn.");
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }, [user, loadSpecialSections, search, isUrlCategory]);
 
-  // Tự động hỏi vị trí (1 lần)
+  // [ĐÃ BỎ] Tự động hỏi vị trí khi vào trang (Để tránh phiền)
+  // Chỉ dùng vị trí có sẵn (từ User Profile hoặc Session)
   useEffect(() => {
-    const hasAsked = sessionStorage.getItem('has_asked_location');
-    if (!user?.location && !locationParam && !detectedLocation && !hasAsked) {
-        handleDetectLocation();
-        sessionStorage.setItem('has_asked_location', 'true');
+    if (!search && !isUrlCategory && !typeParam) {
+        loadSpecialSections(detectedLocation);
     }
-  }, [user, locationParam, detectedLocation, handleDetectLocation]);
+  }, [detectedLocation, loadSpecialSections, search, isUrlCategory, typeParam]);
+
 
   // 6. Fetch Listings
   const fetchInitialData = useCallback(async () => {
@@ -206,10 +214,6 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     setHasMore(true);
     
     try {
-      if (!search && !isUrlCategory && !typeParam && !locationParam) {
-        loadSpecialSections(detectedLocation);
-      }
-
       const selectedCat = allCategories.find(c => c.id === activeCategoryId);
       const isParent = selectedCat && !selectedCat.parentId;
 
@@ -231,13 +235,12 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
         setHasMore(result.hasMore);
       }
 
-      // [FIX] Chỉ tải Favorite nếu user đã đăng nhập (tránh lỗi permission)
       if (user?.id) {
         try {
             const favs = await db.getFavorites(user.id);
             setFavorites(favs);
         } catch (e) {
-            console.warn("Bỏ qua tải yêu thích (chưa login hoặc lỗi nhẹ):", e);
+            console.warn("Bỏ qua tải yêu thích (lỗi nhẹ):", e);
         }
       } else {
           setFavorites([]);
@@ -248,7 +251,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [activeCategoryId, allCategories, search, typeParam, locationParam, user, loadSpecialSections, detectedLocation, isUrlCategory, isCatsLoading, minPriceParam, maxPriceParam, sortListings]);
+  }, [activeCategoryId, allCategories, search, typeParam, locationParam, user, minPriceParam, maxPriceParam, sortListings, isUrlCategory, isCatsLoading]);
 
   useEffect(() => {
     fetchInitialData();
@@ -360,12 +363,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       {/* --- KHU VỰC QUẢNG CÁO GIỮA TRANG (LINH HOẠT) --- */}
       {!search && !isUrlCategory && (
          <div className="my-8 space-y-6">
-            
-            {/* Cách 1: Quảng cáo 1 cột dài (Nếu Admin bật) */}
             <AdPlacement zone="home_middle_banner" />
-
-            {/* Cách 2: Quảng cáo 2 cột (Nếu Admin bật) */}
-            {/* Sử dụng grid để chia đôi màn hình desktop */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 <div className="w-full">
                     <AdPlacement zone="home_grid_left" />
@@ -374,10 +372,10 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                     <AdPlacement zone="home_grid_right" />
                 </div>
             </div>
-
          </div>
       )}
-      {/* 5. TIN QUANH ĐÂY */}
+
+      {/* 5. TIN QUANH ĐÂY (CHỈ HIỆN KHI CÓ LOCATION) */}
       {!search && !isUrlCategory && !typeParam && !locationParam && (
         <section className="space-y-4 animate-fade-in-up">
           <div className="flex items-center justify-between px-2">
@@ -390,9 +388,10 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                         <IconNavigation className="w-3 h-3" /> {detectedLocation}
                     </span>
                 ) : (
-                    <button onClick={handleDetectLocation} className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-md flex items-center gap-1 hover:bg-blue-100">
+                    // Nút Kích hoạt vị trí (Nếu chưa có)
+                    <button onClick={handleDetectLocation} className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-md flex items-center gap-1 hover:bg-blue-100 animate-pulse">
                         {isLocating ? <IconLoader2 className="w-3 h-3 animate-spin" /> : <IconNavigation className="w-3 h-3" />} 
-                        {isLocating ? '...' : 'Định vị'}
+                        {isLocating ? '...' : 'Bật vị trí để xem'}
                     </button>
                 )}
               </div>
@@ -402,23 +401,33 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
                   </Link>
               )}
           </div>
-          {nearbyListings.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {nearbyListings.map(l => (
-                    <ListingCard 
-                        key={l.id} 
-                        listing={l} 
-                        isFavorite={favorites.includes(l.id)} 
-                        onToggleFavorite={toggleFav} 
-                        currentUser={user} 
-                    />
-                ))}
-              </div>
+
+          {/* Chỉ hiển thị danh sách tin nếu CÓ LOCATION */}
+          {detectedLocation ? (
+              nearbyListings.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {nearbyListings.map(l => (
+                        <ListingCard 
+                            key={l.id} 
+                            listing={l} 
+                            isFavorite={favorites.includes(l.id)} 
+                            onToggleFavorite={toggleFav} 
+                            currentUser={user} 
+                        />
+                    ))}
+                  </div>
+              ) : (
+                 <div className="text-center py-8 text-xs text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 flex flex-col items-center gap-2">
+                    <IconMapPin className="w-8 h-8 opacity-20" />
+                    Chưa có tin đăng nào gần bạn.
+                 </div>
+              )
           ) : (
-             <div className="text-center py-8 text-xs text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 flex flex-col items-center gap-2">
-                <IconMapPin className="w-8 h-8 opacity-20" />
-                {isLocating ? "Đang tìm kiếm quanh bạn..." : "Chưa có tin đăng nào gần bạn."}
-             </div>
+              // Nếu chưa có vị trí -> Ẩn hoặc hiện thông báo nhẹ nhàng
+              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-between">
+                  <div className="text-xs text-blue-600 font-medium">Bật định vị để xem các món hời đang bán gần bạn!</div>
+                  <button onClick={handleDetectLocation} className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-md hover:bg-blue-600">Kích hoạt ngay</button>
+              </div>
           )}
         </section>
       )}

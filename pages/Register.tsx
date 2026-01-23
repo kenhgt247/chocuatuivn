@@ -45,8 +45,8 @@ const Register: React.FC<{ onLogin: (user: any) => void }> = ({ onLogin }) => {
       <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-8 animate-fade-in-up">
         <div className="text-center space-y-2">
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white text-3xl mx-auto shadow-lg shadow-primary/20">🌱</div>
-          <h1 className="text-2xl font-black">Tham gia cộng đồng</h1>
-          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Tạo tài khoản Cloud miễn phí</p>
+          <h1 className="text-2xl font-black">Tham gia cộng đồng Chợ Của Tui</h1>
+          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Tạo tài khoản Chợ Của Tui miễn phí</p>
         </div>
 
         {error && (

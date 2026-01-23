@@ -10,7 +10,7 @@ import NotificationMenu from '../components/NotificationMenu';
 // ⚠️ TUYỆT ĐỐI KHÔNG IMPORT firebase/messaging Ở ĐÂY
 
 /* ====================================================================================
-   BỘ ICON VẼ TAY (SVG THUẦN - GIỮ NGUYÊN & THÊM ICON MỚI)
+   BỘ ICON VẼ TAY (SVG THUẦN)
    ==================================================================================== */
 const IconZap = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 const IconBell = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
@@ -20,11 +20,12 @@ const IconHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height
 const IconPlus = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
 const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
 const IconManage = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>;
-// [MỚI] Icon cho Smart Search
+// Smart Search Icons
 const IconMic = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>;
 const IconClock = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
 const IconTrendingUp = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>;
 const IconCamera = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>;
+const IconLogin = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>;
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -37,9 +38,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [searchParams] = useSearchParams(); 
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const searchContainerRef = useRef<HTMLFormElement>(null); // Ref để detect click outside
+  const searchContainerRef = useRef<HTMLFormElement>(null); 
   
-  // --- STATE TÌM KIẾM THÔNG MINH ---
+  // --- STATE ---
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [isSearchingImage, setIsSearchingImage] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -47,25 +48,20 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
   const [isListening, setIsListening] = useState(false);
 
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
-  
-  // Kiểm tra quyền thông báo
   const [notifPermission, setNotifPermission] = useState(() => {
     try { return ("Notification" in window) ? Notification.permission : 'default'; } catch (e) { return 'default'; }
   });
   const [hasInteractedWithNotif, setHasInteractedWithNotif] = useState(false);
 
-  // Params
   const minPriceParam = searchParams.get('minPrice');
   const maxPriceParam = searchParams.get('maxPrice');
   const locationParam = searchParams.get('location');
 
-  // [MỚI] Load lịch sử tìm kiếm khi khởi động
   useEffect(() => {
     const saved = localStorage.getItem('search_history');
     if (saved) setSearchHistory(JSON.parse(saved));
   }, []);
 
-  // [MỚI] Đóng dropdown khi click ra ngoài
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
@@ -76,10 +72,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Đồng bộ search query
   useEffect(() => { setSearchQuery(searchParams.get('search') || ''); }, [searchParams]);
 
-  // Lắng nghe chat (Giữ nguyên logic cũ)
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     if (user?.id) {
@@ -93,7 +87,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
 
   const unreadChatCount = user ? chatRooms.filter(r => r.messages.length > 0 && !r.seenBy?.includes(user.id) ).length : 0;
 
-  // --- LOGIC KÍCH HOẠT THÔNG BÁO (GIỮ NGUYÊN) ---
   const handleEnableNotifications = async () => {
     setHasInteractedWithNotif(true);
     if (!("Notification" in window)) return alert("Thiết bị này không hỗ trợ thông báo web.");
@@ -116,10 +109,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     } catch (error) { console.error("Lỗi xin quyền:", error); }
   };
 
-  // --- [MỚI] XỬ LÝ TÌM KIẾM THÔNG MINH ---
   const saveToHistory = (query: string) => {
       if(!query) return;
-      const newHistory = [query, ...searchHistory.filter(h => h !== query)].slice(0, 5); // Lưu 5 cái gần nhất
+      const newHistory = [query, ...searchHistory.filter(h => h !== query)].slice(0, 5);
       setSearchHistory(newHistory);
       localStorage.setItem('search_history', JSON.stringify(newHistory));
   };
@@ -129,12 +121,11 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     const q = (queryOverride || searchQuery).trim();
     if (!q) return;
     
-    saveToHistory(q); // Lưu lịch sử
+    saveToHistory(q);
     setShowSuggestions(false);
     navigate(`/?search=${encodeURIComponent(q)}`);
   };
 
-  // --- [MỚI] VOICE SEARCH ---
   const handleVoiceSearch = () => {
     if (!('webkitSpeechRecognition' in window)) {
         alert("Trình duyệt không hỗ trợ giọng nói. Hãy dùng Chrome hoặc Edge.");
@@ -188,7 +179,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           </Link>
         </div>
 
-        {/* --- [NÂNG CẤP] SMART SEARCH BAR --- */}
+        {/* SEARCH BAR */}
         <form 
             ref={searchContainerRef}
             onSubmit={(e) => handleSearchSubmit(e)} 
@@ -207,9 +198,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
             className={`w-full bg-gray-100 border-2 transition-all rounded-xl md:rounded-[1.25rem] py-2.5 md:py-3 pl-9 md:pl-12 pr-20 md:pr-24 focus:outline-none text-xs md:text-sm font-bold text-slate-700 placeholder:text-gray-400 shadow-sm ${isListening ? 'border-red-500 bg-red-50 animate-pulse' : 'border-transparent hover:border-gray-200 focus:border-primary focus:bg-white'}`} 
           />
 
-          {/* Action Buttons inside Input */}
           <div className="absolute right-1.5 md:right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              {/* Mic Button */}
               <button 
                 type="button" 
                 onClick={handleVoiceSearch}
@@ -219,7 +208,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
                  <IconMic />
               </button>
 
-              {/* Image Search Button */}
               <button 
                 type="button" 
                 onClick={handleImageSearchClick} 
@@ -233,7 +221,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           
           <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
 
-          {/* --- [MỚI] SUGGESTION DROPDOWN --- */}
           {showSuggestions && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-fade-in-up z-50">
                   {searchHistory.length > 0 && (
@@ -251,8 +238,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
                           ))}
                       </div>
                   )}
-                  
-                  {/* Gợi ý xu hướng (Hardcode demo hoặc lấy từ DB) */}
                   <div className="p-2 border-t border-gray-50 bg-gray-50/50">
                       <p className="text-[10px] font-black text-gray-400 uppercase px-3 py-2 flex items-center gap-1"><IconTrendingUp /> Xu hướng</p>
                       <div className="flex flex-wrap gap-2 px-2 pb-2">
@@ -275,34 +260,58 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {/* ACTIONS */}
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
           
-          {/* NÚT BẬT THÔNG BÁO MOBILE */}
-          {user && notifPermission === 'default' && !hasInteractedWithNotif && (
-            <button 
-              onClick={handleEnableNotifications}
-              className="flex items-center gap-1 bg-red-500 text-white px-2.5 py-1.5 rounded-lg text-[10px] font-black border border-red-400 animate-bounce md:hidden shadow-lg active:scale-95"
-            >
-              <div className="w-3 h-3"><IconBell /></div> Bật báo tin
-            </button>
+          {/* CHAT ICON - Chỉ hiện trên PC khi ĐÃ ĐĂNG NHẬP */}
+          {user && (
+              <Link to="/chat" className={`hidden md:flex relative p-2.5 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-gray-100 hover:text-primary'}`}>
+                <div className="w-6 h-6 md:w-7 md:h-7"><IconMessage /></div>
+                {unreadChatCount > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-bounce">{unreadChatCount}</span>}
+              </Link>
           )}
 
-          <Link to="/chat" className={`hidden md:flex relative p-2.5 rounded-2xl transition-all ${location.pathname.startsWith('/chat') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-gray-100 hover:text-primary'}`}>
-            <div className="w-6 h-6 md:w-7 md:h-7"><IconMessage /></div>
-            {unreadChatCount > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-bounce">{unreadChatCount}</span>}
-          </Link>
+          {/* ICON CHUÔNG/USER */}
+          {user ? (
+              // ĐÃ LOGIN: Hiện Menu Thông báo (Chuông)
+              <NotificationMenu userId={user.id} />
+          ) : (
+              // CHƯA LOGIN: 
+              // Mobile: Hiện icon Chuông để gợi ý login
+              // PC: Ẩn luôn (để dành chỗ cho nút Login to)
+              <Link to="/login" className="relative p-2 rounded-2xl text-slate-600 hover:bg-gray-100 hover:text-primary transition-all md:hidden">
+                 <div className="w-6 h-6"><IconBell /></div>
+              </Link>
+          )}
 
-          {user ? <NotificationMenu userId={user.id} /> : <Link to="/login" className="relative p-2 rounded-2xl text-slate-600 hover:bg-gray-100 hover:text-primary transition-all"><div className="w-6 h-6"><IconUser /></div></Link>}
-
-          <div className="hidden md:flex items-center gap-4">
-            <Link to="/post" className="flex items-center gap-2 bg-primary text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primaryHover hover:-translate-y-1 transition-all active:scale-95">
+          {/* NHÓM NÚT ĐĂNG TIN & AVATAR (Chỉ hiện trên PC) */}
+          <div className="hidden md:flex items-center gap-3">
+            
+            <Link to="/post" className="flex items-center gap-2 bg-primary text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primaryHover hover:-translate-y-1 transition-all active:scale-95">
                 <div className="w-4 h-4"><IconPlus /></div>
                 <span>Đăng tin</span>
             </Link>
-            {user ? <Link to="/profile" className="flex items-center pl-2"><div className="w-11 h-11 rounded-2xl overflow-hidden border-2 border-white shadow-lg ring-1 ring-gray-200 hover:ring-primary hover:scale-110 transition-all"><img src={user.avatar} alt={user.name} className="w-full h-full object-cover" /></div></Link> : <Link to="/login" className="text-xs font-black text-primary hover:bg-primary/5 px-6 py-3.5 rounded-2xl border-2 border-primary transition-all uppercase tracking-widest">Đăng nhập</Link>}
+
+            {user ? (
+                // Đã login -> Hiện Avatar
+                <Link to="/profile" className="flex items-center pl-2">
+                    <div className="w-11 h-11 rounded-2xl overflow-hidden border-2 border-white shadow-lg ring-1 ring-gray-200 hover:ring-primary hover:scale-110 transition-all">
+                        <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                    </div>
+                </Link>
+            ) : (
+                // Chưa login -> Hiện nút Đăng Nhập & Đăng Ký (Thiết kế mới)
+                <>
+                    <Link to="/login" className="px-5 py-3 rounded-2xl text-xs font-bold text-slate-600 hover:bg-gray-100 hover:text-primary transition-all flex items-center gap-2">
+                        <IconLogin /> Đăng nhập
+                    </Link>
+                    <Link to="/register" className="px-5 py-3 rounded-2xl text-xs font-black bg-white border-2 border-primary text-primary hover:bg-primary hover:text-white transition-all uppercase tracking-wide shadow-sm">
+                        Đăng ký
+                    </Link>
+                </>
+            )}
           </div>
         </div>
       </header>
 
-      {/* FILTER BAR (Giữ nguyên code cũ) */}
+      {/* FILTER BAR (Giữ nguyên) */}
       {(searchQuery || searchParams.get('visual')) && (
         <div className="sticky top-[5rem] z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 py-3 animate-fade-in shadow-sm transition-all">
           <div className="max-w-[1400px] mx-auto px-2 md:px-4 flex items-center gap-3">
@@ -323,7 +332,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         {children}
       </main>
 
-      {/* MOBILE NAV BAR (Giữ nguyên) */}
+      {/* MOBILE NAV BAR */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex items-end justify-between h-[calc(4rem+env(safe-area-inset-bottom))] z-50 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
         <Link to="/" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname === '/' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
           <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/' ? 'bg-blue-50' : ''}`}>

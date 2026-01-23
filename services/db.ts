@@ -1238,7 +1238,6 @@ export const db = {
       const rooms = s.docs.map(d => ({...d.data(), id: d.id} as ChatRoom));
       cb(rooms.sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime()));
     }, (error) => {
-       // Silent error on permission denied (logout)
        if(error.code !== 'permission-denied') console.error(error);
     });
   },
@@ -1257,7 +1256,64 @@ export const db = {
       throw e;
     }
   },
+
+  // [HÀM MỚI] Nén ảnh để giảm dung lượng trước khi upload
+  compressImage: (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const maxWidth = 1024; // Giới hạn chiều rộng 1024px
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Tính toán tỷ lệ để resize
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          // Nén xuống chất lượng 70% (0.7) dạng JPEG
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Nén ảnh thất bại"));
+          }, 'image/jpeg', 0.7);
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  },
   
+  // [CẬP NHẬT] Upload ảnh có nén
+  uploadChatImage: async (file: File): Promise<string> => {
+    try {
+      // 1. Nén ảnh
+      const compressedBlob = await db.compressImage(file);
+      
+      // 2. Upload
+      const path = `chat-images/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, path);
+      const snapshot = await uploadBytes(storageRef, compressedBlob);
+      
+      // 3. Lấy URL
+      return await getDownloadURL(snapshot.ref);
+    } catch (e) {
+      console.error("Lỗi upload ảnh chat:", e);
+      throw e;
+    }
+  },
+
+  // [CẬP NHẬT] Xử lý hiển thị preview cho các loại tin nhắn khác nhau
   addMessage: async (roomId: string, message: Omit<Message, 'id' | 'timestamp'>) => {
     const roomRef = doc(firestore, "chats", roomId);
     
@@ -1281,13 +1337,21 @@ export const db = {
               seenBy: [message.senderId]
           }, { merge: true });
       } else {
+          // Tạo nội dung tóm tắt (Preview) dựa trên loại tin nhắn
+          let previewText = message.text;
+          if (message.type === 'image') previewText = '📷 Hình ảnh';
+          else if (message.type === 'location') previewText = '📍 Vị trí';
+          else if (message.type === 'offer') previewText = '💸 Đề nghị giá';
+          else if (message.type === 'swap') previewText = '🔄 Đề nghị đổi đồ';
+
           await updateDoc(roomRef, {
             messages: arrayUnion(newMessage),
-            lastMessage: message.type === 'image' ? '📷 Hình ảnh' : (message.type === 'offer' ? '💸 Đề nghị giá' : (message.type === 'swap' ? '🔄 Đề nghị đổi đồ' : message.text)),
+            lastMessage: previewText,
             lastUpdate: new Date().toISOString(),
             seenBy: [message.senderId] 
           });
 
+          // Gửi thông báo (Notification)
           const roomData = roomSnap.data() as ChatRoom;
           const receiverId = roomData.participantIds?.find(id => id !== message.senderId);
 
@@ -1296,7 +1360,7 @@ export const db = {
             await db.sendNotification({
               userId: receiverId,
               title: `Tin nhắn mới từ ${senderName} 💬`,
-              message: message.type === 'image' ? 'Đã gửi một ảnh' : (message.text || 'Bạn có tin nhắn mới'),
+              message: previewText,
               type: 'message',
               link: `/chat/${roomId}`
             });
@@ -1389,6 +1453,7 @@ export const db = {
 
       const roomData = roomSnap.data() as ChatRoom;
       
+      // Cập nhật trạng thái trong mảng messages
       const updatedMessages = roomData.messages.map(msg => {
         if (msg.id === messageId && msg.type === 'swap' && msg.swapData) {
           return {
@@ -1406,6 +1471,7 @@ export const db = {
         messages: updatedMessages
       });
 
+      // Gửi tin nhắn hệ thống thông báo kết quả
       const resultText = status === 'accepted' 
         ? "✅ Đã ĐỒNG Ý yêu cầu đổi đồ! Hãy trao đổi chi tiết địa điểm giao dịch."
         : "❌ Đã TỪ CHỐI yêu cầu đổi đồ.";
@@ -1413,7 +1479,8 @@ export const db = {
       await db.addMessage(roomId, {
         senderId: 'system', 
         text: resultText,
-        type: 'text'
+        type: 'text',
+        isSystem: true
       });
 
       return { success: true };
@@ -1422,7 +1489,6 @@ export const db = {
       return { success: false, message: "Lỗi kết nối database" };
     }
   },
-
   // --- I. TÍNH NĂNG MẶC CẢ (OFFERS) ---
   
   createOffer: async (listing: Listing, buyer: User, offerPrice: number) => {

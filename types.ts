@@ -18,7 +18,7 @@ export type NotificationType =
   | 'review' | 'message' | 'approval' | 'follow' | 'offer' | 'system';
 
 // Loại tin nhắn chat
-export type MessageType = 'text' | 'image' | 'location' | 'offer';
+export type MessageType = 'text' | 'image' | 'location' | 'offer' | 'swap';
 
 // Trạng thái của một lời mặc cả
 export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled';
@@ -164,26 +164,57 @@ export interface Offer {
 export interface Message {
   id: string;
   senderId: string;
-  text: string;
-  timestamp: string;
-  type?: MessageType; // Loại tin nhắn (text, image, offer...)
-  image?: string; 
-  offerId?: string;   // Nếu là tin nhắn mặc cả thì có ID này
-  isSystem?: boolean; // Tin nhắn hệ thống (không phải người chat)
+  text: string;           // Nội dung hiển thị tóm tắt hoặc nội dung chính
+  timestamp: string;      // ISO String
+  
+  // Phân loại tin nhắn
+  type: MessageType;      
+  
+  // Dữ liệu riêng cho từng loại:
+  imageUrl?: string;      // Dùng khi type = 'image'
+  
+  location?: {            // Dùng khi type = 'location'
+    lat: number;
+    lng: number;
+    address?: string;
+  };
+
+  offerId?: string;       // Dùng khi type = 'offer' (Mặc cả)
+  
+  swapData?: {            // Dùng khi type = 'swap' (Đổi đồ)
+    offeredItemName: string;
+    offeredItemImage: string;
+    cashTopUp: number;    // Số tiền bù thêm (dương) hoặc nhận lại (âm)
+    status?: 'accepted' | 'rejected';
+  };
+
+  metadata?: any;         // Dữ liệu mở rộng (ví dụ: reply story)
+  isSystem?: boolean;     // Tin nhắn thông báo từ hệ thống
 }
 
 export interface ChatRoom {
   id: string;
+  
+  // Thông tin sản phẩm đang chat
   listingId: string;
   listingTitle: string;
   listingImage: string;
   listingPrice: number;
+
+  // Thành viên tham gia
   participantIds: string[];
-  participantsData?: Record<string, { name: string; avatar: string }>; 
+  participantsData?: Record<string, { 
+    name: string; 
+    avatar: string 
+  }>;
+
+  // Nội dung chat
   messages: Message[];
+  
+  // Metadata hiển thị danh sách
   lastMessage?: string;
-  lastUpdate: string;
-  seenBy?: string[];
+  lastUpdate: string;     // Để sắp xếp tin mới nhất lên đầu
+  seenBy?: string[];      // Mảng chứa ID những người đã xem tin cuối
 }
 
 export interface Review {

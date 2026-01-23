@@ -3,15 +3,20 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
 import { ChatRoom, User, Message } from '../types';
 import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
+import { getLocationFromCoords } from '../utils/locationHelper';
 
 const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=random&color=fff&name=User";
+
+// --- ICON SVG ---
+const IconImage = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>;
+const IconMapPin = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>;
+const IconSend = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
+const IconLoader = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
 
 const QUICK_REPLIES = [
   "Sản phẩm này còn không bạn?",
   "Hàng chuẩn như hình không ạ?",
   "Bạn cho mình xin địa chỉ xem hàng nhé.",
-  "Sản phẩm còn mới bao nhiêu % vậy?",
-  "Cảm ơn bạn, mình sẽ chốt đơn sớm.",
   "Giá này có bớt thêm được không?"
 ];
 
@@ -21,17 +26,20 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
   const [message, setMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
   
+  // Cache thông tin partner để tránh giật lag
   const [fetchedPartners, setFetchedPartners] = useState<Record<string, { name: string, avatar: string }>>({});
   
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, fallback: string) => {
     e.currentTarget.src = fallback;
     e.currentTarget.onerror = null;
   };
 
-  // 1. Load Rooms
+  // 1. Load Rooms (Realtime)
   useEffect(() => {
     if (user) {
       const unsubscribe = db.getChatRooms(user.id, (loadedRooms) => {
@@ -41,15 +49,11 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     }
   }, [user]);
 
-  // 2. [FIX] Tối ưu Fetch missing partner info (Tránh render loop)
+  // 2. Fetch missing partner info (Tối ưu performance)
   useEffect(() => {
     if (!user || rooms.length === 0) return;
-
-    // Lọc ra các ID cần fetch trước để tránh gọi setFetchedPartners nhiều lần
     const idsToFetch: string[] = [];
-    
     rooms.forEach(room => {
-        // [FIX] Thêm ?. để tránh crash nếu data lỗi
         const partnerId = room.participantIds?.find(id => id !== user.id);
         if (partnerId && (!room.participantsData || !room.participantsData[partnerId]) && !fetchedPartners[partnerId]) {
             idsToFetch.push(partnerId);
@@ -57,42 +61,37 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     });
 
     if (idsToFetch.length > 0) {
-        // Fetch song song tất cả các user thiếu
         Promise.all(idsToFetch.map(id => db.getUserById(id).then(u => ({ id, u }))))
             .then(results => {
                 const newPartners: Record<string, any> = {};
                 results.forEach(({ id, u }) => {
                     if (u) newPartners[id] = { name: u.name, avatar: u.avatar };
                 });
-                // Update state 1 lần duy nhất
                 if (Object.keys(newPartners).length > 0) {
                     setFetchedPartners(prev => ({ ...prev, ...newPartners }));
                 }
             });
     }
-  }, [rooms, user]); // Bỏ fetchedPartners khỏi dependency để tránh loop
+  }, [rooms, user]); // Bỏ fetchedPartners ra khỏi dependency để tránh lặp vô hạn
 
   // 3. Load Active Room & Mark as Seen
   useEffect(() => {
     const loadActiveRoom = async () => {
       if (user && roomId) {
-        // Ưu tiên lấy từ state rooms (realtime)
         const existingRoom = rooms.find(r => r.id === roomId);
-        
         if (existingRoom) {
           setActiveRoom(existingRoom);
-          // [FIX] Chỉ gọi API markSeen nếu thực sự chưa xem (Tiết kiệm write DB)
           if (!existingRoom.seenBy?.includes(user.id)) {
-             db.markRoomAsSeen(roomId, user.id);
+              db.markRoomAsSeen(roomId, user.id);
           }
         } else {
-          // Fallback: Fetch lẻ nếu chưa có trong list
+          // Fallback nếu chưa có trong list (vừa tạo)
           const room = await db.getChatRoom(roomId);
           if (room) {
-             setActiveRoom(room);
-             if (!room.seenBy?.includes(user.id)) {
-                 db.markRoomAsSeen(roomId, user.id);
-             }
+              setActiveRoom(room);
+              if (!room.seenBy?.includes(user.id)) {
+                  db.markRoomAsSeen(roomId, user.id);
+              }
           }
         }
       } else {
@@ -102,11 +101,14 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     loadActiveRoom();
   }, [roomId, user, rooms]); 
 
-  // Auto scroll
+  // Auto scroll xuống cuối khi có tin nhắn mới
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeRoom?.messages]); // Chỉ scroll khi messages thay đổi
+  }, [activeRoom?.messages]);
 
+  // --- HANDLERS ---
+
+  // Gửi Text
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() || !activeRoom || !user) return;
@@ -114,33 +116,75 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     setMessage(''); 
     try {
         await db.addMessage(activeRoom.id, {
-        senderId: user.id,
-        text: textToSend,
-        type: 'text'
+            senderId: user.id,
+            text: textToSend,
+            type: 'text'
         });
     } catch (error) {
         console.error("Lỗi gửi tin nhắn:", error);
-        alert("Không thể gửi tin nhắn. Vui lòng thử lại.");
-        setMessage(textToSend); // Hoàn lại tin nhắn nếu lỗi
+        setMessage(textToSend); // Hoàn lại nếu lỗi
+        alert("Gửi thất bại, vui lòng kiểm tra mạng.");
     }
+  };
+
+  // Gửi Ảnh (Logic mới)
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !activeRoom || !user) return;
+
+      setIsSending(true);
+      try {
+          const imageUrl = await db.uploadChatImage(file);
+          await db.addMessage(activeRoom.id, {
+              senderId: user.id,
+              text: 'Đã gửi một ảnh',
+              type: 'image',
+              imageUrl: imageUrl
+          });
+      } catch (error) {
+          console.error(error);
+          alert("Lỗi tải ảnh lên.");
+      } finally {
+          setIsSending(false);
+          if(fileInputRef.current) fileInputRef.current.value = '';
+      }
+  };
+
+  // Gửi Vị trí (Logic mới)
+  const handleSendLocation = () => {
+      if (!navigator.geolocation) return alert("Trình duyệt không hỗ trợ vị trí");
+      if (!activeRoom || !user) return;
+
+      setIsSending(true);
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+          try {
+              const { latitude, longitude } = pos.coords;
+              const locInfo = await getLocationFromCoords(latitude, longitude);
+              await db.addMessage(activeRoom.id, {
+                  senderId: user.id,
+                  text: `📍 Vị trí: ${locInfo.address}`,
+                  type: 'location',
+                  location: { lat: latitude, lng: longitude, address: locInfo.address }
+              });
+          } catch (e) {
+              alert("Không lấy được vị trí.");
+          } finally {
+              setIsSending(false);
+          }
+      }, () => {
+          setIsSending(false);
+          alert("Vui lòng cấp quyền vị trí.");
+      });
   };
 
   const handleSendQuickReply = async (text: string) => {
     if (!activeRoom || !user) return;
-    try {
-        await db.addMessage(activeRoom.id, {
-        senderId: user.id,
-        text: text,
-        type: 'text'
-        });
-    } catch (error) {
-        console.error(error);
-    }
+    db.addMessage(activeRoom.id, { senderId: user.id, text, type: 'text' });
   };
 
   const handleDeleteMessage = async (messageId: string) => {
-    if (!activeRoom || !window.confirm("Bạn có chắc muốn thu hồi tin nhắn này không?")) return;
-    try { await db.deleteMessage(activeRoom.id, messageId); } catch (error) { alert("Lỗi xóa tin nhắn."); }
+    if (!activeRoom || !window.confirm("Thu hồi tin nhắn này?")) return;
+    try { await db.deleteMessage(activeRoom.id, messageId); } catch (error) {}
   };
 
   const handleDeleteRoom = async (e: React.MouseEvent, idToDelete: string) => {
@@ -151,140 +195,104 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
         if (roomId === idToDelete) { setActiveRoom(null); navigate('/chat'); }
     } catch (error) { alert("Lỗi xóa phòng chat."); }
   };
-
+  
   const handleRespondOffer = async (offerId: string, status: 'accepted' | 'rejected') => {
     if (!activeRoom || !offerId) return;
-    if (!window.confirm(`Bạn có chắc muốn ${status === 'accepted' ? 'ĐỒNG Ý' : 'TỪ CHỐI'} mức giá này?`)) return;
+    if (!window.confirm(`Bạn muốn ${status === 'accepted' ? 'ĐỒNG Ý' : 'TỪ CHỐI'} giá này?`)) return;
     try {
         const result = await db.respondToOffer(offerId, status, activeRoom.id);
         if (!result.success) alert("Lỗi: " + result.message);
-    } catch (error) {
-        alert("Lỗi kết nối server.");
-    }
+    } catch (error) { alert("Lỗi kết nối."); }
   };
 
   const handleRespondSwap = async (messageId: string, status: 'accepted' | 'rejected') => {
     if (!activeRoom || !messageId) return;
-    if (!window.confirm(`Bạn có chắc muốn ${status === 'accepted' ? 'ĐỒNG Ý' : 'TỪ CHỐI'} lời đề nghị này?`)) return;
+    if (!window.confirm(`Bạn muốn ${status === 'accepted' ? 'ĐỒNG Ý' : 'TỪ CHỐI'} đổi đồ?`)) return;
     try {
         const result = await db.respondToSwap(activeRoom.id, messageId, status);
-        if (!result.success) {
-            alert("Lỗi: " + result.message);
-        }
-    } catch (e) {
-        console.error(e);
-        alert("Lỗi kết nối.");
-    }
+        if (!result.success) alert("Lỗi: " + result.message);
+    } catch (e) { alert("Lỗi kết nối."); }
   };
 
-  // [FIX] Thêm optional chaining ?. và fallback an toàn
   const getPartnerInfo = (room: any, currentUserId: string) => {
     const partnerId = room.participantIds?.find((id: string) => id !== currentUserId) || '';
-    
-    // Ưu tiên 1: Data có sẵn trong room
     if (room.participantsData && room.participantsData[partnerId]) {
         return { name: room.participantsData[partnerId].name, avatar: room.participantsData[partnerId].avatar, isProductAvatar: false };
     }
-    // Ưu tiên 2: Data đã fetch lẻ
     if (fetchedPartners[partnerId]) {
         return { name: fetchedPartners[partnerId].name, avatar: fetchedPartners[partnerId].avatar, isProductAvatar: false };
     }
-    // Ưu tiên 3: Fallback lấy ảnh sản phẩm làm avatar
     return { name: room.listingTitle || "Người dùng", avatar: room.listingImage || DEFAULT_AVATAR, isProductAvatar: true };
   };
 
-  const renderOfferMessage = (msg: Message, isMe: boolean) => {
-    const priceMatch = msg.text.match(/[\d,.]+/);
-    const priceStr = priceMatch ? priceMatch[0] : "???";
-    const canRespond = !isMe;
-
-    return (
-        <div className="bg-white border-2 border-green-100 rounded-2xl p-4 shadow-sm w-64 space-y-3">
-            <div className="flex items-center gap-2 border-b border-green-50 pb-2">
-                <span className="text-xl">💸</span>
-                <span className="font-black text-xs text-green-700 uppercase">Lời mặc cả</span>
-            </div>
-            <div className="text-center py-2">
-                <p className="text-[10px] text-gray-400 font-bold uppercase">Khách trả giá</p>
-                <p className="text-2xl font-black text-green-600">{priceStr} <span className="text-xs text-gray-400">VNĐ</span></p>
-            </div>
-            {canRespond && msg.offerId && (
-                <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => handleRespondOffer(msg.offerId!, 'rejected')} className="py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs rounded-xl transition-colors">Từ chối</button>
-                    <button onClick={() => handleRespondOffer(msg.offerId!, 'accepted')} className="py-2 bg-green-500 hover:bg-green-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-green-200 transition-colors">Đồng ý</button>
-                </div>
-            )}
-            {!canRespond && <div className="text-center text-[10px] text-gray-400 italic bg-gray-50 py-1 rounded-lg">Đang chờ phản hồi...</div>}
-        </div>
-    );
-  };
-
-  const renderSwapMessage = (msg: Message, isMe: boolean) => {
-    const swapData = msg.swapData || {
-        offeredItemName: "Sản phẩm đổi",
-        offeredItemImage: DEFAULT_AVATAR,
-        cashTopUp: 0,
-        status: undefined
-    };
-
-    const status = swapData.status; 
-    const isPending = !status;
-    // [LOGIC] Chỉ người nhận (not me) mới được accept, VÀ status phải là pending
-    const canRespond = !isMe && isPending;
-
-    return (
-        <div className={`bg-white border-2 rounded-2xl p-4 shadow-sm w-72 space-y-3 relative overflow-hidden ${status === 'accepted' ? 'border-green-500 bg-green-50' : (status === 'rejected' ? 'border-gray-200 opacity-75' : 'border-purple-100')}`}>
-            <div className="flex items-center gap-2 border-b border-black/5 pb-2 relative z-10">
-                <span className="text-xl">{status === 'accepted' ? '✅' : (status === 'rejected' ? '❌' : '🔄')}</span>
-                <span className={`font-black text-xs uppercase ${status === 'accepted' ? 'text-green-700' : (status === 'rejected' ? 'text-gray-500' : 'text-purple-700')}`}>
-                    {status === 'accepted' ? 'Giao kèo thành công' : (status === 'rejected' ? 'Đã từ chối' : 'Đề nghị đổi đồ')}
-                </span>
-            </div>
-            
-            {isPending && <div className="absolute -right-4 -top-4 w-20 h-20 bg-purple-50 rounded-full blur-2xl z-0"></div>}
-
-            <div className="relative z-10">
-                <div className="flex items-center gap-3 bg-white/60 p-2 rounded-xl border border-black/5">
-                    <img src={swapData.offeredItemImage} className="w-12 h-12 rounded-lg object-cover bg-white" alt="" onError={(e) => handleImageError(e, DEFAULT_AVATAR)} />
-                    <div className="min-w-0">
-                        <p className="text-[9px] text-gray-400 font-bold uppercase">Đổi lấy món:</p>
-                        <p className="text-xs font-bold text-gray-800 truncate">{swapData.offeredItemName}</p>
+  // --- RENDER COMPONENT CON ---
+  const renderMessageContent = (msg: Message, isMe: boolean) => {
+      switch (msg.type) {
+          case 'image':
+              return (
+                  <div className="rounded-2xl overflow-hidden border border-gray-200 mt-1 max-w-[200px] shadow-sm">
+                      <img src={msg.imageUrl} alt="Sent" className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity" onClick={() => window.open(msg.imageUrl, '_blank')} />
+                  </div>
+              );
+          case 'location':
+              return (
+                  <a 
+                    href={`https://www.google.com/maps?q=${msg.location?.lat},${msg.location?.lng}`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className={`block p-3 rounded-2xl border mt-1 max-w-[220px] transition-colors ${isMe ? 'bg-primary/10 border-primary/20' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
+                  >
+                      <div className="flex items-center gap-2 mb-1">
+                          <span className="text-red-500"><IconMapPin /></span>
+                          <span className="text-xs font-black uppercase text-gray-500">Vị trí hiện tại</span>
+                      </div>
+                      <p className="text-xs font-bold text-gray-800 line-clamp-2">{msg.location?.address || "Xem trên bản đồ"}</p>
+                  </a>
+              );
+          case 'offer':
+               return (
+                <div className="bg-white border-2 border-green-100 rounded-2xl p-4 shadow-sm w-64 space-y-3">
+                    <div className="flex items-center gap-2 border-b border-green-50 pb-2">
+                        <span className="text-xl">💸</span><span className="font-black text-xs text-green-700 uppercase">Lời mặc cả</span>
                     </div>
-                </div>
-
-                <div className="mt-3 text-center">
-                    {swapData.cashTopUp > 0 ? (
-                        <>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">Bù thêm</p>
-                            <p className="text-xl font-black text-purple-600">+{formatPrice(swapData.cashTopUp)}</p>
-                        </>
-                    ) : swapData.cashTopUp < 0 ? (
-                        <>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">Nhận lại</p>
-                            <p className="text-xl font-black text-orange-500">+{formatPrice(Math.abs(swapData.cashTopUp))}</p>
-                        </>
-                    ) : (
-                        <p className="text-xs font-bold text-gray-500 py-1">🤝 Trao đổi ngang giá</p>
+                    <div className="text-center py-2">
+                        <p className="text-[10px] text-gray-400 font-bold uppercase">Khách trả giá</p>
+                        <p className="text-2xl font-black text-green-600">{msg.text.match(/[\d,.]+/)?.[0]} <span className="text-xs text-gray-400">VNĐ</span></p>
+                    </div>
+                    {!isMe && msg.offerId && (
+                        <div className="grid grid-cols-2 gap-2">
+                            <button onClick={() => handleRespondOffer(msg.offerId!, 'rejected')} className="py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs rounded-xl">Từ chối</button>
+                            <button onClick={() => handleRespondOffer(msg.offerId!, 'accepted')} className="py-2 bg-green-500 hover:bg-green-600 text-white font-bold text-xs rounded-xl shadow-lg">Đồng ý</button>
+                        </div>
                     )}
+                    {isMe && <div className="text-center text-[10px] text-gray-400 italic bg-gray-50 py-1 rounded-lg">Đang chờ người bán phản hồi...</div>}
                 </div>
-            </div>
-
-            {canRespond && (
-                <div className="grid grid-cols-2 gap-2 relative z-10">
-                    <button onClick={() => handleRespondSwap(msg.id, 'rejected')} className="py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs rounded-xl transition-colors">Từ chối</button>
-                    <button onClick={() => handleRespondSwap(msg.id, 'accepted')} className="py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-200 transition-colors">Đồng ý</button>
-                </div>
-            )}
-            
-            {!isPending && (
-                <div className={`text-center text-[10px] font-bold uppercase py-1 rounded-lg ${status === 'accepted' ? 'text-green-600 bg-green-100' : 'text-red-500 bg-red-100'}`}>
-                    {status === 'accepted' ? 'Hai bên đã chốt kèo' : 'Đề nghị đã bị hủy'}
-                </div>
-            )}
-            
-            {!canRespond && isPending && <div className="text-center text-[10px] text-gray-400 italic bg-gray-50 py-1 rounded-lg">Đang chờ phản hồi...</div>}
-        </div>
-    );
+               );
+          case 'swap':
+              const status = msg.swapData?.status;
+              const isPending = !status;
+              return (
+                 <div className={`bg-white border-2 rounded-2xl p-4 shadow-sm w-72 space-y-3 relative overflow-hidden ${status === 'accepted' ? 'border-green-500 bg-green-50' : (status === 'rejected' ? 'border-gray-200 opacity-75' : 'border-purple-100')}`}>
+                    <div className="flex items-center gap-2 border-b border-black/5 pb-2 relative z-10">
+                        <span className="text-xl">{status === 'accepted' ? '✅' : (status === 'rejected' ? '❌' : '🔄')}</span>
+                        <span className={`font-black text-xs uppercase ${status === 'accepted' ? 'text-green-700' : (status === 'rejected' ? 'text-gray-500' : 'text-purple-700')}`}>{status === 'accepted' ? 'Giao kèo thành công' : (status === 'rejected' ? 'Đã từ chối' : 'Đề nghị đổi đồ')}</span>
+                    </div>
+                    <div className="relative z-10"><p className="text-sm font-bold text-purple-700">Đổi: {msg.swapData?.offeredItemName}</p></div>
+                    {!isMe && isPending && (
+                        <div className="grid grid-cols-2 gap-2 relative z-10">
+                            <button onClick={() => handleRespondSwap(msg.id, 'rejected')} className="py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs rounded-xl">Từ chối</button>
+                            <button onClick={() => handleRespondSwap(msg.id, 'accepted')} className="py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-lg">Đồng ý</button>
+                        </div>
+                    )}
+                 </div>
+              );
+          default:
+              return (
+                  <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm leading-relaxed ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm'}`}>
+                      {msg.text}
+                  </div>
+              );
+      }
   };
 
   if (!user) return <div className="p-10 text-center">Vui lòng đăng nhập để chat</div>;
@@ -314,14 +322,13 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                     <p className="text-[10px] text-gray-500 truncate font-medium bg-gray-100 px-1.5 py-0.5 rounded w-fit max-w-full mt-0.5">{room.listingTitle}</p>
                     <p className={`text-xs truncate mt-1 ${isUnread ? 'font-black text-primary' : 'text-gray-400'}`}>
                       {room.lastMessage?.includes('💰') ? '💰 Có lời mặc cả mới' : 
-                       room.lastMessage?.includes('🔄') ? '🔄 Có đề nghị đổi đồ' : 
+                       room.lastMessage?.includes('🔄') ? '🔄 Có đề nghị đổi đồ' :
+                       room.lastMessage?.includes('📍') ? '📍 Vị trí' :
                        (room.lastMessage || 'Bắt đầu cuộc trò chuyện')}
                     </p>
                   </div>
                   {isUnread && <div className="absolute top-1/2 -translate-y-1/2 right-2 w-2.5 h-2.5 bg-primary rounded-full shadow-sm group-hover:opacity-0 transition-opacity"></div>}
-                  <button onClick={(e) => handleDeleteRoom(e, room.id)} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-white border border-gray-200 text-gray-400 hover:text-red-500 hover:bg-red-50 hover:border-red-200 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-all z-20">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
+                  <button onClick={(e) => handleDeleteRoom(e, room.id)} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-white border border-gray-200 text-gray-400 hover:text-red-500 hover:bg-red-50 hover:border-red-200 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-all z-20">✕</button>
                 </Link>
               );
             })
@@ -365,15 +372,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                             </div>
                         )}
                         <div className={`relative max-w-[85%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                            {msg.type === 'offer' ? (
-                                renderOfferMessage(msg, isMe)
-                            ) : msg.type === 'swap' ? (
-                                renderSwapMessage(msg, isMe)
-                            ) : (
-                                <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm leading-relaxed ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm'}`}>
-                                  {msg.text}
-                                </div>
-                            )}
+                            {renderMessageContent(msg, isMe)}
                             <div className="flex items-center gap-1 mt-1 opacity-60">
                                 {isMe && (
                                     <button onClick={() => handleDeleteMessage(msg.id)} className="text-[9px] text-red-400 hover:underline mr-1 opacity-0 group-hover:opacity-100 transition-opacity">Thu hồi</button>
@@ -395,22 +394,30 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
             {/* Quick Replies */}
             <div className="bg-white border-t border-borderMain/50 px-4 py-2 flex gap-2 overflow-x-auto no-scrollbar whitespace-nowrap">
                 {QUICK_REPLIES.map((text, idx) => (
-                    <button
-                        key={idx}
-                        onClick={() => handleSendQuickReply(text)}
-                        className="bg-gray-100 hover:bg-primary/10 hover:text-primary text-[10px] font-black uppercase px-4 py-2 rounded-full border border-gray-200 transition-all active:scale-95 shadow-sm"
-                    >
+                    <button key={idx} onClick={() => handleSendQuickReply(text)} className="bg-gray-100 hover:bg-primary/10 hover:text-primary text-[10px] font-black uppercase px-4 py-2 rounded-full border border-gray-200 transition-all active:scale-95 shadow-sm">
                         {text}
                     </button>
                 ))}
             </div>
 
-            {/* Input Form */}
+            {/* Input Form [NÂNG CẤP] */}
             <form onSubmit={handleSendMessage} className="p-3 md:p-4 bg-white border-t border-borderMain">
               <div className="flex gap-2 items-end bg-gray-100 p-1.5 rounded-[1.5rem]">
-                <input type="text" placeholder={`Nhắn cho ${activePartner.name}...`} value={message} onChange={(e) => setMessage(e.target.value)} onFocus={() => setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 300)} className="flex-1 bg-transparent border-none focus:ring-0 px-4 py-2 text-sm font-medium max-h-24" />
-                <button type="submit" disabled={!message.trim()} className="w-9 h-9 bg-primary text-white rounded-full flex items-center justify-center shadow-md disabled:opacity-50 disabled:shadow-none hover:scale-105 transition-transform">
-                  <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                {/* Image Upload Button */}
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isSending} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-all">
+                    <IconImage />
+                </button>
+                <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
+
+                {/* Location Button */}
+                <button type="button" onClick={handleSendLocation} disabled={isSending} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
+                    <IconMapPin />
+                </button>
+
+                <input type="text" placeholder={isSending ? "Đang gửi..." : `Nhắn cho ${activePartner.name}...`} value={message} onChange={(e) => setMessage(e.target.value)} onFocus={() => setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 300)} className="flex-1 bg-transparent border-none focus:ring-0 px-2 py-2 text-sm font-medium max-h-24" />
+                
+                <button type="submit" disabled={!message.trim() && !isSending} className="w-9 h-9 bg-primary text-white rounded-full flex items-center justify-center shadow-md disabled:opacity-50 disabled:shadow-none hover:scale-105 transition-transform">
+                  {isSending ? <IconLoader /> : <IconSend />}
                 </button>
               </div>
             </form>

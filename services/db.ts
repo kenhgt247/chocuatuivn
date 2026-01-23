@@ -567,8 +567,29 @@ export const db = {
     }
   },
 
-  // --- C. GIAO DỊCH & VÍ ---
+ // --- C. GIAO DỊCH & VÍ ---
 
+  // [MỚI] Hàm gọi PayOS để lấy QR và Link thanh toán tự động
+  createPayOSPayment: async (amount: number, userId: string) => {
+    try {
+      // Gọi Cloud Function 'createPaymentLink' đã deploy
+      const createLink = httpsCallable(functions, 'createPaymentLink');
+      
+      const result = await createLink({ 
+        amount: amount, 
+        description: "Nap tien",
+        userId: userId
+      });
+
+      // Trả về dữ liệu: { checkoutUrl, qrCode, bin, accountNumber, amount, ... }
+      return result.data as any; 
+    } catch (error) {
+      console.error("Lỗi gọi PayOS:", error);
+      throw error;
+    }
+  },
+
+  // Hàm tạo yêu cầu nạp tiền thủ công (Dự phòng)
   requestDeposit: async (userId: string, amount: number, method: string) => {
     try {
       const res = await addDoc(collection(firestore, "transactions"), {
@@ -760,7 +781,6 @@ export const db = {
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ ...d.data(), id: d.id } as Transaction));
   },
-
   // --- D. NGƯỜI DÙNG (USERS & AUTH) ---
   
   getUsersPaged: async (options: {

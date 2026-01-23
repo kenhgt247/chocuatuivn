@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, SubscriptionTier } from '../types';
 import { db, SystemSettings } from '../services/db';
 import { formatPrice } from '../utils/format';
 
-// --- ICONS ---
+// --- ICONS (GIỮ NGUYÊN) ---
 const IconCheck = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
 const IconCrown = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>;
 const IconZap = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
@@ -18,9 +18,11 @@ const IconAlertTriangle = ({ className }: { className?: string }) => <svg xmlns=
 const IconClock = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
 const IconChevronRight = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>;
 const IconSparkles = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M9 5H5"/><path d="M19 15v4"/><path d="M23 17h-4"/></svg>;
+const IconX = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
 
 const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => void }> = ({ user, onUpdateUser }) => {
   const navigate = useNavigate();
+  const mountedRef = useRef(true);
   
   // --- STATE ---
   const [settings, setSettings] = useState<SystemSettings | null>(null);
@@ -31,26 +33,40 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
   const [paymentStep, setPaymentStep] = useState<'method' | 'qr'>('method');
   const [processingMethod, setProcessingMethod] = useState<'wallet' | 'transfer' | null>(null);
   
+  // PayOS State
+  const [payOSInfo, setPayOSInfo] = useState<any>(null); // Lưu thông tin QR trả về từ PayOS
+  
   // Toast Notification
   const [toast, setToast] = useState<{ show: boolean, message: string, type: 'success' | 'error' }>({ show: false, message: '', type: 'success' });
 
   // --- INITIAL DATA ---
   useEffect(() => {
+    mountedRef.current = true;
     const loadSettings = async () => {
       const s = await db.getSettings();
-      setSettings(s);
+      if(mountedRef.current) setSettings(s);
     };
     loadSettings();
+    return () => { mountedRef.current = false; };
   }, []);
+
+  // --- AUTO CHECK BALANCE ---
+  // Tự động kiểm tra nếu người dùng nạp tiền xong (số dư tăng lên đủ trả) thì chuyển về tab Ví
+  useEffect(() => {
+    if (showPayModal && user && user.walletBalance >= showPayModal.price && paymentStep === 'qr') {
+        // Nếu đang ở màn hình QR mà tiền đã vào ví -> Chuyển về màn hình xác nhận thanh toán ví
+        setPaymentStep('method');
+        setProcessingMethod('wallet'); // Gợi ý thanh toán ví ngay
+        showToast("Tiền đã vào ví! Vui lòng xác nhận nâng cấp.", "success");
+    }
+  }, [user?.walletBalance, showPayModal, paymentStep]);
+
 
   // --- BIẾN ĐỔI DỮ LIỆU ĐỘNG TỪ DB THÀNH MẢNG GÓI CƯỚC ---
   const dynamicPackages = useMemo(() => {
     if (!settings || !settings.tierConfigs) return [];
-
-    // Chuyển object { free: {...}, pro: {...} } thành array [{ id: 'free', ... }, ...]
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pkgs = Object.entries(settings.tierConfigs).map(([key, config]: [string, any]) => {
-        // Tự động suy ra Style dựa trên ID hoặc Giá tiền
         let style = {
             color: 'bg-slate-100 text-slate-600',
             border: 'border-slate-200',
@@ -85,14 +101,9 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
             };
         }
 
-        return {
-            id: key,
-            ...config,
-            ...style
-        };
+        return { id: key, ...config, ...style };
     });
 
-    // Sắp xếp: Free -> Giá thấp -> Giá cao
     return pkgs.sort((a, b) => a.price - b.price);
   }, [settings]);
 
@@ -112,18 +123,12 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
     const now = new Date().getTime();
     const diffDays = Math.ceil((expires - now) / (1000 * 60 * 60 * 24)); 
 
-    return { 
-        isCurrent: true, 
-        isExpired: diffDays <= 0,
-        daysLeft: diffDays > 0 ? diffDays : 0
-    };
+    return { isCurrent: true, isExpired: diffDays <= 0, daysLeft: diffDays > 0 ? diffDays : 0 };
   };
 
   // --- HANDLERS ---
   const handleUpgradeClick = (pkg: typeof dynamicPackages[0]) => {
     if (!user) return navigate('/login');
-    
-    // Nếu là gói miễn phí -> Không làm gì (hoặc có thể thêm logic downgrade nếu muốn)
     if (pkg.price === 0) return;
 
     const discount = settings?.tierDiscount || 0;
@@ -131,17 +136,19 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
 
     setPaymentStep('method'); 
     setProcessingMethod(null);
+    setPayOSInfo(null);
     setShowPayModal({ tier: pkg.id, price: finalPrice, name: pkg.name });
   };
 
+  // 1. THANH TOÁN BẰNG VÍ
   const payWithWallet = async () => {
     if (!showPayModal || !user) return;
     
+    // Nếu tiền không đủ -> Gợi ý nạp qua PayOS
     if (user.walletBalance < showPayModal.price) {
-      if(window.confirm(`Ví thiếu ${formatPrice(showPayModal.price - user.walletBalance)}. Nạp ngay?`)) {
-          navigate('/wallet');
-      }
-      return;
+        showToast(`Ví thiếu ${formatPrice(showPayModal.price - user.walletBalance)}. Đang chuyển sang nạp tiền...`, "error");
+        handleSelectPayOS(); // Chuyển sang PayOS ngay
+        return;
     }
 
     setProcessingMethod('wallet');
@@ -164,32 +171,32 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
       console.error(error);
       showToast("Lỗi hệ thống", "error");
     } finally {
-      setLoadingPkg(null);
-      setProcessingMethod(null);
+      if(mountedRef.current) {
+        setLoadingPkg(null);
+        setProcessingMethod(null);
+      }
     }
   };
 
-  const handleSelectTransfer = () => {
+  // 2. TẠO QR PAYOS (Thay thế chuyển khoản thủ công)
+  const handleSelectPayOS = async () => {
+      if (!showPayModal || !user) return;
       setProcessingMethod('transfer');
-      setPaymentStep('qr');
+      setLoadingPkg(showPayModal.tier);
+      
+      try {
+          // Gọi API PayOS để lấy QR chính xác
+          const data = await db.createPayOSPayment(Math.round(showPayModal.price), user.id);
+          setPayOSInfo(data);
+          setPaymentStep('qr');
+      } catch (error: any) {
+          console.error(error);
+          showToast(error.message || "Lỗi tạo QR PayOS", "error");
+      } finally {
+          if(mountedRef.current) setLoadingPkg(null);
+      }
   };
 
-  const confirmTransfer = async () => {
-    if (!showPayModal || !user) return;
-    setLoadingPkg(showPayModal.tier);
-    
-    try {
-      await db.requestSubscriptionTransfer(user.id, showPayModal.tier as SubscriptionTier, showPayModal.price);
-      showToast("Yêu cầu đã gửi. Admin sẽ duyệt sớm nhất.");
-      setShowPayModal(null);
-      setTimeout(() => navigate('/wallet'), 2000); 
-    } catch (error) {
-      showToast("Lỗi khi gửi yêu cầu", "error");
-    } finally {
-      setLoadingPkg(null);
-      setProcessingMethod(null);
-    }
-  };
 
   if (!user || !settings) {
     return (
@@ -199,12 +206,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
         </div>
     );
   }
-
-  // QR Data
-  const transferContent = `MUA ${showPayModal?.name.toUpperCase()} ${user.phone || user.id.slice(0, 5)}`;
-  const qrLink = showPayModal 
-    ? `https://img.vietqr.io/image/${settings.bankName}-${settings.accountNumber}-compact.jpg?amount=${Math.round(showPayModal.price)}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(settings.accountName)}` 
-    : '';
 
   return (
     <div className="max-w-6xl mx-auto py-12 px-4 relative pb-24 font-sans animate-fade-in">
@@ -243,30 +244,20 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
           const isDisabled = isCurrent && !isRenewable && pkg.id !== 'free';
           const isFreeActive = isCurrent && pkg.id === 'free';
 
-          // Discount Logic
           const discount = settings.tierDiscount || 0;
           const finalPrice = pkg.price * (1 - discount / 100);
           const hasDiscount = discount > 0 && pkg.price > 0;
 
           return (
-            <div 
-                key={pkg.id} 
-                className={`
-                    group relative flex flex-col p-8 md:p-10 transition-all duration-500 rounded-[3.5rem]
-                    ${pkg.isPopular 
-                        ? 'bg-white border-4 border-yellow-400 shadow-[0_20px_50px_rgba(234,179,8,0.2)] scale-105 z-10' 
-                        : 'bg-white border-2 border-slate-100 hover:border-primary/30 hover:shadow-2xl shadow-slate-200/50'
-                    } 
-                    ${isCurrent && !status.isExpired ? 'ring-2 ring-primary ring-offset-4' : ''}
-                `}
-            >
+            <div key={pkg.id} className={`group relative flex flex-col p-8 md:p-10 transition-all duration-500 rounded-[3.5rem]
+                    ${pkg.isPopular ? 'bg-white border-4 border-yellow-400 shadow-[0_20px_50px_rgba(234,179,8,0.2)] scale-105 z-10' : 'bg-white border-2 border-slate-100 hover:border-primary/30 hover:shadow-2xl shadow-slate-200/50'} 
+                    ${isCurrent && !status.isExpired ? 'ring-2 ring-primary ring-offset-4' : ''}`}>
               {pkg.isPopular && (
                 <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-[11px] font-black px-6 py-2 rounded-full shadow-xl uppercase tracking-[0.2em] whitespace-nowrap animate-bounce-subtle flex items-center gap-2">
                   <IconSparkles className="w-3 h-3 fill-white" /> Khuyên dùng
                 </div>
               )}
               
-              {/* Card Header */}
               <div className="mb-8 text-center">
                 <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 mx-auto ${pkg.color}`}>
                     {pkg.icon}
@@ -294,7 +285,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                 </div>
               </div>
 
-              {/* Features List */}
               <ul className="space-y-4 mb-10 flex-1 px-2">
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {pkg.features && pkg.features.map((feat: string, i: number) => (
@@ -307,24 +297,17 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                 ))}
               </ul>
 
-              {/* Action Button */}
               <div className="space-y-4">
                   <button 
                     disabled={isDisabled || isFreeActive || loadingPkg === pkg.id} 
                     onClick={() => handleUpgradeClick(pkg)} 
-                    className={`
-                        w-full py-5 rounded-2xl font-black text-sm uppercase tracking-[0.1em] transition-all duration-300 transform active:scale-95 shadow-xl flex items-center justify-center gap-2
-                        ${(isDisabled || isFreeActive)
-                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none' 
-                            : `${pkg.btnColor} hover:brightness-110 hover:-translate-y-1`
-                        }
-                    `}
+                    className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-[0.1em] transition-all duration-300 transform active:scale-95 shadow-xl flex items-center justify-center gap-2
+                        ${(isDisabled || isFreeActive) ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none' : `${pkg.btnColor} hover:brightness-110 hover:-translate-y-1`}`}
                   >
                     {loadingPkg === pkg.id && <IconLoader2 className="w-4 h-4 animate-spin" />}
                     {isFreeActive ? 'Đang sử dụng' : isRenewable ? 'Gia hạn ngay' : isDisabled ? 'Đang sử dụng' : 'Nâng cấp ngay'}
                   </button>
                   
-                  {/* Status Helper */}
                   {isCurrent && pkg.id !== 'free' && (
                       <div className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider bg-white border-2 
                         ${status.isExpired || status.daysLeft < 3 ? 'text-red-500 border-red-100 animate-pulse' : 'text-slate-500 border-slate-100'}`}>
@@ -341,75 +324,96 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
 
       {/* --- PAYMENT MODAL --- */}
       {showPayModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-fade-in">
-          <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl relative space-y-8 animate-fade-in-up border border-white">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-fade-in" onClick={() => setShowPayModal(null)}>
+          <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl relative space-y-8 animate-fade-in-up border border-white" onClick={e => e.stopPropagation()}>
             
+            <button onClick={() => setShowPayModal(null)} className="absolute top-6 right-6 p-2 rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
+                <IconX className="w-5 h-5" />
+            </button>
+
             <div className="text-center">
                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">
-                    {paymentStep === 'method' ? 'Bước 1: Chọn thanh toán' : 'Bước 2: Quét mã QR'}
+                    {paymentStep === 'method' ? 'Bước 1: Chọn thanh toán' : 'Bước 2: Quét mã PayOS'}
                 </p>
                 <h3 className="text-2xl font-black text-slate-900">{showPayModal.name}</h3>
                 <div className="mt-4 flex flex-col items-center">
                     <span className="text-3xl font-black text-primary">{formatPrice(showPayModal.price)}</span>
+                    <p className="text-xs font-bold text-slate-400 mt-1">Số dư ví: {formatPrice(user.walletBalance)}</p>
                 </div>
             </div>
             
-            {/* STEP 1: Method */}
+            {/* STEP 1: Chọn phương thức */}
             {paymentStep === 'method' && (
                 <div className="space-y-4">
+                  {/* Nút 1: Thanh toán ví */}
                   <button onClick={payWithWallet} disabled={loadingPkg !== null} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 ${processingMethod === 'wallet' ? 'border-primary bg-primary/5' : 'border-slate-100 hover:border-primary hover:shadow-md'}`}>
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">
                           <IconWallet className="w-6 h-6" />
                       </div>
                       <div className="text-left">
-                        <p className="text-[10px] font-black uppercase text-slate-400">Thanh toán qua</p>
-                        <p className="text-xs font-black text-slate-800">Ví Chợ Của Tui</p>
+                        <p className="text-[10px] font-black uppercase text-slate-400">Số dư hiện tại</p>
+                        <p className="text-xs font-black text-slate-800">Ví Chợ ({formatPrice(user.walletBalance)})</p>
                       </div>
                     </div>
                     {processingMethod === 'wallet' ? <IconLoader2 className="w-5 h-5 text-primary animate-spin" /> : <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"></div>}
                   </button>
 
-                  <button onClick={handleSelectTransfer} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 border-slate-100 hover:border-primary hover:shadow-md`}>
+                  {/* Nút 2: Nạp tiền qua PayOS */}
+                  <button onClick={handleSelectPayOS} disabled={loadingPkg !== null} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 border-slate-100 hover:border-primary hover:shadow-md`}>
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">
                           <IconLandmark className="w-6 h-6" />
                       </div>
                       <div className="text-left">
-                        <p className="text-[10px] font-black uppercase text-slate-400">Thanh toán qua</p>
-                        <p className="text-xs font-black text-slate-800">Chuyển khoản</p>
+                        <p className="text-[10px] font-black uppercase text-slate-400">Thiếu tiền?</p>
+                        <p className="text-xs font-black text-slate-800">Nạp nhanh qua PayOS</p>
                       </div>
                     </div>
-                    <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"><IconChevronRight className="w-4 h-4 text-white" /></div>
+                    {processingMethod === 'transfer' ? <IconLoader2 className="w-5 h-5 text-purple-600 animate-spin" /> : <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"><IconChevronRight className="w-4 h-4 text-white" /></div>}
                   </button>
                 </div>
             )}
 
-            {/* STEP 2: QR */}
-            {paymentStep === 'qr' && (
+            {/* STEP 2: QR PayOS */}
+            {paymentStep === 'qr' && payOSInfo && (
                 <div className="space-y-6 animate-fade-in-up">
                     <div className="bg-slate-50 p-4 rounded-[2rem] border border-slate-100 flex flex-col items-center text-center space-y-4">
                         <div className="p-2 bg-white rounded-2xl shadow-sm">
-                            <img src={qrLink} alt="VietQR" className="w-48 h-48 object-contain" />
+                            {/* Hiển thị QR chính xác từ thông tin PayOS trả về */}
+                            <img 
+                                src={`https://img.vietqr.io/image/${payOSInfo.bin}-${payOSInfo.accountNumber}-compact.png?amount=${payOSInfo.amount}&addInfo=${encodeURIComponent(payOSInfo.description)}&accountName=${encodeURIComponent(payOSInfo.accountName)}`}
+                                alt="VietQR" 
+                                className="w-48 h-48 object-contain mix-blend-multiply" 
+                            />
                         </div>
                         <div className="space-y-1 w-full">
                             <p className="text-[10px] font-black text-slate-400 uppercase">Nội dung chuyển khoản</p>
-                            <p className="text-xs font-black bg-yellow-100 text-yellow-800 px-3 py-1.5 rounded-lg select-all break-all border border-yellow-200">{transferContent}</p>
+                            <p className="text-xs font-black bg-yellow-100 text-yellow-800 px-3 py-1.5 rounded-lg select-all break-all border border-yellow-200">{payOSInfo.description}</p>
                         </div>
                         <div className="text-[10px] text-slate-500 font-medium px-4 flex items-center gap-2">
-                            <IconClock className="w-3 h-3" /> Hệ thống duyệt tự động sau 5p.
+                            <IconClock className="w-3 h-3 animate-pulse text-green-500" /> 
+                            Đang chờ thanh toán... Hệ thống tự động xử lý.
                         </div>
                     </div>
                     
-                    <button onClick={confirmTransfer} disabled={loadingPkg !== null} className="w-full bg-green-500 text-white font-black py-4 rounded-[1.5rem] hover:bg-green-600 transition-all shadow-lg active:scale-95 uppercase text-xs tracking-widest flex items-center justify-center gap-2">
-                        {loadingPkg ? <IconLoader2 className="w-4 h-4 animate-spin" /> : <><IconCheckCircle className="w-4 h-4" /> Tôi đã chuyển khoản</>}
-                    </button>
+                    {/* Deep Link mở app ngân hàng */}
+                    <a 
+                        href={payOSInfo.checkoutUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full bg-green-500 text-white font-black py-4 rounded-[1.5rem] hover:bg-green-600 transition-all shadow-lg active:scale-95 uppercase text-xs tracking-widest flex items-center justify-center gap-2"
+                    >
+                        <IconCheckCircle className="w-4 h-4" /> Mở App Ngân Hàng
+                    </a>
                 </div>
             )}
 
-            <button onClick={() => { if(paymentStep === 'qr') setPaymentStep('method'); else setShowPayModal(null); }} disabled={loadingPkg !== null} className="w-full py-4 rounded-xl font-black text-xs text-slate-400 uppercase hover:bg-slate-50 transition-all tracking-widest">
-                {paymentStep === 'qr' ? 'Quay lại' : 'Hủy giao dịch'}
-            </button>
+            {paymentStep === 'qr' && (
+                <button onClick={() => setPaymentStep('method')} className="w-full py-4 rounded-xl font-black text-xs text-slate-400 uppercase hover:bg-slate-50 transition-all tracking-widest">
+                    Quay lại chọn phương thức
+                </button>
+            )}
           </div>
         </div>
       )}

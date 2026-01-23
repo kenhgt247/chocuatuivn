@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { db, SystemSettings } from '../services/db';
+import { db } from '../services/db'; // Bỏ SystemSettings vì PayOS trả về đủ info rồi
 import { User, Transaction } from '../types';
 import { formatPrice } from '../utils/format';
 
 /* ============================================================================
-   ICONS INLINE – GIỮ NGUYÊN BỘ ICON CŨ (AN TOÀN TUYỆT ĐỐI)
+   ICONS INLINE – GIỮ NGUYÊN BỘ ICON CŨ
 ============================================================================ */
 const IconWallet = () => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H6a2 2 0 0 1 0-4h14v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>;
 const IconRotate = ({ spin }: { spin?: boolean }) => (
@@ -19,19 +19,10 @@ const IconCheck = () => <svg width="20" height="20" fill="none" stroke="currentC
 const IconLoader = () => <svg width="20" height="20" className="animate-spin" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg>;
 
 /* ============================================================================
-   CONSTANTS + HELPERS
+   CONSTANTS
 ============================================================================ */
 const PRESET_AMOUNTS = [50_000, 100_000, 200_000, 500_000, 1_000_000, 2_000_000];
 
-const generateRefCode = () =>
-  Math.random().toString(36).substring(2, 6).toUpperCase();
-
-const normalizeVN = (s: string) =>
-  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
-
-/* ============================================================================
-   COMPONENT
-============================================================================ */
 interface Props {
   user: User | null;
 }
@@ -42,34 +33,33 @@ const Wallet: React.FC<Props> = ({ user }) => {
 
   const mountedRef = useRef(true);
 
-  const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [amount, setAmount] = useState('100000');
+  const [amount, setAmount] = useState('50000');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // State hiển thị QR PayOS
   const [showQR, setShowQR] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [refCode, setRefCode] = useState('');
+  const [paymentInfo, setPaymentInfo] = useState<any>(null);
 
-  /* ================= LOAD DATA (SAFE) ================= */
+  /* ================= LOAD DATA ================= */
   useEffect(() => {
     mountedRef.current = true;
 
     const load = async () => {
       try {
-        const [s, tx] = await Promise.all([
-          db.getSettings(),
-          db.getTransactions(user.id),
-        ]);
-        if (!mountedRef.current) return;
-        setSettings(s);
-        setTransactions(tx);
+        // Chỉ cần load Transactions, Settings PayOS tự lo
+        const tx = await db.getTransactions(user.id);
+        if (mountedRef.current) {
+          setTransactions(tx);
+        }
       } catch (e) {
         console.error(e);
       }
     };
 
     load();
+    // Auto refresh để cập nhật trạng thái khi nạp thành công
     const id = setInterval(load, 5000);
 
     return () => {
@@ -86,33 +76,39 @@ const Wallet: React.FC<Props> = ({ user }) => {
     setTimeout(() => mountedRef.current && setRefreshing(false), 500);
   };
 
-  const handleShowQR = () => {
-    if (+amount < 10_000) return alert('Tối thiểu 10.000đ');
-    setRefCode(generateRefCode());
-    setShowQR(true);
-  };
+  // Hàm quan trọng: Gọi PayOS tạo link thanh toán
+  const handleCreatePayment = async () => {
+    const numAmount = parseInt(amount.replace(/\D/g, ''));
 
-  const transferContent = `NAP ${generateRefCode()} ${normalizeVN(user.name)}`.slice(0, 50);
+    if (!numAmount || numAmount < 2000) {
+        alert("PayOS yêu cầu nạp tối thiểu 2.000đ");
+        return;
+    }
+    if (numAmount > 100000000) {
+        alert("Số tiền nạp tối đa là 100 triệu");
+        return;
+    }
 
-  const handleConfirm = async () => {
     setLoading(true);
     try {
-      await db.requestDeposit(user.id, +amount, transferContent);
+      // 1. Gọi API tạo link (hàm mới trong db.ts)
+      const data = await db.createPayOSPayment(numAmount, user.id);
+      
+      // 2. Lưu thông tin trả về
+      setPaymentInfo(data);
+      setShowQR(true);
+
+      // 3. Cập nhật lại list transaction (để thấy trạng thái Pending)
       const tx = await db.getTransactions(user.id);
-      if (mountedRef.current) {
-        setTransactions(tx);
-        setShowQR(false);
-      }
-      alert('✅ Đã gửi lệnh, chờ duyệt');
+      if(mountedRef.current) setTransactions(tx);
+
+    } catch (error: any) {
+      console.error(error);
+      alert("Lỗi tạo mã thanh toán: " + (error.message || "Vui lòng thử lại sau"));
     } finally {
-      mountedRef.current && setLoading(false);
+      if(mountedRef.current) setLoading(false);
     }
   };
-
-  const vietQR =
-    settings?.bankName && settings?.accountNumber
-      ? `https://img.vietqr.io/image/${settings.bankName}-${settings.accountNumber}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(settings.accountName)}`
-      : '';
 
   /* ================= RENDER ================= */
   return (
@@ -189,11 +185,11 @@ const Wallet: React.FC<Props> = ({ user }) => {
         </div>
 
         <button
-          onClick={handleShowQR}
-          disabled={!settings}
+          onClick={handleCreatePayment}
+          disabled={loading}
           className="w-full py-5 bg-slate-900 hover:bg-black text-white font-black rounded-2xl shadow-xl hover:shadow-2xl transition-all active:scale-95 text-sm uppercase tracking-widest flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <IconCheck /> Tạo mã thanh toán
+          {loading ? <IconLoader /> : <IconCheck />} Tạo mã thanh toán (PayOS)
         </button>
       </div>
 
@@ -234,7 +230,7 @@ const Wallet: React.FC<Props> = ({ user }) => {
                             tx.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
                             'bg-red-100 text-red-700'
                         }`}>
-                            {tx.status}
+                            {tx.status === 'success' ? 'Thành công' : tx.status === 'pending' ? 'Đang chờ' : 'Thất bại'}
                         </span>
                     </div>
                 </div>
@@ -242,8 +238,8 @@ const Wallet: React.FC<Props> = ({ user }) => {
         </div>
       </div>
 
-      {/* 4. MODAL QUÉT QR */}
-      {showQR && (
+      {/* 4. MODAL QUÉT QR - TÍCH HỢP PAYOS */}
+      {showQR && paymentInfo && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowQR(false)}>
           <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl relative animate-scale-up" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-6">
@@ -251,23 +247,46 @@ const Wallet: React.FC<Props> = ({ user }) => {
               <button onClick={() => setShowQR(false)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"><IconX /></button>
             </div>
             
-            <div className="bg-blue-50 p-4 rounded-3xl border border-blue-100 mb-6">
-                <img src={vietQR} className="w-full h-auto rounded-xl mix-blend-multiply" alt="QR Code" />
+            <div className="bg-blue-50 p-4 rounded-3xl border border-blue-100 mb-6 text-center">
+                {/* Hiển thị QR Code
+                   - PayOS trả về `qrCode` (dạng chuỗi base64) hoặc info để tự build.
+                   - Ở đây ta dùng api VietQR + thông tin PayOS trả về để có ảnh QR đẹp nhất 
+                */}
+                <img 
+                    src={`https://img.vietqr.io/image/${paymentInfo.bin}-${paymentInfo.accountNumber}-compact2.png?amount=${paymentInfo.amount}&addInfo=${encodeURIComponent(paymentInfo.description)}&accountName=${encodeURIComponent(paymentInfo.accountName)}`}
+                    className="w-full h-auto rounded-xl mix-blend-multiply mb-3" 
+                    alt="QR PayOS" 
+                />
+                
+                <p className="text-xs text-blue-600 font-bold mb-1">Số tiền: {formatPrice(paymentInfo.amount)}</p>
+                <p className="text-[10px] text-gray-500">Nội dung CK: <span className="font-bold text-black bg-yellow-200 px-1 rounded">{paymentInfo.description}</span></p>
             </div>
 
-            <div className="space-y-3 text-center mb-8">
-                <p className="text-xs font-bold text-gray-400 uppercase">Số tiền cần chuyển</p>
-                <p className="text-3xl font-black text-blue-600">{formatPrice(Number(amount))}</p>
-                <p className="text-[10px] text-gray-400 px-4">Vui lòng nhập đúng nội dung chuyển khoản để hệ thống tự động xử lý.</p>
+            <div className="space-y-3">
+                {/* Nút mở App thanh toán (Deep Link) */}
+                <a 
+                    href={paymentInfo.checkoutUrl} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-4 bg-green-500 hover:bg-green-600 text-white font-black rounded-2xl shadow-lg shadow-green-200 transition-all active:scale-95 uppercase text-xs tracking-widest"
+                >
+                    <IconCheck /> Mở App thanh toán
+                </a>
+                
+                <button 
+                    onClick={() => setShowQR(false)}
+                    className="w-full py-3 text-gray-400 font-bold text-sm hover:text-gray-600"
+                >
+                    Đóng cửa sổ
+                </button>
             </div>
-
-            <button
-              onClick={handleConfirm}
-              disabled={loading}
-              className="w-full py-4 bg-green-500 hover:bg-green-600 text-white font-black rounded-2xl shadow-lg shadow-green-200 transition-all active:scale-95 flex justify-center items-center gap-2 uppercase text-xs tracking-widest"
-            >
-              {loading ? <IconLoader /> : <IconCheck />} Tôi đã chuyển khoản
-            </button>
+            
+            <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+                 <p className="text-[10px] text-gray-400">
+                    Hệ thống sẽ tự động cộng tiền sau khi bạn chuyển khoản thành công (10-30s).
+                    <br/>Không cần xác nhận thủ công.
+                 </p>
+            </div>
           </div>
         </div>
       )}

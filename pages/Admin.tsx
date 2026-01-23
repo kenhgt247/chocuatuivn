@@ -50,17 +50,16 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   const [verifyModal, setVerifyModal] = useState<VerificationModalState>({ show: false, user: null });
   const [editForm, setEditForm] = useState({ title: '', price: 0, status: '' });
 
-  // --- [FIX QUAN TRỌNG] CHỈ LOAD LẠI KHI ID THAY ĐỔI, KHÔNG PHẢI TOÀN BỘ USER OBJECT ---
+  // --- AUTH CHECK ---
   useEffect(() => {
-    if (!user) return; // Chưa đăng nhập thì chờ
+    if (!user) return; 
     if (user.role !== 'admin') { navigate('/'); return; }
     
-    // Chỉ load data nếu chưa có settings (lần đầu vào)
     if (!settings) {
         loadInitialData();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]); // <--- FIX: Chỉ theo dõi ID
+  }, [user?.id]); 
 
   useEffect(() => {
     if (activeTab === 'listings') {
@@ -91,7 +90,6 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
       setReports(allReports);
       setTransactions(allTxs);
       
-      // Default Banner nếu chưa có
       const defaultSlides = [
          { id: 1, type: 'text', title: "Đăng tin siêu tốc 🚀", desc: "Tiếp cận hàng ngàn khách hàng mỗi ngày.", btnText: "Đăng ngay", btnLink: "/post", colorFrom: "from-blue-600", colorTo: "to-indigo-600", icon: "⚡", isActive: true },
          { id: 2, type: 'text', title: "Nâng cấp VIP 👑", desc: "Tin đăng nổi bật, chốt đơn nhanh gấp 5 lần.", btnText: "Xem gói VIP", btnLink: "/profile", colorFrom: "from-orange-500", colorTo: "to-red-500", icon: "💎", isActive: true }
@@ -627,7 +625,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                         <p className="text-xs text-gray-500 font-medium mt-1">Tối ưu doanh thu với Banner ảnh, Văn bản hoặc Google AdSense.</p>
                     </div>
                     <div className="flex gap-2">
-                        {/* Nút Reset Cấu hình (QUAN TRỌNG: Bấm cái này để sửa lỗi DB) */}
+                        {/* Nút Reset Cấu hình */}
                         <button 
                             onClick={async () => {
                                 if(confirm("Bạn có chắc muốn KHÔI PHỤC mặc định? (Sẽ nạp lại cấu hình màu sắc mới)")) {
@@ -709,7 +707,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                             <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Tiêu đề</label><input type="text" value={ad.textTitle || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].textTitle = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-black text-slate-700" placeholder="VD: SALE 50%" /></div>
                                             <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Mô tả</label><textarea rows={2} value={ad.textDesc || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].textDesc = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-medium resize-none" /></div>
                                             
-                                            {/* Chọn Màu Sắc (ĐÃ SỬA LỖI BIẾN n) */}
+                                            {/* Chọn Màu Sắc */}
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div>
                                                     <label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Màu Nền</label>
@@ -892,8 +890,8 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                                      </div>
                                                 </div>
                                            )}
-                                      </div>
                                    </div>
+                               </div>
                             ))}
                         </div>
                     </div>
@@ -1034,28 +1032,6 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                         </div>
                     </div>
 
-                    {/* 4. Cấu hình Ngân hàng */}
-                    <div className="space-y-6 pt-6 border-t border-gray-100">
-                        <h4 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                            <span className="w-2 h-2 bg-primary rounded-full"></span> Ngân hàng VietQR
-                        </h4>
-                        <div className="grid md:grid-cols-2 gap-10">
-                            <div className="space-y-4">
-                                <div><label className="text-[10px] font-black uppercase text-gray-400 pl-1">Mã Ngân Hàng (VD: MB, VCB...)</label><input type="text" value={settings.bankName} onChange={e => setSettings({...settings, bankName: e.target.value.toUpperCase()})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
-                                <div><label className="text-[10px] font-black uppercase text-gray-400 pl-1">Số Tài Khoản</label><input type="text" value={settings.accountNumber} onChange={e => setSettings({...settings, accountNumber: e.target.value})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
-                                <div><label className="text-[10px] font-black uppercase text-gray-400 pl-1">Tên Chủ Tài Khoản</label><input type="text" value={settings.accountName} onChange={e => setSettings({...settings, accountName: e.target.value.toUpperCase()})} className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 font-bold" /></div>
-                            </div>
-                            <div className="flex flex-col items-center justify-center bg-gray-50 rounded-[2.5rem] p-6 border border-dashed border-gray-200">
-                                <p className="text-[10px] font-black uppercase text-gray-400 mb-4">Xem trước mã QR nạp tiền</p>
-                                {settings.bankName && settings.accountNumber ? (
-                                    <img src={`https://img.vietqr.io/image/${settings.bankName}-${settings.accountNumber}-compact.jpg?accountName=${encodeURI(settings.accountName)}`} className="w-48 h-48 object-contain rounded-2xl shadow-lg border-4 border-white" />
-                                ) : (
-                                    <div className="w-48 h-48 bg-white rounded-2xl flex items-center justify-center text-[10px] text-gray-300 font-bold uppercase p-4 text-center">Vui lòng nhập đủ thông tin ngân hàng</div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
                   {/* 5. SEO & Công cụ */}
                     <div className="space-y-6 pt-6 border-t border-gray-100">
                         <h4 className="text-sm font-black uppercase tracking-widest text-gray-800 flex items-center gap-2">
@@ -1079,8 +1055,8 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                                 loadInitialData();
                                                 showToast("Đã Reset Cấu hình!");
                                             }
-                                        }} 
-                                        className="bg-blue-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-blue-600 transition-colors"
+                                    }} 
+                                    className="bg-blue-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-blue-600 transition-colors"
                                     >
                                         ⚙️ Cập nhật Gói Cước & Ads
                                     </button>
@@ -1095,8 +1071,8 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                                 loadInitialData();
                                                 showToast("Đã Reset DB!");
                                             }
-                                        }} 
-                                        className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-red-600 transition-colors"
+                                    }} 
+                                    className="bg-red-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-red-600 transition-colors"
                                     >
                                         🔄 Reset & Tạo Sample
                                     </button>
@@ -1111,8 +1087,8 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                                 loadInitialData();
                                                 showToast("🗑 Đã xóa sạch!");
                                             }
-                                        }} 
-                                        className="bg-white border-2 border-red-200 text-red-500 px-6 py-3 rounded-xl text-[10px] font-black uppercase hover:bg-red-50 transition-colors"
+                                    }} 
+                                    className="bg-white border-2 border-red-200 text-red-500 px-6 py-3 rounded-xl text-[10px] font-black uppercase hover:bg-red-50 transition-colors"
                                     >
                                         🗑 Xóa sạch (Về 0)
                                     </button>

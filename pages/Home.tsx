@@ -11,7 +11,7 @@ import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import StoryBar from '../components/StoryBar';
 import AdPlacement from '../components/AdPlacement'; 
 import MapView from '../components/MapView'; 
-
+import RecommendedSection from '../components/RecommendedSection';
 // --- BỘ ICON VẼ TAY (SVG THUẦN) ---
 const IconZap = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 const IconCrown = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>;
@@ -453,7 +453,24 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
           )}
         </section>
       )}
-
+{/* --- [MỚI] AI GỢI Ý (RECOMMENDATION) --- */}
+      {!search && !isUrlCategory && !typeParam && !locationParam && (
+          <RecommendedSection 
+              user={user} 
+              favorites={favorites} 
+              onToggleFavorite={toggleFav} 
+          />
+      )}
+       {/* --- QUẢNG CÁO GIỮA TRANG --- */}
+      {!search && !isUrlCategory && (
+         <div className="my-8 space-y-6">
+            <AdPlacement zone="home_middle_banner" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                <div className="w-full"><AdPlacement zone="home_grid_left" /></div>
+                <div className="w-full"><AdPlacement zone="home_grid_right" /></div>
+            </div>
+         </div>
+      )}
       {/* 6. DANH SÁCH CHÍNH (CÓ THÊM NÚT MAP CHO TRANG "XEM TẤT CẢ") */}
       <section className="space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between px-2 gap-4">

@@ -12,6 +12,7 @@ import StoryBar from '../components/StoryBar';
 import AdPlacement from '../components/AdPlacement'; 
 import MapView from '../components/MapView'; 
 import RecommendedSection from '../components/RecommendedSection';
+
 // --- BỘ ICON VẼ TAY (SVG THUẦN) ---
 const IconZap = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 const IconCrown = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>;
@@ -81,14 +82,17 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
   const LIMIT_NEARBY = 12; 
   const PAGE_SIZE = 12;
 
+  // --- [ĐÃ SỬA] LOGIC SẮP XẾP MỚI ---
+  // Sắp xếp thuần túy theo thời gian (Ai mới đẩy tin/đăng tin thì lên đầu)
+  // Không phân biệt VIP hay thường ở danh sách này
   const sortListings = useCallback((items: Listing[]) => {
     return [...items].sort((a, b) => {
-        const tierScore: Record<string, number> = { pro: 3, basic: 2, free: 1 };
-        const scoreA = tierScore[a.tier || 'free'] || 1;
-        const scoreB = tierScore[b.tier || 'free'] || 1;
+        // Ưu tiên dùng refreshedAt (thời gian đẩy tin), nếu không có thì dùng createdAt
+        const timeA = new Date(a.refreshedAt || a.createdAt).getTime();
+        const timeB = new Date(b.refreshedAt || b.createdAt).getTime();
         
-        if (scoreA !== scoreB) return scoreB - scoreA; 
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        // So sánh: Tin nào thời gian mới hơn (lớn hơn) thì xếp trước
+        return timeB - timeA; 
     });
   }, []);
 
@@ -236,6 +240,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       });
 
       if (!result.error) {
+        // Áp dụng logic sắp xếp mới tại đây
         const sortedList = sortListings(result.listings);
         setLatestListings(sortedList);
         setLastDoc(result.lastDoc);
@@ -288,6 +293,7 @@ const Home: React.FC<{ user: User | null }> = ({ user }) => {
       });
 
       if (!result.error) {
+        // Áp dụng logic sắp xếp mới cho cả phần load thêm
         setLatestListings(prev => sortListings([...prev, ...result.listings]));
         setLastDoc(result.lastDoc);
         setHasMore(result.hasMore);

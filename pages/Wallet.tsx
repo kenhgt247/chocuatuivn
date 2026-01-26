@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { db } from '../services/db'; // Bỏ SystemSettings vì PayOS trả về đủ info rồi
+import { db } from '../services/db'; 
 import { User, Transaction } from '../types';
 import { formatPrice } from '../utils/format';
 
 /* ============================================================================
-   ICONS INLINE – GIỮ NGUYÊN BỘ ICON CŨ
+   ICONS INLINE
 ============================================================================ */
 const IconWallet = () => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H6a2 2 0 0 1 0-4h14v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>;
 const IconRotate = ({ spin }: { spin?: boolean }) => (
@@ -42,13 +42,12 @@ const Wallet: React.FC<Props> = ({ user }) => {
   const [showQR, setShowQR] = useState(false);
   const [paymentInfo, setPaymentInfo] = useState<any>(null);
 
-  /* ================= LOAD DATA ================= */
+  /* ================= LOAD DATA & REALTIME POLLING ================= */
   useEffect(() => {
     mountedRef.current = true;
 
     const load = async () => {
       try {
-        // Chỉ cần load Transactions, Settings PayOS tự lo
         const tx = await db.getTransactions(user.id);
         if (mountedRef.current) {
           setTransactions(tx);
@@ -59,14 +58,33 @@ const Wallet: React.FC<Props> = ({ user }) => {
     };
 
     load();
-    // Auto refresh để cập nhật trạng thái khi nạp thành công
-    const id = setInterval(load, 5000);
+    // 🔥 TĂNG TỐC ĐỘ CẬP NHẬT: 2 GIÂY/LẦN (để bắt trạng thái nhanh hơn)
+    const id = setInterval(load, 2000); 
 
     return () => {
       mountedRef.current = false;
       clearInterval(id);
     };
   }, [user.id]);
+
+  /* ================= 🔥 TÍNH NĂNG MỚI: TỰ ĐỘNG ĐÓNG QR KHI THÀNH CÔNG ================= */
+  useEffect(() => {
+    // Chỉ chạy khi đang mở QR
+    if (showQR && paymentInfo) {
+      // Tìm giao dịch hiện tại trong danh sách mới tải về
+      const currentTx = transactions.find(t => t.orderCode === paymentInfo.orderCode);
+
+      // Nếu tìm thấy VÀ trạng thái là success (đã nạp xong)
+      if (currentTx && (currentTx.status === 'success' || currentTx.status === 'paid')) {
+        // 1. Tắt QR ngay lập tức
+        setShowQR(false); 
+        setPaymentInfo(null);
+        
+        // 2. Báo tin vui cho người dùng
+        alert(`✅ Ting ting! Đã nhận được ${formatPrice(currentTx.amount)} vào ví.`);
+      }
+    }
+  }, [transactions, showQR, paymentInfo]);
 
   /* ================= HANDLERS ================= */
   const handleRefresh = async () => {
@@ -76,7 +94,6 @@ const Wallet: React.FC<Props> = ({ user }) => {
     setTimeout(() => mountedRef.current && setRefreshing(false), 500);
   };
 
-  // Hàm quan trọng: Gọi PayOS tạo link thanh toán
   const handleCreatePayment = async () => {
     const numAmount = parseInt(amount.replace(/\D/g, ''));
 
@@ -91,14 +108,14 @@ const Wallet: React.FC<Props> = ({ user }) => {
 
     setLoading(true);
     try {
-      // 👇👇👇 GỬI THÊM TÊN NGƯỜI DÙNG 👇👇👇
+      // 👇 Gửi kèm Tên Người Dùng sang PayOS để hiện trên QR
       const userNameToSend = user.name || "Khach hang";
       const data = await db.createPayOSPayment(numAmount, user.id, userNameToSend);
-      // 👆👆👆 KẾT THÚC THAY ĐỔI 👆👆👆
       
       setPaymentInfo(data);
       setShowQR(true);
 
+      // Reload lại list transaction ngay để thấy trạng thái Pending
       const tx = await db.getTransactions(user.id);
       if(mountedRef.current) setTransactions(tx);
 
@@ -116,7 +133,6 @@ const Wallet: React.FC<Props> = ({ user }) => {
       
       {/* 1. THẺ SỐ DƯ (CARD) */}
       <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[2rem] p-8 text-white shadow-2xl shadow-blue-500/30 transition-transform hover:scale-[1.01]">
-        {/* Họa tiết nền trang trí */}
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-white/10 blur-3xl"></div>
         <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-40 h-40 rounded-full bg-black/10 blur-2xl"></div>
 
@@ -156,7 +172,6 @@ const Wallet: React.FC<Props> = ({ user }) => {
       <div className="bg-white rounded-[2.5rem] p-8 shadow-xl shadow-gray-100/50 border border-gray-100">
         <h3 className="text-lg font-black text-gray-800 mb-6 uppercase tracking-wide border-l-4 border-blue-500 pl-3">Nạp tiền vào ví</h3>
         
-        {/* Input nhập tiền */}
         <div className="relative mb-6 group">
             <input
                 value={Number(amount).toLocaleString('vi-VN')}
@@ -167,7 +182,6 @@ const Wallet: React.FC<Props> = ({ user }) => {
             <span className="absolute right-6 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">VNĐ</span>
         </div>
 
-        {/* Các mức tiền gợi ý */}
         <div className="grid grid-cols-3 gap-3 mb-8">
           {PRESET_AMOUNTS.map(v => (
             <button
@@ -248,10 +262,6 @@ const Wallet: React.FC<Props> = ({ user }) => {
             </div>
             
             <div className="bg-blue-50 p-4 rounded-3xl border border-blue-100 mb-6 text-center">
-                {/* Hiển thị QR Code
-                   - PayOS trả về `qrCode` (dạng chuỗi base64) hoặc info để tự build.
-                   - Ở đây ta dùng api VietQR + thông tin PayOS trả về để có ảnh QR đẹp nhất 
-                */}
                 <img 
                     src={`https://img.vietqr.io/image/${paymentInfo.bin}-${paymentInfo.accountNumber}-compact2.png?amount=${paymentInfo.amount}&addInfo=${encodeURIComponent(paymentInfo.description)}&accountName=${encodeURIComponent(paymentInfo.accountName)}`}
                     className="w-full h-auto rounded-xl mix-blend-multiply mb-3" 
@@ -263,7 +273,6 @@ const Wallet: React.FC<Props> = ({ user }) => {
             </div>
 
             <div className="space-y-3">
-                {/* Nút mở App thanh toán (Deep Link) */}
                 <a 
                     href={paymentInfo.checkoutUrl} 
                     target="_blank" 

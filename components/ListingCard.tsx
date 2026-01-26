@@ -15,8 +15,8 @@ const IconClock = ({ className }: { className?: string }) => <svg xmlns="http://
 const IconMapPin = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>;
 const IconArrowUp = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>;
 const IconShare = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>;
-const IconStar = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
 const IconCreditCard = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>;
+const IconStar = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
 
 interface ListingCardProps {
   listing: Listing;
@@ -37,16 +37,17 @@ const ListingCard: React.FC<ListingCardProps> = ({
   const [isPushing, setIsPushing] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   
-  // State cho Modal chọn phương thức đẩy tin
+  // State bật tắt Modal chọn phương thức đẩy tin
   const [showPushModal, setShowPushModal] = useState(false);
   
   const [pushConfig, setPushConfig] = useState<{ price: number, discount: number }>({ price: 5000, discount: 0 });
 
   useEffect(() => {
+      let isMounted = true;
       const loadSettings = async () => {
           try {
             const settings = await db.getSettings();
-            if (settings) {
+            if (isMounted && settings) {
                 setPushConfig({
                     price: settings.pushPrice || 5000,
                     discount: settings.pushDiscount || 0
@@ -55,6 +56,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
           } catch (error) {}
       };
       loadSettings();
+      return () => { isMounted = false; };
   }, []);
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
@@ -69,27 +71,29 @@ const ListingCard: React.FC<ListingCardProps> = ({
     setIsShareModalOpen(true);
   };
 
-  // --- XỬ LÝ ĐẨY TIN (MỚI) ---
+  // --- 1. SỰ KIỆN BẤM NÚT ĐẨY TIN ---
   const handlePushClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault();     // Chặn link
+    e.stopPropagation();    // Chặn sự kiện lan truyền ra thẻ cha (quan trọng!)
 
     if (!currentUser) {
         if(window.confirm("Bạn cần đăng nhập để sử dụng tính năng này.")) navigate('/login');
         return;
     }
 
-    // Mở Modal thay vì window.confirm
+    // Mở Modal
     setShowPushModal(true);
   };
 
+  // --- 2. HÀM XỬ LÝ ĐẨY TIN (GỌI API) ---
   const processPush = async (method: 'money' | 'point') => {
+    // Tính toán giá
     const finalPrice = pushConfig.price * (1 - pushConfig.discount / 100);
     const pointsNeeded = Math.ceil(finalPrice / 100); // 100đ = 1 điểm
 
-    setShowPushModal(false); // Đóng modal
+    setShowPushModal(false); // Đóng modal ngay
 
-    // Kiểm tra số dư trước khi gọi API
+    // Kiểm tra số dư
     if (method === 'money') {
         if ((currentUser?.walletBalance || 0) < finalPrice) {
             if(confirm(`Số dư không đủ (Thiếu ${formatPrice(finalPrice - (currentUser?.walletBalance || 0))}). Nạp ngay?`)) {
@@ -99,7 +103,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
         }
     } else {
         if ((currentUser?.pointBalance || 0) < pointsNeeded) {
-            alert(`Không đủ điểm (Thiếu ${pointsNeeded - (currentUser?.pointBalance || 0)} điểm).`);
+            alert(`Không đủ điểm (Thiếu ${pointsNeeded - (currentUser?.pointBalance || 0)} điểm). Chia sẻ tin để kiếm thêm!`);
             return;
         }
     }
@@ -107,6 +111,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
     setIsPushing(true);
     try {
         let res;
+        // Gọi hàm tương ứng trong db.ts
         if (method === 'money') {
             res = await db.pushListing(listing.id, currentUser!.id);
         } else {
@@ -115,7 +120,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
 
         if (res.success) {
             alert("🚀 Đẩy tin thành công!");
-            window.location.reload();
+            window.location.reload(); // Load lại trang để thấy tin lên đầu
         } else {
             alert("Lỗi: " + res.message);
         }
@@ -123,6 +128,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
         console.error(error);
         alert("Có lỗi xảy ra.");
     } finally {
+        // Đảm bảo state được set lại an toàn
         setIsPushing(false);
     }
   };
@@ -130,6 +136,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
   const isOwner = currentUser && (String(currentUser.id) === String(listing.sellerId));
   const canPush = isOwner && (listing.status === 'approved');
 
+  // Tính giá hiển thị để hover xem
   const finalPrice = pushConfig.price * (1 - pushConfig.discount / 100);
   const pointsNeeded = Math.ceil(finalPrice / 100);
 
@@ -184,7 +191,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
             <IconHeart className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} />
             </button>
 
-            {/* Nút Chia Sẻ */}
+            {/* Nút Chia Sẻ (Góc dưới Trái) */}
             <button 
                 onClick={handleShareClick}
                 className="group/share absolute bottom-2 left-2 h-8 bg-white/90 hover:bg-pink-500 hover:text-white text-pink-500 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 z-30 border border-pink-100 hover:pr-3 hover:pl-1 min-w-[32px] w-auto overflow-hidden"
@@ -198,13 +205,13 @@ const ListingCard: React.FC<ListingCardProps> = ({
                 </span>
             </button>
 
-            {/* Nút Đẩy tin */}
+            {/* Nút Đẩy tin (Góc dưới Phải) */}
             {canPush && (
                 <button 
                     onClick={handlePushClick}
                     disabled={isPushing}
                     className="group/push absolute bottom-2 right-2 h-8 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg transition-all duration-300 z-30 border-2 border-white hover:pr-3 hover:pl-1 min-w-[32px] w-auto"
-                    title={`Đẩy tin lên đầu (${formatPrice(finalPrice)})`}
+                    title={`Đẩy tin: ${formatPrice(finalPrice)} hoặc ${pointsNeeded} điểm`}
                 >
                     <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
                         {isPushing ? <IconLoader2 className="w-4 h-4 animate-spin" /> : <IconArrowUp className="w-4 h-4" />}
@@ -249,12 +256,25 @@ const ListingCard: React.FC<ListingCardProps> = ({
         </Link>
         </div>
 
-        {/* MODAL CHỌN PHƯƠNG THỨC ĐẨY TIN */}
+        {/* --- 🔥 MODAL CHỌN PHƯƠNG THỨC ĐẨY TIN (FIXED BUBBLING) --- */}
         {showPushModal && (
-             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md" onClick={(e) => { e.stopPropagation(); setShowPushModal(false); }}>
-                 <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl relative animate-fade-in-up border border-white" onClick={e => e.stopPropagation()}>
-                    <h3 className="text-xl font-black text-slate-900 mb-2">Chọn cách đẩy tin</h3>
-                    <p className="text-slate-500 text-xs font-bold mb-6">Bạn muốn dùng Ví tiền mặt hay Điểm thưởng?</p>
+             <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md" 
+                onClick={(e) => { 
+                    e.preventDefault();
+                    e.stopPropagation(); 
+                    setShowPushModal(false); 
+                }}
+             >
+                 <div 
+                    className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl relative animate-scale-up border border-white" 
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation(); // CHẶN click xuyên qua modal
+                    }}
+                 >
+                    <h3 className="text-xl font-black text-slate-900 mb-2">Đẩy tin lên đầu</h3>
+                    <p className="text-slate-500 text-xs font-bold mb-6">Chọn phương thức thanh toán bạn muốn:</p>
 
                     <div className="flex flex-col gap-3">
                          {/* Cách 1: Tiền mặt */}

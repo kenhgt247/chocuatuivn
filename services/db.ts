@@ -472,8 +472,22 @@ export const db = {
           link: `/san-pham/${listingSlug}-${listingId}`
       });
 
+      try {
+          await addDoc(collection(firestore, "mail"), {
+            to: [ADMIN_EMAIL],
+            message: {
+              subject: `[DOANH THU] User đẩy tin`,
+              html: `User ${userId} vừa đẩy tin: <strong>${listingTitle}</strong>.<br>Doanh thu: <strong>${price.toLocaleString()} VNĐ</strong>.`
+            }
+          });
+      } catch (e) {}
+
       return { success: true };
-    } catch (e: any) { return { success: false, message: e.message }; }
+
+    } catch (e: any) {
+      console.error("Lỗi đẩy tin:", e);
+      return { success: false, message: e.message };
+    }
   },
 
   createPayOSPayment: async (amount: number, userId: string, fullName: string) => {
@@ -500,8 +514,28 @@ export const db = {
         status: 'pending', 
         createdAt: new Date().toISOString()
       });
+
+      try {
+          await addDoc(collection(firestore, "mail"), {
+            to: [ADMIN_EMAIL],
+            message: {
+              subject: `[NẠP TIỀN] ${amount.toLocaleString()} VNĐ qua ${method}`,
+              html: `
+                <h3 style="color:green">Có yêu cầu nạp tiền mới!</h3>
+                <p><strong>User ID:</strong> ${userId}</p>
+                <p><strong>Số tiền:</strong> ${amount.toLocaleString()} VNĐ</p>
+                <p><strong>Hình thức:</strong> ${method}</p>
+                <p>Hãy kiểm tra tài khoản ngân hàng và duyệt giao dịch này trong Admin.</p>
+              `
+            }
+          });
+      } catch (e) {}
+
       return res;
-    } catch (e) { throw e; }
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
   },
 
   buySubscriptionWithWallet: async (userId: string, tier: SubscriptionTier, price: number) => {
@@ -579,7 +613,9 @@ export const db = {
     }
   },
 
-  // --- 2. ĐẨY TIN BẰNG ĐIỂM (POINT) [NEW] ---
+  // Trong services/db.ts
+
+  // --- 2. ĐẨY TIN BẰNG ĐIỂM (POINT) ---
   pushListingWithPoints: async (listingId: string, userId: string, points: number) => {
     try {
         return await runTransaction(firestore, async (transaction) => {
@@ -592,15 +628,20 @@ export const db = {
             const currentPoints = userDoc.data().pointBalance || 0;
             if (currentPoints < points) return { success: false, message: "Không đủ điểm." };
 
+            // 1. Trừ điểm
             transaction.update(userRef, {
                 pointBalance: increment(-points)
             });
 
+            // 2. Đẩy tin lên (CẬP NHẬT createdAt THÀNH GIỜ HIỆN TẠI)
+            const now = new Date().toISOString(); // Lấy giờ hiện tại
             transaction.update(listingRef, {
-                refreshedAt: new Date().toISOString(), 
+                createdAt: now,    // <--- QUAN TRỌNG: Thêm dòng này để tin nhảy lên đầu
+                refreshedAt: now, 
                 status: 'approved' 
             });
 
+            // 3. Lưu lịch sử
             const transRef = doc(collection(firestore, "transactions"));
             transaction.set(transRef, {
                 userId,
@@ -608,7 +649,7 @@ export const db = {
                 type: 'redeem_point',
                 description: `Dùng ${points} điểm đẩy tin`,
                 status: 'success',
-                createdAt: new Date().toISOString()
+                createdAt: now
             });
 
             return { success: true };
@@ -617,7 +658,6 @@ export const db = {
         return { success: false, message: "Lỗi khi đẩy tin" };
     }
   },
-
   requestSubscriptionTransfer: async (userId: string, tier: SubscriptionTier, price: number) => {
     try {
       const res = await addDoc(collection(firestore, "transactions"), {
@@ -627,8 +667,28 @@ export const db = {
         metadata: { targetTier: tier }, 
         createdAt: new Date().toISOString()
       });
+
+      try {
+          await addDoc(collection(firestore, "mail"), {
+            to: [ADMIN_EMAIL],
+            message: {
+              subject: `[VIP PENDING] Yêu cầu duyệt gói ${tier.toUpperCase()}`,
+              html: `
+                <h3>Yêu cầu nâng cấp VIP qua Chuyển khoản</h3>
+                <p><strong>User ID:</strong> ${userId}</p>
+                <p><strong>Gói:</strong> ${tier.toUpperCase()}</p>
+                <p><strong>Số tiền:</strong> ${price.toLocaleString()} VNĐ</p>
+                <p>Vui lòng kiểm tra ngân hàng và duyệt giao dịch.</p>
+              `
+            }
+          });
+      } catch (e) {}
+
       return res;
-    } catch (e) { throw e; }
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
   },
 
   approveTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
@@ -642,7 +702,9 @@ export const db = {
         const txSnap = await transaction.get(txRef);
         
         if (!txSnap.exists()) throw new Error("Giao dịch không tồn tại");
+        
         const txData = txSnap.data() as Transaction & { metadata?: any };
+        
         if (txData.status !== 'pending') throw new Error("Giao dịch này đã được xử lý trước đó");
 
         targetUserId = txData.userId;
@@ -651,7 +713,9 @@ export const db = {
 
         const userRef = doc(firestore, "users", txData.userId);
         const userSnap = await transaction.get(userRef);
+        
         if (!userSnap.exists()) throw new Error("Không tìm thấy User");
+        
         const userData = userSnap.data() as User;
 
         if (txData.type === 'deposit') {
@@ -680,13 +744,18 @@ export const db = {
            link: '/wallet'
          });
       }
+      
       return { success: true };
-    } catch (e: any) { return { success: false, message: e.message }; }
+    } catch (e: any) {
+      console.error("Lỗi duyệt giao dịch:", e);
+      return { success: false, message: e.message };
+    }
   },
 
   rejectTransaction: async (txId: string): Promise<{ success: boolean; message?: string }> => {
     try {
       await updateDoc(doc(firestore, "transactions", txId), { status: 'failed' });
+      
       const txSnap = await getDoc(doc(firestore, "transactions", txId));
       if (txSnap.exists()) {
           const txData = txSnap.data() as Transaction;
@@ -698,23 +767,27 @@ export const db = {
               link: '/wallet'
           });
       }
+
       return { success: true };
-    } catch (e: any) { return { success: false, message: e.message }; }
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
   },
 
   getTransactions: async (userId?: string): Promise<Transaction[]> => {
     const colRef = collection(firestore, "transactions");
     let q;
+    
     if (userId) {
         q = query(colRef, where("userId", "==", userId), orderBy("createdAt", "desc"));
     } else {
         q = query(colRef, orderBy("createdAt", "desc"));
     }
+
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ ...d.data(), id: d.id } as Transaction));
   },
-
-  // --- D. NGƯỜI DÙNG ---
+  // --- D. NGƯỜI DÙNG (USERS & AUTH) ---
   
   getUsersPaged: async (options: {
     pageSize: number,
@@ -758,7 +831,10 @@ export const db = {
         hasMore: snap.docs.length === options.pageSize,
         error: null
       };
-    } catch (e: any) { return { users: [], lastDoc: null, hasMore: false, error: e.toString() }; }
+    } catch (e: any) {
+       console.error("Get users paged error:", e);
+       return { users: [], lastDoc: null, hasMore: false, error: e.toString() };
+    }
   },
 
   getCurrentUser: (): Promise<User | null> => {
@@ -788,7 +864,10 @@ export const db = {
         return { id: docSnap.id, ...docSnap.data() } as User;
       }
       return null;
-    } catch (error) { return null; }
+    } catch (error) {
+      console.error("Lỗi lấy User Profile:", error);
+      return null;
+    }
   },
 
   onUserChange: (userId: string, callback: (user: User) => void) => {
@@ -830,7 +909,9 @@ export const db = {
                 link: "/profile"
             });
         }
-    } catch (e) { console.error("Lỗi cập nhật xác minh:", e); }
+    } catch (e) {
+        console.error("Lỗi cập nhật xác minh:", e);
+    }
   },
 
   getAllUsers: async (): Promise<User[]> => {
@@ -936,7 +1017,10 @@ export const db = {
         const docRef = doc(firestore, "follows", followDocId);
         const snap = await getDoc(docRef);
         return snap.exists();
-    } catch (e) { return false; }
+    } catch (e) {
+        console.error("Check follow failed:", e);
+        return false;
+    }
   },
 
   followUser: async (followerId: string, followedId: string) => {
@@ -975,7 +1059,10 @@ export const db = {
             followers: followersSnap.data().count,
             following: followingSnap.data().count
         };
-    } catch (e) { return { followers: 0, following: 0 }; }
+    } catch (e) {
+        console.error("Get follow stats failed:", e);
+        return { followers: 0, following: 0 };
+    }
   },
 
   toggleFollow: async (uId: string, tId: string) => {
@@ -999,6 +1086,7 @@ export const db = {
       const reviews = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Review));
       callback(reviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     }, (error) => {
+       // Silent error on permission denied (logout)
        if(error.code !== 'permission-denied') console.error(error);
     });
   },
@@ -1103,6 +1191,7 @@ export const db = {
       const notifs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Notification));
       callback(notifs);
     }, (error) => {
+       // Silent error on permission denied (logout)
        if(error.code !== 'permission-denied') console.error(error);
     });
   },
@@ -1127,7 +1216,10 @@ export const db = {
       const storageRef = ref(storage, path);
       const snapshot = await uploadBytes(storageRef, file);
       return await getDownloadURL(snapshot.ref);
-    } catch (e) { throw e; }
+    } catch (e) {
+      console.error("Lỗi tải video:", e);
+      throw e;
+    }
   },
 
   getSettings: async (): Promise<SystemSettings | null> => {
@@ -1185,7 +1277,10 @@ export const db = {
     try {
       await deleteDoc(doc(firestore, "chats", roomId));
       return { success: true };
-    } catch (e: any) { throw e; }
+    } catch (e: any) {
+      console.error("Error deleting chat room:", e);
+      throw e;
+    }
   },
 
   // [HÀM MỚI] Nén ảnh để giảm dung lượng trước khi upload
@@ -1228,14 +1323,23 @@ export const db = {
   // [CẬP NHẬT] Upload ảnh có nén
   uploadChatImage: async (file: File): Promise<string> => {
     try {
+      // 1. Nén ảnh
       const compressedBlob = await db.compressImage(file);
+      
+      // 2. Upload
       const path = `chat-images/${Date.now()}_${file.name}`;
       const storageRef = ref(storage, path);
       const snapshot = await uploadBytes(storageRef, compressedBlob);
+      
+      // 3. Lấy URL
       return await getDownloadURL(snapshot.ref);
-    } catch (e) { throw e; }
+    } catch (e) {
+      console.error("Lỗi upload ảnh chat:", e);
+      throw e;
+    }
   },
 
+  // [CẬP NHẬT] Xử lý hiển thị preview cho các loại tin nhắn khác nhau
   addMessage: async (roomId: string, message: Omit<Message, 'id' | 'timestamp'>) => {
     const roomRef = doc(firestore, "chats", roomId);
     
@@ -1288,7 +1392,10 @@ export const db = {
             });
           }
       }
-    } catch (error) { throw error; }
+    } catch (error) {
+      console.error("Lỗi gửi tin nhắn:", error);
+      throw error;
+    }
   },
 
   deleteMessage: async (roomId: string, messageId: string) => {
@@ -1302,7 +1409,9 @@ export const db = {
            await updateDoc(roomRef, { messages: updatedMessages });
         }
       }
-    } catch (e) { console.error("Error deleting message:", e); }
+    } catch (e) {
+      console.error("Error deleting message:", e);
+    }
   },
 
   markRoomAsSeen: async (id: string, userId: string) => {
@@ -1321,7 +1430,10 @@ export const db = {
         return snapshot.docs[0].id;
       }
       return null;
-    } catch (e) { return null; }
+    } catch (e) {
+      console.error("Lỗi tìm phòng chat:", e);
+      return null;
+    }
   },
 
   createChatRoom: async (l: Listing, buyer: User): Promise<string> => {
@@ -1353,7 +1465,10 @@ export const db = {
             await setDoc(roomRef, newRoom);
         }
         return roomId;
-    } catch (e) { throw e; }
+    } catch (e) {
+        console.error("Error creating chat room:", e);
+        throw e;
+    }
   },
   
   respondToSwap: async (roomId: string, messageId: string, status: 'accepted' | 'rejected') => {
@@ -1364,6 +1479,7 @@ export const db = {
 
       const roomData = roomSnap.data() as ChatRoom;
       
+      // Cập nhật trạng thái trong mảng messages
       const updatedMessages = roomData.messages.map(msg => {
         if (msg.id === messageId && msg.type === 'swap' && msg.swapData) {
           return {
@@ -1381,6 +1497,7 @@ export const db = {
         messages: updatedMessages
       });
 
+      // Gửi tin nhắn hệ thống thông báo kết quả
       const resultText = status === 'accepted' 
         ? "✅ Đã ĐỒNG Ý yêu cầu đổi đồ! Hãy trao đổi chi tiết địa điểm giao dịch."
         : "❌ Đã TỪ CHỐI yêu cầu đổi đồ.";
@@ -1393,9 +1510,11 @@ export const db = {
       });
 
       return { success: true };
-    } catch (error) { return { success: false, message: "Lỗi kết nối database" }; }
+    } catch (error) {
+      console.error("Lỗi respondToSwap:", error);
+      return { success: false, message: "Lỗi kết nối database" };
+    }
   },
-
   // --- I. TÍNH NĂNG MẶC CẢ (OFFERS) ---
   
   createOffer: async (listing: Listing, buyer: User, offerPrice: number) => {
@@ -1434,7 +1553,10 @@ export const db = {
       });
 
       return { success: true, offerId: offerRef.id };
-    } catch (e: any) { return { success: false, message: e.message }; }
+    } catch (e: any) {
+      console.error("Lỗi tạo offer:", e);
+      return { success: false, message: e.message };
+    }
   },
 
   respondToOffer: async (offerId: string, status: 'accepted' | 'rejected', roomId: string) => {
@@ -1462,9 +1584,12 @@ export const db = {
       });
 
       return { success: true };
-    } catch (e: any) { return { success: false, message: e.message }; }
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
   },
 
+  // --- CRAWLER LINK ---
   scanLinkToImage: async (url: string) => {
     try {
       const captureFn = httpsCallable(functions, 'captureUrl');
@@ -1475,8 +1600,12 @@ export const db = {
         return result.data.base64; 
       }
       return null;
-    } catch (e) { return null; }
+    } catch (e) {
+      console.error("Lỗi scan link:", e);
+      return null;
+    }
   },
+
 
   // --- DANH MỤC ĐỘNG ---
   getCategories: async (): Promise<Category[]> => {
@@ -1488,25 +1617,32 @@ export const db = {
       if (snap.empty) return []; 
       
       return snap.docs.map(d => d.data() as Category);
-    } catch (e) { return []; }
+    } catch (e) {
+      console.error("Lỗi lấy danh mục:", e);
+      return [];
+    }
   },
 
   saveCategory: async (category: Category) => {
     try {
       await setDoc(doc(firestore, "categories", category.id), category);
       return { success: true };
-    } catch (e: any) { return { success: false, message: e.message }; }
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
   },
 
   deleteCategory: async (categoryId: string) => {
     try {
       await deleteDoc(doc(firestore, "categories", categoryId));
       return { success: true };
-    } catch (e: any) { return { success: false, message: e.message }; }
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
   },
-
   // --- H. ĐẤU GIÁ (AUCTION) ---
 
+  // Lấy danh sách người đấu giá (Realtime)
   getBids: (listingId: string, callback: (bids: Bid[]) => void) => {
     const q = query(
       collection(firestore, "bids"), 
@@ -1517,13 +1653,16 @@ export const db = {
       const bids = snap.docs.map(d => ({ id: d.id, ...d.data() } as Bid));
       callback(bids);
     }, (error) => {
+       // Silent error on permission denied (logout)
        if(error.code !== 'permission-denied') console.error(error);
     });
   },
 
+  // Thực hiện đặt giá (Transaction an toàn)
   placeBid: async (listingId: string, userId: string, amount: number) => {
     try {
       return await runTransaction(firestore, async (transaction) => {
+        // 1. Lấy thông tin tin đăng & user
         const listingRef = doc(firestore, "listings", listingId);
         const userRef = doc(firestore, "users", userId);
         
@@ -1571,7 +1710,10 @@ export const db = {
             sellerId: listing.sellerId 
         };
       });
-    } catch (e: any) { throw e; }
+    } catch (e: any) {
+      console.error("Lỗi đấu giá:", e);
+      throw e;
+    }
   },
 
   notifyBidSuccess: async (data: any, currentUserId: string, amount: number) => {
@@ -1640,7 +1782,10 @@ export const db = {
       }
       
       return { success: true, message: `Đã dọn dẹp ${count} dữ liệu mẫu (seed_*)!` };
-    } catch (e: any) { return { success: false, message: e.message }; }
+    } catch (e: any) {
+      console.error("Lỗi dọn dẹp:", e);
+      return { success: false, message: e.message };
+    }
   },
 
   seedDatabase: async () => {
@@ -1676,7 +1821,94 @@ export const db = {
           image: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800&q=80",
           location: "TP.HCM"
         },
-        // ... (Giữ nguyên các item mẫu)
+        {
+          title: "Honda SH 150i ABS 2023 Màu Xám Xi Măng Lướt 2000km",
+          price: 98000000,
+          category: "xe-may",
+          parent: "xe-co",
+          image: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=800&q=80",
+          location: "Hà Nội"
+        },
+        {
+          title: "Căn hộ Vinhome Central Park 2PN View Sông - Nội thất cao cấp",
+          price: 5200000000,
+          category: "can-ho-chung-cu",
+          parent: "bat-dong-san",
+          image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&q=80",
+          location: "TP.HCM"
+        },
+        {
+          title: "MacBook Air M2 Midnight 8GB/256GB Sạc 10 lần",
+          price: 21500000,
+          category: "laptop",
+          parent: "do-dien-tu",
+          image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca4?w=800&q=80",
+          location: "Đà Nẵng"
+        },
+        {
+          title: "Mèo Anh Lông Ngắn Bicolor - Mập ú nu, đã tiêm phòng",
+          price: 3500000,
+          category: "meo",
+          parent: "thu-cung",
+          image: "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=800&q=80",
+          location: "Hải Phòng"
+        },
+        {
+          title: "VinFast Lux A2.0 Bản Cao Cấp - Xe Gia Đình Giữ Kỹ",
+          price: 550000000,
+          category: "o-to",
+          parent: "xe-co",
+          image: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&q=80",
+          location: "TP.HCM"
+        },
+        {
+          title: "Tuyển Nhân Viên Bán Hàng Cửa Hàng Tiện Lợi (Ca Xoay)",
+          price: 7000000, 
+          category: "ban-hang",
+          parent: "viec-lam",
+          image: "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?w=800&q=80",
+          location: "Hà Nội"
+        },
+        {
+          title: "Thanh lý Sofa Da Bò Thật Nhập Khẩu Ý - Còn mới 95%",
+          price: 12000000,
+          category: "ban-ghe",
+          parent: "noi-that",
+          image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80",
+          location: "TP.HCM"
+        },
+        {
+          title: "Giày Nike Jordan 1 High Panda Auth - Size 42 Cond 9/10",
+          price: 2800000,
+          category: "giay-dep",
+          parent: "thoi-trang",
+          image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+          location: "Cần Thơ"
+        },
+        {
+          title: "Tủ Lạnh Hitachi Inverter 4 Cánh 540L - Bảo hành 1 năm",
+          price: 15500000,
+          category: "tu-lanh",
+          parent: "dien-lanh",
+          image: "https://images.unsplash.com/photo-1584622050111-993a426fbf0a?w=800&q=80",
+          location: "Đồng Nai"
+        },
+        {
+          title: "Chó Corgi Mông Trái Tim 3 Tháng Tuổi - Giấy tờ VKA",
+          price: 8000000,
+          category: "cho",
+          parent: "thu-cung",
+          image: "https://images.unsplash.com/photo-1612536053381-696179b53685?w=800&q=80",
+          location: "TP.HCM"
+        },
+        {
+          title: "Đồng Hồ Apple Watch Series 8 45mm Nhôm GPS - Fullbox",
+          price: 6500000,
+          category: "dong-ho",
+          parent: "thoi-trang",
+          image: "https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=800&q=80",
+          location: "Bình Dương"
+        }
       ];
 
       SHOWCASE_ITEMS.forEach((item, index) => {
@@ -1717,9 +1949,13 @@ export const db = {
       await batch.commit();
       return { success: true, message: "Đã tạo 12 tin mẫu VIP đẹp lung linh!" };
 
-    } catch (e: any) { return { success: false, message: e.message }; }
+    } catch (e: any) {
+      console.error("Lỗi seed:", e);
+      return { success: false, message: e.message };
+    }
   },
 
+  // --- HÀM KHÔI PHỤC CẤU HÌNH GỐC (BAO GỒM GÓI CƯỚC & ADS) ---
   seedSystemSettings: async () => {
     try {
       console.log("⚙️ Đang thiết lập cấu hình chuẩn...");
@@ -1732,6 +1968,7 @@ export const db = {
         accountNumber: "0912434666",
         accountName: "BUI VAN BAC",
         
+        // --- CẤU HÌNH 3 GÓI CƯỚC MỚI ---
         tierConfigs: {
           free: {
             name: "Thành viên Mới",
@@ -1783,6 +2020,9 @@ export const db = {
         },
 
         adsConfig: {
+    // === KHU VỰC 1: DƯỚI DANH MỤC (TOP) ===
+    
+    // Cách 1: Banner Dài (1 Cột) - Mặc định BẬT
     home_below_categories: { 
         id: 'home_below_categories', 
         name: '🏠 Trang chủ - Top (1 Cột Ngang)', 
@@ -1793,6 +2033,8 @@ export const db = {
         width: '100%', height: 'auto',
         bgColor: '#ffffff', textColor: '#000000'
     },
+
+    // Cách 2: Banner Đôi (2 Cột) - Mặc định TẮT (Bạn có thể bật trong Admin)
     home_top_left: { 
         id: 'home_top_left', 
         name: '🏠 Trang chủ - Top (Trái 1/2)', 
@@ -1803,7 +2045,7 @@ export const db = {
         textBtnLabel: 'Xem ngay',
         link: '/search?sort=cheap',
         width: '100%', height: 'auto',
-        bgColor: '#fdf4ff', textColor: '#c026d3' 
+        bgColor: '#fdf4ff', textColor: '#c026d3' // Tím
     },
     home_top_right: { 
         id: 'home_top_right', 
@@ -1815,8 +2057,12 @@ export const db = {
         textBtnLabel: 'Đăng ngay',
         link: '/post',
         width: '100%', height: 'auto',
-        bgColor: '#ecfccb', textColor: '#65a30d' 
+        bgColor: '#ecfccb', textColor: '#65a30d' // Xanh lá mạ
     },
+
+    // === KHU VỰC 2: GIỮA TRANG (MIDDLE) ===
+
+    // Cách 1: Banner Ngang (1 Cột) - Mặc định TẮT
     home_middle_banner: { 
         id: 'home_middle_banner', 
         name: '🏠 Trang chủ - Giữa (1 Cột Ngang)', 
@@ -1827,6 +2073,8 @@ export const db = {
         width: '100%', height: 'auto',
         bgColor: '#ffffff', textColor: '#000000'
     },
+
+    // Cách 2: Banner Grid (2 Cột) - Mặc định BẬT
     home_grid_left: { 
         id: 'home_grid_left', 
         name: '🏠 Trang chủ - Giữa (Trái 1/2)', 
@@ -1837,7 +2085,7 @@ export const db = {
         textBtnLabel: 'Săn ngay',
         link: '/category/do-dien-tu',
         width: '100%', height: 'auto',
-        bgColor: '#fff7ed', textColor: '#ea580c' 
+        bgColor: '#fff7ed', textColor: '#ea580c' // Cam
     },
     home_grid_right: { 
         id: 'home_grid_right', 
@@ -1849,8 +2097,10 @@ export const db = {
         textBtnLabel: 'Khám phá',
         link: '/category/thoi-trang',
         width: '100%', height: 'auto',
-        bgColor: '#eff6ff', textColor: '#2563eb' 
+        bgColor: '#eff6ff', textColor: '#2563eb' // Xanh
     },
+
+    // 4. Các vị trí khác (Giữ nguyên)
     in_feed: { 
         id: 'in_feed', 
         name: '📂 Danh mục - Xen kẽ tin', 
@@ -1895,6 +2145,7 @@ export const db = {
     }
   },
 
+        // Banner mặc định
         bannerSlides: [
            { id: 1, type: 'text', title: "Đăng tin siêu tốc 🚀", desc: "Tiếp cận hàng ngàn khách hàng mỗi ngày.", btnText: "Đăng ngay", btnLink: "/post", colorFrom: "from-blue-600", colorTo: "to-indigo-600", icon: "⚡", isActive: true },
            { id: 2, type: 'text', title: "Nâng cấp VIP 👑", desc: "Tin đăng nổi bật, chốt đơn nhanh gấp 5 lần.", btnText: "Xem gói VIP", btnLink: "/profile", colorFrom: "from-orange-500", colorTo: "to-red-500", icon: "💎", isActive: true }
@@ -1909,15 +2160,22 @@ export const db = {
     }
   },
 
-  // --- STORY FEATURES ---
+  // --- STORY FEATURES (FINAL UPDATE) ---
 
+  // 1. Tải video lên Storage
   uploadStoryVideo: async (file: File, userId: string): Promise<string> => {
     const storageRef = ref(storage, `stories/${userId}/${Date.now()}_${file.name}`);
     const snapshot = await uploadBytes(storageRef, file);
     return await getDownloadURL(snapshot.ref);
   },
 
+  // 2. Tạo Story mới (Logic phân loại VIP)
   createStory: async (user: User, mediaUrl: string, mediaType: 'image' | 'video', listingId?: string) => {
+    console.log("🚀 BẮT ĐẦU TẠO STORY...");
+    console.log("- User:", user.name);
+    console.log("- Loại:", mediaType);
+    console.log("- ID Sản phẩm gắn kèm:", listingId);
+
     const tier = user.subscriptionTier || 'free';
     const isPro = tier === 'pro';
     const now = Date.now();
@@ -1938,18 +2196,30 @@ export const db = {
       tier: tier
     };
 
+    // 1. Lưu Story
     try {
         await addDoc(collection(firestore, 'stories'), storyData);
-    } catch (e) { console.error("❌ Lỗi lưu Story:", e); }
+        console.log("✅ Đã lưu Story vào Database");
+    } catch (e) {
+        console.error("❌ Lỗi lưu Story:", e);
+    }
 
+    // 2. LOGIC GHIM VIDEO (QUAN TRỌNG NHẤT)
     if (mediaType === 'video' && listingId && listingId.trim() !== "") {
+        console.log("👉 Phát hiện Video có gắn thẻ. Đang thử ghim vào Listing...");
         try {
             const listingRef = doc(firestore, 'listings', listingId);
-            await updateDoc(listingRef, { videoUrl: mediaUrl });
-        } catch (e) { console.error("❌ THẤT BẠI: Lỗi khi ghim video vào sản phẩm:", e); }
+            await updateDoc(listingRef, {
+                videoUrl: mediaUrl 
+            });
+            console.log("🎉 THÀNH CÔNG: Đã ghim Video vào sản phẩm ID:", listingId);
+        } catch (e) {
+            console.error("❌ THẤT BẠI: Lỗi khi ghim video vào sản phẩm:", e);
+        }
     }
   },
 
+  // 3. Lấy danh sách Story hiển thị (Lọc tin hết hạn)
   getActiveStories: async (): Promise<Story[]> => {
     const now = Date.now();
     try {
@@ -1967,23 +2237,30 @@ export const db = {
           return s.expiresAt > now; 
       });
 
-    } catch (error) { return []; }
+    } catch (error) {
+      console.error("Lỗi lấy Story:", error);
+      return [];
+    }
   },
 
+  // 4. (MỚI) Lấy Video Hot cho Tab Khám Phá (Chỉ lấy Video của Pro)
   getHotVideos: async (): Promise<Story[]> => {
     try {
       const q = query(
         collection(firestore, 'stories'),
-        where('tier', '==', 'pro'), 
-        where('mediaType', '==', 'video'), 
+        where('tier', '==', 'pro'), // Chỉ lấy PRO
+        where('mediaType', '==', 'video'), // Chỉ lấy VIDEO
         orderBy('createdAt', 'desc'),
         limit(20)
       );
       const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-    } catch (e) { return []; }
+    } catch (e) {
+      return [];
+    }
   },
 
+  // 5. Phản hồi Story (Chat)
   replyToStory: async (story: Story, sender: User, text: string) => {
     try {
         if (!story || !sender || story.sellerId === sender.id) return { success: false };
@@ -2041,22 +2318,36 @@ export const db = {
 
         return { success: true };
 
-    } catch (error) { return { success: false }; }
+    } catch (error) {
+        console.error("Lỗi reply story:", error);
+        return { success: false };
+    }
   },
-
-  // --- HÀM AFFILIATE CUỐI CÙNG ---
+  // --- THÊM HÀM MỚI NÀY VÀO CUỐI CÙNG ---
+  
+  // Hàm gọi API báo cáo lượt xem từ chia sẻ
   trackAffiliate: async (refId: string, listingId: string) => {
     try {
+      // ⚠️ QUAN TRỌNG: Bạn cần thay đường link dưới đây bằng link thật của bạn
+      // (Lấy từ màn hình đen Terminal sau khi chạy lệnh "firebase deploy --only functions")
+      // Link sẽ có dạng: https://trackaffiliateclick-xxxxxx-uc.a.run.app
+      
       const API_URL = "https://us-central1-chocuatui-3e65c.cloudfunctions.net/trackAffiliateClick"; 
+
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refId, listingId })
       });
+
       return await response.json();
-    } catch (error) { return { success: false }; }
+    } catch (error) {
+      console.error("Lỗi Tracking Affiliate:", error);
+      return { success: false };
+    }
   },
 
+  // Hàm lấy thống kê thu nhập Affiliate (nếu cần hiển thị chi tiết sau này)
   getAffiliateStats: async (userId: string) => {
     try {
         const userDoc = await getDoc(doc(firestore, "users", userId));
@@ -2071,7 +2362,7 @@ export const db = {
     } catch (error) {
         return { pointBalance: 0, totalPointsEarned: 0 };
     }
-  },
+  }, // <--- ĐÃ SỬA: DẤU PHẨY ĐỂ NGĂN CÁCH
 
   init: () => {}
 };

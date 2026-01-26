@@ -15,13 +15,16 @@ export type ListingStatus = 'pending' | 'approved' | 'rejected' | 'sold' | 'hidd
 // Loại thông báo
 export type NotificationType = 
   | 'info' | 'success' | 'warning' | 'error' 
-  | 'review' | 'message' | 'approval' | 'follow' | 'offer' | 'system';
+  | 'review' | 'message' | 'approval' | 'follow' | 'offer' | 'system' | 'wallet' | 'affiliate'; // Thêm 'wallet' & 'affiliate'
 
 // Loại tin nhắn chat
 export type MessageType = 'text' | 'image' | 'location' | 'offer' | 'swap';
 
 // Trạng thái của một lời mặc cả
 export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled';
+
+// Loại giao dịch tài chính
+export type TransactionType = 'deposit' | 'payment' | 'refund' | 'affiliate' | 'redeem_point'; // Thêm 'affiliate' & 'redeem_point'
 
 // ==========================================
 // 2. CÁC INTERFACE CHÍNH (CORE)
@@ -31,13 +34,16 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  avatar?: string; // Đã sửa thành optional để tránh lỗi nếu null
+  avatar?: string;
   role: UserRole;
   status: UserStatus;
   phone?: string;
   joinedAt: string;
- isOnline?: boolean;       // Trạng thái online
-  lastActiveAt?: any;  
+  
+  // --- TRẠNG THÁI ---
+  isOnline?: boolean;
+  lastActiveAt?: string | any;
+  
   // --- THÔNG TIN VỊ TRÍ ---
   location?: string; 
   address?: string; 
@@ -47,7 +53,11 @@ export interface User {
   // --- VÍ & GÓI CƯỚC ---
   subscriptionTier: SubscriptionTier;
   subscriptionExpires?: string;
-  walletBalance?: number; 
+  
+  walletBalance: number;       // Ví tiền mặt
+  pointBalance: number;        // Ví điểm thưởng (NEW)
+  totalPointsEarned?: number;  // Tổng điểm tích lũy (NEW)
+  affiliateEarnings?: number;  // Tổng tiền hoa hồng (NEW)
   
   // --- SOCIAL ---
   followers?: string[];
@@ -55,8 +65,9 @@ export interface User {
   
   // --- XÁC THỰC (KYC) ---
   verificationStatus?: VerificationStatus; 
-  idCardFront?: string; 
-  idCardBack?: string;  
+  verificationDocuments?: string[]; // Mảng link ảnh CCCD
+  idCardFront?: string; // (Deprecated)
+  idCardBack?: string;  // (Deprecated)
 }
 
 // Interface cho Cấu hình Trường nhập liệu động
@@ -78,24 +89,25 @@ export interface Category {
   parentId?: string | null; // ID của danh mục cha (nếu null là danh mục gốc)
   order?: number;     // Số thứ tự sắp xếp
   attributes?: CategoryAttribute[]; // Mảng chứa cấu hình các trường nhập liệu
-  subcategories?: string[]; // (Cũ - Giữ lại để tránh lỗi code cũ nếu có)
 }
 
-// [CẬP NHẬT] Thêm trường cho Đấu giá vào Listing
+// [CẬP NHẬT] Thêm trường cho Đấu giá & Affiliate vào Listing
 export interface Listing {
   id: string;
   title: string;
   description: string;
   price: number;
   category: string;
+  parentCategory?: string | null;
   images: string[];
   videoUrl?: string | null;     // Link video ngắn sản phẩm
-  affiliateLink?: string | null;
+  affiliateLink?: string | null; // Link tiếp thị liên kết (nếu có)
   
   // --- SEO & TÌM KIẾM ---
   slug?: string;         
   keywords?: string[];   
-  viewCount?: number;    
+  viewCount?: number; 
+  views?: number; // Alias cho viewCount   
 
   // --- THÔNG TIN VỊ TRÍ ---
   location: string; 
@@ -107,10 +119,12 @@ export interface Listing {
   sellerId: string;
   sellerName: string;
   sellerAvatar: string;
+  sellerPhone?: string; // (Optional) Để hiện số điện thoại nhanh
   
   // --- METADATA ---
   createdAt: string;
   updatedAt?: string;    
+  refreshedAt?: string; // (NEW) Thời điểm đẩy tin lên đầu
   
   status: ListingStatus;
   condition: 'new' | 'used';
@@ -119,7 +133,7 @@ export interface Listing {
   // --- THÔNG SỐ KỸ THUẬT ---
   attributes?: Record<string, any>;
   
-  // --- [MỚI] TÍNH NĂNG ĐẤU GIÁ ---
+  // --- TÍNH NĂNG ĐẤU GIÁ ---
   isAuction?: boolean;          // Có phải tin đấu giá không?
   auctionEndAt?: string;        // Thời gian kết thúc (ISO String)
   bidIncrement?: number;        // Bước giá tối thiểu
@@ -127,7 +141,7 @@ export interface Listing {
   highestBidderId?: string;     // ID người đang trả giá cao nhất
 }
 
-// [MỚI] Interface cho Lịch sử Đấu giá (Bid)
+// Interface cho Lịch sử Đấu giá (Bid)
 export interface Bid {
   id: string;
   listingId: string;
@@ -139,7 +153,7 @@ export interface Bid {
 }
 
 // ==========================================
-// 3. TƯƠNG TÁC (OFFER, CHAT, REVIEW, NOTIF)
+// 3. TƯƠNG TÁC (OFFER, CHAT, REVIEW, NOTIF, STORY)
 // ==========================================
 
 export interface Offer {
@@ -227,6 +241,7 @@ export interface Review {
   rating: number; 
   comment: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Notification {
@@ -252,6 +267,22 @@ export interface Report {
   status: 'pending' | 'resolved' | 'dismissed';
 }
 
+// [CẬP NHẬT] Story (Tin 24h)
+export interface Story {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  sellerAvatar: string;
+  videoUrl: string;       // Link ảnh hoặc video
+  mediaType: 'image' | 'video'; 
+  createdAt: number | string; // Timestamp hoặc ISO
+  expiresAt: number | string;
+  isPermanent?: boolean;  // Story vĩnh viễn cho gói VIP
+  views: number;
+  listingId?: string | null; // Gắn thẻ sản phẩm
+  tier?: SubscriptionTier;
+}
+
 // ==========================================
 // 4. TÀI CHÍNH & HỆ THỐNG
 // ==========================================
@@ -260,11 +291,19 @@ export interface Transaction {
   id: string;
   userId: string;
   amount: number;
-  type: 'deposit' | 'payment' | 'refund';
+  type: TransactionType;
   method?: string; 
   description: string;
   status: 'success' | 'pending' | 'failed';
   createdAt: string;
+  
+  // [NEW] PayOS Data
+  orderCode?: number;
+  paymentLinkId?: string;
+  checkoutUrl?: string;
+  webhookTime?: string;
+  payOSReference?: string;
+
   metadata?: {
     targetTier?: SubscriptionTier;
     listingId?: string;
@@ -296,6 +335,25 @@ export interface TierConfig {
   allowVideo: boolean; 
 }
 
+// [NEW] Cấu hình Quảng cáo (Ad Placement)
+export interface AdZoneConfig {
+  id: string;            
+  name: string;         
+  enabled: boolean;      
+  type: 'image' | 'code' | 'text'; 
+  image?: string;        
+  link?: string; 
+  textTitle?: string;    
+  textDesc?: string;      
+  textBtnLabel?: string;    
+  code?: string;        
+  interval?: number;    
+  width?: string;        
+  height?: string;  
+  textColor?: string;    
+  bgColor?: string;      
+}
+
 export interface SystemSettings {
   pushPrice: number;
   pushDiscount: number;
@@ -313,15 +371,18 @@ export interface SystemSettings {
   beneficiaryQR?: string;
 
   bannerSlides?: BannerSlide[];
-}
-export interface Story {
-  id: string;
-  sellerId: string;
-  sellerName: string;
-  sellerAvatar: string;
-  videoUrl: string;       // (Ta vẫn dùng trường này để lưu link ảnh hoặc video)
-  mediaType: 'image' | 'video'; // <--- THÊM DÒNG NÀY
-  createdAt: number;
-  expiresAt: number;
-  views: number;
+  
+  // [NEW] Cấu hình vị trí quảng cáo
+  adsConfig?: {
+    home_below_categories: AdZoneConfig; 
+    home_middle_banner: AdZoneConfig;    
+    home_grid_left: AdZoneConfig;
+    home_grid_right: AdZoneConfig;
+    home_top_left: AdZoneConfig;
+    home_top_right: AdZoneConfig;
+    listing_sidebar_top: AdZoneConfig;    
+    listing_below_desc: AdZoneConfig;      
+    in_feed: AdZoneConfig;
+    category_sidebar_right: AdZoneConfig;            
+  };
 }

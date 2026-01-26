@@ -41,6 +41,7 @@ const IconClock = ({ className }: { className?: string }) => <svg xmlns="http://
 const IconZap = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 const IconMessageCircle = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>;
 const IconTrash = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>;
+const IconStar = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
 
 // Cấu hình Icon Marker
 let DefaultIcon = L.icon({
@@ -69,8 +70,19 @@ const DraggableMarker = ({ position, onDragEnd }: { position: {lat: number, lng:
     return <Marker draggable={true} eventHandlers={eventHandlers} position={position} ref={markerRef} />;
 }
 
+// Modal State Interface
 interface ModalState {
-    show: boolean; title: string; message: string; onConfirm: () => void; type: 'push' | 'delete' | 'alert';
+    show: boolean; 
+    title: string; 
+    message: string; 
+    onConfirm: () => void; 
+    type: 'push' | 'delete' | 'alert';
+    // Thêm các trường cho nút phụ (optional)
+    confirmLabel?: string;
+    cancelLabel?: string;
+    showSecondary?: boolean; // Có hiện nút thứ 3 không
+    secondaryLabel?: string;
+    onSecondary?: () => void;
 }
 
 const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser: (u: User) => void }> = ({ user, onLogout, onUpdateUser }) => {
@@ -82,7 +94,11 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     const [settings, setSettings] = useState<SystemSettings | null>(null);
     const [isPushing, setIsPushing] = useState<string | null>(null);
     const [isFindingChat, setIsFindingChat] = useState<string | null>(null);
-    const [modal, setModal] = useState<ModalState>({ show: false, title: '', message: '', type: 'alert', onConfirm: () => {} });
+    
+    // 🔥 CẬP NHẬT MODAL STATE CHO NÚT ĐẨY TIN BẰNG ĐIỂM
+    const [modal, setModal] = useState<ModalState>({ 
+        show: false, title: '', message: '', type: 'alert', onConfirm: () => {} 
+    });
 
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -90,7 +106,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
     const [kycPreviews, setKycPreviews] = useState<{front: string | null, back: string | null}>({ front: null, back: null });
     const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
 
-    // Form dữ liệu (Khởi tạo rỗng để tránh lỗi khi user null)
     const [editForm, setEditForm] = useState({
         name: '', email: '', phone: '', location: 'TPHCM', address: '', lat: 10.762622, lng: 106.660172
     });
@@ -101,7 +116,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
         if (isLoggingOut) return; 
         if (!user) { navigate('/login'); return; }
         
-        // Đồng bộ dữ liệu User vào Form
         setEditForm({
             name: user.name || '',
             email: user.email || '',
@@ -115,7 +129,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
         const loadProfileData = async () => {
             try {
                 const [all, s] = await Promise.all([db.getListings(true), db.getSettings()]);
-                // Chỉ set dữ liệu nếu chưa logout
                 if (!isLoggingOut) {
                     setMyListings(all.filter(l => String(l.sellerId) === String(user.id)));
                     setSettings(s);
@@ -146,10 +159,8 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
         };
     }, [user]);
 
-    // Nếu đang logout hoặc không có user thì KHÔNG render gì cả (Tránh trắng trang)
     if (!user || isLoggingOut) return <div className="h-screen w-full flex items-center justify-center font-bold text-slate-400">Đang tải dữ liệu...</div>;
 
-    // --- LOGIC HÀNH ĐỘNG ---
     const handleGoToChat = async (listingId: string) => {
         setIsFindingChat(listingId);
         try {
@@ -207,36 +218,76 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
         finally { setIsSubmittingKyc(false); }
     };
 
+    // 🔥 LOGIC ĐẨY TIN MỚI: CHỌN ĐIỂM HOẶC TIỀN
     const handlePushListing = (listingId: string, title: string) => {
         if (!user || !settings) return;
         const originalPrice = settings.pushPrice;
         const discount = settings.pushDiscount || 0;
         const finalPrice = originalPrice * (1 - discount / 100);
+        
+        // Quy đổi điểm: 100 VNĐ = 1 Điểm (Ví dụ) => 20.000đ = 200 điểm
+        const pointsNeeded = Math.ceil(finalPrice / 100); 
 
-        if (user.walletBalance < finalPrice) {
-            setModal({
-                show: true, title: "Số dư không đủ",
-                message: `Ví không đủ ${formatPrice(finalPrice)}. Nạp thêm ngay?`,
-                type: 'alert', onConfirm: () => { setModal(prev => ({ ...prev, show: false })); navigate('/wallet'); }
-            });
-            return;
-        }
         setModal({
-            show: true, title: "Xác nhận đẩy tin",
-            message: `Xác nhận đẩy tin "${title}" với phí ${formatPrice(finalPrice)}?`,
+            show: true, 
+            title: "Chọn phương thức đẩy tin",
+            message: `Phí đẩy tin: ${formatPrice(finalPrice)} (hoặc ${pointsNeeded} điểm)`,
             type: 'push',
+            showSecondary: true,
+            confirmLabel: `Dùng Ví (${formatPrice(finalPrice)})`,
+            secondaryLabel: `Dùng Điểm (${pointsNeeded} ⭐)`,
+            
+            // XỬ LÝ 1: DÙNG TIỀN VÍ
             onConfirm: async () => {
-                setModal(prev => ({ ...prev, show: false })); setIsPushing(listingId);
-                try {
-                    const res = await db.pushListing(listingId, user.id);
-                    if (res.success) {
-                        const all = await db.getListings(true); setMyListings(all.filter(l => String(l.sellerId) === String(user.id)));
-                        const updated = await db.getCurrentUser(); if (updated) onUpdateUser(updated);
-                        alert("Đẩy tin thành công!");
-                    }
-                } catch (err) { alert("Lỗi đẩy tin."); } finally { setIsPushing(null); }
+                if (user.walletBalance < finalPrice) {
+                    alert(`Ví không đủ tiền (Thiếu ${formatPrice(finalPrice - user.walletBalance)}).`);
+                    navigate('/wallet');
+                    return;
+                }
+                processPush(listingId, 'money', finalPrice);
+            },
+
+            // XỬ LÝ 2: DÙNG ĐIỂM
+            onSecondary: async () => {
+                if ((user.pointBalance || 0) < pointsNeeded) {
+                    alert(`Không đủ điểm (Thiếu ${pointsNeeded - (user.pointBalance || 0)} điểm). Hãy chia sẻ thêm tin để kiếm điểm!`);
+                    return;
+                }
+                processPush(listingId, 'point', pointsNeeded);
             }
         });
+    };
+
+    // Hàm xử lý chung cho cả 2 loại đẩy tin
+    const processPush = async (listingId: string, method: 'money' | 'point', cost: number) => {
+        setModal(prev => ({ ...prev, show: false })); 
+        setIsPushing(listingId);
+        
+        try {
+            let res;
+            if (method === 'money') {
+                res = await db.pushListing(listingId, user!.id); // Đẩy bằng tiền
+            } else {
+                res = await db.pushListingWithPoints(listingId, user!.id, cost); // Đẩy bằng điểm
+            }
+
+            if (res.success) {
+                const all = await db.getListings(true); 
+                setMyListings(all.filter(l => String(l.sellerId) === String(user!.id)));
+                
+                // Cập nhật lại user (để trừ tiền/điểm hiển thị ngay)
+                const updated = await db.getCurrentUser(); 
+                if (updated) onUpdateUser(updated);
+                
+                alert("🚀 Đẩy tin thành công!");
+            } else {
+                alert("Lỗi: " + res.message);
+            }
+        } catch (err) { 
+            alert("Có lỗi xảy ra."); 
+        } finally { 
+            setIsPushing(null); 
+        }
     };
 
     const handleDelete = (id: string) => {
@@ -249,16 +300,15 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
         });
     };
 
-    // [QUAN TRỌNG] Hàm đăng xuất an toàn: Xóa sạch phiên và bộ nhớ
     const handleLogout = async (e?: React.MouseEvent) => {
         if (e) e.preventDefault();
-        setIsLoggingOut(true); // Khóa component
+        setIsLoggingOut(true); 
         try {
             await db.logout();
         } catch (error) { console.error(error); } 
         finally {
             onLogout();
-            window.location.href = '/'; // Ép tải lại trang để xóa sạch RAM
+            window.location.href = '/'; 
         }
     };
 
@@ -305,9 +355,25 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                     <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl relative animate-fade-in-up border border-white">
                         <h3 className="text-2xl font-black text-slate-900 mb-2">{modal.title}</h3>
                         <p className="text-slate-500 text-sm font-medium mb-8 leading-relaxed">{modal.message}</p>
-                        <div className="flex gap-3">
-                            <button onClick={() => setModal(prev => ({ ...prev, show: false }))} className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">Hủy</button>
-                            <button onClick={modal.onConfirm} className={`flex-1 py-4 rounded-2xl font-black text-xs uppercase text-white shadow-lg transition-transform active:scale-95 ${modal.type === 'delete' ? 'bg-red-500' : 'bg-primary'}`}>Đồng ý</button>
+                        
+                        <div className="flex flex-col gap-3">
+                            {/* Nút 1: Hành động chính (Thường là dùng Tiền) */}
+                            <button onClick={modal.onConfirm} className={`w-full py-4 rounded-2xl font-black text-xs uppercase text-white shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 ${modal.type === 'delete' ? 'bg-red-500' : 'bg-primary'}`}>
+                                {modal.type === 'push' ? <IconCreditCard className="w-4 h-4" /> : null}
+                                {modal.confirmLabel || 'Đồng ý'}
+                            </button>
+
+                            {/* Nút 2: Hành động phụ (Dùng Điểm) */}
+                            {modal.showSecondary && modal.onSecondary && (
+                                <button onClick={modal.onSecondary} className="w-full py-4 rounded-2xl font-black text-xs uppercase bg-yellow-500 text-white shadow-lg shadow-yellow-200 transition-transform active:scale-95 flex items-center justify-center gap-2 hover:bg-yellow-600">
+                                    <IconStar className="w-4 h-4" /> {modal.secondaryLabel}
+                                </button>
+                            )}
+
+                            {/* Nút 3: Hủy */}
+                            <button onClick={() => setModal(prev => ({ ...prev, show: false }))} className="w-full py-4 rounded-2xl font-black text-xs uppercase bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
+                                Hủy bỏ
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -360,11 +426,18 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                                 </div>
                             </div>
 
-                            {/* THẺ VÍ */}
+                            {/* THẺ VÍ TIỀN */}
                             <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-xl min-w-[200px] flex flex-col justify-center group hover:border-primary/20 transition-all">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1"><IconCreditCard className="w-3 h-3" /> Số dư ví</p>
                                 <p className="text-3xl font-black text-primary tracking-tighter">{formatPrice(user.walletBalance)}</p>
                                 <Link to="/wallet" className="text-[10px] font-black text-primary/60 hover:text-primary mt-3 uppercase flex items-center gap-1 group-hover:translate-x-1 transition-transform">Nạp thêm tiền <IconChevronRight className="w-3 h-3" /></Link>
+                            </div>
+
+                            {/* THẺ ĐIỂM THƯỞNG (NEW) */}
+                            <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-xl min-w-[180px] flex flex-col justify-center group hover:border-yellow-400/20 transition-all">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1"><IconStar className="w-3 h-3 text-yellow-500" /> Điểm thưởng</p>
+                                <p className="text-3xl font-black text-yellow-500 tracking-tighter">{user.pointBalance || 0}</p>
+                                <p className="text-[9px] font-bold text-slate-300 mt-3 uppercase">Dùng đổi quà</p>
                             </div>
                         </div>
                     </div>
@@ -429,7 +502,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                                             </button>
                                         ) : (
                                             <>
-                                                {/* 1. NÚT ĐẨY TIN */}
+                                                {/* 1. NÚT ĐẨY TIN (ĐÃ NÂNG CẤP) */}
                                                 <button 
                                                     onClick={() => handlePushListing(listing.id, listing.title)} 
                                                     disabled={isPushing !== null || listing.status !== 'approved'} 
@@ -525,14 +598,12 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                             <h3 className="text-2xl font-black text-slate-900 flex items-center gap-4">
                                 <span className="w-12 h-12 bg-purple-50 text-purple-500 rounded-[1.2rem] flex items-center justify-center"><IconShieldCheck className="w-6 h-6" /></span> Xác thực danh tính
                             </h3>
-                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                             {((user as any).verificationStatus === 'verified') ? (
                                 <div className="bg-green-50 rounded-[2.5rem] p-10 text-center border border-green-100 shadow-inner flex flex-col items-center">
                                     <IconShieldCheck className="w-16 h-16 text-green-600 mb-4" />
                                     <h4 className="text-xl font-black text-green-700 uppercase tracking-widest">Tài khoản chính chủ</h4>
                                     <p className="text-sm text-green-600/80 font-bold mt-2">Bạn đã có tích xanh uy tín và quyền lợi ưu tiên hiển thị.</p>
                                 </div>
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             ) : ((user as any).verificationStatus === 'pending') ? (
                                 <div className="bg-yellow-50 rounded-[2.5rem] p-10 text-center border border-yellow-100 shadow-inner animate-pulse flex flex-col items-center">
                                     <IconClock className="w-16 h-16 text-yellow-600 mb-4" />
@@ -548,9 +619,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">{side === 'front' ? 'Mặt trước' : 'Mặt sau'}</label>
                                                     <div className="relative aspect-video bg-slate-50 border-4 border-dashed border-slate-100 rounded-[2.5rem] overflow-hidden group cursor-pointer hover:border-primary/30 transition-colors">
                                                         <input type="file" className="absolute inset-0 opacity-0 z-10 cursor-pointer" onChange={(e) => handleKycFileChange(side as any, e)} accept="image/*" />
-                                                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                                         {(kycPreviews as any)[side] ? (
-                                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                                             <img src={(kycPreviews as any)[side]} className="w-full h-full object-cover" alt="" />
                                                         ) : (
                                                             <div className="flex flex-col items-center justify-center h-full text-slate-300 group-hover:text-primary transition-colors">

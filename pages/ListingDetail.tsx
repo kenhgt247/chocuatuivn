@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'; // <--- Thêm useSearchParams
 import { Helmet } from 'react-helmet-async';
 import { db } from '../services/db';
 import { Listing, User } from '../types';
@@ -12,7 +12,7 @@ import AuctionBox from '../components/AuctionBox';
 import { CATEGORIES } from '../constants';
 import ProductZoom from '../components/ProductZoom';
 import SwapModal from '../components/SwapModal';
-import AdPlacement from '../components/AdPlacement'; // <--- Import Quảng cáo
+import AdPlacement from '../components/AdPlacement';
 
 // --- IMPORT FIREBASE FOR REALTIME STATUS ---
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
@@ -24,7 +24,7 @@ import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
-// --- BỘ ICON VẼ TAY (SVG THUẦN - AN TOÀN TUYỆT ĐỐI) ---
+// --- BỘ ICON VẼ TAY (SVG THUẦN) ---
 const IconHome = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
 const IconChevronRight = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>;
 const IconChevronLeft = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>;
@@ -100,6 +100,7 @@ const getAttributeIcon = (key: string): React.ReactNode => {
 
 const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
   const { slugWithId } = useParams();
+  const [searchParams] = useSearchParams(); // <--- Dùng cái này để lấy ?ref=
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
   
@@ -150,7 +151,18 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
     }
   }, [id]);
 
-  // 2. LOAD DỮ LIỆU
+  // 🔥 2. XỬ LÝ AFFILIATE (QUAN TRỌNG) 🔥
+  useEffect(() => {
+    const refId = searchParams.get('ref');
+    
+    // Nếu có refId + có id tin đăng + (user hiện tại KHÔNG PHẢI là người giới thiệu)
+    if (refId && id && (!user || user.id !== refId)) {
+        // Gọi API báo cáo điểm thưởng
+        db.trackAffiliate(refId, id);
+    }
+  }, [id, searchParams, user]);
+
+  // 3. LOAD DỮ LIỆU
   useEffect(() => {
     if (!id) return;
     
@@ -787,7 +799,13 @@ const ListingDetail: React.FC<{ user: User | null }> = ({ user }) => {
           />
       )}
       {listing && <OfferModal isOpen={showOfferModal} onClose={() => setShowOfferModal(false)} onSubmit={handleMakeOffer} originalPrice={listing.price} productName={listing.title} />}
-      <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} url={getListingUrl(listing)} title={listing.title} />
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onClose={() => setIsShareModalOpen(false)} 
+        // 👇👇👇 CẬP NHẬT LINK CHIA SẺ TRONG TRANG CHI TIẾT 👇👇👇
+        url={`${window.location.origin}/san-pham/${listing.slug}-${listing.id}${user ? `?ref=${user.id}` : ''}`} 
+        title={listing.title} 
+      />
     </div>
   );
 };

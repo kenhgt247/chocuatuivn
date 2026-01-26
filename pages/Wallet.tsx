@@ -17,6 +17,8 @@ const IconUp = () => <svg width="16" height="16" fill="none" stroke="currentColo
 const IconX = () => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>;
 const IconCheck = () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
 const IconLoader = () => <svg width="20" height="20" className="animate-spin" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg>;
+const IconStar = () => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
+const IconShare = () => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>;
 
 /* ============================================================================
    CONSTANTS
@@ -58,7 +60,7 @@ const Wallet: React.FC<Props> = ({ user }) => {
     };
 
     load();
-    // 🔥 TĂNG TỐC ĐỘ CẬP NHẬT: 2 GIÂY/LẦN (để bắt trạng thái nhanh hơn)
+    // 🔥 TĂNG TỐC ĐỘ CẬP NHẬT: 2 GIÂY/LẦN
     const id = setInterval(load, 2000); 
 
     return () => {
@@ -67,20 +69,13 @@ const Wallet: React.FC<Props> = ({ user }) => {
     };
   }, [user.id]);
 
-  /* ================= 🔥 TÍNH NĂNG MỚI: TỰ ĐỘNG ĐÓNG QR KHI THÀNH CÔNG ================= */
+  /* ================= EFFECT: TỰ ĐỘNG ĐÓNG KHI THÀNH CÔNG ================= */
   useEffect(() => {
-    // Chỉ chạy khi đang mở QR
     if (showQR && paymentInfo) {
-      // Tìm giao dịch hiện tại trong danh sách mới tải về
       const currentTx = transactions.find(t => t.orderCode === paymentInfo.orderCode);
-
-      // Nếu tìm thấy VÀ trạng thái là success (đã nạp xong)
       if (currentTx && (currentTx.status === 'success' || currentTx.status === 'paid')) {
-        // 1. Tắt QR ngay lập tức
         setShowQR(false); 
         setPaymentInfo(null);
-        
-        // 2. Báo tin vui cho người dùng
         alert(`✅ Ting ting! Đã nhận được ${formatPrice(currentTx.amount)} vào ví.`);
       }
     }
@@ -108,14 +103,12 @@ const Wallet: React.FC<Props> = ({ user }) => {
 
     setLoading(true);
     try {
-      // 👇 Gửi kèm Tên Người Dùng sang PayOS để hiện trên QR
       const userNameToSend = user.name || "Khach hang";
       const data = await db.createPayOSPayment(numAmount, user.id, userNameToSend);
       
       setPaymentInfo(data);
       setShowQR(true);
 
-      // Reload lại list transaction ngay để thấy trạng thái Pending
       const tx = await db.getTransactions(user.id);
       if(mountedRef.current) setTransactions(tx);
 
@@ -131,41 +124,52 @@ const Wallet: React.FC<Props> = ({ user }) => {
   return (
     <div className="max-w-3xl mx-auto px-4 pb-32 pt-6 font-sans space-y-8 animate-fade-in">
       
-      {/* 1. THẺ SỐ DƯ (CARD) */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[2rem] p-8 text-white shadow-2xl shadow-blue-500/30 transition-transform hover:scale-[1.01]">
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-white/10 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-40 h-40 rounded-full bg-black/10 blur-2xl"></div>
-
-        <div className="relative z-10 flex justify-between items-start">
-            <div>
-                <p className="text-sm font-bold uppercase tracking-widest opacity-80 flex items-center gap-2 mb-2">
-                    <IconWallet /> Số dư khả dụng
-                </p>
-                <h2 className="text-5xl font-black tracking-tighter">
-                    {formatPrice(user.walletBalance)}
-                </h2>
-            </div>
-            <button 
-                onClick={handleRefresh} 
-                className="p-3 bg-white/20 hover:bg-white/30 rounded-2xl backdrop-blur-md transition-all active:rotate-180"
-                title="Làm mới"
-            >
-                <IconRotate spin={refreshing} />
-            </button>
-        </div>
-        <div className="relative z-10 mt-8 pt-6 border-t border-white/20 flex gap-8">
-            <div>
-                <p className="text-[10px] uppercase font-bold opacity-60">Chủ tài khoản</p>
-                <p className="font-bold text-lg">{user.name}</p>
-            </div>
-            <div>
-                <p className="text-[10px] uppercase font-bold opacity-60">Trạng thái</p>
-                <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="font-bold text-sm">Hoạt động</span>
+      {/* KHU VỰC 2 VÍ: TIỀN MẶT & ĐIỂM THƯỞNG */}
+      <div className="grid md:grid-cols-2 gap-4">
+          
+          {/* 1. VÍ TIỀN MẶT */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[2rem] p-8 text-white shadow-2xl shadow-blue-500/30">
+            <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-white/10 blur-3xl"></div>
+            
+            <div className="relative z-10 flex justify-between items-start">
+                <div>
+                    <p className="text-sm font-bold uppercase tracking-widest opacity-80 flex items-center gap-2 mb-2">
+                        <IconWallet /> Số dư khả dụng
+                    </p>
+                    <h2 className="text-4xl lg:text-5xl font-black tracking-tighter">
+                        {formatPrice(user.walletBalance)}
+                    </h2>
                 </div>
+                <button 
+                    onClick={handleRefresh} 
+                    className="p-3 bg-white/20 hover:bg-white/30 rounded-2xl backdrop-blur-md transition-all active:rotate-180"
+                    title="Làm mới"
+                >
+                    <IconRotate spin={refreshing} />
+                </button>
             </div>
-        </div>
+            
+            <p className="text-[10px] mt-4 opacity-60">*Dùng để thanh toán & đăng tin</p>
+          </div>
+
+          {/* 2. VÍ ĐIỂM THƯỞNG (NEW) */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-yellow-400 to-orange-500 rounded-[2rem] p-8 text-white shadow-2xl shadow-orange-500/30">
+            <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-white/20 blur-2xl"></div>
+            
+            <p className="text-sm font-bold opacity-80 mb-2 flex items-center gap-2"><IconStar /> Điểm tích lũy (Coin)</p>
+            <h2 className="text-4xl lg:text-5xl font-black tracking-tighter">
+                {user.pointBalance ? user.pointBalance.toLocaleString('vi-VN') : 0} <span className="text-lg font-bold">điểm</span>
+            </h2>
+            
+            <div className="mt-6 flex gap-2">
+                <button className="flex-1 bg-white/20 hover:bg-white/30 py-3 rounded-xl text-[10px] font-black uppercase transition-colors border border-white/30">
+                    Đổi lượt đẩy tin
+                </button>
+                <button className="flex-1 bg-white/20 hover:bg-white/30 py-3 rounded-xl text-[10px] font-black uppercase transition-colors border border-white/30">
+                    Mua gói VIP
+                </button>
+            </div>
+          </div>
       </div>
 
       {/* 2. KHU VỰC NẠP TIỀN */}
@@ -222,12 +226,21 @@ const Wallet: React.FC<Props> = ({ user }) => {
             {transactions.map(tx => (
                 <div key={tx.id} className="flex justify-between items-center p-4 rounded-2xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100 group">
                     <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-md ${tx.type === 'deposit' ? 'bg-green-500 shadow-green-200' : 'bg-red-500 shadow-red-200'}`}>
-                            {tx.type === 'deposit' ? <IconDown /> : <IconUp />}
+                        {/* ICON TRẠNG THÁI */}
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-md 
+                            ${tx.type === 'deposit' ? 'bg-green-500 shadow-green-200' : 
+                              tx.type === 'affiliate' ? 'bg-purple-500 shadow-purple-200' : 
+                              'bg-red-500 shadow-red-200'}`}>
+                            
+                            {tx.type === 'deposit' ? <IconDown /> : 
+                             tx.type === 'affiliate' ? <IconShare /> : <IconUp />}
                         </div>
+                        
                         <div>
                             <p className="text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors">
-                                {tx.type === 'deposit' ? 'Nạp tiền vào ví' : 'Thanh toán dịch vụ'}
+                                {tx.type === 'deposit' ? 'Nạp tiền vào ví' : 
+                                 tx.type === 'affiliate' ? 'Thưởng chia sẻ link' : 
+                                 'Thanh toán dịch vụ'}
                             </p>
                             <p className="text-[10px] font-bold text-gray-400 mt-0.5 uppercase tracking-wide">
                                 {new Date(tx.createdAt).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
@@ -236,8 +249,12 @@ const Wallet: React.FC<Props> = ({ user }) => {
                     </div>
                     
                     <div className="text-right">
-                        <p className={`text-sm font-black ${tx.type === 'deposit' ? 'text-green-600' : 'text-red-600'}`}>
-                            {tx.type === 'deposit' ? '+' : '-'}{formatPrice(tx.amount)}
+                        <p className={`text-sm font-black 
+                            ${tx.type === 'deposit' ? 'text-green-600' : 
+                              tx.type === 'affiliate' ? 'text-purple-600' : 
+                              'text-red-600'}`}>
+                            {tx.type === 'deposit' || tx.type === 'affiliate' ? '+' : '-'}{formatPrice(tx.amount)}
+                            {tx.type === 'affiliate' && <span className="text-[10px] text-gray-400 ml-1">(điểm)</span>}
                         </p>
                         <span className={`inline-block mt-1 text-[9px] font-black px-2 py-0.5 rounded-lg uppercase ${
                             tx.status === 'approved' || tx.status === 'success' ? 'bg-green-100 text-green-700' :

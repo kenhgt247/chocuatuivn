@@ -31,7 +31,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
   // Modal State
   const [showPayModal, setShowPayModal] = useState<{ tier: string, price: number, name: string } | null>(null);
   const [paymentStep, setPaymentStep] = useState<'method' | 'qr'>('method');
-  const [processingMethod, setProcessingMethod] = useState<'wallet' | 'transfer' | null>(null);
+  const [processingMethod, setProcessingMethod] = useState<'wallet' | 'transfer' | 'points' | null>(null); // Thêm 'points'
   
   // PayOS State
   const [payOSInfo, setPayOSInfo] = useState<any>(null); // Lưu thông tin QR trả về từ PayOS
@@ -197,6 +197,43 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
       }
   };
 
+  // 3. THANH TOÁN BẰNG ĐIỂM (NEW)
+  const payWithPoints = async () => {
+    if (!showPayModal || !user) return;
+    // QUY ĐỔI: 1000 VNĐ = 10 ĐIỂM (VÍ DỤ)
+    const pointsNeeded = Math.ceil(showPayModal.price / 100); 
+
+    if ((user.pointBalance || 0) < pointsNeeded) {
+        showToast(`Bạn cần ${pointsNeeded} điểm (Thiếu ${pointsNeeded - (user.pointBalance || 0)} điểm)`, "error");
+        return;
+    }
+
+    if (!confirm(`Dùng ${pointsNeeded} điểm để đổi gói này?`)) return;
+
+    setProcessingMethod('points');
+    setLoadingPkg(showPayModal.tier);
+
+    try {
+        const res = await db.buySubscriptionWithPoints(user.id, showPayModal.tier as SubscriptionTier, pointsNeeded);
+        if (res.success) {
+            const updatedUser = await db.getCurrentUser();
+            if (updatedUser) onUpdateUser(updatedUser);
+            showToast("Đổi điểm thành công! Gói đã kích hoạt.");
+            setShowPayModal(null);
+            setTimeout(() => navigate('/profile'), 1500);
+        } else {
+            showToast(res.message || "Lỗi đổi điểm", "error");
+        }
+    } catch (error) {
+        showToast("Lỗi hệ thống", "error");
+    } finally {
+        if(mountedRef.current) {
+            setLoadingPkg(null);
+            setProcessingMethod(null);
+        }
+    }
+  };
+
 
   if (!user || !settings) {
     return (
@@ -352,15 +389,29 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                           <IconWallet className="w-6 h-6" />
                       </div>
                       <div className="text-left">
-                        <p className="text-[10px] font-black uppercase text-slate-400">Số dư hiện tại</p>
-                        <p className="text-xs font-black text-slate-800">Ví Chợ ({formatPrice(user.walletBalance)})</p>
+                        <p className="text-[10px] font-black uppercase text-slate-400">Dùng tiền trong Ví</p>
+                        <p className="text-xs font-black text-slate-800">Số dư: {formatPrice(user.walletBalance)}</p>
                       </div>
                     </div>
                     {processingMethod === 'wallet' ? <IconLoader2 className="w-5 h-5 text-primary animate-spin" /> : <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"></div>}
                   </button>
 
-                  {/* Nút 2: Nạp tiền qua PayOS */}
-                  <button onClick={handleSelectPayOS} disabled={loadingPkg !== null} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 border-slate-100 hover:border-primary hover:shadow-md`}>
+                  {/* Nút 2: Đổi bằng Điểm */}
+                  <button onClick={payWithPoints} disabled={loadingPkg !== null} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 ${processingMethod === 'points' ? 'border-yellow-500 bg-yellow-50' : 'border-slate-100 hover:border-yellow-500 hover:shadow-md'}`}>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-yellow-100 text-yellow-600 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">
+                          <IconStar className="w-6 h-6" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-[10px] font-black uppercase text-slate-400">Đổi bằng Điểm thưởng</p>
+                        <p className="text-xs font-black text-slate-800">Có: {user.pointBalance || 0} điểm</p>
+                      </div>
+                    </div>
+                    {processingMethod === 'points' ? <IconLoader2 className="w-5 h-5 text-yellow-600 animate-spin" /> : <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-yellow-500"></div>}
+                  </button>
+
+                  {/* Nút 3: Nạp tiền qua PayOS */}
+                  <button onClick={handleSelectPayOS} disabled={loadingPkg !== null} className={`w-full flex items-center justify-between p-5 border-2 rounded-[2rem] transition-all group active:scale-95 border-slate-100 hover:border-purple-500 hover:shadow-md`}>
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">
                           <IconLandmark className="w-6 h-6" />
@@ -370,7 +421,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                         <p className="text-xs font-black text-slate-800">Nạp nhanh qua PayOS</p>
                       </div>
                     </div>
-                    {processingMethod === 'transfer' ? <IconLoader2 className="w-5 h-5 text-purple-600 animate-spin" /> : <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-primary"><IconChevronRight className="w-4 h-4 text-white" /></div>}
+                    {processingMethod === 'transfer' ? <IconLoader2 className="w-5 h-5 text-purple-600 animate-spin" /> : <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-purple-500"><IconChevronRight className="w-4 h-4 text-white" /></div>}
                   </button>
                 </div>
             )}
@@ -380,7 +431,6 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                 <div className="space-y-6 animate-fade-in-up">
                     <div className="bg-slate-50 p-4 rounded-[2rem] border border-slate-100 flex flex-col items-center text-center space-y-4">
                         <div className="p-2 bg-white rounded-2xl shadow-sm">
-                            {/* Hiển thị QR chính xác từ thông tin PayOS trả về */}
                             <img 
                                 src={`https://img.vietqr.io/image/${payOSInfo.bin}-${payOSInfo.accountNumber}-compact.png?amount=${payOSInfo.amount}&addInfo=${encodeURIComponent(payOSInfo.description)}&accountName=${encodeURIComponent(payOSInfo.accountName)}`}
                                 alt="VietQR" 
@@ -397,10 +447,9 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
                         </div>
                     </div>
                     
-                    {/* Deep Link mở app ngân hàng */}
                     <a 
                         href={payOSInfo.checkoutUrl}
-                        target="_blank"
+                        target="_blank" 
                         rel="noreferrer"
                         className="w-full bg-green-500 text-white font-black py-4 rounded-[1.5rem] hover:bg-green-600 transition-all shadow-lg active:scale-95 uppercase text-xs tracking-widest flex items-center justify-center gap-2"
                     >

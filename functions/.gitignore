@@ -1,2 +1,14 @@
+# Các thư mục phụ thuộc (Nặng, không cần đẩy)
 node_modules/
-*.local
+.firebase/
+
+# Các file cấu hình môi trường (CHỨA KEY BẢO MẬT -> TUYỆT ĐỐI KHÔNG ĐẨY)
+.env
+.env.local
+.env.*.local
+
+# Các file hệ thống khác
+.DS_Store
+dist/
+build/
+*.log

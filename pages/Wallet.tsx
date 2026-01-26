@@ -91,14 +91,14 @@ const Wallet: React.FC<Props> = ({ user }) => {
 
     setLoading(true);
     try {
-      // 1. Gọi API tạo link (hàm mới trong db.ts)
-      const data = await db.createPayOSPayment(numAmount, user.id);
+      // 👇👇👇 GỬI THÊM TÊN NGƯỜI DÙNG 👇👇👇
+      const userNameToSend = user.name || "Khach hang";
+      const data = await db.createPayOSPayment(numAmount, user.id, userNameToSend);
+      // 👆👆👆 KẾT THÚC THAY ĐỔI 👆👆👆
       
-      // 2. Lưu thông tin trả về
       setPaymentInfo(data);
       setShowQR(true);
 
-      // 3. Cập nhật lại list transaction (để thấy trạng thái Pending)
       const tx = await db.getTransactions(user.id);
       if(mountedRef.current) setTransactions(tx);
 

@@ -569,21 +569,29 @@ export const db = {
 
  // --- C. GIAO DỊCH & VÍ ---
 
-  // [MỚI] Hàm gọi PayOS để lấy QR và Link thanh toán tự động
-  createPayOSPayment: async (amount: number, userId: string) => {
+// 👇 Thêm tham số fullName vào đây
+  createPayOSPayment: async (amount: number, userId: string, fullName: string) => {
     try {
-      // Gọi Cloud Function 'createPaymentLink' đã deploy
-      const createLink = httpsCallable(functions, 'createPaymentLink');
-      
-      const result = await createLink({ 
-        amount: amount, 
-        description: "Nap tien",
-        userId: userId
+      // Link Cloud Function của bạn
+      const FUNCTION_URL = "https://createpaymentlink-4ybvtlflra-uc.a.run.app"; 
+
+      const response = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // 👇 Gửi thêm fullName lên server
+        body: JSON.stringify({ 
+            amount, 
+            userId, 
+            fullName 
+        }),
       });
 
-      // Trả về dữ liệu: { checkoutUrl, qrCode, bin, accountNumber, amount, ... }
-      return result.data as any; 
-    } catch (error) {
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Lỗi server");
+      }
+      return await response.json();
+    } catch (error: any) {
       console.error("Lỗi gọi PayOS:", error);
       throw error;
     }

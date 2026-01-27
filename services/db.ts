@@ -21,9 +21,9 @@ import {
 } from "firebase/auth";
 import { getStorage, ref, uploadString, getDownloadURL, uploadBytes } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
-
+import { getMessaging, getToken, onMessage } from "firebase/messaging"; // <-- THÊM DÒNG NÀY Ở ĐẦU FILE
 // Import Types
-import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, Notification, Review, VerificationStatus, Offer, Category, Bid, Message, Story } from '../types';
+import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, AppNotification, Review, VerificationStatus, Offer, Category, Bid, Message, Story } from '../types';
 
 // IMPORT LOGIC FORMAT
 import { generateKeywords } from '../utils/format';
@@ -1180,7 +1180,8 @@ export const db = {
       await deleteDoc(reviewRef);
   },
 
-  getNotifications: (userId: string, callback: (notifs: Notification[]) => void) => {
+  // Sửa 'Notification' thành 'AppNotification' ở 2 chỗ (tham số callback và ép kiểu as...)
+  getNotifications: (userId: string, callback: (notifs: AppNotification[]) => void) => {
     const q = query(
       collection(firestore, "notifications"), 
       where("userId", "==", userId),
@@ -1188,7 +1189,8 @@ export const db = {
       limit(50) 
     );
     return onSnapshot(q, (snapshot) => {
-      const notifs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Notification));
+      // Chỗ này cũng sửa as Notification thành as AppNotification
+      const notifs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
       callback(notifs);
     }, (error) => {
        // Silent error on permission denied (logout)
@@ -2347,7 +2349,7 @@ export const db = {
     }
   },
 
-  // Hàm lấy thống kê thu nhập Affiliate (nếu cần hiển thị chi tiết sau này)
+  // Hàm lấy thống kê thu nhập Affiliate
   getAffiliateStats: async (userId: string) => {
     try {
         const userDoc = await getDoc(doc(firestore, "users", userId));
@@ -2362,7 +2364,54 @@ export const db = {
     } catch (error) {
         return { pointBalance: 0, totalPointsEarned: 0 };
     }
-  }, // <--- ĐÃ SỬA: DẤU PHẨY ĐỂ NGĂN CÁCH
+  }, // <--- Dấu phẩy quan trọng ngăn cách các hàm
+
+  // --- 4. HỆ THỐNG THÔNG BÁO ĐẨY (PUSH NOTIFICATION) ---
+  
+  // Hàm xin quyền và lưu Token vào Firestore
+  requestNotificationPermission: async (userId: string) => {
+    try {
+      const messaging = getMessaging(app);
+      
+      // Xin quyền trình duyệt
+      const permission = await Notification.requestPermission();
+      
+      if (permission === 'granted') {
+        // Lấy Token (Thay VAPID Key thật của bạn vào bên dưới)
+        const token = await getToken(messaging, { 
+          vapidKey: "BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI" 
+        });
+        
+        if (token) {
+          console.log("FCM Token:", token);
+          // Lưu token vào User Profile để Backend dùng
+          await updateDoc(doc(firestore, "users", userId), {
+            fcmToken: token,
+            notificationsEnabled: true
+          });
+          return token;
+        }
+      } else {
+        console.log("Quyền thông báo bị từ chối");
+      }
+    } catch (error) {
+      console.error("Lỗi đăng ký Push Notification:", error);
+    }
+    return null;
+  },
+
+  // Hàm lắng nghe tin nhắn khi đang mở Web (Foreground)
+  onForegroundMessage: (callback: (payload: any) => void) => {
+    try {
+      const messaging = getMessaging(app);
+      return onMessage(messaging, (payload) => {
+        callback(payload);
+      });
+    } catch (e) {
+      console.log("Messaging not supported");
+      return () => {};
+    }
+  },
 
   init: () => {}
 };

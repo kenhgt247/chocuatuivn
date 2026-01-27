@@ -244,7 +244,7 @@ export interface Review {
   updatedAt?: string;
 }
 
-export interface Notification {
+export interface AppNotification { 
   id: string;
   userId: string;
   title: string;

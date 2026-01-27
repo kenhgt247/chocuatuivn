@@ -29,6 +29,9 @@ import { formatPrice } from './utils/format';
 // --- Firebase ---
 import { onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+// [THÊM] Import Messaging để xử lý token và tin nhắn
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import { app } from './services/db'; // Import app từ db service
 
 // Helper: Scroll to Top
 const ScrollToTop = () => {
@@ -72,6 +75,38 @@ const App: React.FC = () => {
           if (currentUser) {
             setUser(currentUser);
             prevBalanceRef.current = currentUser.walletBalance;
+
+            // --- [THÊM] LOGIC PUSH NOTIFICATION ---
+            try {
+                const messaging = getMessaging(app);
+                // 1. Xin quyền & Lấy Token
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    // Lấy VAPID Key từ Firebase Console -> Project Settings -> Cloud Messaging -> Web Push certificates
+                    const token = await getToken(messaging, { 
+                        vapidKey: "BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI" // <-- THAY KEY CỦA BẠN VÀO ĐÂY
+                    });
+                    if (token) {
+                        console.log("FCM Token:", token);
+                        // Lưu token lên Firestore
+                        const dbInstance = getFirestore();
+                        await updateDoc(doc(dbInstance, "users", currentUser.id), {
+                            fcmToken: token,
+                            notificationsEnabled: true
+                        });
+                    }
+                }
+
+                // 2. Lắng nghe tin nhắn khi App đang mở (Foreground)
+                onMessage(messaging, (payload) => {
+                    console.log("📩 Tin nhắn mới:", payload);
+                    showSafeToast(`🔔 ${payload.notification?.title}: ${payload.notification?.body}`);
+                });
+
+            } catch (err) {
+                console.error("Lỗi Push Notification:", err);
+            }
+            // --------------------------------------
 
             // Lắng nghe thay đổi ví tiền
             if (db.onUserChange) {

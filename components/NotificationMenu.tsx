@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/db'; 
 import { formatTimeAgo } from '../utils/format';
-import { Notification } from '../types'; 
+import { AppNotification } from '../types'; // ✅ ĐÃ SỬA: Dùng AppNotification thay vì Notification
 
 // ⚠️ ĐÃ LOẠI BỎ LUCIDE-REACT ĐỂ TRÁNH LỖI CRASH
 
@@ -23,7 +23,10 @@ const IconCheckAll = ({ className }: { className?: string }) => <svg xmlns="http
 const NotificationMenu: React.FC<{ userId: string }> = ({ userId }) => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  
+  // ✅ ĐÃ SỬA: State dùng AppNotification
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  
   const [unreadCount, setUnreadCount] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -31,7 +34,7 @@ const NotificationMenu: React.FC<{ userId: string }> = ({ userId }) => {
   useEffect(() => {
     if (!userId) return;
 
-    // Gọi hàm lắng nghe thông báo từ Firebase
+    // ✅ ĐÃ SỬA: db.getNotifications giờ trả về AppNotification[]
     const unsubscribe = db.getNotifications(userId, (realNotifs) => {
       setNotifications(realNotifs);
       setUnreadCount(realNotifs.filter(n => !n.read).length);
@@ -52,7 +55,8 @@ const NotificationMenu: React.FC<{ userId: string }> = ({ userId }) => {
     };
   }, [userId]);
 
-  const handleRead = async (noti: Notification) => {
+  // ✅ ĐÃ SỬA: Tham số đầu vào là AppNotification
+  const handleRead = async (noti: AppNotification) => {
     // 1. Cập nhật UI ngay lập tức (để người dùng thấy đã đọc liền)
     const updatedNotifs = notifications.map(n => 
         n.id === noti.id ? { ...n, read: true } : n

@@ -1,10 +1,9 @@
 // ==========================================
-// 1. NHÚNG THƯ VIỆN GOOGLE (BẮT BUỘC)
+// 1. NHÚNG THƯ VIỆN GOOGLE & CẤU HÌNH
 // ==========================================
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
 
-// 2. CẤU HÌNH FIREBASE (Lấy từ thông tin bạn cung cấp)
 const firebaseConfig = {
   apiKey: "AIzaSyD-kdwqMhAuddGMZRXMkQgbXIt4qukKObo",
   authDomain: "chocuatui-3e65c.firebaseapp.com",
@@ -15,62 +14,64 @@ const firebaseConfig = {
   measurementId: "G-CRKRLNGF8V"
 };
 
-// Khởi tạo Firebase ngay trong Service Worker
 firebase.initializeApp(firebaseConfig);
-const messaging = firebase.messaging();
 
 // ==========================================
-// 3. XỬ LÝ THÔNG BÁO & SỐ ĐỎ (KHI TẮT APP)
+// 2. XỬ LÝ THÔNG BÁO ĐẨY (AN TOÀN - KHÔNG GÂY CHẾT PWA)
 // ==========================================
-// Hàm này của Google sẽ tự động bắt tin nhắn khi App tắt
-messaging.onBackgroundMessage((payload) => {
-  console.log('[sw.js] Nhận tin nhắn nền:', payload);
+// Chúng ta bọc phần này trong try-catch.
+// Nếu trình duyệt không hỗ trợ Push, nó sẽ bỏ qua và chạy tiếp xuống phần Cache.
+try {
+  const messaging = firebase.messaging();
 
-  const notificationTitle = payload.notification.title || 'Chợ Của Tui';
-  const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/vite.svg', // Dùng luôn icon bạn đã cache
-    image: payload.notification.image, // Ảnh to nếu có
-    data: payload.data, // Chứa link và số lượng badge
-    vibrate: [100, 50, 100],
-    actions: [
-       { action: 'open', title: 'Xem ngay' }
-    ]
-  };
+  // Xử lý tin nhắn nền (Khi tắt App)
+  messaging.onBackgroundMessage((payload) => {
+    console.log('[sw.js] Nhận tin nhắn nền:', payload);
 
-  // --- QUAN TRỌNG: CẬP NHẬT SỐ ĐỎ (BADGE) TRÊN IPHONE ---
-  // Đoạn này giúp hiện chấm đỏ ngay cả khi bạn không mở web
-  if (payload.data && payload.data.badge) {
-      if ('setAppBadge' in self.navigator) {
-          const badgeCount = parseInt(payload.data.badge);
-          self.navigator.setAppBadge(badgeCount).catch(() => {});
-      }
-  }
+    const notificationTitle = payload.notification.title || 'Chợ Của Tui';
+    const notificationOptions = {
+      body: payload.notification.body,
+      icon: '/vite.svg', 
+      image: payload.notification.image,
+      data: payload.data,
+      vibrate: [100, 50, 100],
+      actions: [
+         { action: 'open', title: 'Xem ngay' }
+      ]
+    };
 
-  return self.registration.showNotification(notificationTitle, notificationOptions);
-});
+    // Cập nhật số đỏ (Badge) trên iPhone/Android
+    if (payload.data && payload.data.badge) {
+        if ('setAppBadge' in self.navigator) {
+            const badgeCount = parseInt(payload.data.badge);
+            self.navigator.setAppBadge(badgeCount).catch(() => {});
+        }
+    }
+
+    return self.registration.showNotification(notificationTitle, notificationOptions);
+  });
+} catch (error) {
+  // Nếu lỗi (do chạy localhost http hoặc browser cũ), chỉ log ra và không làm chết App
+  console.log('[SW] Push Notification không được hỗ trợ ở môi trường này (PWA vẫn chạy).');
+}
 
 // ==========================================
-// 4. SỰ KIỆN BẤM VÀO THÔNG BÁO
+// 3. SỰ KIỆN BẤM VÀO THÔNG BÁO (Standard API)
 // ==========================================
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   
-  // Lấy link cần mở (nếu tin nhắn có gửi kèm link)
   const linkToOpen = (event.notification.data && event.notification.data.link) ? event.notification.data.link : '/';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Nếu App đang mở sẵn thì focus vào nó
+      // Nếu App đang mở -> Focus
       for (const client of clientList) {
         if (client.url && 'focus' in client) {
-          return client.focus().then(c => {
-               // Chuyển hướng đến đúng trang chat/sản phẩm
-               if (c && 'navigate' in c) return c.navigate(linkToOpen);
-          });
+          return client.focus().then(c => c.navigate(linkToOpen));
         }
       }
-      // Nếu App đang tắt thì mở cửa sổ mới
+      // Nếu App đang tắt -> Mở mới
       if (clients.openWindow) {
         return clients.openWindow(linkToOpen);
       }
@@ -79,9 +80,9 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ==========================================
-// 5. PHẦN CACHE CŨ CỦA BẠN (GIỮ NGUYÊN)
+// 4. PHẦN CACHE CŨ CỦA BẠN (GIỮ NGUYÊN 100%)
 // ==========================================
-const CACHE_NAME = 'chocuatui-v6-combined'; // Đổi tên để trình duyệt cập nhật mới
+const CACHE_NAME = 'chocuatui-v6-combined';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -112,16 +113,14 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim();
 });
 
-// Xử lý Offline/Cache
 self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
 
-  // Bỏ qua các request của Google/Firebase/Video để tránh lỗi
   if (
     event.request.method !== 'GET' || 
     !requestUrl.href.startsWith('http') ||
     requestUrl.pathname.endsWith('.mp4') || 
-    requestUrl.href.includes('googleapis.com') || // Bỏ qua Google API
+    requestUrl.href.includes('googleapis.com') || 
     requestUrl.href.includes('gstatic.com') ||
     requestUrl.href.includes('video')
   ) {
@@ -133,7 +132,6 @@ self.addEventListener('fetch', (event) => {
       try {
         const networkResponse = await fetch(event.request);
         if (networkResponse && networkResponse.status === 200) {
-          // Chỉ cache các file tĩnh
           if (requestUrl.pathname.match(/\.(js|css|png|jpg|jpeg|svg|ico|woff2|json)$/)) {
             const responseToCache = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -155,7 +153,7 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Xử lý setBadge khi app đang mở (Foreground)
+// Xử lý setBadge từ Foreground
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SET_BADGE') {
     const count = event.data.count;

@@ -2368,23 +2368,31 @@ export const db = {
 
   // --- 4. HỆ THỐNG THÔNG BÁO ĐẨY (PUSH NOTIFICATION) ---
   
-  // Hàm xin quyền và lưu Token vào Firestore
+  // Hàm xin quyền và lưu Token (Đã cấu hình lại cho sw.js)
   requestNotificationPermission: async (userId: string) => {
     try {
       const messaging = getMessaging(app);
       
-      // Xin quyền trình duyệt
+      // 1. Xin quyền trình duyệt
       const permission = await Notification.requestPermission();
       
       if (permission === 'granted') {
-        // Lấy Token (Thay VAPID Key thật của bạn vào bên dưới)
+        
+        // ⚠️ BƯỚC QUAN TRỌNG: Đăng ký file sw.js thủ công
+        let swRegistration;
+        if ('serviceWorker' in navigator) {
+            // Chỉ định rõ file của bạn là '/sw.js'
+            swRegistration = await navigator.serviceWorker.register('/sw.js'); 
+        }
+
+        // 2. Lấy Token và truyền registration vào
         const token = await getToken(messaging, { 
-          vapidKey: "BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI" 
+          vapidKey: "BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI",
+          serviceWorkerRegistration: swRegistration // <--- DÒNG NÀY SỬA LỖI MIME TYPE
         });
         
         if (token) {
-          console.log("FCM Token:", token);
-          // Lưu token vào User Profile để Backend dùng
+          console.log("✅ FCM Token:", token);
           await updateDoc(doc(firestore, "users", userId), {
             fcmToken: token,
             notificationsEnabled: true

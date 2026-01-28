@@ -78,7 +78,7 @@ const App: React.FC = () => {
             setUser(currentUser);
             prevBalanceRef.current = currentUser.walletBalance;
 
-            // --- BƯỚC 2: CẤU HÌNH PUSH NOTIFICATION (ĐÃ FIX LỖI MIME TYPE) ---
+            // --- BƯỚC 2: CẤU HÌNH PUSH NOTIFICATION (ĐÃ FIX LỖI CRASH) ---
             try {
                 const messaging = getMessaging(app);
 
@@ -86,26 +86,33 @@ const App: React.FC = () => {
                 const permission = await Notification.requestPermission();
                 
                 if (permission === 'granted') {
-                    // 🔥 Đăng ký file sw.js thủ công để tránh lỗi MIME type
-                    let swReg;
+                    // Kiểm tra xem trình duyệt có hỗ trợ SW không
                     if ('serviceWorker' in navigator) {
-                        swReg = await navigator.serviceWorker.register('/sw.js');
-                    }
+                        
+                        // 🔥 Đăng ký file sw.js thủ công
+                        const swReg = await navigator.serviceWorker.register('/sw.js');
 
-                    // B. Lấy Token (Truyền swReg vào để fix lỗi)
-                    const token = await getToken(messaging, { 
-                        vapidKey: "BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI",
-                        serviceWorkerRegistration: swReg 
-                    });
-
-                    if (token) {
-                        console.log("✅ FCM Token:", token);
-                        // C. Lưu token lên Firestore
-                        const dbInstance = getFirestore();
-                        await updateDoc(doc(dbInstance, "users", currentUser.id), {
-                            fcmToken: token,
-                            notificationsEnabled: true
-                        });
+                        // ⚠️ QUAN TRỌNG: Chỉ gọi getToken khi swReg thực sự tồn tại
+                        if (swReg) {
+                            const token = await getToken(messaging, { 
+                                vapidKey: "BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI",
+                                serviceWorkerRegistration: swReg 
+                            });
+    
+                            if (token) {
+                                console.log("✅ FCM Token:", token);
+                                // C. Lưu token lên Firestore
+                                const dbInstance = getFirestore();
+                                await updateDoc(doc(dbInstance, "users", currentUser.id), {
+                                    fcmToken: token,
+                                    notificationsEnabled: true
+                                });
+                            }
+                        } else {
+                            console.log("❌ Không lấy được Service Worker Registration");
+                        }
+                    } else {
+                        console.log("❌ Trình duyệt không hỗ trợ Service Worker");
                     }
                 }
 
@@ -143,7 +150,6 @@ const App: React.FC = () => {
         }
       } else {
         // --- KHI LOGOUT ---
-        // Hủy lắng nghe ví tiền trước khi reset biến
         if (unsubscribeUserChange) unsubscribeUserChange();
         
         setUser(null);

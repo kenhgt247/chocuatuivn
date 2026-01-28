@@ -64,6 +64,8 @@ const App: React.FC = () => {
     setTimeout(() => setNotification(null), 4000);
   };
 
+ // App.tsx
+
   // 1. LẮNG NGHE AUTH & VÍ TIỀN & PUSH NOTIFICATION
   useEffect(() => {
     let unsubscribeUserChange: (() => void) | undefined;
@@ -78,7 +80,7 @@ const App: React.FC = () => {
             setUser(currentUser);
             prevBalanceRef.current = currentUser.walletBalance;
 
-            // --- BƯỚC 2: CẤU HÌNH PUSH NOTIFICATION (ĐÃ FIX LỖI CRASH) ---
+            // --- BƯỚC 2: CẤU HÌNH PUSH NOTIFICATION (AN TOÀN TUYỆT ĐỐI) ---
             try {
                 const messaging = getMessaging(app);
 
@@ -86,13 +88,14 @@ const App: React.FC = () => {
                 const permission = await Notification.requestPermission();
                 
                 if (permission === 'granted') {
-                    // Kiểm tra xem trình duyệt có hỗ trợ SW không
+                    // Kiểm tra trình duyệt có hỗ trợ Service Worker không
                     if ('serviceWorker' in navigator) {
                         
                         // 🔥 Đăng ký file sw.js thủ công
                         const swReg = await navigator.serviceWorker.register('/sw.js');
 
-                        // ⚠️ QUAN TRỌNG: Chỉ gọi getToken khi swReg thực sự tồn tại
+                        // ⚠️ QUAN TRỌNG: Kiểm tra swReg tồn tại rồi mới gọi getToken
+                        // Đây chính là chỗ sửa lỗi "reading 'pushManager'"
                         if (swReg) {
                             const token = await getToken(messaging, { 
                                 vapidKey: "BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI",
@@ -109,10 +112,10 @@ const App: React.FC = () => {
                                 });
                             }
                         } else {
-                            console.log("❌ Không lấy được Service Worker Registration");
+                            console.warn("⚠️ Không lấy được Service Worker Registration (Có thể do lỗi mạng hoặc Cache)");
                         }
                     } else {
-                        console.log("❌ Trình duyệt không hỗ trợ Service Worker");
+                        console.log("❌ Trình duyệt này không hỗ trợ Service Worker");
                     }
                 }
 
@@ -125,7 +128,8 @@ const App: React.FC = () => {
                 });
 
             } catch (err) {
-                console.error("Lỗi Push Notification (App.tsx):", err);
+                // Log lỗi nhẹ nhàng, không để crash App
+                console.error("Lỗi Push Notification (nhưng App vẫn chạy):", err);
             }
 
             // --- BƯỚC 3: LẮNG NGHE THAY ĐỔI VÍ TIỀN (REALTIME) ---

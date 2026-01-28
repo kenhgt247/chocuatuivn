@@ -64,86 +64,69 @@ const App: React.FC = () => {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // 1. LẮNG NGHE AUTH & VÍ TIỀN (ĐÃ FIX LỖI TING TING KHI LOGOUT)
+  // 1. LẮNG NGHE AUTH & VÍ TIỀN & PUSH NOTIFICATION
   useEffect(() => {
     let unsubscribeUserChange: (() => void) | undefined;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
+          // --- BƯỚC 1: LẤY THÔNG TIN USER ---
           const currentUser = await db.getUserProfile(firebaseUser.uid);
+          
           if (currentUser) {
             setUser(currentUser);
             prevBalanceRef.current = currentUser.walletBalance;
 
-           // --- [THÊM] LOGIC PUSH NOTIFICATION (ĐÃ SỬA LỖI MIME TYPE) ---
-try {
-    const messaging = getMessaging(app);
+            // --- BƯỚC 2: CẤU HÌNH PUSH NOTIFICATION (ĐÃ FIX LỖI MIME TYPE) ---
+            try {
+                const messaging = getMessaging(app);
 
-    // 1. Xin quyền
-    const permission = await Notification.requestPermission();
-    
-    if (permission === 'granted') {
-        
-        // 🔥 BƯỚC QUAN TRỌNG VỪA THÊM VÀO:
-        // Đăng ký file sw.js thủ công để Firebase không tìm file mặc định nữa
-        let swReg;
-        if ('serviceWorker' in navigator) {
-            swReg = await navigator.serviceWorker.register('/sw.js');
-        }
+                // A. Xin quyền
+                const permission = await Notification.requestPermission();
+                
+                if (permission === 'granted') {
+                    // 🔥 Đăng ký file sw.js thủ công để tránh lỗi MIME type
+                    let swReg;
+                    if ('serviceWorker' in navigator) {
+                        swReg = await navigator.serviceWorker.register('/sw.js');
+                    }
 
-        // 2. Lấy Token (Có truyền swReg vào)
-        const token = await getToken(messaging, { 
-            vapidKey: "BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI",
-            serviceWorkerRegistration: swReg // <--- DÒNG NÀY SẼ KHẮC PHỤC HOÀN TOÀN LỖI CŨ
-        });
+                    // B. Lấy Token (Truyền swReg vào để fix lỗi)
+                    const token = await getToken(messaging, { 
+                        vapidKey: "BC-HSAKsOy5hvpSPgtlC52kwy8OWL2oX1jn4pIkzyRkcqgPzlzTkHe2Xa9rBPJYtGjygvoTcfaWmCxYCeFZrlMI",
+                        serviceWorkerRegistration: swReg 
+                    });
 
-        if (token) {
-            console.log("✅ FCM Token:", token);
-            
-            // Lưu token lên Firestore
-            const dbInstance = getFirestore();
-            if (currentUser?.id) { // Kiểm tra chắc chắn có user ID
-                await updateDoc(doc(dbInstance, "users", currentUser.id), {
-                    fcmToken: token,
-                    notificationsEnabled: true
-                });
-            }
-        }
-    }
+                    if (token) {
+                        console.log("✅ FCM Token:", token);
+                        // C. Lưu token lên Firestore
+                        const dbInstance = getFirestore();
+                        await updateDoc(doc(dbInstance, "users", currentUser.id), {
+                            fcmToken: token,
+                            notificationsEnabled: true
+                        });
+                    }
+                }
 
-    // 3. Lắng nghe tin nhắn khi App đang mở (Foreground)
-    onMessage(messaging, (payload) => {
-        console.log("📩 Tin nhắn mới:", payload);
-        // Hiển thị thông báo (Toast)
-        const title = payload.notification?.title || "Thông báo mới";
-        const body = payload.notification?.body || "Bạn có tin nhắn mới";
-        showSafeToast(`🔔 ${title}: ${body}`);
-    });
-
-} catch (err) {
-    console.error("Lỗi Push Notification (App.tsx):", err);
-}
-
-                // 2. Lắng nghe tin nhắn khi App đang mở (Foreground)
+                // D. Lắng nghe tin nhắn khi App đang mở (Foreground)
                 onMessage(messaging, (payload) => {
                     console.log("📩 Tin nhắn mới:", payload);
-                    showSafeToast(`🔔 ${payload.notification?.title}: ${payload.notification?.body}`);
+                    const title = payload.notification?.title || "Thông báo mới";
+                    const body = payload.notification?.body || "Bạn có tin nhắn mới";
+                    showSafeToast(`🔔 ${title}: ${body}`);
                 });
 
             } catch (err) {
-                console.error("Lỗi Push Notification:", err);
+                console.error("Lỗi Push Notification (App.tsx):", err);
             }
-            // --------------------------------------
 
-            // Lắng nghe thay đổi ví tiền
+            // --- BƯỚC 3: LẮNG NGHE THAY ĐỔI VÍ TIỀN (REALTIME) ---
             if (db.onUserChange) {
               unsubscribeUserChange = db.onUserChange(currentUser.id, (updatedUser) => {
-                // [FIX QUAN TRỌNG]: Kiểm tra nếu số dư TĂNG LÊN thì mới báo
-                // Và đảm bảo prevBalanceRef không phải là 0 do khởi tạo (tránh báo lúc mới load trang)
+                // Kiểm tra nếu số dư TĂNG LÊN thì mới báo
                 if (updatedUser.walletBalance > prevBalanceRef.current) {
                    const amount = updatedUser.walletBalance - prevBalanceRef.current;
-                   // Chỉ báo nếu số tiền chênh lệch hợp lý (tránh lỗi logic)
                    if (amount > 0) {
                        showSafeToast(`Ting ting! Ví vừa cộng ${formatPrice(amount)}`);
                    }
@@ -156,10 +139,11 @@ try {
             }
           }
         } catch (err) {
-          console.error("Lỗi auth:", err);
+          console.error("Lỗi lấy thông tin user:", err);
         }
       } else {
-        // [QUAN TRỌNG]: Khi logout, phải HỦY LẮNG NGHE TRƯỚC khi reset biến
+        // --- KHI LOGOUT ---
+        // Hủy lắng nghe ví tiền trước khi reset biến
         if (unsubscribeUserChange) unsubscribeUserChange();
         
         setUser(null);
@@ -168,6 +152,7 @@ try {
       setIsInitializing(false);
     });
 
+    // Cleanup khi unmount component
     return () => {
       unsubscribeAuth();
       if (unsubscribeUserChange) unsubscribeUserChange();

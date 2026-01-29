@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
+// Cấu hình thời gian ẩn (7 ngày tính bằng mili giây)
+const HIDE_DURATION = 7 * 24 * 60 * 60 * 1000; 
+
 const UniversalInstallPrompt: React.FC = () => {
   const [showPrompt, setShowPrompt] = useState(false);
   const [platform, setPlatform] = useState<'ios' | 'android-pc' | null>(null);
@@ -7,32 +10,40 @@ const UniversalInstallPrompt: React.FC = () => {
   const [isInstalling, setIsInstalling] = useState(false);
 
   useEffect(() => {
-    // 1. Check if running in standalone mode (already installed)
+    // 1. Kiểm tra nếu đã cài đặt (Standalone Mode)
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
     if (isStandalone) return; 
 
-    // 2. Check if iOS
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-
-    // 3. Check dismissed timestamp
+    // 2. Kiểm tra xem người dùng đã bấm "Để sau" chưa và còn hạn ẩn không
     const dismissedTimestamp = localStorage.getItem('pwaPromptDismissed');
     const now = Date.now();
-    if (dismissedTimestamp && now - parseInt(dismissedTimestamp) < 7 * 24 * 60 * 60 * 1000) {
-        return;
+    
+    if (dismissedTimestamp) {
+        const timePassed = now - parseInt(dismissedTimestamp);
+        // Nếu chưa qua 7 ngày -> KHÔNG LÀM GÌ CẢ (return luôn)
+        if (timePassed < HIDE_DURATION) {
+            console.log(`PWA Prompt đang bị ẩn. Còn lại: ${((HIDE_DURATION - timePassed) / (1000 * 60 * 60)).toFixed(1)} giờ.`);
+            return;
+        }
     }
+
+    // 3. Phân loại thiết bị
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
 
     if (isIOS) {
       setPlatform('ios');
-      const timer = setTimeout(() => setShowPrompt(true), 5000); 
+      // iOS không có sự kiện để bắt, nên hiện luôn sau 3s (nếu chưa bị ẩn)
+      const timer = setTimeout(() => setShowPrompt(true), 3000); 
       return () => clearTimeout(timer);
     } else {
-      // 4. Handle 'beforeinstallprompt' event for Android & PC
+      // 4. Android/PC: Bắt sự kiện 'beforeinstallprompt'
       const handleBeforeInstallPrompt = (e: any) => {
-        e.preventDefault(); 
+        e.preventDefault(); // Chặn banner mặc định xấu xí
         setDeferredPrompt(e);
         setPlatform('android-pc');
-        // Only show prompt if the event fires (meaning not installed)
-        const timer = setTimeout(() => setShowPrompt(true), 5000); 
+        
+        // Hiện popup của mình sau 3s
+        const timer = setTimeout(() => setShowPrompt(true), 3000); 
       };
 
       window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -45,6 +56,8 @@ const UniversalInstallPrompt: React.FC = () => {
 
   const handleDismiss = () => {
     setShowPrompt(false);
+    // 🔥 LƯU THỜI ĐIỂM TẮT VÀO LOCALSTORAGE
+    // Lần sau vào lại, code ở trên sẽ check cái này để ẩn trong 7 ngày
     localStorage.setItem('pwaPromptDismissed', Date.now().toString());
   };
 
@@ -53,16 +66,20 @@ const UniversalInstallPrompt: React.FC = () => {
     
     setIsInstalling(true);
     
+    // Hiện hộp thoại cài đặt gốc của trình duyệt
     deferredPrompt.prompt();
     
+    // Chờ người dùng chọn
     const { outcome } = await deferredPrompt.userChoice;
     
     if (outcome === 'accepted') {
+      console.log('User accepted the install prompt');
       setShowPrompt(false);
       setDeferredPrompt(null); 
+    } else {
+      console.log('User dismissed the install prompt');
+      setIsInstalling(false);
     }
-    
-    setIsInstalling(false);
   };
 
   if (!showPrompt) return null;
@@ -72,7 +89,7 @@ const UniversalInstallPrompt: React.FC = () => {
       <div className="bg-white/95 backdrop-blur-xl border border-primary/20 rounded-[2.5rem] p-6 shadow-[0_25px_60px_rgba(0,0,0,0.2)] relative max-w-md mx-auto">
         <button 
           onClick={handleDismiss}
-          className="absolute top-5 right-5 p-2 text-gray-400 hover:text-gray-600 transition-colors bg-gray-50 rounded-full hover:bg-gray-100"
+          className="absolute top-5 right-5 p-2 text-gray-400 hover:text-gray-600 transition-colors bg-gray-50 rounded-full hover:bg-gray-100 active:scale-90"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />

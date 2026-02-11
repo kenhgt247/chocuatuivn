@@ -1,7 +1,20 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // ==========================================================================
-// 1. ĐỊNH NGHĨA DỮ LIỆU (INTERFACE)
+// 1. CẤU HÌNH AI & MÔ HÌNH
+// ==========================================================================
+const getApiKey = () => {
+  return import.meta.env.VITE_GEMINI_API_KEY || "";
+};
+
+// Dùng Flash cho tác vụ cần tốc độ nhanh (Search)
+const MODEL_FAST = "gemini-1.5-flash";
+
+// Dùng Pro cho tác vụ cần độ chính xác cao (Phân tích ảnh, định giá) - Tốt cho bản trả phí
+const MODEL_SMART = "gemini-1.5-pro";
+
+// ==========================================================================
+// 2. ĐỊNH NGHĨA DỮ LIỆU (INTERFACE)
 // ==========================================================================
 export interface ListingAnalysis {
   category: string;
@@ -13,9 +26,9 @@ export interface ListingAnalysis {
   pricingStrategy: {
     min: number;
     max: number;
-    fastSell: number;    // Giá bán nhanh (Rẻ)
-    suggested: number;   // Giá hợp lý
-    highProfit: number;  // Giá lời cao
+    fastSell: number;    // Giá bán nhanh
+    suggested: number;   // Giá đề xuất
+    highProfit: number;  // Giá mong muốn cao
     marketAnalysis: string;
   };
 
@@ -27,13 +40,13 @@ export interface ListingAnalysis {
 
   seoTags: string[];
   keySellingPoints: string[];
-  attributes: Record<string, any>; // Lưu hãng, màu, thông số...
+  attributes: Record<string, any>;
   
   isProhibited: boolean;
   prohibitedReason?: string;
 }
 
-// DANH SÁCH MÃ DANH MỤC (Cần khớp chính xác với Database của bạn)
+// DANH SÁCH DANH MỤC (Prompt Context)
 const CATEGORY_MAP_PROMPT = `
 HÃY CHỌN CHÍNH XÁC 1 MÃ (SLUG) TỪ DANH SÁCH SAU:
 - Bất động sản: 'can-ho-chung-cu', 'nha-o', 'dat', 'phong-tro', 'van-phong'
@@ -50,68 +63,54 @@ HÃY CHỌN CHÍNH XÁC 1 MÃ (SLUG) TỪ DANH SÁCH SAU:
 - Khác: 'khac'
 `;
 
-const getApiKey = () => {
-  return import.meta.env.VITE_GEMINI_API_KEY || "";
-};
-
-// --- CÁC HÀM HỖ TRỢ AN TOÀN (Giúp app không bị crash) ---
-
-const safeGetText = (response: any): string => {
-  try {
-    if (typeof response.text === 'function') return response.text();
-    // Xử lý cấu trúc dữ liệu mới của Google
-    if (response.candidates?.[0]?.content?.parts?.[0]?.text) 
-        return response.candidates[0].content.parts[0].text;
-    return ""; 
-  } catch (e) {
-    console.error("Lỗi đọc text từ AI:", e);
-    return "";
-  }
-};
-
+// --- HÀM HỖ TRỢ ---
 const cleanJson = (text: string): string => {
   if (!text) return "";
-  // Xóa các ký tự thừa để tránh lỗi JSON
+  // Xóa markdown code block để lấy JSON thuần
   return text.replace(/```json/g, '').replace(/```/g, '').trim();
 };
 
 // ==========================================================================
-// 2. CÁC HÀM GỌI API (ĐÃ FIX MODEL NAME)
+// 3. CÁC HÀM GỌI API (ĐÃ FIX LỖI & DÙNG THƯ VIỆN CHUẨN)
 // ==========================================================================
 
 // HÀM 1: TÌM KIẾM SẢN PHẨM
 export const identifyProductForSearch = async (imageBase64: string): Promise<string> => {
   const apiKey = getApiKey();
-  if (!apiKey) return "";
+  if (!apiKey) {
+    console.error("Thiếu API Key Gemini");
+    return "";
+  }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const genAI = new GoogleGenerativeAI(apiKey);
+    // Sử dụng Flash cho nhanh
+    const model = genAI.getGenerativeModel({ model: MODEL_FAST });
+
     const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
     
-    // SỬA: Dùng model ổn định gemini-1.5-flash
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash', 
-      contents: [{
-        role: 'user',
-        parts: [
-          { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-          { text: "Trả về duy nhất 1 cụm từ khóa chính xác để tìm mua sản phẩm này. Ví dụ: 'iPhone 14 Pro Max', 'Honda Vision'. Không dấu câu." }
-        ]
-      }]
-    });
+    const result = await model.generateContent([
+      "Trả về duy nhất 1 cụm từ khóa chính xác, ngắn gọn để tìm mua sản phẩm này trên sàn thương mại điện tử. Ví dụ: 'iPhone 14 Pro Max', 'Honda Vision'. Không giải thích gì thêm.",
+      {
+        inlineData: {
+          data: cleanBase64,
+          mimeType: "image/jpeg",
+        },
+      },
+    ]);
 
-    return safeGetText(response).trim().toLowerCase();
+    return result.response.text().trim();
   } catch (error) {
     console.error("Lỗi identifyProductForSearch:", error);
     return "";
   }
 };
 
-// HÀM 2: PHÂN TÍCH ĐĂNG TIN (Thông minh như chuyên gia)
+// HÀM 2: PHÂN TÍCH ĐĂNG TIN
 export const analyzeListingImages = async (imagesBase64: string[]): Promise<ListingAnalysis> => {
   const apiKey = getApiKey();
   
-  // Dữ liệu mặc định (Phòng khi lỗi)
+  // Dữ liệu mặc định (Fallback)
   const defaultData: ListingAnalysis = { 
     title: '', description: '', category: 'khac', suggestedPrice: 0, 
     condition: 'good', isProhibited: false, attributes: {}, seoTags: [],
@@ -122,7 +121,16 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
   if (!apiKey) return defaultData;
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const genAI = new GoogleGenerativeAI(apiKey);
+    
+    // Sử dụng Pro cho thông minh (ưu đãi bản trả phí)
+    // Cấu hình responseMimeType: "application/json" để AI trả về JSON chuẩn
+    const model = genAI.getGenerativeModel({ 
+      model: MODEL_SMART,
+      generationConfig: {
+        responseMimeType: "application/json", 
+      }
+    });
     
     const imageParts = imagesBase64.map(base64 => ({
       inlineData: {
@@ -131,123 +139,87 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
       },
     }));
 
-    // CÂU LỆNH PRO VIP
     const prompt = `
     Vai trò: Bạn là Chuyên gia Thẩm định giá đồ cũ số 1 Việt Nam.
-    Nhiệm vụ: Phân tích ảnh và trả về dữ liệu JSON chuẩn xác để điền form đăng bán.
+    Nhiệm vụ: Phân tích các hình ảnh sản phẩm và trả về dữ liệu JSON để điền form đăng bán tự động.
 
-    QUY TRÌNH SUY LUẬN (BẮT BUỘC):
-    1. Nhìn ảnh -> Xác định vật thể -> Đối chiếu với danh sách Category bên dưới.
-       (Ví dụ: Thấy Tivi -> Bắt buộc chọn 'tivi-am-thanh').
-    2. Đánh giá độ mới -> Ước lượng giá VNĐ thực tế tại Việt Nam.
+    YÊU CẦU QUAN TRỌNG:
+    1. CATEGORY: Phải chọn CHÍNH XÁC 1 mã (slug) từ danh sách sau:
+       ${CATEGORY_MAP_PROMPT}
+       
+    2. CONDITION & PRICE: Nhìn kỹ độ trầy xước, cũ mới để đánh giá 'condition' và đưa ra giá 'suggestedPrice' (VNĐ) sát thực tế thị trường đồ cũ Việt Nam.
+    
+    3. CONTENT:
+       - title: Ngắn gọn, bao gồm Tên sản phẩm + Đặc điểm nổi bật/Tình trạng.
+       - description: Viết hay, chia đoạn, mô tả kỹ tình trạng.
 
-    YÊU CẦU ĐẦU RA:
-    1. CATEGORY: Chọn CHÍNH XÁC 1 mã (slug) từ danh sách dưới.
-    2. PRICE: Bắt buộc trả về số VNĐ > 0.
-       - fastSell: Giá rẻ (để bán nhanh).
-       - suggested: Giá thị trường.
-       - highProfit: Giá cao.
-    3. CONTENT: 
-       - Tiêu đề: Giật tít, viết hoa Tên Sản Phẩm + Tình trạng.
-       - Mô tả: Văn phong tự nhiên, chân thực, chia dòng rõ ràng.
-
-    DANH SÁCH DANH MỤC CHUẨN:
-    ${CATEGORY_MAP_PROMPT}
+    CẤU TRÚC JSON TRẢ VỀ (Không được thừa thiếu trường nào):
+    {
+      "category": "...",
+      "title": "...",
+      "description": "...",
+      "suggestedPrice": 0,
+      "condition": "new/like_new/good/fair/poor",
+      "pricingStrategy": {
+         "min": 0,
+         "max": 0,
+         "fastSell": 0,
+         "suggested": 0,
+         "highProfit": 0,
+         "marketAnalysis": "..."
+      },
+      "attributes": { "brand": "...", "color": "...", "origin": "..." },
+      "qualityCheck": { 
+         "score": 0, 
+         "tips": "...", 
+         "issues": ["..."] 
+      },
+      "keySellingPoints": ["..."],
+      "seoTags": ["..."],
+      "isProhibited": false
+    }
     `;
 
-    // SỬA: Dùng model ổn định gemini-1.5-flash
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash', 
-      contents: [
-        { role: 'user', parts: [...imageParts, { text: prompt }] }
-      ],
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "OBJECT",
-          properties: {
-            isProhibited: { type: "BOOLEAN" },
-            prohibitedReason: { type: "STRING" },
-            category: { type: "STRING" },
-            title: { type: "STRING" },
-            description: { type: "STRING" },
-            suggestedPrice: { type: "NUMBER" },
-            
-            pricingStrategy: {
-              type: "OBJECT",
-              properties: {
-                min: { type: "NUMBER" },
-                max: { type: "NUMBER" },
-                fastSell: { type: "NUMBER" },
-                suggested: { type: "NUMBER" },
-                highProfit: { type: "NUMBER" },
-                marketAnalysis: { type: "STRING" }
-              }
-            },
-            
-            condition: { type: "STRING", enum: ['new', 'like_new', 'good', 'fair', 'poor'] },
-            
-            qualityCheck: {
-              type: "OBJECT",
-              properties: {
-                score: { type: "NUMBER" },
-                tips: { type: "STRING" },
-                issues: { type: "ARRAY", items: { type: "STRING" } }
-              }
-            },
-            
-            keySellingPoints: { type: "ARRAY", items: { type: "STRING" } },
-            seoTags: { type: "ARRAY", items: { type: "STRING" } },
-            
-            attributes: {
-              type: "OBJECT",
-              properties: {
-                brand: { type: "STRING" },
-                model: { type: "STRING" },
-                year: { type: "STRING" },
-                origin: { type: "STRING" },
-                color: { type: "STRING" },
-                capacity: { type: "STRING" },
-                status_detail: { type: "STRING" },
-                warranty: { type: "STRING" }
-              }
-            }
-          },
-          required: ["title", "category", "suggestedPrice", "description", "condition", "pricingStrategy"]
-        }
-      }
-    });
-
-    const rawText = safeGetText(response);
+    const result = await model.generateContent([prompt, ...imageParts]);
+    const rawText = result.response.text();
     const jsonText = cleanJson(rawText);
 
     if (!jsonText) return defaultData;
     
     // Parse dữ liệu
-    const result = JSON.parse(jsonText) as ListingAnalysis;
+    const finalData = JSON.parse(jsonText) as ListingAnalysis;
     
-    // Logic dự phòng: Nếu AI lười tính chiến lược giá, ta tự tính
-    if (!result.pricingStrategy) {
-        result.pricingStrategy = {
-            min: result.suggestedPrice * 0.8,
-            max: result.suggestedPrice * 1.2,
-            fastSell: result.suggestedPrice * 0.9,
-            suggested: result.suggestedPrice,
-            highProfit: result.suggestedPrice * 1.1,
-            marketAnalysis: "Dựa trên giá trung bình"
-        };
+    // --- Logic Xử lý Hậu kỳ (Post-processing) ---
+    // Đảm bảo pricingStrategy luôn có dữ liệu hợp lệ
+    const basePrice = finalData.suggestedPrice || 0;
+
+    if (!finalData.pricingStrategy || basePrice > 0) {
+        // Nếu AI tính thiếu hoặc sai, ta tự tính toán lại dựa trên giá gợi ý
+        if (!finalData.pricingStrategy) {
+             finalData.pricingStrategy = {
+                min: basePrice * 0.8,
+                max: basePrice * 1.2,
+                fastSell: basePrice * 0.9,
+                suggested: basePrice,
+                highProfit: basePrice * 1.1,
+                marketAnalysis: "Định giá dựa trên dữ liệu thị trường"
+            };
+        }
+        
+        // Đảm bảo không có giá nào bằng 0 nếu giá gốc > 0
+        if (basePrice > 0) {
+            if (!finalData.pricingStrategy.fastSell) finalData.pricingStrategy.fastSell = basePrice * 0.9;
+            if (!finalData.pricingStrategy.highProfit) finalData.pricingStrategy.highProfit = basePrice * 1.1;
+            if (!finalData.pricingStrategy.min) finalData.pricingStrategy.min = basePrice * 0.8;
+            if (!finalData.pricingStrategy.max) finalData.pricingStrategy.max = basePrice * 1.2;
+        }
     }
 
-    // Đảm bảo không bị giá = 0
-    if (result.pricingStrategy.fastSell === 0 && result.suggestedPrice > 0) {
-       result.pricingStrategy.fastSell = result.suggestedPrice * 0.9;
-       result.pricingStrategy.highProfit = result.suggestedPrice * 1.1;
-    }
-
-    return result;
+    return finalData;
 
   } catch (error) {
     console.error("Lỗi AI Service:", error);
+    // Trả về dữ liệu rỗng để app không bị crash
     return defaultData;
   }
 };

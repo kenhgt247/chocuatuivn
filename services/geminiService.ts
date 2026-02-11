@@ -11,7 +11,7 @@ const getApiKey = () => {
 const MODEL_FAST = "gemini-1.5-flash";
 
 // Dùng Pro cho tác vụ cần độ chính xác cao (Phân tích ảnh, định giá) - Tốt cho bản trả phí
-const MODEL_SMART = "gemini-1.5-pro";
+const MODEL_SMART = "gemini-1.5-flash";
 
 // ==========================================================================
 // 2. ĐỊNH NGHĨA DỮ LIỆU (INTERFACE)

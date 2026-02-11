@@ -76,7 +76,7 @@ const cleanJson = (text: string): string => {
 };
 
 // ==========================================================================
-// 2. CÁC HÀM GỌI API (LOGIC PRO VIP - MODEL 2.0 FLASH EXP)
+// 2. CÁC HÀM GỌI API (ĐÃ FIX MODEL NAME)
 // ==========================================================================
 
 // HÀM 1: TÌM KIẾM SẢN PHẨM
@@ -88,9 +88,9 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
     const ai = new GoogleGenAI({ apiKey });
     const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
     
-    // Dùng model 2.0 Flash Exp (Ổn định nhất cho bạn)
+    // SỬA: Dùng model ổn định gemini-1.5-flash
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp', 
+      model: 'gemini-1.5-flash', 
       contents: [{
         role: 'user',
         parts: [
@@ -102,6 +102,7 @@ export const identifyProductForSearch = async (imageBase64: string): Promise<str
 
     return safeGetText(response).trim().toLowerCase();
   } catch (error) {
+    console.error("Lỗi identifyProductForSearch:", error);
     return "";
   }
 };
@@ -130,7 +131,7 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
       },
     }));
 
-    // CÂU LỆNH PRO VIP (BÍ QUYẾT ĐỂ AI THÔNG MINH HƠN)
+    // CÂU LỆNH PRO VIP
     const prompt = `
     Vai trò: Bạn là Chuyên gia Thẩm định giá đồ cũ số 1 Việt Nam.
     Nhiệm vụ: Phân tích ảnh và trả về dữ liệu JSON chuẩn xác để điền form đăng bán.
@@ -138,7 +139,7 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     QUY TRÌNH SUY LUẬN (BẮT BUỘC):
     1. Nhìn ảnh -> Xác định vật thể -> Đối chiếu với danh sách Category bên dưới.
        (Ví dụ: Thấy Tivi -> Bắt buộc chọn 'tivi-am-thanh').
-    2. Đánh giá độ mới -> Ước lượng giá VNĐ thực tế.
+    2. Đánh giá độ mới -> Ước lượng giá VNĐ thực tế tại Việt Nam.
 
     YÊU CẦU ĐẦU RA:
     1. CATEGORY: Chọn CHÍNH XÁC 1 mã (slug) từ danh sách dưới.
@@ -154,16 +155,16 @@ export const analyzeListingImages = async (imagesBase64: string[]): Promise<List
     ${CATEGORY_MAP_PROMPT}
     `;
 
-    // Gọi Model
+    // SỬA: Dùng model ổn định gemini-1.5-flash
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp', 
+      model: 'gemini-1.5-flash', 
       contents: [
         { role: 'user', parts: [...imageParts, { text: prompt }] }
       ],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: "OBJECT", // Dùng chuỗi "OBJECT" (Chuẩn mới)
+          type: "OBJECT",
           properties: {
             isProhibited: { type: "BOOLEAN" },
             prohibitedReason: { type: "STRING" },

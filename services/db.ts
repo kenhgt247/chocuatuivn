@@ -785,7 +785,7 @@ export const db = {
     }
 
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ ...d.data(), id: d.id } as Transaction));
+    return snap.docs.map(d => ({ ...(d.data() as Record<string, unknown>), id: d.id } as Transaction));
   },
   // --- D. NGƯỜI DÙNG (USERS & AUTH) ---
   
@@ -1202,7 +1202,7 @@ export const db = {
     await updateDoc(doc(firestore, "notifications", notifId), { read: true });
   },
 
-  sendNotification: async (notif: Omit<Notification, 'id' | 'read' | 'createdAt'>) => {
+  sendNotification: async (notif: Omit<AppNotification, 'id' | 'read' | 'createdAt'>) => {
     await addDoc(collection(firestore, "notifications"), { ...notif, read: false, createdAt: new Date().toISOString() });
   },
 
@@ -1540,7 +1540,7 @@ export const db = {
       const message = {
         senderId: buyer.id,
         text: `💰 Đã đề nghị mức giá: ${offerPrice.toLocaleString()} VNĐ`,
-        type: 'offer', 
+        type: 'offer' as const, 
         offerId: offerRef.id,
         isSystem: true
       };
@@ -1572,7 +1572,7 @@ export const db = {
       const message = {
         senderId: offerData.sellerId, 
         text: `${actionText} mức giá ${offerData.offerPrice.toLocaleString()} VNĐ`,
-        type: 'text',
+        type: 'text' as const,
         isSystem: true
       };
       await db.addMessage(roomId, message);

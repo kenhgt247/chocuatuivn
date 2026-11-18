@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../services/db'; // Đổi tên file thành db
+import { firestore } from '../services/db'; // Đổi tên file thành db
 
 const SecretImport = () => {
   const [jsonInput, setJsonInput] = useState('');
@@ -50,7 +50,7 @@ const SecretImport = () => {
                 searchKeywords: [item.title?.toLowerCase()] // Để tìm kiếm được
             };
 
-            await addDoc(collection(db, "products"), newProduct);
+            await addDoc(collection(firestore, "products"), newProduct);
             successCount++;
             setStatus(`Đang bơm: ${successCount}/${products.length} tin...`);
         } catch (err) {

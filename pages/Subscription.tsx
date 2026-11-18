@@ -186,7 +186,7 @@ const Subscription: React.FC<{ user: User | null, onUpdateUser: (u: User) => voi
       
       try {
           // Gọi API PayOS để lấy QR chính xác
-          const data = await db.createPayOSPayment(Math.round(showPayModal.price), user.id);
+          const data = await db.createPayOSPayment(Math.round(showPayModal.price), user.id, user.name);
           setPayOSInfo(data);
           setPaymentStep('qr');
       } catch (error: any) {

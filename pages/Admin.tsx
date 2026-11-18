@@ -194,7 +194,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
         show: true, title: `Xóa vĩnh viễn ${selectedListings.size} tin?`, message: "Hành động này không thể hoàn tác!", type: 'danger',
         onConfirm: async () => {
             setConfirmModal(prev => ({...prev, show: false})); setIsLoading(true);
-            const ids = Array.from(selectedListings);
+            const ids = Array.from(selectedListings) as string[];
             const res = await db.deleteListingsBatch(ids);
             if(res.success) { showToast(`Đã xóa ${ids.length} tin.`); setSelectedListings(new Set()); loadListings(listingPage === 1 ? null : listingLastDocs[listingPage - 2] || null, false); } 
             else { showToast("Lỗi xóa: " + res.error, "error"); }

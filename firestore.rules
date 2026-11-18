@@ -45,14 +45,101 @@ service cloud.firestore {
       allow read: if true;
       
       // Đảm bảo người đăng tin là chính họ
-      allow create: if isSignedIn() 
-        && request.resource.data.sellerId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.sellerId == request.auth.uid
+        && (
+          !('communityKind' in request.resource.data) ||
+          (
+            request.resource.data.communityKind in ['gift','borrow','help','repair'] &&
+            request.resource.data.isCommunityFree == true &&
+            request.resource.data.price == 0 &&
+            request.resource.data.tier == 'free' &&
+            request.resource.data.status == 'pending'
+          )
+        );
       
       // Chỉ chủ tin hoặc admin mới được sửa/xóa, và không được đổi người bán
       allow update: if (isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin()))
-        && request.resource.data.sellerId == resource.data.sellerId;
+        && request.resource.data.sellerId == resource.data.sellerId
+        && (
+          isAdmin() ||
+          request.resource.data.status == resource.data.status ||
+          request.resource.data.status in ['sold','hidden']
+        )
+        && (
+          !('communityKind' in resource.data) ||
+          isAdmin() ||
+          (
+            request.resource.data.communityKind == resource.data.communityKind &&
+            request.resource.data.isCommunityFree == true &&
+            request.resource.data.price == 0 &&
+            request.resource.data.tier == 'free'
+          )
+        );
         
       allow delete: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
+    }
+
+
+    // Chợ Của Tui 2.0: yêu cầu riêng tư, không có thanh toán.
+    match /communityRequests/{requestId} {
+      function isParticipant() {
+        return isSignedIn() && (
+          resource.data.ownerId == request.auth.uid ||
+          resource.data.requesterId == request.auth.uid
+        );
+      }
+      function sourceListing() {
+        return get(/databases/$(database)/documents/listings/$(request.resource.data.listingId)).data;
+      }
+      allow get, list: if isParticipant();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly([
+          'listingId','listingTitle','kind','ownerId','requesterId',
+          'message','status','createdAt','updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'listingId','listingTitle','kind','ownerId','requesterId',
+          'message','status','createdAt','updatedAt'
+        ])
+        && requestId == request.resource.data.listingId + '_' + request.auth.uid
+        && request.resource.data.requesterId == request.auth.uid
+        && request.resource.data.ownerId != request.auth.uid
+        && request.resource.data.status == 'requested'
+        && request.resource.data.kind in ['gift','borrow','help','repair']
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 500
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && exists(/databases/$(database)/documents/listings/$(request.resource.data.listingId))
+        && sourceListing().sellerId == request.resource.data.ownerId
+        && sourceListing().communityKind == request.resource.data.kind
+        && sourceListing().status == 'approved'
+        && sourceListing().isCommunityFree == true
+        && sourceListing().price == 0;
+      allow update: if isParticipant()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
+        && request.resource.data.updatedAt == request.time
+        && (
+          (resource.data.status == 'requested' &&
+            resource.data.ownerId == request.auth.uid &&
+            request.resource.data.status in ['accepted','declined']) ||
+          (resource.data.status == 'requested' &&
+            resource.data.requesterId == request.auth.uid &&
+            request.resource.data.status == 'cancelled') ||
+          (resource.data.status == 'accepted' &&
+            resource.data.ownerId == request.auth.uid &&
+            (
+              (resource.data.kind == 'borrow' && request.resource.data.status == 'handed_over') ||
+              (resource.data.kind != 'borrow' && request.resource.data.status == 'completed')
+            )) ||
+          (resource.data.status == 'handed_over' && resource.data.kind == 'borrow' &&
+            resource.data.requesterId == request.auth.uid && request.resource.data.status == 'returned') ||
+          (resource.data.status == 'returned' && resource.data.kind == 'borrow' &&
+            resource.data.ownerId == request.auth.uid && request.resource.data.status == 'completed')
+        );
+      allow delete: if false;
     }
 
     match /reviews/{reviewId} {

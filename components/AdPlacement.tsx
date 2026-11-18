@@ -47,9 +47,9 @@ const AdPlacement: React.FC<AdPlacementProps> = ({ zone, className = "" }) => {
     if (isLoaded && config?.type === 'code' && config?.code && adRef.current) {
         try {
             const scripts = adRef.current.getElementsByTagName('script');
-            Array.from(scripts).forEach(script => {
+            Array.from(scripts as HTMLCollectionOf<HTMLScriptElement>).forEach((script: HTMLScriptElement) => {
                 const newScript = document.createElement('script');
-                Array.from(script.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                Array.from(script.attributes as NamedNodeMap).forEach((attr: Attr) => newScript.setAttribute(attr.name, attr.value));
                 newScript.appendChild(document.createTextNode(script.innerHTML));
                 script.parentNode?.replaceChild(newScript, script);
             });

@@ -39,6 +39,7 @@ export interface User {
   status: UserStatus;
   phone?: string;
   gender?: string;
+  storeName?: string;
   joinedAt: string;
   
   // --- TRẠNG THÁI ---

@@ -129,6 +129,7 @@ export const community = {
     const id = item.id + '_' + requesterId;
     const listingRef = doc(firestore, 'listings', item.id);
     const requestRef = doc(firestore, 'communityRequests', id);
+    try {
     await runTransaction(firestore, async tx => {
       const listing = await tx.get(listingRef);
       const existing = await tx.get(requestRef);
@@ -146,6 +147,19 @@ export const community = {
         createdAt: serverTimestamp(), updatedAt: serverTimestamp()
       });
     });
+    } catch (error: any) {
+      // Giai đoạn chuyển đổi: dùng chat thật đã triển khai nếu collection mới chưa được cấp quyền.
+      if (error?.code !== 'permission-denied') throw error;
+      const requester = await db.getUserProfile(requesterId);
+      if (!requester) throw new Error('Không tìm thấy hồ sơ đăng nhập.');
+      const roomId = await db.createChatRoom(item, requester);
+      await db.addMessage(roomId, {
+        senderId: requesterId,
+        text: '🌿 Yêu cầu chia sẻ: ' + clean,
+        type: 'text'
+      });
+      return 'chat:' + roomId;
+    }
     try {
       await db.sendNotification({
         userId: item.sellerId, title: 'Có người muốn kết nối 🌱',

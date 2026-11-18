@@ -37,6 +37,7 @@ export interface CommunityPostInput {
   intent: CommunityIntent;
   location: string;
   photo?: File | null;
+  approximateCoords?: {lat:number;lng:number} | null;
 }
 
 const kinds: CommunityKind[] = ['gift', 'borrow', 'help', 'repair'];
@@ -100,9 +101,17 @@ export const community = {
       const url = await db.uploadImage(compressed, 'listings/' + uid + '/community-' + Date.now() + '.jpg');
       images.push(url);
     }
+    // Chỉ chia sẻ vị trí đã làm mờ khi người dùng chủ động cho phép.
+    const lat = input.approximateCoords?.lat;
+    const lng = input.approximateCoords?.lng;
+    const safe = typeof lat === 'number' && typeof lng === 'number' &&
+      Number.isFinite(lat) && Number.isFinite(lng) &&
+      Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+    const safeLat = safe ? Math.round(lat! * 100) / 100 : null;
+    const safeLng = safe ? Math.round(lng! * 100) / 100 : null;
     // Dữ liệu được lưu ngay trong listings cũ, không làm thay đổi các tin cũ.
     return db.saveListing({
-      title, description, location, address: '', lat: null, lng: null,
+      title, description, location, address: '', lat: safeLat, lng: safeLng,
       price: 0, tier: 'free', isCommunityFree: true,
       communityKind: input.kind, communityIntent: input.intent,
       category: 'cong-dong', parentCategory: null,

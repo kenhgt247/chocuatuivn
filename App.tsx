@@ -5,6 +5,7 @@ import { HelmetProvider } from 'react-helmet-async';
 // --- Layout & Pages ---
 import Layout from './components/Layout';
 import Home from './pages/Home';
+import CommunityHome from './pages/CommunityHome';
 import ListingDetail from './pages/ListingDetail';
 import PostListing from './pages/PostListing';
 import Chat from './pages/Chat';
@@ -247,6 +248,7 @@ const App: React.FC = () => {
         <Layout user={user}>
           <Routes>
             <Route path="/" element={<Home user={user} />} />
+            <Route path="/chia-se" element={<CommunityHome user={user} />} />
             <Route path="/search" element={<Home user={user} />} />
             <Route path="/danh-muc/:slug" element={<Home user={user} />} />
             <Route path="/danh-muc/:parentSlug/:childSlug" element={<Home user={user} />} />

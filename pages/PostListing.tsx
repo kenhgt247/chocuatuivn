@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import { db, SystemSettings } from '../services/db';
 import { User, Category, CategoryAttribute } from '../types';
 import { analyzeListingImages } from '../services/geminiService';
@@ -51,6 +51,8 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditing = !!id;
+  const [searchParams] = useSearchParams();
+  const isGiving = !isEditing && searchParams.get('mode') === 'give';
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -293,14 +295,14 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
     if (hasChildren && !selectedChildId) return alert("Vui lòng chọn 'Chi tiết' danh mục.");
     const finalCategoryId = selectedChildId || selectedParentId;
 
-    if (!formData.title.trim() || !finalCategoryId || !formData.price || formData.images.length === 0) {
+    if (!formData.title.trim() || !finalCategoryId || (!isGiving && !formData.price) || formData.images.length === 0) {
       return alert('Vui lòng điền đủ: Tiêu đề, Danh mục, Giá và ít nhất 1 Ảnh!');
     }
     if (listingType === 'affiliate' && !formData.affiliateLink) return alert('Nhập Link tiếp thị liên kết.');
     if (!agreedToRules) return alert('Vui lòng đồng ý quy tắc cộng đồng.');
 
     let auctionData = {};
-    if (formData.isAuction) {
+    if (formData.isAuction && !isGiving) {
       if (!formData.auctionEndAt) return alert("Vui lòng chọn thời gian kết thúc đấu giá.");
       const end = new Date(formData.auctionEndAt);
       if (end <= new Date()) return alert("Thời gian kết thúc phải ở tương lai.");
@@ -331,12 +333,13 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
 
       let status = 'pending';
       if (isEditing) status = user.role === 'admin' ? 'approved' : 'pending';
-      else if (listingType === 'affiliate' || (settings.tierConfigs as any)[user.subscriptionTier].autoApprove) status = 'approved';
+      else if (!isGiving && (listingType === 'affiliate' || (settings.tierConfigs as any)[user.subscriptionTier].autoApprove)) status = 'approved';
 
       const listingData: any = {
         title: formData.title.trim(),
         description: formData.description.trim(),
-        price: parseInt(formData.price.replace(/\D/g, '')),
+        price: isGiving ? 0 : parseInt(formData.price.replace(/\D/g, '')),
+        ...(isGiving ? { communityType: 'give' } : {}),
         category: finalCategoryId,
         images: uploadedUrls,
         videoUrl: finalVideoUrl || null,
@@ -364,6 +367,11 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         navigate(`/san-pham/${id}`);
       } else {
         await db.saveListing(listingData);
+        if (isGiving) {
+          alert('🎁 Đã gửi món đồ tặng! Tin sẽ hiển thị sau khi được duyệt.');
+          navigate('/chia-se');
+          return;
+        }
         const newCount = postsToday + 1;
         if (newCount >= maxPosts) {
           if (window.confirm(`🎉 Đăng tin thành công!\n\n⚠️ Bạn đã dùng hết ${newCount}/${maxPosts} lượt đăng hôm nay.\nHãy nâng cấp VIP để đăng không giới hạn?`)) {
@@ -438,7 +446,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
       
       {/* HEADER */}
       <div className="text-center space-y-4 mb-8">
-        <h1 className="text-3xl md:text-4xl font-black text-slate-900 uppercase tracking-tighter drop-shadow-sm">{isEditing ? 'Sửa Tin' : 'Đăng Tin'}</h1>
+        <h1 className="text-3xl md:text-4xl font-black text-slate-900 uppercase tracking-tighter drop-shadow-sm">{isEditing ? 'Sửa Tin' : isGiving ? 'Đăng Tặng Đồ Miễn Phí' : 'Đăng Tin'}</h1>
         {!isEditing && (
           <div className="flex justify-center">
             <div className={`inline-flex items-center gap-4 px-6 py-2.5 rounded-full border shadow-sm backdrop-blur-sm ${remainingPosts <= 1 ? 'bg-red-50 border-red-200 ring-4 ring-red-50' : 'bg-white border-slate-200 ring-4 ring-slate-50'}`}>
@@ -454,7 +462,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
         )}
       </div>
 
-      {!isEditing && (
+      {!isEditing && !isGiving && (
         <div className="bg-slate-100 p-1.5 rounded-2xl flex max-w-md mx-auto shadow-inner mb-8">
           <button onClick={() => setListingType('normal')} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${listingType === 'normal' ? 'bg-white shadow-md text-primary scale-[1.02]' : 'text-gray-400 hover:text-gray-600'}`}>
             <IconPackage className="w-4 h-4" /> Bán ngay
@@ -464,6 +472,8 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           </button>
         </div>
       )}
+
+      {isGiving && <div className="max-w-2xl mx-auto bg-emerald-50 border border-emerald-200 text-emerald-900 px-5 py-4 rounded-2xl text-sm leading-6"><strong>🎁 Bạn đang tặng đồ miễn phí.</strong> Tin không có giá bán và không tham gia đấu giá. Đừng đăng số điện thoại hoặc địa chỉ nhà trong mô tả; hãy hẹn nơi nhận phù hợp qua tin nhắn.</div>}
 
       {/* --- KHỐI MEDIA --- */}
       {listingType === 'affiliate' && user?.subscriptionTier !== 'pro' ? (
@@ -622,7 +632,7 @@ const PostListing: React.FC<{ user: User | null }> = ({ user }) => {
           {renderDynamicFields()}
 
           {/* SECTION GIÁ */}
-          <div className={`p-6 rounded-3xl border-2 transition-all shadow-sm ${formData.isAuction ? 'bg-purple-50 border-purple-200' : 'bg-white border-slate-100'}`}>
+          <div className={`p-6 rounded-3xl border-2 transition-all shadow-sm ${isGiving ? 'hidden' : ''} ${formData.isAuction ? 'bg-purple-50 border-purple-200' : 'bg-white border-slate-100'}`}>
             {formData.isAuction ? (
               <div className="space-y-6 animate-fade-in">
                 <div className="flex items-center gap-3 border-b border-purple-200 pb-4">

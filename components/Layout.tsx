@@ -161,6 +161,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     finally { setIsSearchingImage(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
 
+  if (location.pathname === '/chia-se') return <>{children}</>;
+
   return (
     <div className="min-h-screen flex flex-col bg-bgMain">
       

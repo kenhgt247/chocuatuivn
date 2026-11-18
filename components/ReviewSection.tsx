@@ -189,7 +189,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ targetId, targetType, cur
     : "0.0";
 
   // Component SVG Star tái sử dụng (Đảm bảo màu chuẩn)
-  const StarIcon = ({ filled, className }: { filled: boolean, className?: string }) => (
+  const StarIcon = ({ filled, className }: { filled: boolean, className?: string, key?: React.Key }) => (
     <svg 
         className={`w-3 h-3 ${className} ${filled ? 'text-yellow-400' : 'text-gray-200'}`} 
         fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"

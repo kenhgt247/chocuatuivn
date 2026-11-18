@@ -1,12 +1,12 @@
 {
-  "name": "Chợ của tui - Rao vặt thông minh",
+  "name": "Chợ Của Tui – Cộng đồng chia sẻ miễn phí",
   "short_name": "Chợ Của Tui",
-  "description": "Nền tảng rao vặt AI thế hệ mới, mua bán thông minh và an toàn.",
+  "description": "Cho tặng, cho mượn, giúp nhau và sửa đồ gần bạn. Miễn phí 100%.",
   "id": "/",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "theme_color": "#047857",
   "orientation": "portrait",
   "icons": [
     {
@@ -22,19 +22,34 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["shopping", "business"],
+  "categories": [
+    "social",
+    "lifestyle"
+  ],
   "shortcuts": [
     {
       "name": "Đăng tin ngay",
       "short_name": "Đăng tin",
-      "url": "/post",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "url": "/cong-dong/dang-tin",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     },
     {
       "name": "Tin nhắn của tôi",
       "short_name": "Chat",
       "url": "/chat",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

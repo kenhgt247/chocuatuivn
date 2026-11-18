@@ -56,7 +56,7 @@ const CommunityFrame: React.FC<{user: User | null; children: React.ReactNode}> =
   const { pathname } = useLocation();
   const isCommunity = pathname === '/' || pathname.startsWith('/cong-dong');
   if (isCommunity) return <>{children}</>;
-  return <CommunityFrame user={user}>{children}</Layout>;
+  return <Layout user={user}>{children}</Layout>;
 };
 
 const App: React.FC = () => {
@@ -254,7 +254,7 @@ const App: React.FC = () => {
         <ScrollToTop />
         {!user && <GoogleOneTap onLogin={handleLogin} />}
 
-        <Layout user={user}>
+        <CommunityFrame user={user}>
           <Routes>
             <Route path="/" element={<CommunityApp user={user} />} />
             <Route path="/cong-dong/*" element={<CommunityApp user={user} />} />

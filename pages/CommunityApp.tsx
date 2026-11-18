@@ -223,7 +223,7 @@ function Detail({user,id}:{user:User|null;id:string}) {
   async function send() {
     if(!item||!user)return nav('/login');
     setSending(true);setError('');
-    try {await community.request(item,message);setDone(true)}
+    try {const result=await community.request(item,message); if(result.startsWith('chat:')){nav('/chat/'+result.slice(5));return;} setDone(true)}
     catch(e:any){setError(e?.message||'Không gửi được yêu cầu')}
     finally{setSending(false)}
   }
@@ -300,7 +300,7 @@ function Requests({user}:{user:User|null}) {
     finally{setWorking('')}
   }
   return <div className="mx-auto max-w-3xl">
-    <h1 className="text-3xl font-black mb-2">Yêu cầu của tôi</h1><p className="text-slate-500 mb-5">Theo dõi việc cho tặng, mượn và giúp đỡ.</p>
+    <h1 className="text-3xl font-black mb-2">Yêu cầu của tôi</h1><p className="text-slate-500 mb-5">Theo dõi việc cho tặng, mượn và giúp đỡ. <Link to="/chat" className="text-emerald-700 underline font-semibold">Xem tin nhắn</Link></p>
     <div className="flex gap-2 mb-5">
       <button className={tab==='received'?primaryButton:lightButton} onClick={()=>setTab('received')}>Người cần tôi</button>
       <button className={tab==='sent'?primaryButton:lightButton} onClick={()=>setTab('sent')}>Tôi đã nhờ</button>

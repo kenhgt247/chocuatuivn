@@ -135,15 +135,26 @@ function Post({user}:{user:User|null}) {
   const [description,setDescription]=useState('');
   const [location,setLocation]=useState(user?.location||'');
   const [photo,setPhoto]=useState<File|null>(null);
+  const [approximateCoords,setApproximateCoords]=useState<{lat:number;lng:number}|null>(null);
+  const [locating,setLocating]=useState(false);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState('');
   if(!user)return <AuthRequired/>;
+  function askLocation() {
+    if(!navigator.geolocation) {setError('Thiết bị chưa hỗ trợ định vị. Bạn vẫn có thể nhập khu vực bằng chữ.'); return;}
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      pos=>{setApproximateCoords({lat:pos.coords.latitude,lng:pos.coords.longitude});setLocating(false);setError('');},
+      ()=>{setLocating(false);setError('Chưa lấy được vị trí. Bạn vẫn có thể đăng bằng tên khu vực.');},
+      {timeout:10000,enableHighAccuracy:false}
+    );
+  }
   async function submit(e:React.FormEvent) {
     e.preventDefault();
     if(!user)return;
     setError('');setSaving(true);
     try{
-      await community.create(user,{title,description,location,photo,kind,intent});
+      await community.create(user,{title,description,location,photo,kind,intent,approximateCoords});
       nav('/cong-dong/da-dang');
     }catch(e:any){setError(e?.message||'Chưa đăng được tin. Thử lại nhé.')}
     finally{setSaving(false)}
@@ -176,6 +187,8 @@ function Post({user}:{user:User|null}) {
       <div><label htmlFor="community-area" className="font-semibold block mb-2">📍 Xã/phường hoặc khu vực</label>
         <input id="community-area" required maxLength={100} className={inputClass} placeholder="Ví dụ: Phường Chí Linh, Hải Phòng" value={location} onChange={e=>setLocation(e.target.value)}/>
         <p className="text-xs text-slate-500 mt-1">Không ghi số nhà hay địa chỉ riêng.</p>
+        <button type="button" onClick={askLocation} disabled={locating} className="mt-3 text-sm font-semibold underline text-emerald-700">{locating?'Đang xác định vị trí…':approximateCoords?'✓ Đã gắn vị trí gần đúng lên bản đồ':'📍 Thêm vị trí gần đúng lên bản đồ (tùy chọn)'}</button>
+        {approximateCoords&&<p className="text-xs text-slate-500">Bản đồ chỉ sử dụng tọa độ làm tròn, không lưu vị trí GPS chính xác.</p>}
       </div>
       <div><label htmlFor="community-photo" className="font-semibold block mb-2">📷 Thêm 1 ảnh (không bắt buộc)</label>
         <input id="community-photo" type="file" accept="image/*" className="block w-full rounded-xl border p-3 text-sm" onChange={e=>setPhoto(e.target.files?.[0]||null)}/>

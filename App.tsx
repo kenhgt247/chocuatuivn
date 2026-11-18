@@ -5,6 +5,7 @@ import { HelmetProvider } from 'react-helmet-async';
 // --- Layout & Pages ---
 import Layout from './components/Layout';
 import Home from './pages/Home';
+import CommunityApp from './pages/CommunityApp';
 import ListingDetail from './pages/ListingDetail';
 import PostListing from './pages/PostListing';
 import Chat from './pages/Chat';
@@ -50,6 +51,14 @@ const IconCheckCircle = () => (
   </svg>
 );
 
+
+const CommunityFrame: React.FC<{user: User | null; children: React.ReactNode}> = ({user,children}) => {
+  const { pathname } = useLocation();
+  const isCommunity = pathname === '/' || pathname.startsWith('/cong-dong');
+  if (isCommunity) return <>{children}</>;
+  return <CommunityFrame user={user}>{children}</Layout>;
+};
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -85,7 +94,8 @@ const App: React.FC = () => {
                 const messaging = getMessaging(app);
 
                 // A. Xin quyền
-                const permission = await Notification.requestPermission();
+                // Không xin quyền thông báo khi người dùng chưa bấm. Nút trên giao diện mới sẽ xin quyền.
+                const permission = typeof Notification !== 'undefined' ? Notification.permission : 'default';
                 
                 if (permission === 'granted') {
                     // Kiểm tra trình duyệt có hỗ trợ Service Worker không
@@ -246,7 +256,9 @@ const App: React.FC = () => {
 
         <Layout user={user}>
           <Routes>
-            <Route path="/" element={<Home user={user} />} />
+            <Route path="/" element={<CommunityApp user={user} />} />
+            <Route path="/cong-dong/*" element={<CommunityApp user={user} />} />
+            <Route path="/rao-vat" element={<Home user={user} />} />
             <Route path="/search" element={<Home user={user} />} />
             <Route path="/danh-muc/:slug" element={<Home user={user} />} />
             <Route path="/danh-muc/:parentSlug/:childSlug" element={<Home user={user} />} />
@@ -266,8 +278,8 @@ const App: React.FC = () => {
             <Route path="/chat" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
             <Route path="/chat/:roomId" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
             
-            <Route path="/upgrade" element={user ? <Subscription user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
-            <Route path="/wallet" element={user ? <Wallet user={user} /> : <Navigate to="/login" />} />
+            <Route path="/upgrade" element={<Navigate to="/" replace />} />
+            <Route path="/wallet" element={<Navigate to="/" replace />} />
             
             <Route path="/admin" element={user?.role === 'admin' ? <Admin user={user} /> : <Navigate to="/" />} />
 
@@ -277,7 +289,7 @@ const App: React.FC = () => {
             <Route path="/page/:slug" element={<StaticPage />} />
             <Route path="*" element={<div className="h-[50vh] flex items-center justify-center font-bold text-gray-400">404 - Trang không tồn tại</div>} />
           </Routes>
-        </Layout>
+        </CommunityFrame>
 
         {/* --- [CUSTOM TOAST] --- */}
         {notification && notification.show && (

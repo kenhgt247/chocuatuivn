@@ -15,7 +15,7 @@ export type ListingStatus = 'pending' | 'approved' | 'rejected' | 'sold' | 'hidd
 // Loại thông báo
 export type NotificationType = 
   | 'info' | 'success' | 'warning' | 'error' 
-  | 'review' | 'message' | 'approval' | 'follow' | 'offer' | 'system' | 'wallet' | 'affiliate'; // Thêm 'wallet' & 'affiliate'
+  | 'review' | 'message' | 'approval' | 'follow' | 'offer' | 'system' | 'wallet' | 'affiliate' | 'order'; // Thêm 'wallet' & 'affiliate'
 
 // Loại tin nhắn chat
 export type MessageType = 'text' | 'image' | 'location' | 'offer' | 'swap';
@@ -38,6 +38,7 @@ export interface User {
   role: UserRole;
   status: UserStatus;
   phone?: string;
+  gender?: string;
   joinedAt: string;
   
   // --- TRẠNG THÁI ---
@@ -55,7 +56,7 @@ export interface User {
   subscriptionExpires?: string;
   
   walletBalance: number;       // Ví tiền mặt
-  pointBalance: number;        // Ví điểm thưởng (NEW)
+  pointBalance?: number;        // Ví điểm thưởng (NEW)
   totalPointsEarned?: number;  // Tổng điểm tích lũy (NEW)
   affiliateEarnings?: number;  // Tổng tiền hoa hồng (NEW)
   
@@ -99,6 +100,7 @@ export interface Listing {
   price: number;
   category: string;
   parentCategory?: string | null;
+  categoryName?: string;
   images: string[];
   videoUrl?: string | null;     // Link video ngắn sản phẩm
   affiliateLink?: string | null; // Link tiếp thị liên kết (nếu có)

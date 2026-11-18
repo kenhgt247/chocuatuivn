@@ -1,0 +1,33 @@
+name: Kiểm tra Chợ Của Tui 2.0
+on:
+  push:
+    branches:
+      - feature/chocuatuivn-2-community
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Cài thư viện
+        run: npm ci
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+      - name: Kiểm tra TypeScript
+        run: npx tsc --noEmit
+      - name: Build Vite
+        run: npm run build

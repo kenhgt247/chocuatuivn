@@ -64,7 +64,7 @@ function BottomNav() {
     <Link className="flex-1 flex flex-col items-center py-2 text-xs text-slate-700" to="/cong-dong/yeu-cau"><span className="text-xl">♡</span>Yêu cầu</Link>
   </nav>;
 }
-function Card({item}:{item:CommunityListing}) {
+function Card({item}:{item:CommunityListing;key?:React.Key}) {
   const category = choices.find(x=>x.key===item.communityKind) || choices[0];
   return <Link to={'/cong-dong/tin/'+item.id} className="rounded-2xl bg-white border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition">
     {item.images?.[0] ? <img src={item.images[0]} alt={item.title} className="h-44 w-full object-cover" loading="lazy"/> :

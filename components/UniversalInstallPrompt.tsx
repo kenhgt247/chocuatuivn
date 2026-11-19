@@ -85,7 +85,7 @@ const UniversalInstallPrompt: React.FC = () => {
   if (!showPrompt) return null;
 
   return (
-    <div className="fixed bottom-24 left-4 right-4 z-[100] animate-fade-in-up">
+    <div className="fixed bottom-[calc(84px+env(safe-area-inset-bottom))] md:bottom-6 left-4 right-4 md:left-auto md:w-[380px] z-[100] animate-fade-in-up">
       <div className="bg-white/95 backdrop-blur-xl border border-primary/20 rounded-[2.5rem] p-6 shadow-[0_25px_60px_rgba(0,0,0,0.2)] relative max-w-md mx-auto">
         <button 
           onClick={handleDismiss}

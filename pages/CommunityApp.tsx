@@ -250,7 +250,7 @@ function Post({ user }: { user: User | null }) {
     {needAck && !blocked && <label className="flex gap-2 items-start text-sm"><input type="checkbox" className="mt-1 h-4 w-4" checked={safetyAck} onChange={e => setSafetyAck(e.target.checked)} />Tôi đã đọc lưu ý an toàn ở trên.</label>}
     {error && <ErrorMessage message={error} />}
 
-    <div className="fixed md:static left-0 right-0 bottom-[76px] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-3 md:p-0 flex flex-col gap-1">
+    <div className="fixed md:static left-0 right-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-5 md:p-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:shadow-none flex flex-col gap-1">
       <button disabled={saving || blocked} type="submit" className="min-h-14 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white text-lg font-extrabold disabled:opacity-60">{saving ? 'Đang đăng…' : 'Đăng tin'}</button>
       <span className="text-center text-xs text-slate-600">Miễn phí. Tin hiện sau khi được duyệt.</span>
     </div>
@@ -367,7 +367,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
       {error && <ErrorMessage message={error} />}
     </div>
 
-    <div className="fixed md:static left-0 right-0 bottom-[76px] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-3 md:pt-5 flex flex-col gap-1.5">
+    <div className="fixed md:static left-0 right-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-5 md:pt-5 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:shadow-none flex flex-col gap-1.5">
       {mine
         ? <Link to="/chat" className="min-h-14 rounded-2xl bg-emerald-700 text-white text-lg font-extrabold flex items-center justify-center gap-2">Xem người liên hệ</Link>
         : <button disabled={sending} onClick={ask} className="min-h-14 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white text-lg font-extrabold flex items-center justify-center gap-2 disabled:opacity-60">

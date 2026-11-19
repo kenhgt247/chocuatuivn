@@ -146,22 +146,22 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
       <main className={'max-w-6xl mx-auto px-4 md:px-5 ' + (isChat ? 'py-3 md:py-6 pb-24 md:pb-6' : 'pt-5 md:pt-8 ' + (hasActionBar ? 'pb-36 md:pb-10' : 'pb-8 md:pb-10'))}>{children}</main>
 
       {!isChat && <footer className="border-t border-line bg-white">
-        <div className={'max-w-6xl mx-auto px-5 pt-6 md:py-6 md:flex md:items-center md:justify-between md:gap-6 ' +
-          (hasActionBar ? 'pb-[calc(184px+env(safe-area-inset-bottom))]' : 'pb-[calc(100px+env(safe-area-inset-bottom))]')}>
-          <div className="flex items-center gap-3">
-            <img src="/icons/icon-192.png" alt="" className="h-10 w-10 rounded-xl shrink-0" />
-            <div>
-              <p className="font-extrabold text-emerald-900 leading-tight">Chợ Của Tui</p>
-              <p className="text-[13px] text-slate-600">Mọi người cùng chia sẻ · Hoàn toàn miễn phí</p>
-            </div>
+        <div className={'max-w-6xl mx-auto px-4 md:px-5 pt-4 md:py-6 md:flex md:items-center md:justify-between md:gap-6 ' +
+          (hasActionBar ? 'pb-[calc(176px+env(safe-area-inset-bottom))]' : 'pb-[calc(92px+env(safe-area-inset-bottom))]') + ' md:pb-6'}>
+          <div className="flex items-center justify-center md:justify-start gap-2 md:gap-3">
+            <img src="/icons/icon-192.png" alt="" className="h-6 w-6 md:h-10 md:w-10 rounded-lg md:rounded-xl shrink-0" />
+            <p className="text-[13px] md:text-base text-slate-600">
+              <span className="font-extrabold text-emerald-900">Chợ Của Tui</span>
+              <span className="md:hidden"> · Miễn phí</span>
+              <span className="hidden md:block text-[13px]">Mọi người cùng chia sẻ · Hoàn toàn miễn phí</span>
+            </p>
           </div>
-          <nav aria-label="Thông tin" className="mt-4 md:mt-0 grid grid-cols-2 gap-x-4 md:flex md:flex-wrap md:justify-end md:gap-x-5 text-sm font-semibold text-slate-700">
-            {[['/page/gioi-thieu', 'Giới thiệu'], ['/page/quy-tac', 'Quy tắc cộng đồng'], ['/page/an-toan', 'An toàn khi trao đồ'],
+          <nav aria-label="Thông tin" className="mt-1 md:mt-0 flex flex-wrap justify-center md:justify-end gap-x-3 md:gap-x-5 text-xs md:text-sm font-semibold text-slate-600">
+            {[['/page/gioi-thieu', 'Giới thiệu'], ['/page/quy-tac', 'Quy tắc'], ['/page/an-toan', 'An toàn'],
               ['/page/chinh-sach-bao-mat', 'Bảo mật'], ['/page/dieu-khoan', 'Điều khoản']].map(([to, label]) =>
-              <Link key={to} to={to} className="min-h-11 flex items-center hover:text-emerald-700">{label}</Link>)}
+              <Link key={to} to={to} className="min-h-9 md:min-h-11 flex items-center hover:text-emerald-700">{label}</Link>)}
           </nav>
         </div>
-        <p className="hidden md:block text-center text-xs text-slate-500 pb-5">© {new Date().getFullYear()} Chợ Của Tui</p>
       </footer>}
 
       <nav aria-label="Điều hướng nhanh" className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-line pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_12px_rgba(0,0,0,0.05)]">

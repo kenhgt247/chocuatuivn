@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import NotificationMenu from './NotificationMenu';
-import UniversalInstallPrompt from './UniversalInstallPrompt';
+import AppNudge from './AppNudge';
 import { db } from '../services/db';
 import { getArea, setArea, onAreaChange } from '../utils/area';
 import { AreaInput } from './AreaInput';
@@ -87,37 +87,9 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
   const unread = useUnreadChats(user);
   // Trang chat cần chiều cao cố định, ẩn chân trang cho gọn
   const isChat = pathname.startsWith('/chat');
-  const [pushNotice, setPushNotice] = useState('');
-  const [askingPush, setAskingPush] = useState(false);
-  const [, setPushTick] = useState(0);
-  const [pushHidden, setPushHidden] = useState(() => { try { return Number(localStorage.getItem('ccut-push-hide') || 0) > Date.now(); } catch (_) { return false; } });
-  const hidePush = () => { try { localStorage.setItem('ccut-push-hide', String(Date.now() + 7 * 864e5)); } catch (_) { /* bỏ qua */ } setPushHidden(true); };
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const standalone = (navigator as any).standalone === true || window.matchMedia?.('(display-mode: standalone)').matches;
-  const pushSupported = typeof Notification !== 'undefined' && 'serviceWorker' in navigator;
-  const pushPerm = pushSupported ? Notification.permission : 'unsupported';
-  // Hộp mời bật thông báo trên điện thoại/máy tính bảng (máy tính có nút ở đầu trang)
-  const pushCard: null | 'ios' | 'ask' | 'denied' = !user || pushHidden || isChat ? null
-    : isIOS && !standalone ? 'ios'
-    : pushPerm === 'default' ? 'ask'
-    : pushPerm === 'denied' ? 'denied' : null;
-  const pushGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
   // Trang có thanh nút cố định ở đáy (đăng tin, xem tin) trên điện thoại
   const hasActionBar = pathname.startsWith('/cong-dong/dang-tin') || pathname.startsWith('/cong-dong/tin/');
 
-  async function enablePush() {
-    if (!user) return;
-    setAskingPush(true);
-    try {
-      const token = await db.requestNotificationPermission(user.id);
-      const perm = typeof Notification !== 'undefined' ? Notification.permission : 'default';
-      setPushNotice(token ? 'Đã bật thông báo trên thiết bị này.'
-        : perm === 'denied' ? 'Thông báo đang bị chặn. Vào cài đặt trình duyệt/điện thoại, cho phép thông báo của chocuatui.vn rồi thử lại.'
-        : 'Chưa bật được thông báo trên thiết bị này. Bạn thử lại sau nhé.');
-    } catch (_) {
-      setPushNotice('Thiết bị hoặc trình duyệt chưa hỗ trợ thông báo.');
-    } finally { setAskingPush(false); setPushTick(t => t + 1); }
-  }
 
   const tab = (to: string, label: string, icon: keyof typeof Icon, active: boolean, badge = 0) => (
     <Link to={to} className={'flex-1 flex flex-col items-center gap-0.5 pt-2.5 pb-2 text-xs ' + (active ? 'text-emerald-700 font-bold' : 'text-slate-500 font-semibold')} aria-current={active ? 'page' : undefined}>
@@ -145,7 +117,6 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
             <Link to="/cong-dong/dang-tin" className="hidden md:flex items-center justify-center rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-4 h-11">＋ Đăng tin</Link>
             {user ? <>
-              {!pushGranted && <button onClick={enablePush} disabled={askingPush} className="hidden lg:block text-xs font-semibold text-emerald-800 border border-emerald-200 rounded-xl px-3 h-11 bg-white">Bật thông báo</button>}
               <div className="h-11 w-11 rounded-full bg-white border border-line grid place-items-center"><NotificationMenu userId={user.id} /></div>
               <Link to="/chat" className="relative hidden md:grid place-items-center h-11 w-11 rounded-full bg-white border border-line text-slate-700" title="Tin nhắn">
                 <span className="relative flex"><Svg name="chat" className="w-5 h-5" /><Badge n={unread} /></span>
@@ -156,28 +127,9 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
             </> : <Link to="/login" className="rounded-xl border border-emerald-700 text-emerald-800 bg-white px-4 h-11 flex items-center text-sm font-bold">Đăng nhập</Link>}
           </div>
         </div>
-        {pushNotice && <p role="status" className="text-center text-xs bg-emerald-50 text-emerald-800 py-2">{pushNotice} <button className="underline" onClick={() => setPushNotice('')}>Đóng</button></p>}
       </header>
 
-      {pushCard && <div className="lg:hidden max-w-6xl mx-auto px-4 pt-3">
-        <div className="flex gap-3 items-start bg-white border border-line rounded-2xl p-3.5 shadow-sm">
-          <span className="h-10 w-10 shrink-0 rounded-xl bg-emerald-50 text-emerald-700 grid place-items-center"><Svg name="bell" className="w-5 h-5" /></span>
-          <div className="flex-1 min-w-0 text-sm">
-            {pushCard === 'ios' ? <>
-              <p className="font-bold">Nhận thông báo trên iPhone</p>
-              <p className="text-slate-600 mt-0.5 leading-snug">Bấm nút <b>Chia sẻ</b> (ô vuông có mũi tên lên) ở Safari → <b>Thêm vào Màn hình chính</b>. Rồi mở Chợ Của Tui từ biểu tượng mới đó và bấm Bật thông báo.</p>
-            </> : pushCard === 'denied' ? <>
-              <p className="font-bold">Thông báo đang bị chặn</p>
-              <p className="text-slate-600 mt-0.5 leading-snug">Vào <b>Cài đặt</b> của điện thoại hoặc trình duyệt → Thông báo → cho phép <b>chocuatui.vn</b>, để biết ngay khi có người nhắn.</p>
-            </> : <>
-              <p className="font-bold">Biết ngay khi có người nhắn</p>
-              <p className="text-slate-600 mt-0.5 leading-snug">Bật thông báo để không lỡ tin nhắn và yêu cầu mới.</p>
-              <button onClick={enablePush} disabled={askingPush} className="mt-2 h-10 px-4 rounded-full bg-emerald-700 text-white font-bold disabled:opacity-60">{askingPush ? 'Đang bật…' : 'Bật thông báo'}</button>
-            </>}
-          </div>
-          <button onClick={hidePush} aria-label="Để sau" className="h-8 w-8 -mr-1 -mt-1 grid place-items-center rounded-full text-slate-500 hover:bg-cream"><Svg name="x" className="w-4 h-4" /></button>
-        </div>
-      </div>}
+      <AppNudge user={user} hidden={isChat} />
 
       <main className={'max-w-6xl mx-auto px-4 md:px-5 ' + (isChat ? 'py-3 md:py-6 pb-24 md:pb-6' : 'pt-5 md:pt-8 ' + (hasActionBar ? 'pb-36 md:pb-10' : 'pb-8 md:pb-10'))}>{children}</main>
 
@@ -212,7 +164,6 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
         </div>
       </nav>
 
-      <UniversalInstallPrompt />
     </div>
   );
 };

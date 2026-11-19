@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParam
 import { HelmetProvider } from 'react-helmet-async';
 
 // --- Layout & Pages ---
-import Layout from './components/Layout';
+import CommunityShell from './components/CommunityShell';
 import CommunityApp from './pages/CommunityApp';
 import Chat from './pages/Chat';
 import Profile from './pages/Profile';
@@ -53,12 +53,10 @@ const OldListingRedirect = () => {
   return <Navigate to={id ? '/cong-dong/tin/' + encodeURIComponent(id) : '/'} replace />;
 };
 
-const CommunityFrame: React.FC<{user: User | null; children: React.ReactNode}> = ({user,children}) => {
-  const { pathname } = useLocation();
-  const isCommunity = pathname === '/' || pathname.startsWith('/cong-dong');
-  if (isCommunity) return <>{children}</>;
-  return <Layout user={user}>{children}</Layout>;
-};
+// Mọi trang dùng chung một khung giao diện cộng đồng.
+const CommunityFrame: React.FC<{user: User | null; children: React.ReactNode}> = ({user,children}) => (
+  <CommunityShell user={user}>{children}</CommunityShell>
+);
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);

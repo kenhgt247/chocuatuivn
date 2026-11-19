@@ -36,11 +36,12 @@ export interface CommunityPostInput {
   kind: CommunityKind;
   intent: CommunityIntent;
   location: string;
-  photo?: File | null;
+  photos?: File[];
   approximateCoords?: {lat:number;lng:number} | null;
 }
 
 const kinds: CommunityKind[] = ['gift', 'borrow', 'help', 'repair'];
+export const MAX_PHOTOS = 4;
 export const kindLabels: Record<CommunityKind, string> = {
   gift: 'Cho tặng', borrow: 'Mượn đồ', help: 'Giúp nhau', repair: 'Sửa đồ'
 };
@@ -79,6 +80,41 @@ export const community = {
       .map(x => ({ ...x.data(), id: x.id } as CommunityListing))
       .filter(x => checkKind(x.communityKind) && x.isCommunityFree === true && x.price === 0);
   },
+  /** Tin cộng đồng của chính mình, mọi trạng thái (chờ duyệt, đang hiện, đã xong, đã ẩn). */
+  async mine(uid: string): Promise<CommunityListing[]> {
+    const snapshot = await getDocs(query(collection(firestore, 'listings'), where('sellerId', '==', uid), limit(200)));
+    return snapshot.docs
+      .map(x => ({ ...x.data(), id: x.id } as CommunityListing))
+      .filter(x => checkKind(x.communityKind))
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  },
+  /** Tin cộng đồng đang hiện của một người (trang hồ sơ công khai). */
+  async byOwner(uid: string): Promise<CommunityListing[]> {
+    const snapshot = await getDocs(query(collection(firestore, 'listings'), where('sellerId', '==', uid), where('status', '==', 'approved'), limit(100)));
+    return snapshot.docs
+      .map(x => ({ ...x.data(), id: x.id } as CommunityListing))
+      .filter(x => checkKind(x.communityKind) && x.isCommunityFree === true)
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  },
+  /** Đánh dấu đã xong hoặc ẩn tin của mình (rules chỉ cho 2 trạng thái này). */
+  async setMyStatus(id: string, status: 'sold' | 'hidden'): Promise<void> {
+    await db.updateListingStatus(id, status);
+  },
+  async remove(id: string): Promise<void> {
+    await db.deleteListing(id);
+  },
+  // --- Lưu tin: dùng lại bảng favorites/<uid> của bản cũ ---
+  async savedIds(uid: string): Promise<string[]> {
+    try { return (await db.getFavorites(uid)) || []; } catch (_) { return []; }
+  },
+  async toggleSave(uid: string, listingId: string): Promise<void> {
+    await db.toggleFavorite(uid, listingId);
+  },
+  async saved(uid: string): Promise<CommunityListing[]> {
+    const ids = (await community.savedIds(uid)).slice(-60).reverse();
+    const items = await Promise.all(ids.map(id => community.detail(id).catch(() => null)));
+    return items.filter((x): x is CommunityListing => !!x && x.status === 'approved');
+  },
   async detail(id: string): Promise<CommunityListing | null> {
     const item = await db.getListingById(id) as CommunityListing | null;
     return item && checkKind(item.communityKind) && item.isCommunityFree === true && item.price === 0
@@ -93,13 +129,15 @@ export const community = {
     if (title.length < 5) throw new Error('Hãy viết tên món đồ hoặc việc cần giúp (ít nhất 5 ký tự).');
     if (!location) throw new Error('Hãy nhập xã/phường hoặc khu vực của bạn.');
     if (!checkKind(input.kind) || !['have', 'need'].includes(input.intent)) throw new Error('Lựa chọn không hợp lệ.');
+    // Ảnh lưu trên Firebase Storage cũ (listings/<uid>/...), nén trước khi tải.
+    const photos = (input.photos || []).slice(0, MAX_PHOTOS);
+    for (const photo of photos)
+      if (!photo.type.startsWith('image/') || photo.size > 8 * 1024 * 1024)
+        throw new Error('Mỗi ảnh phải là hình và dưới 8 MB.');
     const images: string[] = [];
-    if (input.photo) {
-      if (!input.photo.type.startsWith('image/') || input.photo.size > 8 * 1024 * 1024)
-        throw new Error('Hãy chọn ảnh dưới 8 MB.');
-      const compressed = await compressAndGetBase64(input.photo);
-      const url = await db.uploadImage(compressed, 'listings/' + uid + '/community-' + Date.now() + '.jpg');
-      images.push(url);
+    for (let i = 0; i < photos.length; i++) {
+      const compressed = await compressAndGetBase64(photos[i]);
+      images.push(await db.uploadImage(compressed, 'listings/' + uid + '/community-' + Date.now() + '-' + i + '.jpg'));
     }
     // Chỉ chia sẻ vị trí đã làm mờ khi người dùng chủ động cho phép.
     const lat = input.approximateCoords?.lat;

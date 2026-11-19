@@ -1,11 +1,11 @@
 {
   "name": "Chợ Của Tui – Cộng đồng chia sẻ miễn phí",
   "short_name": "Chợ Của Tui",
-  "description": "Cho tặng, cho mượn, giúp nhau và sửa đồ gần bạn. Miễn phí 100%.",
+  "description": "Có gì chia sẻ, cần gì có nhau. Cho tặng, mượn đồ, giúp nhau và sửa đồ gần nhà, hoàn toàn miễn phí.",
   "id": "/",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#f7faf8",
   "theme_color": "#047857",
   "orientation": "portrait",
   "icons": [
@@ -13,13 +13,25 @@
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "categories": [
@@ -28,7 +40,7 @@
   ],
   "shortcuts": [
     {
-      "name": "Đăng tin ngay",
+      "name": "Đăng tin chia sẻ",
       "short_name": "Đăng tin",
       "url": "/cong-dong/dang-tin",
       "icons": [
@@ -40,8 +52,20 @@
       ]
     },
     {
-      "name": "Tin nhắn của tôi",
-      "short_name": "Chat",
+      "name": "Yêu cầu của tôi",
+      "short_name": "Yêu cầu",
+      "url": "/cong-dong/yeu-cau",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Tin nhắn",
+      "short_name": "Tin nhắn",
       "url": "/chat",
       "icons": [
         {
@@ -51,5 +75,6 @@
         }
       ]
     }
-  ]
+  ],
+  "lang": "vi"
 }

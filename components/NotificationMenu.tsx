@@ -99,7 +99,7 @@ const NotificationMenu: React.FC<{ userId: string }> = ({ userId }) => {
         case 'swap': 
             return <div className="bg-purple-100 text-purple-600 p-2 rounded-full"><IconRefresh className="w-4 h-4" /></div>;
         case 'system': 
-            return <div className="bg-blue-100 text-blue-600 p-2 rounded-full"><IconZap className="w-4 h-4" /></div>;
+            return <div className="bg-emerald-100 text-emerald-600 p-2 rounded-full"><IconZap className="w-4 h-4" /></div>;
         case 'review': 
             return <div className="bg-yellow-100 text-yellow-600 p-2 rounded-full"><IconStar className="w-4 h-4" /></div>;
         case 'order':
@@ -140,7 +140,7 @@ const NotificationMenu: React.FC<{ userId: string }> = ({ userId }) => {
                 {unreadCount > 0 && (
                     <button 
                         onClick={markAllAsRead} 
-                        className="text-[10px] font-bold text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 border border-blue-100 hover:border-blue-200"
+                        className="text-[10px] font-bold text-emerald-600 hover:bg-emerald-50 px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 border border-emerald-100 hover:border-emerald-200"
                     >
                         <IconCheckAll className="w-3.5 h-3.5" /> 
                         Đánh dấu đã đọc hết
@@ -163,7 +163,7 @@ const NotificationMenu: React.FC<{ userId: string }> = ({ userId }) => {
                             key={noti.id} 
                             onClick={() => handleRead(noti)}
                             className={`p-4 flex gap-3 cursor-pointer transition-all border-b border-gray-50 last:border-0 group relative overflow-hidden
-                                ${!noti.read ? 'bg-blue-50/40 hover:bg-blue-50' : 'bg-white hover:bg-gray-50'}`}
+                                ${!noti.read ? 'bg-emerald-50/40 hover:bg-emerald-50' : 'bg-white hover:bg-gray-50'}`}
                         >
                             {/* Thanh đánh dấu chưa đọc bên trái */}
                             {!noti.read && <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>}

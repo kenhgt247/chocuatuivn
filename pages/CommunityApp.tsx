@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import MapView from '../components/MapView';
-import NotificationMenu from '../components/NotificationMenu';
+import ShareModal from '../components/ShareModal';
 import { db } from '../services/db';
 import {
-  community, kindLabels, nextStatuses, statusLabels,
+  community, kindLabels, nextStatuses, statusLabels, MAX_PHOTOS,
   type CommunityKind, type CommunityIntent, type CommunityListing,
   type CommunityRequest, type CommunityStatus
 } from '../services/community';
@@ -12,7 +12,7 @@ import type { User } from '../types';
 
 const choices: {key:CommunityKind; icon:string; hint:string; color:string}[] = [
   {key:'gift',icon:'🎁',hint:'Đồ còn tốt để tặng',color:'bg-emerald-50 text-emerald-800'},
-  {key:'borrow',icon:'🤝',hint:'Dùng rồi hoàn trả',color:'bg-blue-50 text-blue-800'},
+  {key:'borrow',icon:'🤝',hint:'Dùng rồi hoàn trả',color:'bg-emerald-50 text-emerald-800'},
   {key:'help',icon:'💚',hint:'Hỗ trợ một việc nhỏ',color:'bg-orange-50 text-orange-800'},
   {key:'repair',icon:'🛠️',hint:'Tìm người biết sửa',color:'bg-violet-50 text-violet-800'}
 ];
@@ -25,52 +25,16 @@ function ErrorMessage({message}:{message:string}) {
   return <p role="alert" className="rounded-xl bg-rose-50 text-rose-700 p-3 text-sm">{message}</p>;
 }
 
-function CommunityHeader({user}:{user:User|null}) {
-  const [askingPush,setAskingPush]=useState(false);
-  const [pushNotice,setPushNotice]=useState('');
-  async function enablePush() {
-    if(!user)return;
-    setAskingPush(true);
-    try {
-      await db.requestNotificationPermission(user.id);
-      setPushNotice('Đã gửi yêu cầu bật thông báo trên thiết bị.');
-    } catch (_) { setPushNotice('Thiết bị hoặc trình duyệt chưa hỗ trợ thông báo.'); }
-    finally {setAskingPush(false);}
-  }
-  return <>
-    <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
-      <div className="mx-auto max-w-6xl px-4 h-16 flex items-center gap-3">
-        <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="Chợ Của Tui - Trang chủ">
-          <span className="grid place-items-center h-10 w-10 rounded-2xl bg-emerald-700 text-white text-2xl" aria-hidden="true">🌿</span>
-          <span className="text-lg md:text-xl leading-none font-black text-emerald-900">Chợ Của Tui<span className="hidden sm:block text-xs mt-1 font-medium text-slate-500">Có gì chia sẻ, cần gì có nhau</span></span>
-        </Link>
-        <div className="ml-auto flex items-center gap-2">
-          <Link to="/cong-dong/dang-tin" className="hidden sm:flex items-center justify-center rounded-xl bg-emerald-700 text-white font-bold px-4 h-10">＋ Đăng tin</Link>
-          {user ? <>
-            <NotificationMenu userId={user.id}/>
-            <Link to="/cong-dong/yeu-cau" className="min-h-10 min-w-10 flex items-center justify-center text-xl" title="Yêu cầu của tôi">💬</Link>
-            <button onClick={enablePush} disabled={askingPush} title="Bật thông báo" className="min-h-10 min-w-10 flex items-center justify-center text-xl">🔔</button>
-          </> : <Link to="/login" className="rounded-xl border border-emerald-700 text-emerald-800 px-4 py-2 text-sm font-bold">Đăng nhập</Link>}
-        </div>
-      </div>
-      {pushNotice && <p role="status" className="text-center text-xs bg-emerald-50 text-emerald-800 py-2">{pushNotice} <button className="underline" onClick={()=>setPushNotice('')}>Đóng</button></p>}
-    </header>
-  </>;
-}
-function BottomNav() {
-  return <nav aria-label="Điều hướng nhanh" className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex bg-white border-t border-slate-200 pb-[env(safe-area-inset-bottom)]">
-    <Link className="flex-1 flex flex-col items-center py-2 text-xs text-slate-700" to="/"><span className="text-xl">⌂</span>Khám phá</Link>
-    <Link className="flex-1 flex flex-col items-center py-2 text-xs font-bold text-emerald-800" to="/cong-dong/dang-tin"><span className="text-xl">⊕</span>Đăng tin</Link>
-    <Link className="flex-1 flex flex-col items-center py-2 text-xs text-slate-700" to="/cong-dong/yeu-cau"><span className="text-xl">♡</span>Yêu cầu</Link>
-  </nav>;
-}
 function Card({item}:{item:CommunityListing;key?:React.Key}) {
   const category = choices.find(x=>x.key===item.communityKind) || choices[0];
   return <Link to={'/cong-dong/tin/'+item.id} className="rounded-2xl bg-white border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition">
     {item.images?.[0] ? <img src={item.images[0]} alt={item.title} className="h-44 w-full object-cover" loading="lazy"/> :
       <div className={'h-40 grid place-items-center text-6xl '+category.color}>{category.icon}</div>}
     <div className="p-4">
-      <span className={'text-xs rounded-full px-3 py-1 font-semibold '+category.color}>{category.icon} {kindLabels[category.key]}</span>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={'text-xs rounded-full px-3 py-1 font-semibold '+category.color}>{category.icon} {kindLabels[category.key]}</span>
+        <span className="text-xs rounded-full px-3 py-1 font-semibold bg-slate-100 text-slate-600">{item.communityIntent==='need'?'Tôi cần':'Tôi có'}</span>
+      </div>
       <h3 className="mt-3 font-bold text-slate-900 text-base leading-snug line-clamp-2">{item.title}</h3>
       <p className="mt-2 text-sm text-slate-500 truncate">📍 {item.location || 'Chưa có khu vực'}</p>
       <div className="mt-3 text-sm font-extrabold text-emerald-700">Miễn phí · Xem chi tiết →</div>
@@ -134,7 +98,9 @@ function Post({user}:{user:User|null}) {
   const [title,setTitle]=useState('');
   const [description,setDescription]=useState('');
   const [location,setLocation]=useState(user?.location||'');
-  const [photo,setPhoto]=useState<File|null>(null);
+  const [photos,setPhotos]=useState<File[]>([]);
+  const previews=useMemo(()=>photos.map(f=>URL.createObjectURL(f)),[photos]);
+  useEffect(()=>()=>previews.forEach(u=>URL.revokeObjectURL(u)),[previews]);
   const [approximateCoords,setApproximateCoords]=useState<{lat:number;lng:number}|null>(null);
   const [locating,setLocating]=useState(false);
   const [saving,setSaving]=useState(false);
@@ -154,7 +120,7 @@ function Post({user}:{user:User|null}) {
     if(!user)return;
     setError('');setSaving(true);
     try{
-      await community.create(user,{title,description,location,photo,kind,intent,approximateCoords});
+      await community.create(user,{title,description,location,photos,kind,intent,approximateCoords});
       nav('/cong-dong/da-dang');
     }catch(e:any){setError(e?.message||'Chưa đăng được tin. Thử lại nhé.')}
     finally{setSaving(false)}
@@ -190,8 +156,12 @@ function Post({user}:{user:User|null}) {
         <button type="button" onClick={askLocation} disabled={locating} className="mt-3 text-sm font-semibold underline text-emerald-700">{locating?'Đang xác định vị trí…':approximateCoords?'✓ Đã gắn vị trí gần đúng lên bản đồ':'📍 Thêm vị trí gần đúng lên bản đồ (tùy chọn)'}</button>
         {approximateCoords&&<p className="text-xs text-slate-500">Bản đồ chỉ sử dụng tọa độ làm tròn, không lưu vị trí GPS chính xác.</p>}
       </div>
-      <div><label htmlFor="community-photo" className="font-semibold block mb-2">📷 Thêm 1 ảnh (không bắt buộc)</label>
-        <input id="community-photo" type="file" accept="image/*" className="block w-full rounded-xl border p-3 text-sm" onChange={e=>setPhoto(e.target.files?.[0]||null)}/>
+      <div><label htmlFor="community-photo" className="font-semibold block mb-2">📷 Ảnh (tối đa {MAX_PHOTOS}, không bắt buộc)</label>
+        <input id="community-photo" type="file" accept="image/*" multiple className="block w-full rounded-xl border p-3 text-sm"
+          onChange={e=>{const files=Array.from(e.target.files||[]);setPhotos(prev=>[...prev,...files].slice(0,MAX_PHOTOS));e.target.value='';}}/>
+        {photos.length>0&&<div className="flex gap-2 mt-3 flex-wrap">{previews.map((u,i)=>
+          <div key={u} className="relative"><img src={u} alt="" className="h-20 w-20 rounded-xl object-cover border"/>
+            <button type="button" aria-label="Bỏ ảnh" onClick={()=>setPhotos(p=>p.filter((_,j)=>j!==i))} className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white border text-xs">✕</button></div>)}</div>}
       </div>
       {error&&<ErrorMessage message={error}/>}
       <button disabled={saving} type="submit" className={primaryButton+' w-full'}>{saving?'Đang đăng…':'Đăng tin miễn phí'}</button>
@@ -215,6 +185,11 @@ function Detail({user,id}:{user:User|null;id:string}) {
   const [message,setMessage]=useState('Chào bạn, tôi muốn liên hệ về tin chia sẻ này.');
   const [sending,setSending]=useState(false);
   const [done,setDone]=useState(false);
+  const [photoIndex,setPhotoIndex]=useState(0);
+  const [saved,setSaved]=useState(false);
+  const [sharing,setSharing]=useState(false);
+  const [reported,setReported]=useState(false);
+  useEffect(()=>{if(!user)return;community.savedIds(user.id).then(ids=>setSaved(ids.includes(id)));},[user?.id,id]);
   useEffect(()=>{let alive=true;setLoading(true);community.detail(id).then(x=>{if(alive)setItem(x)}).catch(e=>{if(alive)setError(e?.message||'Không tải được tin')}).finally(()=>{if(alive)setLoading(false)});return()=>{alive=false}},[id]);
   if(loading)return <p>Đang tải tin thật…</p>;
   if(error)return <ErrorMessage message={error}/>;
@@ -227,6 +202,18 @@ function Detail({user,id}:{user:User|null;id:string}) {
     catch(e:any){setError(e?.message||'Không gửi được yêu cầu')}
     finally{setSending(false)}
   }
+  async function toggleSave(){
+    if(!user)return nav('/login');
+    setSaved(v=>!v);
+    try{await community.toggleSave(user.id,id)}catch(_){setSaved(v=>!v);setError('Chưa lưu được tin, thử lại nhé.')}
+  }
+  async function report(){
+    if(!user)return nav('/login');
+    const reason=window.prompt('Tin này có vấn đề gì? (ví dụ: đòi tiền, lừa đảo, nội dung xấu)');
+    if(!reason||!item)return;
+    try{await db.reportListing({listingId:item.id,targetUserId:item.sellerId,userId:user.id,reason:reason.slice(0,300)});setReported(true)}
+    catch(_){setError('Chưa gửi được báo cáo.')}
+  }
   async function chat(){
     if(!item||!user)return nav('/login');
     setSending(true);setError('');
@@ -237,14 +224,25 @@ function Detail({user,id}:{user:User|null;id:string}) {
   return <div className="mx-auto max-w-3xl">
     <Link to="/" className="text-emerald-800 font-semibold">← Khám phá</Link>
     <article className="bg-white rounded-3xl border overflow-hidden mt-4">
-      {item.images?.[0]?<img className="w-full max-h-96 object-cover" src={item.images[0]} alt={item.title}/>:
+      {item.images?.length?<div className="bg-slate-900">
+        <img className="w-full max-h-[28rem] object-contain" src={item.images[Math.min(photoIndex,item.images.length-1)]} alt={item.title}/>
+        {item.images.length>1&&<div className="flex gap-2 p-3 overflow-x-auto bg-white border-b">{item.images.map((u,i)=>
+          <button key={u} onClick={()=>setPhotoIndex(i)} aria-label={'Ảnh '+(i+1)} className={'shrink-0 rounded-lg overflow-hidden border-2 '+(i===photoIndex?'border-emerald-700':'border-transparent')}><img src={u} alt="" className="h-16 w-16 object-cover"/></button>)}</div>}
+      </div>:
       <div className={'h-52 grid place-items-center text-7xl '+kind.color}>{kind.icon}</div>}
       <div className="p-5 md:p-8">
-        <span className={'rounded-full px-3 py-1 text-sm font-bold '+kind.color}>{kind.icon} {kindLabels[kind.key]}</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={'rounded-full px-3 py-1 text-sm font-bold '+kind.color}>{kind.icon} {kindLabels[kind.key]}</span>
+          <span className="rounded-full px-3 py-1 text-sm font-bold bg-slate-100 text-slate-600">{item.communityIntent==='need'?'Tôi cần':'Tôi có'}</span>
+          <div className="ml-auto flex gap-2">
+            <button onClick={toggleSave} className={lightButton+' !min-h-10 !px-3 text-sm'} aria-pressed={saved}>{saved?'🔖 Đã lưu':'🔖 Lưu tin'}</button>
+            <button onClick={()=>setSharing(true)} className={lightButton+' !min-h-10 !px-3 text-sm'}>↗ Chia sẻ</button>
+          </div>
+        </div>
         <h1 className="text-2xl md:text-3xl font-black mt-4">{item.title}</h1>
         <p className="text-emerald-700 font-bold mt-2">Miễn phí 100%</p>
         <p className="text-slate-500 mt-2">📍 {item.location || 'Chưa có địa bàn'}</p>
-        <p className="text-slate-500 mt-1">Người đăng: {item.sellerName || 'Thành viên'}</p>
+        <p className="text-slate-500 mt-1">Người đăng: <Link className="underline" to={'/profile/'+item.sellerId}>{item.sellerName || 'Thành viên'}</Link></p>
         {item.description&&<p className="whitespace-pre-wrap text-slate-700 border-t mt-5 pt-5">{item.description}</p>}
         <div className="border-t mt-6 pt-5">
           {user?.id === item.sellerId ?
@@ -260,9 +258,11 @@ function Detail({user,id}:{user:User|null;id:string}) {
               {!user&&<p className="text-sm text-slate-500">Bạn sẽ được mời đăng nhập khi liên hệ.</p>}
             </div>}
           {error&&<div className="mt-4"><ErrorMessage message={error}/></div>}
+          {user?.id!==item.sellerId&&<p className="mt-5 text-xs text-slate-500">Không chuyển khoản hay đặt cọc cho bất kỳ ai. {reported?'Đã gửi báo cáo, cảm ơn bạn.':<button onClick={report} className="underline">Báo cáo tin này</button>}</p>}
         </div>
       </div>
     </article>
+    <ShareModal isOpen={sharing} onClose={()=>setSharing(false)} url={window.location.origin+'/cong-dong/tin/'+item.id} title={item.title}/>
   </div>;
 }
 function Requests({user}:{user:User|null}) {
@@ -318,18 +318,27 @@ function Requests({user}:{user:User|null}) {
     </article>)}</div>}
   </div>;
 }
+function Saved({user}:{user:User|null}) {
+  const [items,setItems]=useState<CommunityListing[]>([]);
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{if(!user){setLoading(false);return;}community.saved(user.id).then(setItems).finally(()=>setLoading(false));},[user?.id]);
+  if(!user)return <AuthRequired/>;
+  return <div>
+    <h1 className="text-3xl font-black mb-2">Tin đã lưu</h1>
+    <p className="text-slate-500 mb-5">Bấm "Lưu tin" ở trang chi tiết để xem lại sau.</p>
+    {loading?<p className="text-slate-500">Đang tải…</p>:!items.length?<p className="rounded-2xl bg-white border p-6 text-slate-500">Chưa lưu tin nào. <Link className="underline text-emerald-700" to="/">Khám phá ngay</Link></p>:
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{items.map(item=><Card item={item} key={item.id}/>)}</div>}
+  </div>;
+}
+export { Card };
 export default function CommunityApp({user}:{user:User|null}) {
   const route=useLocation().pathname;
   let body:React.ReactNode;
   if(route==='/cong-dong/dang-tin')body=<Post user={user}/>;
   else if(route==='/cong-dong/yeu-cau')body=<Requests user={user}/>;
   else if(route==='/cong-dong/da-dang')body=<Posted/>;
+  else if(route==='/cong-dong/da-luu')body=<Saved user={user}/>;
   else if(route.startsWith('/cong-dong/tin/'))body=<Detail user={user} id={decodeURIComponent(route.split('/').pop()||'')}/>;
   else body=<Home/>;
-  return <div className="min-h-screen bg-[#f7faf8] text-slate-900">
-    <CommunityHeader user={user}/>
-    <main className="max-w-6xl mx-auto px-4 py-6 md:py-9 pb-28">{body}</main>
-    <footer className="border-t bg-white p-6 mb-14 md:mb-0 text-center text-sm text-slate-500">🌿 Chợ Của Tui · Mọi người cùng chia sẻ · Hoàn toàn miễn phí</footer>
-    <BottomNav/>
-  </div>;
+  return <>{body}</>;
 }

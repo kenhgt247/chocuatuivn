@@ -29,6 +29,7 @@ const Admin: React.FC<{ user: User }> = ({ user }) => {
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
   const [syncText, setSyncText] = useState('');
+  const [areaText, setAreaText] = useState('');
 
   useEffect(() => { if (user.role !== 'admin') nav('/'); }, [user.role]);
 
@@ -149,6 +150,28 @@ const Admin: React.FC<{ user: User }> = ({ user }) => {
         catch (e: any) { setSyncText('❌ ' + (e?.code || e?.message || 'Lỗi')); }
       }} className="self-start min-h-11 px-5 rounded-xl bg-emerald-700 text-white font-bold">Đồng bộ ngay</button>
       {syncText && <p className="text-sm font-semibold">{syncText}</p>}
+      <hr className="border-line my-2" />
+      <h2 className="font-extrabold">Gắn khu vực cho tin cũ</h2>
+      <p className="text-sm text-slate-600">Tin đăng trước khi có lọc theo khu vực chưa có mã tỉnh/xã nên chưa hiện ở mục "Gần bạn". Chạy một lần là đủ.</p>
+      <button onClick={async () => {
+        setAreaText('Đang xử lý…');
+        try {
+          const { loadDvhc, wardFromLabel } = await import('../utils/dvhc');
+          const { wards } = await loadDvhc();
+          const snap = await getDocs(query(collection(firestore, 'listings'), where('isCommunityFree', '==', true), limit(1000)));
+          let done = 0, skip = 0;
+          for (const d of snap.docs) {
+            const x: any = d.data();
+            if (x.provinceCode) continue;
+            const w = (x.areaCode && wards.find(v => v.code === x.areaCode)) || await wardFromLabel(x.location);
+            if (!w) { skip++; continue; }
+            await updateDoc(d.ref, { provinceCode: w.provinceCode, areaCode: x.areaCode || w.code });
+            done++; setAreaText('Đang xử lý… ' + done);
+          }
+          setAreaText('✅ Đã gắn khu vực cho ' + done + ' tin' + (skip ? ', ' + skip + ' tin không rõ xã/phường' : '') + '.');
+        } catch (e: any) { setAreaText('❌ ' + (e?.code || e?.message || 'Lỗi')); }
+      }} className="self-start min-h-11 px-5 rounded-xl bg-emerald-700 text-white font-bold">Gắn khu vực</button>
+      {areaText && <p className="text-sm font-semibold">{areaText}</p>}
       <p className="text-xs text-slate-500">Tổng thành viên: {stats.users == null || stats.users === -1 ? '—' : stats.users}</p>
     </div>}
   </div>;
@@ -168,6 +191,7 @@ function PendingCard({ l, busy, onApprove, onReject }: { l: CommunityListing; bu
     <h3 className="text-lg font-extrabold">{l.title}</h3>
     {l.description && <p className="text-sm text-slate-700 whitespace-pre-wrap">{l.description}</p>}
     {l.meetPlace && <p className="text-sm text-slate-600">Hẹn ở: {l.meetPlace}</p>}
+    {(l as any).kiemDuyet?.lyDo && <p className="text-sm rounded-xl bg-sun-light text-sun-dark px-3 py-2"><b>Máy giữ lại vì:</b> {(l as any).kiemDuyet.lyDo}</p>}
     <SafetyBox notes={notes} />
     {!rejecting ? <div className="flex gap-2">
       <button disabled={busy} onClick={onApprove} className="flex-1 min-h-12 rounded-xl bg-emerald-700 text-white font-extrabold disabled:opacity-60">Duyệt</button>

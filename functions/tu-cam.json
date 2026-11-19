@@ -1,0 +1,130 @@
+{
+  "_ghiChu": "Viết KHÔNG DẤU, chữ thường. 'cam' = từ chối luôn; 'xemLai' = giữ lại chờ người duyệt. Khớp theo nguyên cụm từ.",
+  "cam": {
+    "Chất cấm": [
+      "ma tuy",
+      "thuoc lac",
+      "heroin",
+      "can sa",
+      "co my",
+      "thuoc phien",
+      "ma tuy da",
+      "methamphetamine",
+      "cocaine",
+      "ketamin",
+      "bong cuoi",
+      "nuoc vui"
+    ],
+    "Vũ khí, chất nổ": [
+      "sung ngan",
+      "sung hoa cai",
+      "sung cong",
+      "sung kip",
+      "sung ban dan",
+      "sung tu che",
+      "dan that",
+      "vu khi",
+      "thuoc no",
+      "kip no",
+      "phao no",
+      "phao hoa no",
+      "dao phong lon",
+      "kiem nhat"
+    ],
+    "Nội dung người lớn": [
+      "sex",
+      "sexy",
+      "khieu dam",
+      "gai goi",
+      "gai bao",
+      "trai bao",
+      "kich duc",
+      "chat sex",
+      "nude",
+      "lam tinh",
+      "di khach",
+      "jav",
+      "phim nguoi lon",
+      "anh nong",
+      "clip nong",
+      "sugar baby",
+      "sugar daddy"
+    ],
+    "Cờ bạc": [
+      "lo de",
+      "danh bac",
+      "ca do",
+      "casino",
+      "no hu",
+      "tai xiu",
+      "danh de",
+      "soi cau"
+    ],
+    "Thuốc nguy hiểm": [
+      "thuoc pha thai",
+      "thuoc ke don",
+      "thuoc kich duc",
+      "thuoc ngu",
+      "thuoc giam can cap toc"
+    ],
+    "Vay nợ, đòi tiền": [
+      "vay tien nhanh",
+      "cho vay lai",
+      "vay nong",
+      "bao no",
+      "doi no thue",
+      "tin dung den"
+    ],
+    "Động vật hoang dã": [
+      "ran ho mang",
+      "te te",
+      "trut",
+      "ngoc rung",
+      "su tu",
+      "ho con",
+      "gau con"
+    ],
+    "Giấy tờ": [
+      "lam giay to gia",
+      "bang gia",
+      "can cuoc gia",
+      "mua ban sim rac",
+      "ban tai khoan ngan hang"
+    ]
+  },
+  "xemLai": {
+    "Có nhắc tới tiền": [
+      "chuyen khoan",
+      "dat coc",
+      "coc truoc",
+      "stk",
+      "so tai khoan",
+      "momo",
+      "zalopay",
+      "zalo pay",
+      "gia ban",
+      "ban lai",
+      "thanh ly",
+      "trieu",
+      "nghin dong",
+      "vnd",
+      "phi ship",
+      "phi van chuyen",
+      "lai suat"
+    ],
+    "Thuốc men": [
+      "thuoc"
+    ],
+    "Trông/đưa đón trẻ": [
+      "trong tre",
+      "don tre",
+      "giu tre",
+      "trong be",
+      "don be",
+      "giu be",
+      "trong chau",
+      "dua don tre",
+      "dua don be"
+    ]
+  }
+}

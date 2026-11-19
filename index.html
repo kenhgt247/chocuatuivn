@@ -38,7 +38,12 @@
       (function () {
         var p = location.pathname;
         if (p === '/' || p === '/cong-dong' || p === '/cong-dong/') {
-          try { window.__feed = fetch('/api/feed').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); } catch (e) {}
+          try {
+            var u = '/api/feed';
+            try { u = localStorage.getItem('ccut-feed-scope') || u; } catch (e) {}
+            if (u.indexOf('/api/feed') !== 0) u = '/api/feed';
+            window.__feed = { url: u, p: fetch(u).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }) };
+          } catch (e) {}
         }
       })();
     </script>

@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { cachedFeed, freshFeed } from '../utils/feed';
+import { cachedPage, loadPage, rememberScope, type Scope } from '../utils/feed';
 import ShareModal from '../components/ShareModal';
 import { db } from '../services/db';
 import {
@@ -14,10 +14,18 @@ import {
 import { KIcon, KIND_META, kindText, IntentBadge, Steps, RequestActions, SafetyBox, VoiceButton } from '../components/CommunityUI';
 import { getArea, getAreaPoint, onAreaChange, sameArea } from '../utils/area';
 import { AreaInput } from '../components/AreaInput';
-import { wardFromLabel } from '../utils/dvhc';
+import { wardFromLabel, distanceKm, type Ward } from '../utils/dvhc';
 import { formatTimeAgo, tinPath, thumbOf } from '../utils/format';
 import type { User, PublicProfile } from '../types';
 const CommunityMap = React.lazy(() => import('../components/CommunityMap'));
+async function findBannedWord(text: string): Promise<string | null> {
+  try {
+    const { default: list } = await import('../functions/tu-cam.json');
+    const t = ' ' + text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9+]+/g, ' ').trim() + ' ';
+    for (const [name, words] of Object.entries((list as any).cam as Record<string, string[]>)) if (words.some(w => t.includes(' ' + w + ' '))) return name;
+  } catch (_) { /* bỏ qua */ }
+  return null;
+}
 
 const KINDS: CommunityKind[] = ['gift', 'borrow', 'help', 'repair'];
 const MEET_PLACES = ['Cổng chợ', 'Cổng trường', 'Nhà văn hoá', 'UBND phường/xã', 'Gửi tiệm tạp hoá', 'Tại nhà'];
@@ -51,7 +59,7 @@ function metaLine(item: CommunityListing, area: string) {
 }
 
 /* ---------------- Thẻ tin ---------------- */
-function Card({ item, area = '', eager = false }: { item: CommunityListing; area?: string; eager?: boolean; key?: React.Key }) {
+function Card({ item, area = '', eager = false, extra = '' }: { item: CommunityListing; area?: string; eager?: boolean; extra?: string; key?: React.Key }) {
   const kind = (item.communityKind || 'gift') as CommunityKind;
   const img = thumbOf(item);
   return <Link to={tinPath(item)} className="flex flex-col bg-white rounded-2xl overflow-hidden border border-line hover:shadow-md transition-shadow">
@@ -61,40 +69,130 @@ function Card({ item, area = '', eager = false }: { item: CommunityListing; area
     <div className="p-3 flex flex-col gap-1.5">
       <IntentBadge kind={kind} intent={item.communityIntent} className="self-start" />
       <span className="text-[15px] font-bold leading-snug line-clamp-2">{item.title}</span>
-      <span className="text-xs text-slate-600 truncate">{metaLine(item, area)}</span>
+      <span className="text-xs text-slate-600 truncate">{[extra, metaLine(item, area)].filter(Boolean).join(' · ')}</span>
     </div>
   </Link>;
 }
 export { Card };
 
 /* ---------------- Khám phá ---------------- */
-function Home({ user }: { user: User | null }) {
+type Mode = 'gan' | 'xa' | 'vn';
+const shortProvince = (n?: string) => (n || '').replace(/^(Thành phố|Tỉnh)\s+/, '');
+
+/** Danh sách có phân trang: hiện bản lưu trên máy ngay, tải bản mới, kéo xuống tự tải thêm. */
+function usePaged(scope: Scope | null) {
   const [items, setItems] = useState<CommunityListing[]>([]);
+  const [next, setNext] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [more, setMore] = useState(false);
   const [error, setError] = useState('');
+  const k = scope ? JSON.stringify(scope) : '';
+  const seq = useRef(0);
+  useEffect(() => {
+    if (!scope) { setItems([]); setNext(null); setLoading(false); return; }
+    const n = ++seq.current;
+    const saved = cachedPage(scope);
+    setError('');
+    if (saved) { setItems(saved.items); setNext(saved.next); setLoading(false); } else { setItems([]); setLoading(true); }
+    loadPage(scope).then(p => { if (n === seq.current) { setItems(p.items); setNext(p.next); } })
+      .catch(e => { if (n === seq.current && !saved) setError(e?.message || 'Không tải được tin'); })
+      .finally(() => { if (n === seq.current) setLoading(false); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [k]);
+  const loadMore = async () => {
+    if (!scope || !next || more) return;
+    const n = seq.current;
+    setMore(true);
+    try {
+      const p = await loadPage(scope, next);
+      if (n !== seq.current) return;
+      setItems(old => { const seen = new Set(old.map(x => x.id)); return [...old, ...p.items.filter(x => !seen.has(x.id))]; });
+      setNext(p.next);
+    } catch (_) { /* thử lại khi kéo xuống lần sau */ } finally { if (n === seq.current) setMore(false); }
+  };
+  return { items, next, loading, more, error, loadMore };
+}
+
+/** Kéo tới cuối danh sách thì gọi onHit. */
+function Sentinel({ onHit, active }: { onHit: () => void; active: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const cb = useRef(onHit); cb.current = onHit;
+  useEffect(() => {
+    if (!active || !ref.current || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) cb.current(); }, { rootMargin: '600px 0px' });
+    io.observe(ref.current);
+    return () => io.disconnect();
+  }, [active]);
+  return <div ref={ref} aria-hidden="true" />;
+}
+
+const SkGrid = () => <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[0, 1, 2, 3].map(i => <div key={i} className="h-56 rounded-2xl bg-[#ECE5D4] animate-pulse" />)}</div>;
+
+function Home({ user }: { user: User | null }) {
+  const area = useArea(user);
+  const [ward, setWard] = useState<Ward | null>(null);
+  const [mode, setMode] = useState<Mode>('gan');
   const [kind, setKind] = useState<CommunityKind | 'all'>('all');
   const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search') || '');
+  const [q, setQ] = useState(search.trim());
   const [map, setMap] = useState(false);
-  const area = useArea(user);
+  const [wardFor, setWardFor] = useState<string | null>(null); // khu vực đã tra xong
   useEffect(() => {
     let alive = true;
-    // Có bản lưu trên máy: hiện ngay, rồi cập nhật bản mới
-    const saved = cachedFeed();
-    if (saved) { setItems(saved); setLoading(false); }
-    freshFeed().then(r => { if (alive) setItems(r); })
-      .catch(e => { if (alive && !saved) setError(e?.message || 'Không tải được tin'); })
-      .finally(() => { if (alive) setLoading(false); });
+    if (!area) { setWard(null); setWardFor(''); return; }
+    wardFromLabel(area).then(w => { if (alive) { setWard(w); setWardFor(area); } })
+      .catch(() => { if (alive) { setWard(null); setWardFor(area); } });
     return () => { alive = false; };
-  }, []);
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const list = items.filter(it => (kind === 'all' || it.communityKind === kind) &&
-      (!q || [it.title, it.description, it.location].join(' ').toLowerCase().includes(q)));
-    // Tin cùng khu vực lên trước, sau đó tới tin mới nhất
-    return area ? [...list].sort((a, b) => Number(sameArea(b.location, area)) - Number(sameArea(a.location, area))) : list;
-  }, [items, kind, search, area]);
-  const near = area ? filtered.filter(x => sameArea(x.location, area)).length : 0;
-  const mapped = filtered.map(x => ({ ...x, lat: x.lat == null ? null : Math.round(x.lat * 100) / 100, lng: x.lng == null ? null : Math.round(x.lng * 100) / 100 }));
+  }, [area]);
+  useEffect(() => { const t = setTimeout(() => setQ(search.trim().length >= 2 ? search.trim() : ''), 400); return () => clearTimeout(t); }, [search]);
+
+  const eff: Mode = ward ? mode : 'vn';
+  // Chờ tra xong xã/phường rồi mới tải, khỏi tải nhầm toàn quốc rồi đổi
+  const mainScope: Scope | null = wardFor === (area || '') ? (
+    eff === 'xa' ? { xa: ward!.code, q } : eff === 'gan' ? { tinh: ward!.provinceCode, q } : { q }
+  ) : null;
+  const stripScope: Scope | null = eff === 'gan' && ward && !q ? { xa: ward.code } : null;
+  useEffect(() => { if (mainScope && !q) rememberScope(mainScope); }, [JSON.stringify(mainScope)]);
+
+  const main = usePaged(mainScope);
+  const strip = usePaged(stripScope);
+  const byKind = (x: CommunityListing) => kind === 'all' || x.communityKind === kind;
+  const stripIds = useMemo(() => new Set(strip.items.map(x => x.id)), [strip.items]);
+  const mainShown = useMemo(() => main.items.filter(x => byKind(x) && !(eff === 'gan' && (stripIds.has(x.id) || (ward && x.areaCode === ward.code)))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [main.items, kind, eff, stripIds, ward?.code]);
+  const stripShown = useMemo(() => strip.items.filter(byKind).slice(0, 8), [strip.items, kind]);
+  // Lọc theo loại mà còn ít tin: tự tải thêm vài trang
+  const autoMore = useRef(0);
+  useEffect(() => { autoMore.current = 0; }, [kind, JSON.stringify(mainScope)]);
+  useEffect(() => {
+    if (kind !== 'all' && mainShown.length < 8 && main.next && !main.more && !main.loading && autoMore.current < 5) { autoMore.current++; main.loadMore(); }
+  });
+
+  const distText = (x: CommunityListing) => {
+    if (!ward || x.lat == null || x.lng == null) return '';
+    const d = distanceKm(ward.lat, ward.lng, x.lat as number, x.lng as number);
+    return d < 1 ? 'Dưới 1 km' : '~' + (d < 10 ? d.toFixed(1).replace('.', ',') : Math.round(d)) + ' km';
+  };
+  const mapped = useMemo(() => {
+    const seen = new Set<string>();
+    return [...stripShown, ...mainShown].filter(x => !seen.has(x.id) && seen.add(x.id))
+      .map(x => ({ ...x, lat: x.lat == null ? null : Math.round(x.lat * 100) / 100, lng: x.lng == null ? null : Math.round(x.lng * 100) / 100 }));
+  }, [stripShown, mainShown]);
+
+  const wardName = ward?.name || '';
+  const provName = shortProvince(ward?.provinceName);
+  const chip = (m: Mode, label: string) => <button key={m} onClick={() => setMode(m)} aria-pressed={eff === m}
+    className={'shrink-0 h-10 px-4 rounded-full text-sm font-bold border ' + (eff === m ? 'bg-ink text-white border-ink' : 'bg-white border-line text-ink')}>{label}</button>;
+  const empty = <div className="bg-white border border-line rounded-2xl p-8 text-center">
+    <img src="/icons/icon-192.png" alt="" className="h-12 w-12 rounded-xl mx-auto" />
+    <h3 className="text-lg font-bold mt-3">{q ? 'Không thấy tin phù hợp' : 'Chưa có tin ở đây'}</h3>
+    <p className="text-slate-600 mt-1">{q ? 'Thử từ khác, hoặc xem toàn quốc.' : 'Hãy là người chia sẻ đầu tiên trong khu vực của bạn.'}</p>
+    {q && eff !== 'vn' ? <button className={btnPrimary + ' mt-4'} onClick={() => setMode('vn')}>Tìm toàn quốc</button>
+      : <Link className={btnPrimary + ' inline-flex items-center mt-4'} to="/cong-dong/dang-tin">Đăng tin đầu tiên</Link>}
+  </div>;
+  const title = q ? 'Kết quả cho "' + q + '"' + (eff === 'vn' ? '' : eff === 'xa' ? ' ở ' + wardName : ' ở ' + provName)
+    : eff === 'xa' ? 'Ở ' + wardName : eff === 'gan' ? 'Gần bạn ở ' + provName : 'Mới nhất toàn quốc';
 
   return <div className="flex flex-col gap-4">
     <h1 className="text-2xl md:text-4xl font-extrabold leading-tight">Có gì chia sẻ,<br />cần gì có nhau.</h1>
@@ -117,25 +215,45 @@ function Home({ user }: { user: User | null }) {
     <label className="relative block">
       <span className="sr-only">Tìm kiếm</span>
       <KIcon name="search" className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-      <input className={inputCls + ' pl-11'} placeholder="Tìm món đồ hoặc việc cần giúp…" value={search} onChange={e => setSearch(e.target.value)} />
+      <input className={inputCls + ' pl-11'} type="search" placeholder="Tìm món đồ hoặc việc cần giúp…" value={search} onChange={e => setSearch(e.target.value)} />
     </label>
-    <div className="flex items-center justify-between mt-1">
-      <h2 className="text-lg font-extrabold">{area && near ? 'Gần bạn' : 'Mọi người đang chia sẻ'}</h2>
-      <button onClick={() => setMap(v => !v)} className="flex items-center gap-1 text-sm font-semibold text-emerald-700 min-h-10">
-        <KIcon name={map ? 'list' : 'map'} className="w-[18px] h-[18px]" />{map ? 'Xem danh sách' : 'Xem bản đồ'}
+
+    <div className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-0.5" role="group" aria-label="Phạm vi">
+      {ward ? <>{chip('gan', 'Gần bạn')}{chip('xa', wardName.replace(/^(Phường|Xã|Đặc khu)\s+/, '') || 'Xã/phường')}{chip('vn', 'Toàn quốc')}</>
+        : <span className="text-sm text-slate-600">Chọn <b>xã/phường</b> ở đầu trang để xem tin gần bạn.</span>}
+      <button onClick={() => setMap(v => !v)} className="ml-auto shrink-0 flex items-center gap-1 text-sm font-semibold text-emerald-700 min-h-10 pl-2">
+        <KIcon name={map ? 'list' : 'map'} className="w-[18px] h-[18px]" />{map ? 'Danh sách' : 'Bản đồ'}
       </button>
     </div>
-    {area && !loading && near === 0 && filtered.length > 0 && <p className="text-sm text-slate-600 -mt-2">Chưa có tin ở {area.split(',')[0]}. Đây là tin ở khu vực khác.</p>}
-    {loading ? <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[0, 1, 2, 3].map(i => <div key={i} className="h-56 rounded-2xl bg-[#ECE5D4] animate-pulse" />)}</div>
-      : error ? <ErrorMessage message={error} />
-      : !filtered.length ? <div className="bg-white border border-line rounded-2xl p-8 text-center">
-          <img src="/icons/icon-192.png" alt="" className="h-12 w-12 rounded-xl mx-auto" />
-          <h3 className="text-lg font-bold mt-3">Chưa có tin phù hợp</h3>
-          <p className="text-slate-600 mt-1">Hãy là người chia sẻ đầu tiên trong khu vực của bạn.</p>
-          <Link className={btnPrimary + ' inline-flex items-center mt-4'} to="/cong-dong/dang-tin">Đăng tin đầu tiên</Link>
+
+    {map ? (main.loading && !mapped.length ? <SkGrid /> : <React.Suspense fallback={<div className="h-[440px] md:h-[640px] rounded-2xl bg-[#ECE5D4] animate-pulse" />}>
+        <CommunityMap items={mapped as CommunityListing[]} area={area} />
+      </React.Suspense>)
+    : <>
+      {stripScope && <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-extrabold">Ở {wardName}</h2>
+          {strip.items.length > 8 || strip.next ? <button onClick={() => setMode('xa')} className="text-sm font-semibold text-emerald-700 min-h-10">Xem tất cả</button> : null}
         </div>
-      : map ? <React.Suspense fallback={<div className="h-[440px] md:h-[640px] rounded-2xl bg-[#ECE5D4] animate-pulse" />}><CommunityMap items={mapped as CommunityListing[]} area={area} /></React.Suspense>
-      : <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{filtered.map((it, i) => <Card item={it} area={area} eager={i < 4} key={it.id} />)}</div>}
+        {strip.loading ? <SkGrid />
+          : stripShown.length ? <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{stripShown.map((it, i) => <Card item={it} area={area} eager={i < 4} key={it.id} />)}</div>
+          : <p className="text-sm text-slate-600 bg-white border border-line rounded-2xl p-4">Chưa có tin ở {wardName}. <Link to="/cong-dong/dang-tin" className="font-bold text-emerald-700 underline">Đăng tin đầu tiên</Link></p>}
+      </section>}
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-extrabold">{title}</h2>
+        {main.loading ? <SkGrid />
+          : main.error ? <ErrorMessage message={main.error} />
+          : !mainShown.length && !main.next ? (stripScope && stripShown.length ? <p className="text-sm text-slate-600">Chưa có thêm tin ở các xã/phường khác trong {provName}.</p> : empty)
+          : <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{mainShown.map((it, i) => <Card item={it} area={area} eager={!stripScope && i < 4} extra={eff === 'gan' ? distText(it) : ''} key={it.id} />)}</div>}
+        {main.next && !main.loading && <>
+          <Sentinel onHit={main.loadMore} active={!main.more} />
+          <button onClick={main.loadMore} disabled={main.more} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold disabled:opacity-60">
+            {main.more ? 'Đang tải thêm…' : 'Xem thêm tin'}
+          </button>
+        </>}
+      </section>
+    </>}
   </div>;
 }
 
@@ -184,6 +302,9 @@ function Post({ user }: { user: User | null }) {
     if (!user) return;
     if (blocked) { setError('Việc này không đăng được trên Chợ Của Tui. Nếu nguy cấp, hãy gọi 115.'); return; }
     if (needAck && !safetyAck) { setError('Hãy đọc và đánh dấu đã hiểu lưu ý an toàn.'); return; }
+    // Kiểm tra từ cấm ngay trên máy (máy chủ cũng kiểm tra lại)
+    const bad = await findBannedWord([title, description, meetPlace].join(' '));
+    if (bad) { setError('Tin có nội dung không được phép (' + bad.toLowerCase() + '). Xem Quy tắc cộng đồng.'); return; }
     setError(''); setSaving(true);
     try {
       await community.create(user, { title, description, location, photos, kind, intent, approximateCoords, meetPlace, wardPoint });
@@ -257,7 +378,7 @@ function Post({ user }: { user: User | null }) {
 
     <div className="fixed md:static left-0 right-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-5 md:p-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:shadow-none flex flex-col gap-1">
       <button disabled={saving || blocked} type="submit" className="min-h-14 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white text-lg font-extrabold disabled:opacity-60">{saving ? 'Đang đăng…' : 'Đăng tin'}</button>
-      <span className="text-center text-xs text-slate-600">Miễn phí. Tin hiện sau khi được duyệt.</span>
+      <span className="text-center text-xs text-slate-600">Miễn phí. Máy tự kiểm tra, tin ổn sẽ hiện sau vài giây.</span>
     </div>
   </form>;
 }

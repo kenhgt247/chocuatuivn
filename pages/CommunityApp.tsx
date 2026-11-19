@@ -4,7 +4,7 @@ import MapView from '../components/MapView';
 import ShareModal from '../components/ShareModal';
 import { db } from '../services/db';
 import {
-  community, kindLabels, nextStatuses, statusLabels, MAX_PHOTOS,
+  community, kindLabels, nextStatuses, statusLabels, MAX_PHOTOS, actionLabel, waitingText, safetyNotes, type SafetyNote,
   type CommunityKind, type CommunityIntent, type CommunityListing,
   type CommunityRequest, type CommunityStatus
 } from '../services/community';
@@ -105,6 +105,10 @@ function Post({user}:{user:User|null}) {
   const [locating,setLocating]=useState(false);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState('');
+  const [safetyAck,setSafetyAck]=useState(false);
+  const notes=useMemo(()=>safetyNotes(title+' '+description),[title,description]);
+  const blocked=notes.some(n=>n.level==='block');
+  const needAck=notes.some(n=>n.level==='warn');
   if(!user)return <AuthRequired/>;
   function askLocation() {
     if(!navigator.geolocation) {setError('Thiết bị chưa hỗ trợ định vị. Bạn vẫn có thể nhập khu vực bằng chữ.'); return;}
@@ -118,6 +122,8 @@ function Post({user}:{user:User|null}) {
   async function submit(e:React.FormEvent) {
     e.preventDefault();
     if(!user)return;
+    if(blocked){setError('Việc này không đăng được trên Chợ Của Tui. Nếu nguy cấp, hãy gọi 115.');return;}
+    if(needAck&&!safetyAck){setError('Hãy đọc và đánh dấu đã hiểu lưu ý an toàn.');return;}
     setError('');setSaving(true);
     try{
       await community.create(user,{title,description,location,photos,kind,intent,approximateCoords});
@@ -163,8 +169,10 @@ function Post({user}:{user:User|null}) {
           <div key={u} className="relative"><img src={u} alt="" className="h-20 w-20 rounded-xl object-cover border"/>
             <button type="button" aria-label="Bỏ ảnh" onClick={()=>setPhotos(p=>p.filter((_,j)=>j!==i))} className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white border text-xs">✕</button></div>)}</div>}
       </div>
+      <SafetyBox notes={notes}/>
+      {needAck&&!blocked&&<label className="flex gap-2 items-start text-sm"><input type="checkbox" className="mt-1 h-4 w-4" checked={safetyAck} onChange={e=>setSafetyAck(e.target.checked)}/>Tôi đã đọc lưu ý an toàn ở trên.</label>}
       {error&&<ErrorMessage message={error}/>}
-      <button disabled={saving} type="submit" className={primaryButton+' w-full'}>{saving?'Đang đăng…':'Đăng tin miễn phí'}</button>
+      <button disabled={saving||blocked} type="submit" className={primaryButton+' w-full'}>{saving?'Đang đăng…':'Đăng tin miễn phí'}</button>
       <p className="text-center text-xs text-slate-500">Tin sẽ hiển thị sau khi được duyệt. Không có phí, VIP hoặc đặt cọc.</p>
     </form>
   </div>;
@@ -244,6 +252,7 @@ function Detail({user,id}:{user:User|null;id:string}) {
         <p className="text-slate-500 mt-2">📍 {item.location || 'Chưa có địa bàn'}</p>
         <p className="text-slate-500 mt-1">Người đăng: <Link className="underline" to={'/profile/'+item.sellerId}>{item.sellerName || 'Thành viên'}</Link></p>
         {item.description&&<p className="whitespace-pre-wrap text-slate-700 border-t mt-5 pt-5">{item.description}</p>}
+        {safetyNotes(item.title+' '+(item.description||'')).length>0&&<div className="mt-5"><SafetyBox notes={safetyNotes(item.title+' '+(item.description||''))}/></div>}
         <div className="border-t mt-6 pt-5">
           {user?.id === item.sellerId ?
             <Link to="/cong-dong/yeu-cau" className={primaryButton+' inline-flex items-center'}>Xem người liên hệ</Link>:
@@ -264,6 +273,29 @@ function Detail({user,id}:{user:User|null;id:string}) {
     </article>
     <ShareModal isOpen={sharing} onClose={()=>setSharing(false)} url={window.location.origin+'/cong-dong/tin/'+item.id} title={item.title}/>
   </div>;
+}
+const STEP_NAMES:Record<string,string[]>={
+  gift:['Gửi yêu cầu','Đồng ý','Đã trao','Đã nhận'],
+  borrow:['Gửi yêu cầu','Đồng ý','Đã giao','Đã trả','Nhận lại'],
+  help:['Gửi yêu cầu','Đồng ý','Đã giúp','Xác nhận'],
+  repair:['Gửi yêu cầu','Đồng ý','Đã sửa','Xác nhận'],
+};
+function Steps({r}:{r:CommunityRequest}) {
+  if(r.status==='declined'||r.status==='cancelled')return null;
+  const order=r.kind==='borrow'?['requested','accepted','handed_over','returned','completed']:['requested','accepted','handed_over','completed'];
+  const at=order.indexOf(r.status);
+  return <ol className="flex items-center gap-1 mt-3 text-[11px] font-semibold" aria-label="Tiến trình">{STEP_NAMES[r.kind].map((name,i)=>
+    <li key={name} className="flex items-center gap-1">
+      <span className={'rounded-full px-2 py-1 '+(i<=at?'bg-emerald-700 text-white':'bg-slate-100 text-slate-500')}>{i<=at?'✓ ':''}{name}</span>
+      {i<STEP_NAMES[r.kind].length-1&&<span className="text-slate-300">›</span>}
+    </li>)}</ol>;
+}
+function SafetyBox({notes}:{notes:SafetyNote[]}) {
+  if(!notes.length)return null;
+  return <div className="space-y-2">{notes.map(n=>
+    <div key={n.title} role="note" className={'rounded-xl p-3 text-sm border '+(n.level==='block'?'bg-rose-50 border-rose-200 text-rose-800':'bg-amber-50 border-amber-200 text-amber-900')}>
+      <b>{n.level==='block'?'⛔ ':'⚠️ '}{n.title}.</b> {n.text}
+    </div>)}</div>;
 }
 function Requests({user}:{user:User|null}) {
   const nav=useNavigate();
@@ -302,17 +334,23 @@ function Requests({user}:{user:User|null}) {
   return <div className="mx-auto max-w-3xl">
     <h1 className="text-3xl font-black mb-2">Yêu cầu của tôi</h1><p className="text-slate-500 mb-5">Theo dõi việc cho tặng, mượn và giúp đỡ. <Link to="/chat" className="text-emerald-700 underline font-semibold">Xem tin nhắn</Link></p>
     <div className="flex gap-2 mb-5">
-      <button className={tab==='received'?primaryButton:lightButton} onClick={()=>setTab('received')}>Người cần tôi</button>
-      <button className={tab==='sent'?primaryButton:lightButton} onClick={()=>setTab('sent')}>Tôi đã nhờ</button>
+      <button className={tab==='received'?primaryButton:lightButton} onClick={()=>setTab('received')}>Trên tin của tôi</button>
+      <button className={tab==='sent'?primaryButton:lightButton} onClick={()=>setTab('sent')}>Tôi đã gửi</button>
     </div>
     {error&&<ErrorMessage message={error}/>}
     {loading?<p className="text-slate-500">Đang tải yêu cầu…</p>:!visible.length?<p className="rounded-2xl bg-white border p-6 text-slate-500">Chưa có yêu cầu nào trong mục này.</p>:
     <div className="space-y-3">{visible.map(r=><article key={r.id} className="rounded-2xl bg-white border p-5">
       <div className="flex flex-wrap items-center justify-between gap-2"><Link className="text-lg font-bold hover:underline" to={'/cong-dong/tin/'+r.listingId}>{r.listingTitle}</Link><span className="text-xs bg-emerald-50 text-emerald-800 rounded-full px-3 py-2 font-bold">{statusLabels[r.status]}</span></div>
       <p className="text-sm text-slate-600 mt-2">{r.message}</p>
-      <p className="text-xs text-slate-500 mt-2">{kindLabels[r.kind]}</p>
+      <p className="text-xs text-slate-500 mt-2">{kindLabels[r.kind]} · {r.intent==='need'?'Tin "Tôi cần"':'Tin "Tôi có"'}</p>
+      <Steps r={r}/>
+      {waitingText(r,user.id)&&<p className="text-sm text-slate-600 mt-3">{waitingText(r,user.id)}</p>}
       <div className="flex gap-2 flex-wrap mt-4">{nextStatuses(r,user.id).map(status=>
-        <button key={status} disabled={working===r.id} onClick={()=>change(r,status)} className={status==='declined'||status==='cancelled'?lightButton:primaryButton}>{statusLabels[status]}</button>)}
+        <button key={status} disabled={working===r.id} onClick={()=>{
+          if((status==='completed'||status==='handed_over'||status==='returned')&&!window.confirm(actionLabel(r,status)+'?\nChỉ bấm khi việc này đã thật sự diễn ra.'))return;
+          if(status==='cancelled'&&r.status==='accepted'&&!window.confirm('Hủy yêu cầu đã được đồng ý?'))return;
+          change(r,status);
+        }} className={status==='declined'||status==='cancelled'?lightButton:primaryButton}>{actionLabel(r,status)}</button>)}
         {r.status!=='declined'&&r.status!=='cancelled'&&<button disabled={working===r.id} onClick={()=>chat(r)} className={lightButton}>💬 Nhắn tin</button>}
       </div>
     </article>)}</div>}

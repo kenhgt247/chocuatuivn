@@ -41,7 +41,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout, onUpdateUser }) => {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    Promise.all([community.mine(user.id), community.saved(user.id)])
+    Promise.all([community.myListings(user.id), community.saved(user.id)])
       .then(([m, s]) => { if (alive) { setMine(m); setSaved(s); } })
       .catch(() => alive && setMessage('Chưa tải được dữ liệu, thử tải lại trang.'))
       .finally(() => alive && setLoading(false));

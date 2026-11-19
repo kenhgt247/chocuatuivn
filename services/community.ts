@@ -81,7 +81,7 @@ export const community = {
       .filter(x => checkKind(x.communityKind) && x.isCommunityFree === true && x.price === 0);
   },
   /** Tin cộng đồng của chính mình, mọi trạng thái (chờ duyệt, đang hiện, đã xong, đã ẩn). */
-  async mine(uid: string): Promise<CommunityListing[]> {
+  async myListings(uid: string): Promise<CommunityListing[]> {
     const snapshot = await getDocs(query(collection(firestore, 'listings'), where('sellerId', '==', uid), limit(200)));
     return snapshot.docs
       .map(x => ({ ...x.data(), id: x.id } as CommunityListing))

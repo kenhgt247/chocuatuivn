@@ -23,7 +23,7 @@ import { User } from './types';
 
 // --- Firebase ---
 import { onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 // [THÊM] Import Messaging để xử lý token và tin nhắn
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { app } from './services/db'; // Import app từ db service
@@ -118,8 +118,9 @@ const App: React.FC = () => {
                                 console.log("✅ FCM Token:", token);
                                 // C. Lưu token lên Firestore
                                 const dbInstance = getFirestore();
+                                // Lưu thêm mã của máy này, không ghi đè máy khác (điện thoại + máy tính cùng nhận)
                                 await updateDoc(doc(dbInstance, "users", currentUser.id), {
-                                    fcmToken: token,
+                                    fcmTokens: arrayUnion(token),
                                     notificationsEnabled: true
                                 });
                             }
@@ -134,8 +135,8 @@ const App: React.FC = () => {
                 // D. Lắng nghe tin nhắn khi App đang mở (Foreground)
                 onMessage(messaging, (payload) => {
                     console.log("📩 Tin nhắn mới:", payload);
-                    const title = payload.notification?.title || "Thông báo mới";
-                    const body = payload.notification?.body || "Bạn có tin nhắn mới";
+                    const title = payload.data?.title || payload.notification?.title || "Thông báo mới";
+                    const body = payload.data?.body || payload.notification?.body || "";
                     showSafeToast(`🔔 ${title}: ${body}`);
                 });
 

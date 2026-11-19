@@ -10,6 +10,7 @@ import { db } from '../services/db';
 import { community, kindLabels, type CommunityListing } from '../services/community';
 import { Card } from './CommunityApp';
 import { compressAndGetBase64 } from '../utils/imageCompression';
+import { AreaInput } from '../components/AreaInput';
 
 interface ProfileProps {
   user: User;
@@ -23,6 +24,7 @@ const statusText: Record<string, { label: string; cls: string }> = {
   sold: { label: 'Đã xong', cls: 'bg-slate-100 text-slate-600' },
   hidden: { label: 'Đã ẩn', cls: 'bg-slate-100 text-slate-500' },
   rejected: { label: 'Bị từ chối', cls: 'bg-rose-50 text-rose-700' },
+  expired: { label: 'Hết hạn', cls: 'bg-sun-light text-sun-dark' },
 };
 const btn = 'min-h-10 rounded-xl px-4 text-sm font-semibold border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50';
 const input = 'w-full min-h-12 rounded-xl border border-slate-300 bg-white px-4 py-3 text-base outline-none focus:ring-2 focus:ring-emerald-600';
@@ -37,6 +39,8 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout, onUpdateUser }) => {
   const [form, setForm] = useState({ name: user.name || '', phone: user.phone || '', location: user.location || '' });
   const [savingForm, setSavingForm] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [rep, setRep] = useState<{ sharedCount?: number; receivedCount?: number } | null>(null);
+  useEffect(() => { db.getPublicProfile(user.id).then(p => setRep(p)); }, [user.id]);
   const avatarRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -58,6 +62,12 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout, onUpdateUser }) => {
       await community.setMyStatus(item.id, status);
       setMine(list => list.map(x => x.id === item.id ? { ...x, status } as CommunityListing : x));
     } catch (_) { setMessage('Chưa cập nhật được tin.'); }
+    finally { setWorking(''); }
+  }
+  async function renew(item: CommunityListing) {
+    setWorking(item.id);
+    try { await community.renew(item.id); setMine(list => list.map(x => x.id === item.id ? { ...x, status: 'approved' } as CommunityListing : x)); setMessage('Đã gia hạn, tin hiện thêm 30 ngày.'); }
+    catch (_) { setMessage('Chưa gia hạn được. Có thể quy tắc mới chưa được phát hành.'); }
     finally { setWorking(''); }
   }
   async function remove(item: CommunityListing) {
@@ -107,7 +117,8 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout, onUpdateUser }) => {
           <p className="text-sm text-slate-500 mt-1">📍 {user.location || 'Chưa có khu vực'} · Tham gia {user.joinedAt ? new Date(user.joinedAt).toLocaleDateString('vi-VN') : ''}</p>
           <div className="flex gap-4 mt-3 text-sm">
             <span><b className="text-emerald-700">{active}</b> tin đang hiện</span>
-            <span><b className="text-emerald-700">{done}</b> lần đã chia sẻ xong</span>
+            <span><b className="text-emerald-700">{rep?.sharedCount ?? done}</b> lần đã cho/giúp xong</span>
+            {(rep?.receivedCount || 0) > 0 && <span><b className="text-emerald-700">{rep!.receivedCount}</b> lần đã nhận</span>}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -141,6 +152,8 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout, onUpdateUser }) => {
                 </div>
                 <Link to={tinPath(item)} className="block font-bold mt-1 truncate hover:underline">{item.title}</Link>
                 <div className="flex gap-2 flex-wrap mt-2">
+                  {item.status === 'expired' && <button disabled={working === item.id} onClick={() => renew(item)} className={btn + ' !bg-emerald-700 !text-white !border-emerald-700'}>Gia hạn 30 ngày</button>}
+                  {item.status === 'rejected' && (item as any).rejectReason && <span className="text-xs text-rose-700 basis-full">Lý do: {(item as any).rejectReason}</span>}
                   {item.status === 'approved' && <>
                     <button disabled={working === item.id} onClick={() => setStatus(item, 'sold')} className={btn}>✓ Đã xong</button>
                     <button disabled={working === item.id} onClick={() => setStatus(item, 'hidden')} className={btn}>Ẩn tin</button>
@@ -159,8 +172,8 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout, onUpdateUser }) => {
         <form onSubmit={saveForm} className="bg-white rounded-2xl border p-5 space-y-4 max-w-xl">
           <label className="block"><span className="font-semibold block mb-1">Tên hiển thị</span>
             <input className={input} value={form.name} maxLength={60} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
-          <label className="block"><span className="font-semibold block mb-1">Khu vực (phường/xã)</span>
-            <input className={input} value={form.location} maxLength={100} placeholder="Ví dụ: Phường Chí Linh, Hải Phòng" onChange={e => setForm({ ...form, location: e.target.value })} /></label>
+          <div><span className="font-semibold block mb-1">Khu vực (xã/phường)</span>
+            <AreaInput value={form.location} onType={t => setForm(f => ({ ...f, location: t }))} onPick={w => setForm(f => ({ ...f, location: w.label }))} /></div>
           <label className="block"><span className="font-semibold block mb-1">Số điện thoại (không bắt buộc)</span>
             <input className={input} value={form.phone} maxLength={20} inputMode="tel" onChange={e => setForm({ ...form, phone: e.target.value })} /></label>
           <p className="text-xs text-slate-500">Email: {user.email}. Chỉ chia sẻ số điện thoại trong tin nhắn khi bạn tin tưởng người kia.</p>

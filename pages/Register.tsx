@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
 import { User } from '../types';
+import { AreaInput } from '../components/AreaInput';
 
 const input = 'w-full min-h-12 rounded-xl border border-slate-300 bg-white px-4 py-3 text-base outline-none focus:ring-2 focus:ring-emerald-600';
 
@@ -56,11 +57,11 @@ const Register: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
             <input className={input} type="password" value={form.password} onChange={set('password')} autoComplete="new-password" required /></label>
           <label className="block"><span className="font-semibold block mb-1">Nhập lại mật khẩu</span>
             <input className={input} type="password" value={form.confirm} onChange={set('confirm')} autoComplete="new-password" required /></label>
-          <label className="block"><span className="font-semibold block mb-1">Khu vực (không bắt buộc)</span>
-            <input className={input} value={form.location} onChange={set('location')} maxLength={100} placeholder="Ví dụ: Phường Chí Linh, Hải Phòng" /></label>
+          <div><span className="font-semibold block mb-1">Xã/phường của bạn (không bắt buộc)</span>
+            <AreaInput value={form.location} onType={t => setForm(f => ({ ...f, location: t }))} onPick={w => setForm(f => ({ ...f, location: w.label }))} /></div>
           <label className="flex gap-2 items-start text-sm text-slate-600">
             <input type="checkbox" checked={agree} onChange={e => setAgree(e.target.checked)} className="mt-1 h-4 w-4" />
-            <span>Tôi đồng ý với <Link to="/page/quy-tac" className="underline text-emerald-700">quy tắc cộng đồng</Link>: không mua bán, không đòi tiền.</span>
+            <span>Tôi đồng ý với <Link to="/page/quy-tac" className="underline text-emerald-700">quy tắc cộng đồng</Link>, <Link to="/page/dieu-khoan" className="underline text-emerald-700">điều khoản</Link> và <Link to="/page/chinh-sach-bao-mat" className="underline text-emerald-700">chính sách bảo mật</Link>.</span>
           </label>
           <button disabled={loading} className="min-h-12 w-full rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold disabled:opacity-60">{loading ? 'Đang tạo tài khoản…' : 'Đăng ký miễn phí'}</button>
         </form>

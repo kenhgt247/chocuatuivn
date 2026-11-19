@@ -62,17 +62,64 @@ const STATIC_DATA: Record<string, PageContent> = {
   },
   'chinh-sach-bao-mat': {
     title: 'Chính sách bảo mật',
-    subtitle: 'Chỉ thu thập điều thật cần',
+    subtitle: 'Chỉ thu thập điều thật cần · cập nhật 19/11/2026',
     icon: '🔒',
     content: (
       <div className="space-y-3">
+        <H>1. Chúng tôi lưu gì</H>
         <UL items={[
-          'Chúng tôi lưu tên, ảnh đại diện, email đăng nhập và những tin bạn đăng.',
-          'Vị trí trên bản đồ chỉ gần đúng (khoảng 1 km) và chỉ khi bạn cho phép.',
-          'Số điện thoại và email không hiển thị công khai.',
-          'Thông báo đẩy chỉ bật khi bạn bấm nút cho phép.',
-          'Bạn có thể xóa tin của mình bất cứ lúc nào trong trang Cá nhân.',
+          'Tài khoản: tên hiển thị, email đăng nhập, ảnh đại diện; số điện thoại nếu bạn tự nhập.',
+          'Khu vực: tên xã/phường bạn chọn. Không lưu địa chỉ nhà.',
+          'Tin đăng: tiêu đề, mô tả, ảnh, chỗ hẹn, thời gian đăng.',
+          'Yêu cầu và tin nhắn giữa hai người, cùng các mốc (đồng ý, đã trao, đã nhận).',
+          'Mã thông báo của thiết bị, chỉ khi bạn bấm cho phép thông báo.',
         ]} />
+        <H>2. Ai thấy được</H>
+        <UL items={[
+          'Mọi người: tên, ảnh đại diện, khu vực, số lần đã chia sẻ xong, và các tin đang hiện của bạn.',
+          'Chỉ người trong cuộc trò chuyện: tin nhắn và yêu cầu giữa hai bên.',
+          'Không ai khác ngoài bạn và quản trị viên: email, số điện thoại, địa chỉ.',
+          'Số điện thoại/Zalo chỉ được gửi khi chính bạn bấm "Gửi Zalo của tôi".',
+        ]} />
+        <H>3. Vị trí</H>
+        <UL items={[
+          'Không bắt buộc bật GPS. Nút "Dùng vị trí hiện tại" chỉ dùng trên máy bạn để tìm xã/phường, không gửi toạ độ lên máy chủ.',
+          'Trên bản đồ, tin được đặt ở giữa xã/phường, hoặc ở vị trí làm tròn khoảng 1 km nếu bạn cho phép.',
+        ]} />
+        <H>4. Lưu trữ và xoá</H>
+        <UL items={[
+          'Dữ liệu lưu trên Google Firebase. Chúng tôi không bán hay chia sẻ dữ liệu cho bên quảng cáo.',
+          'Bạn xoá được tin của mình bất cứ lúc nào trong trang Cá nhân.',
+          'Muốn xoá hẳn tài khoản, gửi email tới support@chocuatui.vn; chúng tôi xử lý trong 7 ngày.',
+        ]} />
+      </div>
+    )
+  },
+  'dieu-khoan': {
+    title: 'Điều khoản sử dụng',
+    subtitle: 'Ngắn gọn, dễ hiểu · cập nhật 19/11/2026',
+    icon: '🤝',
+    content: (
+      <div className="space-y-3">
+        <H>1. Chợ Của Tui là gì</H>
+        <P>Nơi kết nối hàng xóm để cho tặng, cho mượn, giúp nhau và sửa đồ miễn phí. Chúng tôi không mua bán, không giữ đồ, không thu tiền và không đứng ra bảo đảm cho các bên.</P>
+        <H>2. Bạn đồng ý</H>
+        <UL items={[
+          'Không ghi giá, không đòi tiền cọc hay phí dưới bất kỳ hình thức nào.',
+          'Mô tả trung thực; chỉ đăng đồ hợp pháp, an toàn.',
+          'Tự chịu trách nhiệm khi gặp mặt, trao đổi đồ hoặc giúp đỡ; ưu tiên nơi công cộng.',
+          'Tôn trọng người khác; không quấy rối, lừa đảo, thu thập thông tin người khác.',
+          'Việc khẩn cấp, chở người bệnh không nhận qua ứng dụng: hãy gọi 115.',
+        ]} />
+        <H>3. Duyệt tin và xử lý vi phạm</H>
+        <UL items={[
+          'Mọi tin được duyệt trước khi hiện. Tin hiện 30 ngày, sau đó bạn có thể gia hạn.',
+          'Quản trị viên có thể từ chối, ẩn tin hoặc khoá tài khoản vi phạm quy tắc cộng đồng.',
+          'Bạn có thể báo cáo tin hoặc cuộc trò chuyện có vấn đề ngay trong ứng dụng.',
+        ]} />
+        <H>4. Giới hạn trách nhiệm</H>
+        <P>Chợ Của Tui cung cấp nơi kết nối "như hiện có". Chúng tôi không chịu trách nhiệm về chất lượng đồ, việc giao nhận hay thiệt hại phát sinh giữa các thành viên, nhưng sẽ hỗ trợ xử lý báo cáo và cung cấp thông tin cho cơ quan chức năng khi có yêu cầu hợp pháp.</P>
+        <p className="text-xs text-slate-500">Đây là bản tóm tắt dễ đọc, chưa phải văn bản pháp lý. Nên nhờ luật sư xem lại trước khi mở rộng.</p>
       </div>
     )
   },

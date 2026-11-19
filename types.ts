@@ -10,7 +10,7 @@ export type UserStatus = 'active' | 'banned';
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
 // Trạng thái tin đăng
-export type ListingStatus = 'pending' | 'approved' | 'rejected' | 'sold' | 'hidden';
+export type ListingStatus = 'pending' | 'approved' | 'rejected' | 'sold' | 'hidden' | 'expired';
 
 // Loại thông báo
 export type NotificationType = 
@@ -132,6 +132,7 @@ export interface Listing {
   refreshedAt?: string; // (NEW) Thời điểm đẩy tin lên đầu
   
   status: ListingStatus;
+  rejectReason?: string; // lý do admin từ chối (hiện cho người đăng)
   condition: 'new' | 'used';
   tier?: SubscriptionTier; 
   
@@ -271,6 +272,8 @@ export interface PublicProfile {
   avatar?: string;
   location?: string;
   joinedAt?: string;
+  sharedCount?: number;   // số lần đã trao/giúp xong (máy chủ tính, cả hai bên xác nhận)
+  receivedCount?: number; // số lần đã nhận/được giúp xong
 }
 
 export interface Report {

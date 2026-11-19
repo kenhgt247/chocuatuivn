@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  community, nextStatuses, actionLabel, waitingText,
+  community, nextStatuses, actionLabel, waitingText, roles,
   type CommunityKind, type CommunityIntent, type CommunityRequest, type CommunityStatus, type SafetyNote
 } from '../services/community';
 
@@ -76,7 +76,7 @@ export function Steps({ r }: { r: CommunityRequest }) {
 }
 
 /** Các nút chuyển bước theo vai trò, có hỏi lại trước bước xác nhận. */
-export function RequestActions({ r, uid, onDone, compact }: { r: CommunityRequest; uid: string; onDone?: () => void; compact?: boolean }) {
+export function RequestActions({ r, uid, onDone, compact, mainOnly }: { r: CommunityRequest; uid: string; onDone?: () => void; compact?: boolean; mainOnly?: boolean }) {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
   const next = nextStatuses(r, uid);
@@ -89,9 +89,9 @@ export function RequestActions({ r, uid, onDone, compact }: { r: CommunityReques
     finally { setWorking(false); }
   }
   const main = next.filter(s => s !== 'declined' && s !== 'cancelled');
-  const minor = next.filter(s => s === 'declined' || s === 'cancelled');
+  const minor = mainOnly ? [] : next.filter(s => s === 'declined' || s === 'cancelled');
   return <div className="space-y-2">
-    {waitingText(r, uid) && <p className="text-sm leading-snug">{waitingText(r, uid)}</p>}
+    {!mainOnly && waitingText(r, uid) && <p className="text-sm leading-snug">{waitingText(r, uid)}</p>}
     {main.map(s => <button key={s} disabled={working} onClick={() => go(s)}
       className={'w-full rounded-[14px] bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold disabled:opacity-60 ' + (compact ? 'min-h-12 text-base' : 'min-h-[52px] text-base')}>{actionLabel(r, s)}</button>)}
     {minor.length > 0 && <div className="flex gap-3 justify-center">{minor.map(s =>
@@ -132,4 +132,87 @@ export function VoiceButton({ onText, className = '' }: { onText: (t: string) =>
     className={'grid place-items-center rounded-full shrink-0 ' + (listening ? 'bg-rose-600 text-white animate-pulse' : 'bg-emerald-50 text-emerald-700') + ' ' + className}>
     <KIcon name="mic" className="w-5 h-5" />
   </button>;
+}
+
+/* ---------- Tiến trình chi tiết (dùng trong chat) ---------- */
+export type StepState = 'done' | 'now' | 'next';
+/** Các giai đoạn của một yêu cầu, kèm ai làm và trạng thái từng bước. */
+export function stepsFor(r: CommunityRequest, uid: string, partnerName = 'Bên kia') {
+  const { giverId, receiverId } = roles(r);
+  const who = (id: string) => (id === uid ? 'Bạn' : partnerName);
+  const hand = ({ gift: 'trao đồ', borrow: 'giao đồ cho mượn', help: 'giúp xong', repair: 'sửa xong' } as const)[r.kind];
+  const steps: { key: CommunityStatus; label: string }[] = [
+    { key: 'requested', label: who(r.requesterId) + ' gửi yêu cầu' },
+    { key: 'accepted', label: who(r.ownerId) + ' đồng ý' },
+    { key: 'handed_over', label: who(giverId) + ' ' + hand },
+  ];
+  if (r.kind === 'borrow') {
+    steps.push({ key: 'returned', label: who(receiverId) + ' trả đồ' });
+    steps.push({ key: 'completed', label: who(giverId) + ' xác nhận đã nhận lại' });
+  } else {
+    steps.push({ key: 'completed', label: who(receiverId) + ' xác nhận ' + (r.kind === 'gift' ? 'đã nhận đồ' : 'hoàn thành') });
+  }
+  const at = steps.findIndex(s => s.key === r.status);
+  const closed = r.status === 'declined' || r.status === 'cancelled';
+  return steps.map((s, i) => ({ ...s, state: (closed ? (i === 0 ? 'done' : 'next') : i <= at ? 'done' : i === at + 1 ? 'now' : 'next') as StepState }));
+}
+/** "Bước 3/4 · Chị Lan trao đồ" — tóm tắt một dòng cho dải tiến trình. */
+export function stepSummary(r: CommunityRequest, uid: string, partnerName?: string) {
+  if (r.status === 'declined') return 'Yêu cầu đã bị từ chối';
+  if (r.status === 'cancelled') return 'Yêu cầu đã hủy';
+  const steps = stepsFor(r, uid, partnerName);
+  if (r.status === 'completed') return 'Hoàn thành · cả hai bên đã xác nhận';
+  const i = steps.findIndex(s => s.state === 'now');
+  return 'Bước ' + (i + 1) + '/' + steps.length + ' · ' + steps[i].label;
+}
+/** Có việc gì đến lượt người này làm không (trừ hủy/từ chối). */
+export function needsMe(r: CommunityRequest, uid: string) {
+  return nextStatuses(r, uid).some(s => s !== 'declined' && s !== 'cancelled');
+}
+/** Nhãn trạng thái trong hộp thư. */
+export function chipFor(r: CommunityRequest, uid: string): { text: string; tone: 'todo' | 'ok' | 'done' } {
+  if (r.status === 'completed') return { text: 'Hoàn thành', tone: 'done' };
+  if (r.status === 'declined' || r.status === 'cancelled') return { text: r.status === 'declined' ? 'Đã từ chối' : 'Đã hủy', tone: 'done' };
+  if (needsMe(r, uid)) {
+    const s = nextStatuses(r, uid).find(x => x !== 'declined' && x !== 'cancelled')!;
+    const t = s === 'accepted' ? 'Chờ bạn đồng ý' : s === 'handed_over' ? 'Đến lượt bạn: ' + actionLabel(r, s).replace('Tôi ', '').toLowerCase() : 'Chờ bạn xác nhận';
+    return { text: t, tone: 'todo' };
+  }
+  if (r.status === 'requested') return { text: 'Chờ trả lời', tone: 'ok' };
+  if (r.status === 'accepted') return { text: 'Đã đồng ý · hẹn gặp', tone: 'ok' };
+  if (r.kind === 'borrow' && r.status === 'handed_over') return { text: 'Đang mượn', tone: 'ok' };
+  return { text: 'Chờ bên kia xác nhận', tone: 'ok' };
+}
+export const ChipBadge: React.FC<{ chip: { text: string; tone: 'todo' | 'ok' | 'done' } }> = ({ chip }) => (
+  <span className={'inline-block text-[11px] font-bold px-2 py-0.5 rounded-full ' + (chip.tone === 'todo' ? 'bg-sun-light text-sun-dark' : chip.tone === 'ok' ? 'bg-emerald-50 text-emerald-900' : 'bg-[#EFEDE6] text-slate-600')}>{chip.text}</span>
+);
+/** Danh sách giai đoạn dạng dọc: đã xong / đang tới / còn lại. */
+export function VStepper({ r, uid, partnerName }: { r: CommunityRequest; uid: string; partnerName?: string }) {
+  const steps = stepsFor(r, uid, partnerName);
+  return <ol className="flex flex-col" aria-label="Các giai đoạn">{steps.map((s, i) => (
+    <li key={s.key} className="flex gap-3">
+      <span className="flex flex-col items-center">
+        {s.state === 'done'
+          ? <span className="h-[22px] w-[22px] rounded-full bg-emerald-700 text-white grid place-items-center"><KIcon name="check" className="w-3 h-3" strokeWidth={3} /></span>
+          : s.state === 'now' ? <span className="h-[22px] w-[22px] rounded-full border-[3px] border-sun bg-white" />
+          : <span className="h-[22px] w-[22px] rounded-full border-2 border-line bg-white" />}
+        {i < steps.length - 1 && <span className={'w-0.5 flex-1 min-h-4 ' + (s.state === 'done' ? 'bg-emerald-700' : 'bg-line')} />}
+      </span>
+      <span className={'pb-3 text-sm leading-[22px] ' + (s.state === 'now' ? 'font-extrabold text-ink' : s.state === 'done' ? 'font-semibold text-ink' : 'text-slate-500')}>
+        {s.label}{s.state === 'now' && <span className="ml-2 text-[11px] font-bold text-sun-dark bg-sun-light rounded-full px-2 py-0.5">{nextStatuses(r, uid).some(x => x !== 'declined' && x !== 'cancelled') ? 'Đến lượt bạn' : 'Đang chờ'}</span>}
+      </span>
+    </li>))}</ol>;
+}
+/** 2 câu trả lời nhanh hợp với bước hiện tại. */
+export function suggestionsFor(r: CommunityRequest | null, uid: string): string[] {
+  if (!r) return ['Món này còn không ạ?', 'Khi nào mình qua được ạ?'];
+  const mineListing = r.ownerId === uid;
+  switch (r.status) {
+    case 'requested': return mineListing ? ['Còn bạn nhé!', 'Bạn qua lúc nào được?'] : ['Món này còn không ạ?', 'Khi nào mình qua được ạ?'];
+    case 'accepted': return ['Mình đang tới nhé', 'Hẹn giờ khác được không ạ?'];
+    case 'handed_over': return roles(r).receiverId === uid ? ['Mình nhận được rồi ạ', 'Cảm ơn bạn nhiều!'] : ['Bạn nhận được chưa?', 'Có gì cứ nhắn mình nhé'];
+    case 'returned': return ['Mình trả rồi nhé', 'Cảm ơn đã cho mượn!'];
+    case 'completed': return ['Cảm ơn bạn nhiều!', 'Chúc bạn một ngày vui'];
+    default: return ['Cảm ơn bạn!', 'Hẹn dịp khác nhé'];
+  }
 }

@@ -1,460 +1,396 @@
-import React, { useState, useEffect, useRef } from 'react';
+/**
+ * Trò chuyện — Chợ Của Tui.
+ * Điện thoại: hộp thư → bấm vào là chat toàn màn hình.
+ * Máy tính: 3 cột (hộp thư | trò chuyện | chi tiết & tiến trình).
+ * Tiến trình: dải mỏng hiện bước hiện tại; bấm vào để xem mọi giai đoạn.
+ */
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
 import { ChatRoom, User, Message } from '../types';
-import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
-import { community, type CommunityRequest } from '../services/community';
-import { KIcon, Steps, RequestActions, VoiceButton } from '../components/CommunityUI';
+import { community, kindLabels, type CommunityRequest } from '../services/community';
+import {
+  KIcon, VStepper, RequestActions, VoiceButton, ChipBadge, IntentBadge,
+  chipFor, needsMe, stepSummary, suggestionsFor
+} from '../components/CommunityUI';
 
-const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=random&color=fff&name=User";
-
-// --- ICON SVG ---
-const IconImage = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>;
-const IconMapPin = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>;
-const IconSend = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
-const IconLoader = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
-
-const QUICK_REPLIES = [
-  "Món này còn không ạ?",
-  "Mình đến lấy ngay được không?",
-  "Hẹn giờ khác được không ạ?",
-  "Cảm ơn bạn nhiều nha!"
-];
 const MEET_TIMES = ['Sáng nay', 'Trưa nay', 'Chiều nay', 'Tối nay', 'Ngày mai'];
 const MEET_PLACES = ['Cổng chợ', 'Cổng trường', 'Nhà văn hoá', 'UBND phường/xã', 'Gửi tiệm tạp hoá', 'Tại nhà'];
+const GROUP_GAP_MS = 5 * 60 * 1000;
+
+type Partner = { name: string; avatar?: string };
+
+function dayLabel(iso: string) {
+  const d = new Date(iso), now = new Date();
+  const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((start(now) - start(d)) / 86400000);
+  if (diff === 0) return 'Hôm nay';
+  if (diff === 1) return 'Hôm qua';
+  return d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' });
+}
+function shortTime(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso), now = new Date();
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const days = (now.getTime() - d.getTime()) / 86400000;
+  if (days < 2) return 'Hôm qua';
+  if (days < 7) return d.toLocaleDateString('vi-VN', { weekday: 'short' });
+  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+}
+function realImage(url?: string) { return url && !url.includes('placehold.co') ? url : ''; }
+
+const Avatar: React.FC<{ p?: Partner; size?: number; thumb?: string; kind?: string }> = ({ p, size = 52, thumb, kind }) => (
+  <span className="relative shrink-0" style={{ width: size, height: size }}>
+    {p?.avatar
+      ? <img src={p.avatar} alt="" className="rounded-full object-cover w-full h-full bg-emerald-50" onError={e => { e.currentTarget.style.display = 'none'; }} />
+      : <span className="rounded-full w-full h-full bg-emerald-700 text-white font-extrabold grid place-items-center" style={{ fontSize: size * 0.4 }}>{(p?.name || '?').charAt(0).toUpperCase()}</span>}
+    {(thumb || kind) && size >= 44 && <span className="absolute -right-1 -bottom-1 h-[26px] w-[26px] rounded-lg border-2 border-white bg-emerald-50 overflow-hidden grid place-items-center text-emerald-700">
+      {thumb ? <img src={thumb} alt="" className="w-full h-full object-cover" /> : <KIcon name={kind!} className="w-4 h-4" strokeWidth={1.8} />}
+    </span>}
+  </span>
+);
 
 const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
-  const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
+  const [reqs, setReqs] = useState<Record<string, CommunityRequest | null>>({});
+  const [partners, setPartners] = useState<Record<string, Partner>>({});
+  const [filter, setFilter] = useState<'all' | 'todo'>('all');
+  const [search, setSearch] = useState('');
+  const [activeReq, setActiveReq] = useState<CommunityRequest | null>(null);
   const [message, setMessage] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  
-  // Cache thông tin partner để tránh giật lag
-  const [request, setRequest] = useState<CommunityRequest | null>(null);
-  const [showMeet, setShowMeet] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [tray, setTray] = useState<'none' | 'menu' | 'meet'>('none');
   const [meetTime, setMeetTime] = useState('');
   const [meetPlace, setMeetPlace] = useState('');
-  const [fetchedPartners, setFetchedPartners] = useState<Record<string, { name: string, avatar: string }>>({});
-  
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, fallback: string) => {
-    e.currentTarget.src = fallback;
-    e.currentTarget.onerror = null;
-  };
-
-  // 1. Load Rooms (Realtime)
+  // 1. Danh sách phòng (trực tiếp)
   useEffect(() => {
-    if (user) {
-      const unsubscribe = db.getChatRooms(user.id, (loadedRooms) => {
-        setRooms(loadedRooms);
-      });
-      return () => unsubscribe();
-    }
-  }, [user]);
+    if (!user) return;
+    const unsub = db.getChatRooms(user.id, (r: ChatRoom[]) => setRooms(r || []));
+    return () => unsub && unsub();
+  }, [user?.id]);
 
-  // 2. Fetch missing partner info (Tối ưu performance)
+  // 2. Trạng thái yêu cầu của từng phòng (để hiện nhãn trong hộp thư)
   useEffect(() => {
-    if (!user || rooms.length === 0) return;
-    const idsToFetch: string[] = [];
-    rooms.forEach(room => {
-        const partnerId = room.participantIds?.find(id => id !== user.id);
-        if (partnerId && (!room.participantsData || !room.participantsData[partnerId]) && !fetchedPartners[partnerId]) {
-            idsToFetch.push(partnerId);
-        }
+    const missing = rooms.filter(r => !(r.id in reqs) && r.listingId);
+    if (!missing.length) return;
+    Promise.all(missing.map(r => community.requestForRoom(r.id, r.listingId).then(q => [r.id, q] as const)))
+      .then(list => setReqs(prev => ({ ...prev, ...Object.fromEntries(list) })));
+  }, [rooms]);
+
+  // 3. Tên, ảnh người kia (hồ sơ công khai) khi phòng chưa lưu sẵn
+  useEffect(() => {
+    if (!user) return;
+    const ids = Array.from(new Set(rooms.map(r => r.participantIds?.find(id => id !== user.id)).filter((x): x is string => !!x && !partners[x])));
+    if (!ids.length) return;
+    Promise.all(ids.map(id => db.getPublicProfile(id).then(p => [id, p] as const))).then(list => {
+      const next: Record<string, Partner> = {};
+      list.forEach(([id, p]) => { if (p) next[id] = { name: p.name, avatar: p.avatar }; });
+      setPartners(prev => ({ ...prev, ...next }));
     });
+  }, [rooms, user?.id]);
 
-    if (idsToFetch.length > 0) {
-        Promise.all(idsToFetch.map(id => db.getPublicProfile(id).then(u => ({ id, u }))))
-            .then(results => {
-                const newPartners: Record<string, any> = {};
-                results.forEach(({ id, u }) => {
-                    if (u) newPartners[id] = { name: u.name, avatar: u.avatar };
-                });
-                if (Object.keys(newPartners).length > 0) {
-                    setFetchedPartners(prev => ({ ...prev, ...newPartners }));
-                }
-            });
-    }
-  }, [rooms, user]); // Bỏ fetchedPartners ra khỏi dependency để tránh lặp vô hạn
-
-  // 3. Load Active Room & Mark as Seen
+  const activeRoom = useMemo(() => rooms.find(r => r.id === roomId) || null, [rooms, roomId]);
+  const [fallbackRoom, setFallbackRoom] = useState<ChatRoom | null>(null);
   useEffect(() => {
-    const loadActiveRoom = async () => {
-      if (user && roomId) {
-        const existingRoom = rooms.find(r => r.id === roomId);
-        if (existingRoom) {
-          setActiveRoom(existingRoom);
-          if (!existingRoom.seenBy?.includes(user.id)) {
-              db.markRoomAsSeen(roomId, user.id);
-          }
-        } else {
-          // Fallback nếu chưa có trong list (vừa tạo)
-          const room = await db.getChatRoom(roomId);
-          if (room) {
-              setActiveRoom(room);
-              if (!room.seenBy?.includes(user.id)) {
-                  db.markRoomAsSeen(roomId, user.id);
-              }
-          }
-        }
-      } else {
-        setActiveRoom(null);
-      }
-    };
-    loadActiveRoom();
-  }, [roomId, user, rooms]); 
+    // Phòng vừa tạo có thể chưa có trong danh sách
+    if (roomId && !activeRoom) db.getChatRoom(roomId).then(r => setFallbackRoom(r || null));
+    else setFallbackRoom(null);
+  }, [roomId, !!activeRoom]);
+  const room = activeRoom || fallbackRoom;
 
-  // Yêu cầu chia sẻ gắn với phòng chat (thẻ tiến trình ở đầu khung chat)
+  // 4. Yêu cầu của phòng đang mở (trực tiếp) + đánh dấu đã xem
   useEffect(() => {
-    setRequest(null);
-    if (!activeRoom?.id || !activeRoom.listingId) return;
-    return community.watchRequestForRoom(activeRoom.id, activeRoom.listingId, setRequest);
-  }, [activeRoom?.id, activeRoom?.listingId]);
-
-  // Auto scroll xuống cuối khi có tin nhắn mới
+    setActiveReq(null); setExpanded(false); setTray('none'); setMenu(false);
+    if (!room?.id || !room.listingId) return;
+    return community.watchRequestForRoom(room.id, room.listingId, q => { setActiveReq(q); setReqs(prev => ({ ...prev, [room.id]: q })); });
+  }, [room?.id]);
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeRoom?.messages]);
+    if (user && room && room.messages?.length && !room.seenBy?.includes(user.id)) db.markRoomAsSeen(room.id, user.id);
+  }, [room?.id, room?.messages?.length]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [room?.messages?.length, room?.id]);
 
-  // --- HANDLERS ---
+  if (!user) return <div className="p-10 text-center">Vui lòng <Link className="underline" to="/login">đăng nhập</Link> để xem tin nhắn.</div>;
 
-  // Gửi Text
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const partnerOf = (r: ChatRoom): Partner => {
+    const pid = r.participantIds?.find(id => id !== user.id) || '';
+    return partners[pid] || r.participantsData?.[pid] || { name: 'Thành viên' };
+  };
+  const partner = room ? partnerOf(room) : undefined;
+  const todoCount = rooms.filter(r => reqs[r.id] && needsMe(reqs[r.id]!, user.id)).length;
+  const q = search.trim().toLowerCase();
+  const listRooms = rooms
+    .filter(r => filter === 'all' || (reqs[r.id] && needsMe(reqs[r.id]!, user.id)))
+    .filter(r => !q || (partnerOf(r).name + ' ' + (r.listingTitle || '')).toLowerCase().includes(q))
+    // Việc cần mình làm lên trên cùng
+    .sort((a, b) => Number(!!reqs[b.id] && needsMe(reqs[b.id]!, user.id)) - Number(!!reqs[a.id] && needsMe(reqs[a.id]!, user.id)));
+
+  async function send(text: string, type: Message['type'] = 'text') {
+    if (!room || !text.trim()) return;
+    setSending(true);
+    try { await db.addMessage(room.id, { senderId: user!.id, text: text.trim().slice(0, 1000), type }); }
+    catch (_) { alert('Gửi chưa được, kiểm tra mạng rồi thử lại nhé.'); }
+    finally { setSending(false); }
+  }
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!message.trim() || !activeRoom || !user) return;
-    const textToSend = message;
-    setMessage(''); 
+    const t = message; setMessage('');
+    await send(t);
+  }
+  async function sendImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !room) return;
+    setSending(true); setTray('none');
     try {
-        await db.addMessage(activeRoom.id, {
-            senderId: user.id,
-            text: textToSend,
-            type: 'text'
-        });
-    } catch (error) {
-        console.error("Lỗi gửi tin nhắn:", error);
-        setMessage(textToSend); // Hoàn lại nếu lỗi
-        alert("Gửi thất bại, vui lòng kiểm tra mạng.");
-    }
-  };
+      const url = await db.uploadChatImage(file);
+      await db.addMessage(room.id, { senderId: user!.id, text: 'Đã gửi một ảnh', type: 'image', imageUrl: url });
+    } catch (_) { alert('Chưa gửi được ảnh.'); }
+    finally { setSending(false); if (fileRef.current) fileRef.current.value = ''; }
+  }
+  async function sendZalo() {
+    setTray('none');
+    const phone = window.prompt('Số Zalo bạn muốn gửi cho người này:', user!.phone || '');
+    if (!phone || !phone.trim()) return;
+    if (!window.confirm('Gửi số ' + phone.trim() + ' cho ' + (partner?.name || 'người này') + '?')) return;
+    await send('Zalo của mình: ' + phone.trim().slice(0, 20));
+  }
+  async function sendMeet() {
+    if (!meetTime && !meetPlace) return;
+    await send([meetTime, meetPlace].filter(Boolean).join(' · '), 'meet');
+    setMeetTime(''); setMeetPlace(''); setTray('none');
+  }
+  async function removeRoom() {
+    if (!room || !window.confirm('Xoá cuộc trò chuyện này?')) return;
+    try { await db.deleteChatRoom(room.id); navigate('/chat'); } catch (_) { alert('Chưa xoá được.'); }
+  }
+  async function report() {
+    setMenu(false);
+    const reason = window.prompt('Cuộc trò chuyện có vấn đề gì? (ví dụ: đòi tiền, lừa đảo, nói lời xấu)');
+    if (!reason || !room) return;
+    const other = room.participantIds?.find(id => id !== user!.id);
+    try { await db.reportListing({ listingId: room.listingId, targetUserId: other, userId: user!.id, reason: ('[Chat] ' + reason).slice(0, 300) }); alert('Đã gửi báo cáo, cảm ơn bạn.'); }
+    catch (_) { alert('Chưa gửi được báo cáo.'); }
+  }
 
-  // Gửi Ảnh (Logic mới)
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file || !activeRoom || !user) return;
+  const latestMeet = room ? [...(room.messages || [])].reverse().find(m => m.type === 'meet') : undefined;
 
-      setIsSending(true);
-      try {
-          const imageUrl = await db.uploadChatImage(file);
-          await db.addMessage(activeRoom.id, {
-              senderId: user.id,
-              text: 'Đã gửi một ảnh',
-              type: 'image',
-              imageUrl: imageUrl
-          });
-      } catch (error) {
-          console.error(error);
-          alert("Lỗi tải ảnh lên.");
-      } finally {
-          setIsSending(false);
-          if(fileInputRef.current) fileInputRef.current.value = '';
+  /* ---------- Hộp thư ---------- */
+  const inbox = (
+    <aside className={(roomId ? 'hidden md:flex' : 'flex') + ' flex-col w-full md:w-[340px] md:shrink-0 md:border-r border-line bg-white min-h-0'}>
+      <div className="p-4 pb-2 flex flex-col gap-3">
+        <h1 className="text-[26px] md:text-[22px] font-extrabold">Tin nhắn</h1>
+        <label className="relative block"><span className="sr-only">Tìm trong tin nhắn</span>
+          <KIcon name="search" className="w-[18px] h-[18px] absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm theo tên, món đồ…" className="w-full h-11 rounded-xl bg-cream border border-line pl-10 pr-3 text-[15px] outline-none focus:ring-2 focus:ring-emerald-600" />
+        </label>
+        <div role="group" aria-label="Lọc" className="grid grid-cols-2 p-1 bg-[#F1ECDF] rounded-[14px]">
+          <button onClick={() => setFilter('all')} aria-pressed={filter === 'all'} className={'h-10 rounded-[10px] text-sm ' + (filter === 'all' ? 'bg-white font-extrabold shadow-sm' : 'font-semibold text-slate-600')}>Tất cả</button>
+          <button onClick={() => setFilter('todo')} aria-pressed={filter === 'todo'} className={'h-10 rounded-[10px] text-sm flex items-center justify-center gap-1.5 ' + (filter === 'todo' ? 'bg-white font-extrabold shadow-sm' : 'font-semibold text-slate-600')}>
+            Cần bạn làm {todoCount > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-sun text-[#2E1F00] text-xs font-extrabold grid place-items-center">{todoCount}</span>}
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {listRooms.length ? listRooms.map(r => {
+          const p = partnerOf(r);
+          const unread = r.messages?.length > 0 && !r.seenBy?.includes(user.id);
+          const rq = reqs[r.id];
+          const last = r.messages?.[r.messages.length - 1];
+          const lastText = !last ? 'Bắt đầu trò chuyện'
+            : last.type === 'event' ? (last.senderId === user.id ? 'Bạn ' : p.name + ' ') + last.text
+            : (last.senderId === user.id ? 'Bạn: ' : '') + (last.type === 'image' ? 'Ảnh' : last.type === 'meet' ? 'Đề nghị hẹn: ' + last.text : last.text);
+          return <Link key={r.id} to={'/chat/' + r.id} className={'flex gap-3 px-4 py-3 border-l-[3px] ' + (roomId === r.id ? 'bg-[#F1F7F2] border-emerald-700' : 'border-transparent hover:bg-cream')}>
+            <Avatar p={p} thumb={realImage(r.listingImage)} kind={rq?.kind} />
+            <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+              <span className="flex items-baseline gap-2">
+                <span className={'flex-1 truncate text-[15px] ' + (unread ? 'font-extrabold' : 'font-bold')}>{p.name}</span>
+                <span className={'text-xs ' + (unread ? 'text-emerald-700 font-bold' : 'text-slate-500')}>{shortTime(r.lastUpdate)}</span>
+              </span>
+              <span className="text-xs text-slate-500 truncate">{r.listingTitle}</span>
+              <span className="flex items-center gap-2">
+                <span className={'flex-1 truncate text-sm ' + (unread ? 'text-ink font-semibold' : 'text-slate-500')}>{lastText}</span>
+                {unread && <span className="h-2.5 w-2.5 rounded-full bg-emerald-700 shrink-0" aria-label="Chưa đọc" />}
+              </span>
+              {rq && <span className="mt-1"><ChipBadge chip={chipFor(rq, user.id)} /></span>}
+            </span>
+          </Link>;
+        }) : <p className="p-8 text-center text-slate-600">{filter === 'todo' ? 'Không có việc nào đang chờ bạn.' : 'Chưa có trò chuyện nào. Bấm "Xin món này" ở một tin để bắt đầu.'}</p>}
+        <p className="px-4 py-4 text-xs text-slate-500">Mỗi cuộc trò chuyện gắn với một món đồ. Việc cần bạn làm luôn nằm trên cùng.</p>
+      </div>
+    </aside>
+  );
+
+  /* ---------- Dòng tin nhắn (gộp cụm, ngăn theo ngày) ---------- */
+  const thread = room && (() => {
+    const msgs = room.messages || [];
+    const out: React.ReactNode[] = [];
+    let lastDay = '';
+    msgs.forEach((m, i) => {
+      const day = new Date(m.timestamp).toDateString();
+      if (day !== lastDay) { out.push(<span key={'d' + i} className="self-center text-xs font-bold text-slate-500 my-1">{dayLabel(m.timestamp)}</span>); lastDay = day; }
+      const mine = m.senderId === user.id;
+      if (m.type === 'event') {
+        out.push(<div key={m.id} className="self-center flex items-center gap-1.5 text-xs font-semibold text-emerald-900 bg-[#F1ECDF] px-3 py-1.5 rounded-full max-w-[90%] text-center">
+          <KIcon name="check" className="w-3.5 h-3.5 text-emerald-700" strokeWidth={2.5} />{(mine ? 'Bạn ' : (partner?.name || 'Bên kia') + ' ') + m.text} · {shortTime(m.timestamp)}</div>);
+        return;
       }
-  };
-
-  // Hẹn giờ & chỗ (không gửi vị trí GPS chính xác cho người lạ)
-  const handleSendMeet = async () => {
-      if (!activeRoom || !user || (!meetTime && !meetPlace)) return;
-      const text = 'Hẹn gặp: ' + [meetTime, meetPlace].filter(Boolean).join(' · ') + '. Bạn thấy được không?';
-      setShowMeet(false); setMeetTime(''); setMeetPlace('');
-      try { await db.addMessage(activeRoom.id, { senderId: user.id, text, type: 'text' }); } catch (_) { alert('Gửi thất bại, thử lại nhé.'); }
-  };
-
-  // Chỉ gửi số Zalo khi chính người dùng bấm và xác nhận
-  const handleSendZalo = async () => {
-      if (!activeRoom || !user) return;
-      const phone = window.prompt('Số Zalo bạn muốn gửi cho người này:', user.phone || '');
-      if (!phone || !phone.trim()) return;
-      if (!window.confirm('Gửi số ' + phone.trim() + ' cho người này?')) return;
-      try { await db.addMessage(activeRoom.id, { senderId: user.id, text: 'Zalo của mình: ' + phone.trim().slice(0, 20), type: 'text' }); } catch (_) { alert('Gửi thất bại, thử lại nhé.'); }
-  };
-
-  const handleSendQuickReply = async (text: string) => {
-    if (!activeRoom || !user) return;
-    db.addMessage(activeRoom.id, { senderId: user.id, text, type: 'text' });
-  };
-
-  const handleDeleteMessage = async (messageId: string) => {
-    if (!activeRoom || !window.confirm("Thu hồi tin nhắn này?")) return;
-    try { await db.deleteMessage(activeRoom.id, messageId); } catch (error) {}
-  };
-
-  const handleDeleteRoom = async (e: React.MouseEvent, idToDelete: string) => {
-    e.preventDefault(); e.stopPropagation();
-    if (!window.confirm("Xóa cuộc trò chuyện này?")) return;
-    try {
-        await db.deleteChatRoom(idToDelete);
-        if (roomId === idToDelete) { setActiveRoom(null); navigate('/chat'); }
-    } catch (error) { alert("Lỗi xóa phòng chat."); }
-  };
-  
-  const handleRespondOffer = async (offerId: string, status: 'accepted' | 'rejected') => {
-    if (!activeRoom || !offerId) return;
-    if (!window.confirm(`Bạn muốn ${status === 'accepted' ? 'ĐỒNG Ý' : 'TỪ CHỐI'} giá này?`)) return;
-    try {
-        const result = await db.respondToOffer(offerId, status, activeRoom.id);
-        if (!result.success) alert("Lỗi: " + result.message);
-    } catch (error) { alert("Lỗi kết nối."); }
-  };
-
-  const handleRespondSwap = async (messageId: string, status: 'accepted' | 'rejected') => {
-    if (!activeRoom || !messageId) return;
-    if (!window.confirm(`Bạn muốn ${status === 'accepted' ? 'ĐỒNG Ý' : 'TỪ CHỐI'} đổi đồ?`)) return;
-    try {
-        const result = await db.respondToSwap(activeRoom.id, messageId, status);
-        if (!result.success) alert("Lỗi: " + result.message);
-    } catch (e) { alert("Lỗi kết nối."); }
-  };
-
-  const getPartnerInfo = (room: any, currentUserId: string) => {
-    const partnerId = room.participantIds?.find((id: string) => id !== currentUserId) || '';
-    if (room.participantsData && room.participantsData[partnerId]) {
-        return { name: room.participantsData[partnerId].name, avatar: room.participantsData[partnerId].avatar, isProductAvatar: false };
-    }
-    if (fetchedPartners[partnerId]) {
-        return { name: fetchedPartners[partnerId].name, avatar: fetchedPartners[partnerId].avatar, isProductAvatar: false };
-    }
-    return { name: room.listingTitle || "Người dùng", avatar: room.listingImage || DEFAULT_AVATAR, isProductAvatar: true };
-  };
-
-  // --- RENDER COMPONENT CON ---
-  const renderMessageContent = (msg: Message, isMe: boolean) => {
-      switch (msg.type) {
-          case 'image':
-              return (
-                  <div className="rounded-2xl overflow-hidden border border-gray-200 mt-1 max-w-[200px] shadow-sm">
-                      <img src={msg.imageUrl} alt="Sent" className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity" onClick={() => window.open(msg.imageUrl, '_blank')} />
-                  </div>
-              );
-          case 'location':
-              return (
-                  <a 
-                    href={`https://www.google.com/maps?q=${msg.location?.lat},${msg.location?.lng}`} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className={`block p-3 rounded-2xl border mt-1 max-w-[220px] transition-colors ${isMe ? 'bg-primary/10 border-primary/20' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
-                  >
-                      <div className="flex items-center gap-2 mb-1">
-                          <span className="text-red-500"><IconMapPin /></span>
-                          <span className="text-xs font-black uppercase text-gray-500">Vị trí hiện tại</span>
-                      </div>
-                      <p className="text-xs font-bold text-gray-800 line-clamp-2">{msg.location?.address || "Xem trên bản đồ"}</p>
-                  </a>
-              );
-          case 'offer':
-               return (
-                <div className="bg-white border-2 border-green-100 rounded-2xl p-4 shadow-sm w-64 space-y-3">
-                    <div className="flex items-center gap-2 border-b border-green-50 pb-2">
-                        <span className="text-xl">💸</span><span className="font-black text-xs text-green-700 uppercase">Lời mặc cả</span>
-                    </div>
-                    <div className="text-center py-2">
-                        <p className="text-[10px] text-gray-400 font-bold uppercase">Khách trả giá</p>
-                        <p className="text-2xl font-black text-green-600">{msg.text.match(/[\d,.]+/)?.[0]} <span className="text-xs text-gray-400">VNĐ</span></p>
-                    </div>
-                    {!isMe && msg.offerId && (
-                        <div className="grid grid-cols-2 gap-2">
-                            <button onClick={() => handleRespondOffer(msg.offerId!, 'rejected')} className="py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs rounded-xl">Từ chối</button>
-                            <button onClick={() => handleRespondOffer(msg.offerId!, 'accepted')} className="py-2 bg-green-500 hover:bg-green-600 text-white font-bold text-xs rounded-xl shadow-lg">Đồng ý</button>
-                        </div>
-                    )}
-                    {isMe && <div className="text-center text-[10px] text-gray-400 italic bg-gray-50 py-1 rounded-lg">Đang chờ phản hồi...</div>}
-                </div>
-               );
-          case 'swap':
-              const status = msg.swapData?.status;
-              const isPending = !status;
-              return (
-                 <div className={`bg-white border-2 rounded-2xl p-4 shadow-sm w-72 space-y-3 relative overflow-hidden ${status === 'accepted' ? 'border-green-500 bg-green-50' : (status === 'rejected' ? 'border-gray-200 opacity-75' : 'border-purple-100')}`}>
-                    <div className="flex items-center gap-2 border-b border-black/5 pb-2 relative z-10">
-                        <span className="text-xl">{status === 'accepted' ? '✅' : (status === 'rejected' ? '❌' : '🔄')}</span>
-                        <span className={`font-black text-xs uppercase ${status === 'accepted' ? 'text-green-700' : (status === 'rejected' ? 'text-gray-500' : 'text-purple-700')}`}>{status === 'accepted' ? 'Giao kèo thành công' : (status === 'rejected' ? 'Đã từ chối' : 'Đề nghị đổi đồ')}</span>
-                    </div>
-                    <div className="relative z-10"><p className="text-sm font-bold text-purple-700">Đổi: {msg.swapData?.offeredItemName}</p></div>
-                    {!isMe && isPending && (
-                        <div className="grid grid-cols-2 gap-2 relative z-10">
-                            <button onClick={() => handleRespondSwap(msg.id, 'rejected')} className="py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs rounded-xl">Từ chối</button>
-                            <button onClick={() => handleRespondSwap(msg.id, 'accepted')} className="py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-lg">Đồng ý</button>
-                        </div>
-                    )}
-                 </div>
-              );
-          default:
-              return (
-                  <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm leading-relaxed ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm'}`}>
-                      {msg.text}
-                  </div>
-              );
+      const next = msgs[i + 1];
+      const prev = msgs[i - 1];
+      const startsGroup = !prev || prev.senderId !== m.senderId || prev.type === 'event' || new Date(m.timestamp).getTime() - new Date(prev.timestamp).getTime() > GROUP_GAP_MS || new Date(prev.timestamp).toDateString() !== day;
+      const endsGroup = !next || next.senderId !== m.senderId || next.type === 'event' || new Date(next.timestamp).getTime() - new Date(m.timestamp).getTime() > GROUP_GAP_MS || new Date(next.timestamp).toDateString() !== day;
+      const radius = mine ? (endsGroup ? 'rounded-[18px] rounded-br-md' : 'rounded-[18px]') : (endsGroup ? 'rounded-[18px] rounded-bl-md' : 'rounded-[18px]');
+      let body: React.ReactNode;
+      if (m.type === 'image' && m.imageUrl) {
+        body = <a href={m.imageUrl} target="_blank" rel="noopener noreferrer" className="block rounded-2xl overflow-hidden border border-line max-w-[240px]"><img src={m.imageUrl} alt="Ảnh đã gửi" className="w-full" /></a>;
+      } else if (m.type === 'meet') {
+        const isLatest = latestMeet?.id === m.id;
+        body = <div className="w-[260px] max-w-full bg-white border border-line rounded-2xl overflow-hidden">
+          <div className="p-3 flex flex-col gap-1">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-700"><KIcon name="clock" className="w-3.5 h-3.5" />Đề nghị hẹn</span>
+            <span className="text-[15px] font-extrabold">{m.text}</span>
+          </div>
+          {!mine && isLatest && <div className="grid grid-cols-2 border-t border-line">
+            <button onClick={() => send('Đồng ý hẹn ' + m.text + ' nhé!')} className="min-h-11 text-sm font-bold text-emerald-700 border-r border-line">Đồng ý</button>
+            <button onClick={() => setTray('meet')} className="min-h-11 text-sm font-semibold">Đổi giờ</button>
+          </div>}
+        </div>;
+      } else {
+        body = <span className={'inline-block px-3.5 py-2 text-[15px] leading-snug whitespace-pre-wrap break-words ' + radius + (mine ? ' bg-emerald-700 text-white' : ' bg-white border border-line')}>{m.type === 'location' ? (m.text || 'Vị trí') : m.text}</span>;
       }
-  };
+      out.push(<div key={m.id} className={'group flex flex-col max-w-[78%] ' + (mine ? 'self-end items-end' : 'self-start items-start') + (startsGroup ? ' mt-2' : '')}>
+        {body}
+        {endsGroup && <span className="text-[11px] text-slate-500 mt-1 mx-1 flex gap-2">
+          {mine && m.type === 'text' && <button onClick={() => window.confirm('Thu hồi tin nhắn này?') && db.deleteMessage(room.id, m.id)} className="hidden md:group-hover:inline underline">Thu hồi</button>}
+          {shortTime(m.timestamp)}</span>}
+      </div>);
+    });
+    return out;
+  })();
 
-  if (!user) return <div className="p-10 text-center">Vui lòng đăng nhập để chat</div>;
-  const activePartner = activeRoom ? getPartnerInfo(activeRoom, user.id) : null;
+  /* ---------- Dải tiến trình (thu gọn / mở ra) ---------- */
+  const progress = room && activeReq && (
+    <div className="lg:hidden bg-sun-light border-b border-[#F2DFAF]">
+      <div className="flex items-center gap-2.5 px-3 py-2.5">
+        <button onClick={() => setExpanded(v => !v)} aria-expanded={expanded} className="flex items-center gap-2.5 flex-1 min-w-0 text-left">
+          {realImage(room.listingImage)
+            ? <img src={room.listingImage} alt="" className="h-11 w-11 rounded-[10px] object-cover shrink-0" />
+            : <span className="h-11 w-11 rounded-[10px] bg-emerald-50 text-emerald-700 grid place-items-center shrink-0"><KIcon name={activeReq.kind} className="w-6 h-6" strokeWidth={1.6} /></span>}
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-bold truncate">{room.listingTitle}</span>
+            <span className="block text-xs font-semibold text-sun-dark truncate">{stepSummary(activeReq, user.id, partner?.name)}</span>
+          </span>
+          <svg className={'w-5 h-5 shrink-0 transition-transform ' + (expanded ? 'rotate-180' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+          <span className="sr-only">{expanded ? 'Thu gọn tiến trình' : 'Xem các giai đoạn'}</span>
+        </button>
+      </div>
+      {expanded && <div className="px-4 pb-4 flex flex-col gap-3 max-h-[60vh] overflow-y-auto">
+        <VStepper r={activeReq} uid={user.id} partnerName={partner?.name} />
+        <RequestActions r={activeReq} uid={user.id} compact onDone={() => setExpanded(false)} />
+        {latestMeet && <span className="flex items-center gap-2 text-sm text-slate-700"><KIcon name="clock" className="w-4 h-4 text-emerald-700" />Hẹn: {latestMeet.text}</span>}
+        <Link to={'/cong-dong/tin/' + room.listingId} className="text-sm font-semibold text-emerald-700 underline">Xem tin</Link>
+      </div>}
+      {!expanded && needsMe(activeReq, user.id) && <div className="px-3 pb-2.5 -mt-1"><RequestActions r={activeReq} uid={user.id} compact mainOnly /></div>}
+    </div>
+  );
+
+  /* ---------- Cột chi tiết (máy tính) ---------- */
+  const details = room && (
+    <aside aria-label="Chi tiết" className="hidden lg:flex flex-col gap-4 w-[320px] shrink-0 border-l border-line bg-white p-5 overflow-y-auto">
+      {realImage(room.listingImage)
+        ? <img src={room.listingImage} alt="" className="h-40 w-full rounded-2xl object-cover" />
+        : <div className="h-40 rounded-2xl bg-emerald-50 text-emerald-700 grid place-items-center"><KIcon name={activeReq?.kind || 'gift'} className="w-16 h-16" strokeWidth={1.3} /></div>}
+      <div className="flex flex-col gap-1.5">
+        {activeReq && <IntentBadge kind={activeReq.kind} intent={activeReq.intent} className="self-start" />}
+        <span className="text-lg font-extrabold leading-snug">{room.listingTitle}</span>
+        <Link to={'/cong-dong/tin/' + room.listingId} className="text-sm font-semibold text-emerald-700 underline self-start">Xem tin</Link>
+      </div>
+      {activeReq ? <>
+        <VStepper r={activeReq} uid={user.id} partnerName={partner?.name} />
+        <div className="bg-sun-light rounded-[14px] p-3"><RequestActions r={activeReq} uid={user.id} compact /></div>
+      </> : <p className="text-sm text-slate-600">Chưa có yêu cầu nào cho món này. Bấm "Xin món này" ở trang tin để bắt đầu.</p>}
+      {latestMeet && <span className="flex items-center gap-2 text-sm text-slate-700"><KIcon name="clock" className="w-4 h-4 text-emerald-700" />Hẹn: {latestMeet.text}</span>}
+      <div className="mt-auto flex flex-col gap-2 text-xs text-slate-600 leading-relaxed">
+        <span>Không chuyển khoản hay đặt cọc cho bất kỳ ai. Ưu tiên gặp ở nơi công cộng.</span>
+        <button onClick={report} className="self-start underline">Báo cáo cuộc trò chuyện</button>
+      </div>
+    </aside>
+  );
+
+  /* ---------- Khung trò chuyện ---------- */
+  const conversation = room ? (
+    <main className={(roomId ? 'fixed inset-0 z-[60] md:static md:z-auto' : 'hidden md:flex') + ' flex flex-col flex-1 min-w-0 min-h-0 bg-cream pt-[env(safe-area-inset-top)] md:pt-0'}>
+      <header className="flex items-center gap-2.5 px-2 md:px-4 h-16 bg-white border-b border-line shrink-0">
+        <Link to="/chat" aria-label="Quay lại" className="md:hidden h-11 w-11 grid place-items-center"><KIcon name="back" className="w-[22px] h-[22px]" /></Link>
+        <Avatar p={partner} size={40} />
+        <div className="flex-1 min-w-0">
+          <div className="text-base font-extrabold truncate">{partner?.name}</div>
+          <div className="text-xs text-slate-600 truncate">{room.listingTitle}{activeReq ? ' · ' + kindLabels[activeReq.kind] : ''}</div>
+        </div>
+        <div className="relative">
+          <button onClick={() => setMenu(v => !v)} aria-label="Thêm" aria-expanded={menu} className="h-11 w-11 grid place-items-center rounded-full hover:bg-cream">
+            <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="12" cy="19" r="1.6" /></svg>
+          </button>
+          {menu && <div className="absolute right-0 top-12 z-10 w-56 bg-white border border-line rounded-2xl shadow-xl p-1.5 flex flex-col">
+            <Link to={'/cong-dong/tin/' + room.listingId} className="px-3 py-2.5 rounded-xl hover:bg-cream text-sm font-semibold">Xem tin</Link>
+            <button onClick={report} className="px-3 py-2.5 rounded-xl hover:bg-cream text-sm font-semibold text-left">Báo cáo</button>
+            <button onClick={removeRoom} className="px-3 py-2.5 rounded-xl hover:bg-cream text-sm font-semibold text-left text-rose-700">Xoá trò chuyện</button>
+          </div>}
+        </div>
+      </header>
+      {progress}
+      <div className="flex-1 overflow-y-auto px-3.5 md:px-10 py-4 flex flex-col gap-1 overscroll-contain">
+        {room.messages?.length ? thread : <p className="self-center text-sm text-slate-600 py-10">Gửi lời chào tới {partner?.name} nhé!</p>}
+        <div ref={endRef} />
+      </div>
+      {/* Ô soạn: 1 hàng — [+] | ô nhập | micro/gửi */}
+      <div className="bg-white border-t border-line shrink-0 px-2.5 pt-2 pb-[max(10px,env(safe-area-inset-bottom))] flex flex-col gap-2">
+        {tray === 'none' && !message && <div className="flex gap-2 overflow-x-auto px-0.5">
+          {suggestionsFor(activeReq, user.id).map(s => <button key={s} onClick={() => send(s)} className="shrink-0 min-h-[34px] px-3 rounded-full border border-line bg-white text-[13px] font-semibold hover:bg-cream">{s}</button>)}
+        </div>}
+        {tray === 'menu' && <div className="grid grid-cols-3 gap-2">
+          <button onClick={() => setTray('meet')} className="flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-emerald-50 text-emerald-900 text-[13px] font-bold"><KIcon name="clock" className="w-6 h-6 text-emerald-700" />Hẹn giờ & chỗ</button>
+          <button onClick={sendZalo} className="flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-cream text-[13px] font-bold"><KIcon name="phone" className="w-6 h-6 text-emerald-700" />Gửi Zalo</button>
+          <button onClick={() => fileRef.current?.click()} disabled={sending} className="flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-cream text-[13px] font-bold"><KIcon name="image" className="w-6 h-6 text-emerald-700" />Ảnh</button>
+        </div>}
+        {tray === 'meet' && <div className="flex flex-col gap-2">
+          <span className="text-sm font-bold">Khi nào?</span>
+          <div className="flex gap-2 flex-wrap">{MEET_TIMES.map(t => <button key={t} onClick={() => setMeetTime(meetTime === t ? '' : t)} aria-pressed={meetTime === t} className={'min-h-9 px-3 rounded-full border text-[13px] font-semibold ' + (meetTime === t ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white')}>{t}</button>)}</div>
+          <span className="text-sm font-bold">Ở đâu?</span>
+          <div className="flex gap-2 flex-wrap">{MEET_PLACES.map(p => <button key={p} onClick={() => setMeetPlace(meetPlace === p ? '' : p)} aria-pressed={meetPlace === p} className={'min-h-9 px-3 rounded-full border text-[13px] font-semibold ' + (meetPlace === p ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white')}>{p}</button>)}</div>
+          <button onClick={sendMeet} disabled={!meetTime && !meetPlace} className="min-h-11 rounded-xl bg-emerald-700 text-white font-bold disabled:opacity-50">Gửi đề nghị hẹn</button>
+        </div>}
+        <form onSubmit={submit} className="flex items-center gap-2">
+          <button type="button" onClick={() => setTray(t => t === 'none' ? 'menu' : 'none')} aria-label={tray === 'none' ? 'Hẹn giờ, gửi Zalo, ảnh' : 'Đóng'} aria-expanded={tray !== 'none'}
+            className="h-11 w-11 shrink-0 rounded-full bg-emerald-50 text-emerald-700 grid place-items-center">
+            <svg className={'w-[22px] h-[22px] transition-transform ' + (tray !== 'none' ? 'rotate-45' : '')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          </button>
+          <input type="file" ref={fileRef} onChange={sendImage} accept="image/*" className="hidden" />
+          <input value={message} onChange={e => setMessage(e.target.value)} onFocus={() => setTray('none')} placeholder={'Nhắn cho ' + (partner?.name || '') + '…'} aria-label="Tin nhắn"
+            className="flex-1 min-w-0 h-11 rounded-full border border-line bg-cream px-4 text-[15px] outline-none focus:ring-2 focus:ring-emerald-600" />
+          {message.trim()
+            ? <button type="submit" disabled={sending} aria-label="Gửi" className="h-11 w-11 shrink-0 rounded-full bg-emerald-700 text-white grid place-items-center disabled:opacity-60"><KIcon name="send" className="w-5 h-5" /></button>
+            : <VoiceButton className="h-11 w-11 !bg-emerald-700 !text-white" onText={t => setMessage(m => (m ? m + ' ' : '') + t)} />}
+        </form>
+      </div>
+    </main>
+  ) : (
+    <main className="hidden md:flex flex-1 items-center justify-center bg-cream text-slate-500 flex-col gap-3">
+      <img src="/icons/icon-192.png" alt="" className="h-14 w-14 rounded-2xl opacity-80" />
+      <p className="font-semibold">Chọn một cuộc trò chuyện để xem</p>
+    </main>
+  );
 
   return (
-    <div className="bg-white border border-line rounded-2xl h-[calc(100dvh-68px-76px-2.25rem)] md:h-[calc(100vh-68px-3rem)] flex overflow-hidden">
-      
-      {/* Sidebar */}
-      <aside className={`w-full md:w-80 flex-shrink-0 border-r border-borderMain flex flex-col ${roomId ? 'hidden md:flex' : 'flex'}`}>
-        <div className="p-4 border-b border-line"><h2 className="font-extrabold text-lg">Tin nhắn</h2></div>
-        <div className="flex-1 overflow-y-auto">
-          {rooms.length > 0 ? (
-            rooms.map(room => {
-              const isUnread = room.messages.length > 0 && !room.seenBy?.includes(user.id);
-              const partner = getPartnerInfo(room, user.id); 
-              return (
-                <Link to={`/chat/${room.id}`} key={room.id} className={`flex gap-3 p-4 hover:bg-bgMain transition-colors border-b border-gray-50 relative group ${roomId === room.id ? 'bg-primary/5 border-l-4 border-l-primary' : ''}`}>
-                  <div className={`w-12 h-12 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200 ${partner.isProductAvatar ? 'rounded-lg' : ''}`}>
-                    <img src={partner.avatar || DEFAULT_AVATAR} alt="" className="w-full h-full object-cover" onError={(e) => handleImageError(e, DEFAULT_AVATAR)} />
-                  </div>
-                  <div className="flex-1 min-w-0 pr-6">
-                    <div className="flex items-center justify-between gap-2">
-                        <h3 className={`text-sm truncate ${isUnread ? 'font-black text-textMain' : 'font-bold text-gray-700'}`}>{partner.name}</h3>
-                        <span className="text-[10px] text-gray-300 whitespace-nowrap">{formatTimeAgo(room.lastUpdate)}</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500 truncate font-medium bg-gray-100 px-1.5 py-0.5 rounded w-fit max-w-full mt-0.5">{room.listingTitle}</p>
-                    <p className={`text-xs truncate mt-1 ${isUnread ? 'font-black text-primary' : 'text-gray-400'}`}>
-                      {room.lastMessage?.includes('💰') ? '💰 Có lời mặc cả mới' : 
-                       room.lastMessage?.includes('🔄') ? '🔄 Có đề nghị đổi đồ' :
-                       room.lastMessage?.includes('📍') ? '📍 Vị trí' :
-                       (room.lastMessage || 'Bắt đầu cuộc trò chuyện')}
-                    </p>
-                  </div>
-                  {isUnread && <div className="absolute top-1/2 -translate-y-1/2 right-2 w-2.5 h-2.5 bg-primary rounded-full shadow-sm group-hover:opacity-0 transition-opacity"></div>}
-                  <button onClick={(e) => handleDeleteRoom(e, room.id)} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-white border border-gray-200 text-gray-400 hover:text-red-500 hover:bg-red-50 hover:border-red-200 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-all z-20">✕</button>
-                </Link>
-              );
-            })
-          ) : <div className="p-10 text-center text-slate-600">Chưa có trò chuyện nào. Bấm "Xin món này" ở một tin để bắt đầu.</div>}
-        </div>
-      </aside>
-
-      {/* Main Chat Area */}
-      <main className={`flex-1 flex flex-col min-w-0 ${!roomId ? 'hidden md:flex' : 'flex'}`}>
-        {activeRoom && activePartner ? (
-          <>
-            {/* Header */}
-            <div className="p-3 md:p-4 border-b border-borderMain flex items-center justify-between bg-white z-10">
-              <div className="flex items-center gap-3">
-                <Link to="/chat" className="md:hidden p-1 -ml-1 text-gray-400 hover:text-primary"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/></svg></Link>
-                <div className={`w-10 h-10 overflow-hidden border border-borderMain ${activePartner.isProductAvatar ? 'rounded-lg' : 'rounded-full'}`}>
-                  <img src={activePartner.avatar || DEFAULT_AVATAR} alt="" className="w-full h-full object-cover" onError={(e) => handleImageError(e, DEFAULT_AVATAR)} />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-bold leading-none truncate max-w-[150px] md:max-w-xs">{activePartner.name}</h3>
-                  <p className="text-[10px] text-gray-500 font-medium truncate max-w-[200px] flex items-center gap-1 mt-1"><span>🌿</span> {activeRoom.listingTitle}</p>
-                </div>
-              </div>
-              {!activeRoom.listingId.startsWith('profile_') && (
-                  <Link to={'/cong-dong/tin/' + activeRoom.listingId} className="text-[10px] md:text-xs font-bold text-primary hover:underline bg-primary/5 px-3 py-1.5 rounded-lg whitespace-nowrap">Xem tin</Link>
-              )}
-            </div>
-
-            {/* Thẻ tiến trình: món đồ + các bước + nút xác nhận ngay trong chat */}
-            {request && (
-              <section aria-label="Tiến trình" className="mx-3 mt-3 p-3.5 bg-white border border-line rounded-[18px] shadow-[0_4px_14px_rgba(18,53,36,.06)] flex flex-col gap-3">
-                <div className="flex items-center gap-2.5">
-                  {activeRoom.listingImage && !activeRoom.listingImage.includes('placehold.co')
-                    ? <img src={activeRoom.listingImage} alt="" className="h-12 w-12 rounded-xl object-cover" />
-                    : <span className="h-12 w-12 rounded-xl bg-emerald-50 text-emerald-700 grid place-items-center"><KIcon name={request.kind} className="w-7 h-7" strokeWidth={1.6} /></span>}
-                  <Link to={'/cong-dong/tin/' + activeRoom.listingId} className="flex-1 min-w-0">
-                    <span className="block text-[15px] font-bold truncate">{activeRoom.listingTitle}</span>
-                    <span className="block text-xs text-slate-600">Xem tin</span>
-                  </Link>
-                </div>
-                <Steps r={request} />
-                <div className="bg-sun-light rounded-xl p-2.5"><RequestActions r={request} uid={user.id} compact /></div>
-              </section>
-            )}
-
-            {/* Messages List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-cream overscroll-contain">
-              {activeRoom.messages.length > 0 ? (
-                activeRoom.messages.map((msg, index) => {
-                   const isMe = msg.senderId === user.id;
-                   const showAvatar = !isMe && (index === 0 || activeRoom.messages[index - 1].senderId !== msg.senderId);
-                   
-                   return (
-                      <div key={msg.id} className={`flex gap-2 group items-end ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        {!isMe && (
-                            <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 mb-1 border border-gray-200 bg-white">
-                                {showAvatar && <img src={activePartner.avatar || DEFAULT_AVATAR} className="w-full h-full object-cover" alt="" onError={(e) => handleImageError(e, DEFAULT_AVATAR)} />}
-                            </div>
-                        )}
-                        <div className={`relative max-w-[85%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                            {renderMessageContent(msg, isMe)}
-                            <div className="flex items-center gap-1 mt-1 opacity-60">
-                                {isMe && (
-                                    <button onClick={() => handleDeleteMessage(msg.id)} className="text-[9px] text-red-400 hover:underline mr-1 opacity-0 group-hover:opacity-100 transition-opacity">Thu hồi</button>
-                                )}
-                                <span className="text-[9px] text-gray-400 font-medium">
-                                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                            </div>
-                        </div>
-                      </div>
-                   )
-                })
-              ) : (
-                <div className="py-20 text-center text-gray-400 space-y-2"><div className="text-4xl animate-bounce">👋</div><p className="text-sm font-bold uppercase tracking-widest">Gửi lời chào tới {activePartner.name}!</p></div>
-              )}
-              <div ref={scrollRef} className="h-2" />
-            </div>
-
-            {/* Quick Replies */}
-            <div className="bg-white border-t border-borderMain/50 px-4 py-2 flex gap-2 overflow-x-auto no-scrollbar whitespace-nowrap">
-                {QUICK_REPLIES.map((text, idx) => (
-                    <button key={idx} onClick={() => handleSendQuickReply(text)} className="bg-white hover:bg-emerald-50 text-[13px] font-semibold min-h-9 px-3.5 rounded-full border border-line transition-all active:scale-95">
-                        {text}
-                    </button>
-                ))}
-            </div>
-
-            {/* Hẹn giờ & chỗ, gửi Zalo */}
-            <div className="bg-white px-3 pt-2 flex gap-2 overflow-x-auto no-scrollbar">
-              <button type="button" onClick={() => setShowMeet(v => !v)} aria-expanded={showMeet} className="shrink-0 flex items-center gap-1.5 min-h-9 px-3 rounded-full border border-emerald-700 bg-emerald-50 text-emerald-900 text-[13px] font-semibold"><KIcon name="clock" className="w-4 h-4 text-emerald-700" />Hẹn giờ & chỗ</button>
-              <button type="button" onClick={handleSendZalo} className="shrink-0 flex items-center gap-1.5 min-h-9 px-3 rounded-full border border-line bg-white text-[13px] font-semibold"><KIcon name="phone" className="w-4 h-4 text-emerald-700" />Gửi Zalo của tôi</button>
-              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isSending} className="shrink-0 flex items-center gap-1.5 min-h-9 px-3 rounded-full border border-line bg-white text-[13px] font-semibold"><KIcon name="image" className="w-4 h-4 text-emerald-700" />Ảnh</button>
-            </div>
-            {showMeet && (
-              <div className="bg-white px-3 pt-3 flex flex-col gap-2">
-                <span className="text-sm font-bold">Khi nào?</span>
-                <div className="flex gap-2 flex-wrap">{MEET_TIMES.map(t => <button type="button" key={t} onClick={() => setMeetTime(meetTime === t ? '' : t)} aria-pressed={meetTime === t} className={'min-h-9 px-3 rounded-full border text-[13px] font-semibold ' + (meetTime === t ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white')}>{t}</button>)}</div>
-                <span className="text-sm font-bold">Ở đâu?</span>
-                <div className="flex gap-2 flex-wrap">{MEET_PLACES.map(p => <button type="button" key={p} onClick={() => setMeetPlace(meetPlace === p ? '' : p)} aria-pressed={meetPlace === p} className={'min-h-9 px-3 rounded-full border text-[13px] font-semibold ' + (meetPlace === p ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white')}>{p}</button>)}</div>
-                <button type="button" onClick={handleSendMeet} disabled={!meetTime && !meetPlace} className="min-h-11 rounded-xl bg-emerald-700 text-white font-bold disabled:opacity-50">Gửi đề nghị hẹn</button>
-              </div>
-            )}
-
-            {/* Input Form [NÂNG CẤP] */}
-            <form onSubmit={handleSendMessage} className="p-3 md:p-4 bg-white border-t border-borderMain">
-              <div className="flex gap-2 items-center bg-cream border border-line p-1.5 rounded-[1.5rem]">
-                <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
-
-                <input type="text" placeholder={isSending ? "Đang gửi..." : "Nhắn tin…"} value={message} onChange={(e) => setMessage(e.target.value)} onFocus={() => setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 300)} className="flex-1 bg-transparent border-none outline-none focus:ring-0 px-3 py-2 text-[15px] max-h-24" aria-label="Tin nhắn" />
-                <VoiceButton className="w-10 h-10" onText={t => setMessage(m => (m ? m + ' ' : '') + t)} />
-                
-                <button type="submit" disabled={!message.trim() && !isSending} aria-label="Gửi" className="w-10 h-10 bg-emerald-700 text-white rounded-full flex items-center justify-center disabled:opacity-50 hover:bg-emerald-800 transition-colors">
-                  {isSending ? <IconLoader /> : <IconSend />}
-                </button>
-              </div>
-            </form>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-300 space-y-4"><div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-4xl grayscale opacity-50">💬</div><p className="font-bold text-xs uppercase tracking-widest">Chọn hội thoại để xem</p></div>
-        )}
-      </main>
+    <div className="md:h-[calc(100vh-68px-3rem)] md:flex md:border md:border-line md:rounded-2xl overflow-hidden bg-white -mx-4 md:mx-0 -mt-3 md:mt-0">
+      {inbox}
+      {conversation}
+      {details}
     </div>
   );
 };

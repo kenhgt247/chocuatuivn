@@ -18,7 +18,9 @@ export type NotificationType =
   | 'review' | 'message' | 'approval' | 'follow' | 'offer' | 'system' | 'wallet' | 'affiliate' | 'order'; // Thêm 'wallet' & 'affiliate'
 
 // Loại tin nhắn chat
-export type MessageType = 'text' | 'image' | 'location' | 'offer' | 'swap';
+// 'event': mốc tiến trình (đã đồng ý, đã trao đồ...) hiện giữa dòng chat
+// 'meet': đề nghị hẹn giờ & chỗ
+export type MessageType = 'text' | 'image' | 'location' | 'offer' | 'swap' | 'event' | 'meet';
 
 // Trạng thái của một lời mặc cả
 export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled';

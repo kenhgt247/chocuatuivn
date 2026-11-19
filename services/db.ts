@@ -1436,6 +1436,8 @@ export const db = {
           else if (message.type === 'location') previewText = '📍 Vị trí';
           else if (message.type === 'offer') previewText = '💸 Đề nghị giá';
           else if (message.type === 'swap') previewText = '🔄 Đề nghị đổi đồ';
+          else if (message.type === 'meet') previewText = 'Đề nghị hẹn: ' + message.text;
+          else if (message.type === 'event') previewText = message.text;
 
           await updateDoc(roomRef, {
             messages: arrayUnion(newMessage),

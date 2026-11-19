@@ -318,10 +318,21 @@ export const community = {
       (!need && r.kind === 'gift' && status === 'handed_over') ||
       (need && (status === 'completed' || (r.kind === 'borrow' && status === 'returned')))
     );
+    // Mốc tiến trình hiện giữa dòng chat (phòng chat id = <người hỏi>_<tin>)
+    const EVENT_TEXT: Partial<Record<CommunityStatus, string>> = {
+      accepted: 'đã đồng ý', declined: 'đã từ chối', cancelled: 'đã hủy',
+      handed_over: r.kind === 'help' ? 'báo đã giúp xong' : r.kind === 'repair' ? 'báo đã sửa xong' : r.kind === 'borrow' ? 'đã giao đồ cho mượn' : 'báo đã trao đồ',
+      returned: 'báo đã trả đồ',
+      completed: r.kind === 'borrow' ? 'xác nhận đã nhận lại đồ · Hoàn thành' : r.kind === 'gift' ? 'xác nhận đã nhận đồ · Hoàn thành' : 'xác nhận đã xong · Hoàn thành',
+    };
+    let posted = false; // đã báo qua chat thì không gửi thêm thông báo riêng
+    if (EVENT_TEXT[status]) {
+      try { await db.addMessage(r.requesterId + '_' + r.listingId, { senderId: uid, text: EVENT_TEXT[status]!, type: 'event' }); posted = true; } catch (_) { /* phòng chat có thể chưa có */ }
+    }
     if (close) {
       try { await db.updateListingStatus(r.listingId, 'sold'); } catch (_) { /* chủ tin vẫn tự đóng được ở trang Cá nhân */ }
     }
-    if (receiverId) {
+    if (receiverId && !posted) {
       try {
         await db.sendNotification({
           userId: receiverId, title: 'Cập nhật yêu cầu 🌱',
@@ -356,6 +367,15 @@ export const community = {
       try { await db.addMessage(room, { senderId: user.id, text: message, type: 'text' }); } catch (_) { /* phòng vẫn mở được */ }
     }
     return room;
+  },
+  /** Đọc một lần yêu cầu gắn với phòng chat (null nếu không có). */
+  async requestForRoom(roomId: string, listingId: string): Promise<CommunityRequest | null> {
+    if (!roomId.endsWith('_' + listingId)) return null;
+    const requesterId = roomId.slice(0, roomId.length - listingId.length - 1);
+    try {
+      const snap = await getDoc(doc(firestore, 'communityRequests', listingId + '_' + requesterId));
+      return snap.exists() ? ({ ...snap.data(), id: snap.id } as CommunityRequest) : null;
+    } catch (_) { return null; }
   },
   /** Theo dõi trực tiếp yêu cầu gắn với một phòng chat (phòng id = <người hỏi>_<tin>). */
   watchRequestForRoom(roomId: string, listingId: string, cb: (r: CommunityRequest | null) => void): () => void {

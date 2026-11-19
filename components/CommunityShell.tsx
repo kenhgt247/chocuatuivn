@@ -20,6 +20,7 @@ export const Icon = {
   user: <><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>,
   pin: <><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></>,
   down: <path d="m6 9 6 6 6-6" />,
+  x: <path d="M18 6 6 18M6 6l12 12" />,
   bell: <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></>,
 };
 export const Svg: React.FC<{ name: keyof typeof Icon; className?: string; strokeWidth?: number }> = ({ name, className, strokeWidth = 2 }) => (
@@ -84,11 +85,23 @@ function AreaPicker({ user }: { user: User | null }) {
 const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }> = ({ user, children }) => {
   const { pathname } = useLocation();
   const unread = useUnreadChats(user);
-  const [pushNotice, setPushNotice] = useState('');
-  const [askingPush, setAskingPush] = useState(false);
-  const pushGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
   // Trang chat cần chiều cao cố định, ẩn chân trang cho gọn
   const isChat = pathname.startsWith('/chat');
+  const [pushNotice, setPushNotice] = useState('');
+  const [askingPush, setAskingPush] = useState(false);
+  const [, setPushTick] = useState(0);
+  const [pushHidden, setPushHidden] = useState(() => { try { return Number(localStorage.getItem('ccut-push-hide') || 0) > Date.now(); } catch (_) { return false; } });
+  const hidePush = () => { try { localStorage.setItem('ccut-push-hide', String(Date.now() + 7 * 864e5)); } catch (_) { /* bỏ qua */ } setPushHidden(true); };
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = (navigator as any).standalone === true || window.matchMedia?.('(display-mode: standalone)').matches;
+  const pushSupported = typeof Notification !== 'undefined' && 'serviceWorker' in navigator;
+  const pushPerm = pushSupported ? Notification.permission : 'unsupported';
+  // Hộp mời bật thông báo trên điện thoại/máy tính bảng (máy tính có nút ở đầu trang)
+  const pushCard: null | 'ios' | 'ask' | 'denied' = !user || pushHidden || isChat ? null
+    : isIOS && !standalone ? 'ios'
+    : pushPerm === 'default' ? 'ask'
+    : pushPerm === 'denied' ? 'denied' : null;
+  const pushGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
   // Trang có thanh nút cố định ở đáy (đăng tin, xem tin) trên điện thoại
   const hasActionBar = pathname.startsWith('/cong-dong/dang-tin') || pathname.startsWith('/cong-dong/tin/');
 
@@ -96,11 +109,14 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
     if (!user) return;
     setAskingPush(true);
     try {
-      await db.requestNotificationPermission(user.id);
-      setPushNotice('Đã bật thông báo trên thiết bị này.');
+      const token = await db.requestNotificationPermission(user.id);
+      const perm = typeof Notification !== 'undefined' ? Notification.permission : 'default';
+      setPushNotice(token ? 'Đã bật thông báo trên thiết bị này.'
+        : perm === 'denied' ? 'Thông báo đang bị chặn. Vào cài đặt trình duyệt/điện thoại, cho phép thông báo của chocuatui.vn rồi thử lại.'
+        : 'Chưa bật được thông báo trên thiết bị này. Bạn thử lại sau nhé.');
     } catch (_) {
       setPushNotice('Thiết bị hoặc trình duyệt chưa hỗ trợ thông báo.');
-    } finally { setAskingPush(false); }
+    } finally { setAskingPush(false); setPushTick(t => t + 1); }
   }
 
   const tab = (to: string, label: string, icon: keyof typeof Icon, active: boolean, badge = 0) => (
@@ -142,6 +158,26 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
         </div>
         {pushNotice && <p role="status" className="text-center text-xs bg-emerald-50 text-emerald-800 py-2">{pushNotice} <button className="underline" onClick={() => setPushNotice('')}>Đóng</button></p>}
       </header>
+
+      {pushCard && <div className="lg:hidden max-w-6xl mx-auto px-4 pt-3">
+        <div className="flex gap-3 items-start bg-white border border-line rounded-2xl p-3.5 shadow-sm">
+          <span className="h-10 w-10 shrink-0 rounded-xl bg-emerald-50 text-emerald-700 grid place-items-center"><Svg name="bell" className="w-5 h-5" /></span>
+          <div className="flex-1 min-w-0 text-sm">
+            {pushCard === 'ios' ? <>
+              <p className="font-bold">Nhận thông báo trên iPhone</p>
+              <p className="text-slate-600 mt-0.5 leading-snug">Bấm nút <b>Chia sẻ</b> (ô vuông có mũi tên lên) ở Safari → <b>Thêm vào Màn hình chính</b>. Rồi mở Chợ Của Tui từ biểu tượng mới đó và bấm Bật thông báo.</p>
+            </> : pushCard === 'denied' ? <>
+              <p className="font-bold">Thông báo đang bị chặn</p>
+              <p className="text-slate-600 mt-0.5 leading-snug">Vào <b>Cài đặt</b> của điện thoại hoặc trình duyệt → Thông báo → cho phép <b>chocuatui.vn</b>, để biết ngay khi có người nhắn.</p>
+            </> : <>
+              <p className="font-bold">Biết ngay khi có người nhắn</p>
+              <p className="text-slate-600 mt-0.5 leading-snug">Bật thông báo để không lỡ tin nhắn và yêu cầu mới.</p>
+              <button onClick={enablePush} disabled={askingPush} className="mt-2 h-10 px-4 rounded-full bg-emerald-700 text-white font-bold disabled:opacity-60">{askingPush ? 'Đang bật…' : 'Bật thông báo'}</button>
+            </>}
+          </div>
+          <button onClick={hidePush} aria-label="Để sau" className="h-8 w-8 -mr-1 -mt-1 grid place-items-center rounded-full text-slate-500 hover:bg-cream"><Svg name="x" className="w-4 h-4" /></button>
+        </div>
+      </div>}
 
       <main className={'max-w-6xl mx-auto px-4 md:px-5 ' + (isChat ? 'py-3 md:py-6 pb-24 md:pb-6' : 'pt-5 md:pt-8 ' + (hasActionBar ? 'pb-36 md:pb-10' : 'pb-8 md:pb-10'))}>{children}</main>
 

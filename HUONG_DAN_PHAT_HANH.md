@@ -36,3 +36,13 @@ Ba hàm được cài:
 3. Chia sẻ từng tin vào nhóm Zalo/Facebook của phường bằng nút **Chia sẻ → Chép lời giới thiệu**.
 4. Mỗi ngày: vào **Quản trị → Duyệt tin** (mục tiêu duyệt trong vài giờ), xem **Báo cáo**.
 5. Sau 2–4 tuần, xem: số yêu cầu hoàn thành, tin có người xin trong 3 ngày, người đăng lần 2.
+
+## Đóng gói ứng dụng Android (APK / Google Play)
+
+1. Vào **pwabuilder.com**, dán `https://www.chocuatui.vn` → **Start** → **Package for stores** → **Android** → **Generate**.
+   - Package ID gợi ý: `vn.chocuatui.app`; App name: `Chợ Của Tui`; Launcher name: `Chợ Của Tui`.
+   - Signing key: chọn **Create new**, điền tên + mật khẩu. **Cất kỹ file .keystore và mật khẩu** (mất là không cập nhật được ứng dụng trên Google Play).
+2. Tải về file .zip: có `*.apk` (cài thử / gửi người dùng), `*.aab` (nộp Google Play), `assetlinks.json`.
+3. Gửi `assetlinks.json` để đưa lên `public/.well-known/assetlinks.json` → ứng dụng mở toàn màn hình, không hiện thanh địa chỉ.
+   (Nếu dùng Google Play App Signing: thêm cả mã SHA-256 trong Play Console → Setup → App integrity vào file này.)
+4. Google Play Console: tài khoản nhà phát triển 25 USD (một lần) → Create app → tải `.aab` lên → điền mô tả, ảnh (có sẵn trong `public/screenshots/`).

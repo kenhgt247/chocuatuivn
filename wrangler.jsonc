@@ -1,0 +1,14 @@
+// Cấu hình chạy Chợ Của Tui trên Cloudflare Workers (tệp tĩnh + máy chủ nhỏ cho /api).
+// Tệp tĩnh phục vụ thẳng (miễn phí, không giới hạn); chỉ /api, sitemap và trang tin cho bot mới chạy worker.
+{
+  "name": "chocuatuivn",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/sitemap.xml", "/cong-dong/tin/*"]
+  },
+  "observability": { "enabled": true }
+}

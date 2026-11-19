@@ -99,7 +99,8 @@ exports.diemUyTin = onDocumentUpdated('communityRequests/{id}', async (event) =>
   const giverId = need ? after.requesterId : after.ownerId;
   const receiverId = need ? after.ownerId : after.requesterId;
   const inc = admin.firestore.FieldValue.increment(1);
-  await db.collection('publicProfiles').doc(giverId).set({ sharedCount: inc }, { merge: true });
+  const kind = ['gift', 'borrow', 'help', 'repair'].includes(after.kind) ? after.kind : 'gift';
+  await db.collection('publicProfiles').doc(giverId).set({ sharedCount: inc, sharedByKind: { [kind]: inc } }, { merge: true });
   await db.collection('publicProfiles').doc(receiverId).set({ receivedCount: inc }, { merge: true });
 });
 
@@ -167,8 +168,19 @@ async function baoNguoiDang(uid, title, message, link) {
 exports.kiemDuyetTin = onDocumentCreated({ document: 'listings/{id}', memory: '256MiB' }, async (event) => {
   const tin = event.data && event.data.data();
   if (!tin || tin.isCommunityFree !== true || tin.status !== 'pending') return;
-  const ref = event.data.ref;
-  const id = event.params.id;
+  await kiemDuyet(event.data.ref, tin, event.params.id, false);
+});
+
+// Tin vừa được chủ tin sửa (status -> pending, editedAt mới): kiểm tra lại như tin mới
+exports.kiemDuyetTinSua = onDocumentUpdated({ document: 'listings/{id}', memory: '256MiB' }, async (event) => {
+  const truoc = event.data && event.data.before.data();
+  const sau = event.data && event.data.after.data();
+  if (!sau || sau.isCommunityFree !== true || sau.status !== 'pending' || !sau.editedAt) return;
+  if (truoc && truoc.editedAt && truoc.editedAt.isEqual && truoc.editedAt.isEqual(sau.editedAt)) return;
+  await kiemDuyet(event.data.after.ref, sau, event.params.id, true);
+});
+
+async function kiemDuyet(ref, tin, id, daSua) {
   const chu = [tin.title, tin.description, tin.meetPlace].join(' ');
   const datKetQua = async (status, ly, extra = {}) => {
     await ref.update({ status, kiemDuyet: { luc: new Date().toISOString(), ketQua: status, lyDo: ly || null, may: true }, ...extra });
@@ -195,7 +207,7 @@ exports.kiemDuyetTin = onDocumentCreated({ document: 'listings/{id}', memory: '2
   try {
     const motNgay = new Date(Date.now() - 864e5).toISOString();
     const gan = await db.collection('listings').where('sellerId', '==', tin.sellerId).where('createdAt', '>=', motNgay).count().get();
-    if (gan.data().count > TIN_MOI_NGAY) lyDo.push('Đăng nhiều tin trong 24 giờ');
+    if (!daSua && gan.data().count > TIN_MOI_NGAY) lyDo.push('Đăng nhiều tin trong 24 giờ');
   } catch (_) { /* thiếu chỉ mục: bỏ qua bước này */ }
   try {
     const bc = await db.collection('reports').where('targetUserId', '==', tin.sellerId).where('status', '==', 'pending').count().get();
@@ -223,7 +235,7 @@ exports.kiemDuyetTin = onDocumentCreated({ document: 'listings/{id}', memory: '2
     return;
   }
   await datKetQua('approved', null, { approvedAt: new Date().toISOString() });
-});
+}
 
 // ---------------------------------------------------------------- 5. Báo cáo: đủ 3 người -> tạm ẩn
 exports.baoCaoTin = onDocumentCreated('reports/{id}', async (event) => {

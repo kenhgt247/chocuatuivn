@@ -274,6 +274,7 @@ export interface PublicProfile {
   joinedAt?: string;
   sharedCount?: number;   // số lần đã trao/giúp xong (máy chủ tính, cả hai bên xác nhận)
   receivedCount?: number; // số lần đã nhận/được giúp xong
+  sharedByKind?: Partial<Record<"gift" | "borrow" | "help" | "repair", number>>; // theo từng loại (huy hiệu)
 }
 
 export interface Report {

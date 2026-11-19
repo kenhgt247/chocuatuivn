@@ -21,6 +21,11 @@ service cloud.firestore {
       return isSignedIn() && getUserData().role == 'admin';
     }
 
+    // Người dùng uid đã chặn người đang thao tác chưa (danh sách chặn nằm trong hồ sơ riêng)
+    function blockedBy(uid) {
+      return request.auth.uid in get(/databases/$(database)/documents/users/$(uid)).data.get('blockedIds', []);
+    }
+
     // Kiểm tra xem người dùng có đang cố gắng thay đổi các trường nhạy cảm không
     function isNotChangingSensitiveUserFields() {
       let sensitiveFields = ['role', 'walletBalance', 'subscriptionTier', 'subscriptionExpires', 'status'];
@@ -78,7 +83,16 @@ service cloud.firestore {
           (resource.data.status == 'expired'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','renewedAt'])
             && request.resource.data.status == 'approved'
-            && request.resource.data.renewedAt == request.time)
+            && request.resource.data.renewedAt == request.time) ||
+          // Sửa nội dung: tin quay về chờ kiểm tra lại (máy tự duyệt lại)
+          (resource.data.status in ['approved','pending','rejected']
+            && resource.data.isCommunityFree == true
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['title','description','meetPlace','images','thumbs','keywords','status','editedAt'])
+            && request.resource.data.status == 'pending'
+            && request.resource.data.editedAt == request.time
+            && request.resource.data.title is string && request.resource.data.title.size() <= 90
+            && request.resource.data.images.size() <= 4)
         )
       );
 
@@ -91,13 +105,14 @@ service cloud.firestore {
       // sharedCount/receivedCount do máy chủ tính (functions/diemUyTin); người dùng không tự sửa.
       function countersKept() {
         return resource == null
-          ? !('sharedCount' in request.resource.data) && !('receivedCount' in request.resource.data)
+          ? !('sharedCount' in request.resource.data) && !('receivedCount' in request.resource.data) && !('sharedByKind' in request.resource.data)
           : request.resource.data.get('sharedCount', 0) == resource.data.get('sharedCount', 0)
-            && request.resource.data.get('receivedCount', 0) == resource.data.get('receivedCount', 0);
+            && request.resource.data.get('receivedCount', 0) == resource.data.get('receivedCount', 0)
+            && request.resource.data.get('sharedByKind', {}) == resource.data.get('sharedByKind', {});
       }
       function validProfile() {
         let d = request.resource.data;
-        return d.keys().hasOnly(['name','avatar','location','joinedAt','updatedAt','areaCode','sharedCount','receivedCount'])
+        return d.keys().hasOnly(['name','avatar','location','joinedAt','updatedAt','areaCode','sharedCount','receivedCount','sharedByKind'])
           && (isAdmin() || countersKept())
           && d.name is string && d.name.size() <= 60
           && (!('avatar' in d) || (d.avatar is string && d.avatar.size() <= 600))
@@ -146,7 +161,8 @@ service cloud.firestore {
         && sourceListing().communityKind == request.resource.data.kind
         && sourceListing().status == 'approved'
         && sourceListing().isCommunityFree == true
-        && sourceListing().price == 0;
+        && sourceListing().price == 0
+        && !blockedBy(request.resource.data.ownerId);
       // Hoàn thành phải do hai bên: người trao báo đã xong, người nhận xác nhận.
       // Tin "Tôi có": chủ tin là người trao. Tin "Tôi cần": người gửi yêu cầu là người trao.
       function giverId() {
@@ -183,10 +199,16 @@ service cloud.firestore {
     match /chats/{chatId} {
       // Chỉ những người trong cuộc hội thoại mới được xem và gửi tin
       allow read, delete: if isSignedIn() && request.auth.uid in resource.data.participantIds;
-      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantIds;
-      // Người trong cuộc chat không được tự thêm/bớt người khác.
+      function otherOf(ids) {
+        return ids[0] == request.auth.uid ? ids[1] : ids[0];
+      }
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantIds
+        && request.resource.data.participantIds.size() == 2
+        && !blockedBy(otherOf(request.resource.data.participantIds));
+      // Người trong cuộc chat không được tự thêm/bớt người khác; bị chặn thì không nhắn được.
       allow update: if isSignedIn() && request.auth.uid in resource.data.participantIds
-        && request.resource.data.participantIds == resource.data.participantIds;
+        && request.resource.data.participantIds == resource.data.participantIds
+        && !blockedBy(otherOf(resource.data.participantIds));
     }
 
     match /reports/{reportId} {
@@ -219,6 +241,7 @@ service cloud.firestore {
           && d.title is string && d.title.size() <= 120
           && d.message is string && d.message.size() <= 300
           && d.read == false
+          && !blockedBy(d.userId)
           && (!('link' in d) || (d.link is string && d.link.matches('^/[^/].*')))
           && (
             ('requestId' in d && sharedRequest(d.requestId, d.userId)) ||
@@ -233,6 +256,33 @@ service cloud.firestore {
         let c = get(/databases/$(database)/documents/chats/$(id)).data;
         return c.participantIds.hasAll([request.auth.uid, other]);
       }
+    }
+
+    // Lời cảm ơn sau khi trao xong: chỉ người nhận của yêu cầu đã hoàn thành viết, mỗi yêu cầu một lời.
+    match /thanks/{requestId} {
+      function req() {
+        return get(/databases/$(database)/documents/communityRequests/$(requestId)).data;
+      }
+      function receiverOfReq() {
+        return req().get('intent', 'have') == 'need' ? req().ownerId : req().requesterId;
+      }
+      function giverOfReq() {
+        return req().get('intent', 'have') == 'need' ? req().requesterId : req().ownerId;
+      }
+      allow read: if true;
+      allow create: if isSignedIn()
+        && exists(/databases/$(database)/documents/communityRequests/$(requestId))
+        && req().status == 'completed'
+        && request.auth.uid == receiverOfReq()
+        && request.resource.data.keys().hasOnly(['giverId','receiverId','receiverName','receiverAvatar','listingId','listingTitle','kind','message','photo','createdAt'])
+        && request.resource.data.receiverId == request.auth.uid
+        && request.resource.data.giverId == giverOfReq()
+        && request.resource.data.listingId == req().listingId
+        && request.resource.data.message is string && request.resource.data.message.size() <= 300
+        && request.resource.data.receiverName is string && request.resource.data.receiverName.size() <= 60
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.receiverId == request.auth.uid);
     }
 
     match /categories/{categoryId} {

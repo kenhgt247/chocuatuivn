@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import NotificationMenu from './NotificationMenu';
 import AppNudge from './AppNudge';
+import { setBigText } from '../utils/textSize';
 import { db } from '../services/db';
 import { getArea, setArea, onAreaChange } from '../utils/area';
 import { AreaInput } from './AreaInput';
@@ -148,6 +149,7 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
             {[['/page/gioi-thieu', 'Giới thiệu'], ['/page/quy-tac', 'Quy tắc'], ['/page/an-toan', 'An toàn'],
               ['/page/chinh-sach-bao-mat', 'Bảo mật'], ['/page/dieu-khoan', 'Điều khoản'], ['/tai-ung-dung', 'Tải ứng dụng']].map(([to, label]) =>
               <Link key={to} to={to} className="min-h-9 md:min-h-11 flex items-center hover:text-emerald-700">{label}</Link>)}
+            <button onClick={() => { const on = !document.documentElement.classList.contains('chu-to'); setBigText(on); }} className="min-h-9 md:min-h-11 flex items-center hover:text-emerald-700" aria-label="Bật/tắt chữ to">Aa Chữ to</button>
           </nav>
         </div>
       </footer>}

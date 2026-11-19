@@ -13,6 +13,7 @@ import {
   KIcon, VStepper, RequestActions, VoiceButton, ChipBadge, IntentBadge,
   chipFor, needsMe, stepSummary, suggestionsFor
 } from '../components/CommunityUI';
+import { ThankButton } from '../components/Thanks';
 
 const MEET_TIMES = ['Sáng nay', 'Trưa nay', 'Chiều nay', 'Tối nay', 'Ngày mai'];
 const MEET_PLACES = ['Cổng chợ', 'Cổng trường', 'Nhà văn hoá', 'UBND phường/xã', 'Gửi tiệm tạp hoá', 'Tại nhà'];
@@ -66,6 +67,8 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   const [meetPlace, setMeetPlace] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [blockedIds, setBlockedIds] = useState<string[]>([]);
+  useEffect(() => { if (user) community.blockedIds(user.id).then(setBlockedIds); }, [user?.id]);
   const endRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -135,7 +138,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     if (!room || !text.trim()) return;
     setSending(true);
     try { await db.addMessage(room.id, { senderId: user!.id, text: text.trim().slice(0, 1000), type }); }
-    catch (_) { alert('Gửi chưa được, kiểm tra mạng rồi thử lại nhé.'); }
+    catch (e: any) { alert(e?.code === 'permission-denied' ? 'Không gửi được: người này hiện không nhận tin nhắn từ bạn.' : 'Gửi chưa được, kiểm tra mạng rồi thử lại nhé.'); }
     finally { setSending(false); }
   }
   async function submit(e: React.FormEvent) {
@@ -168,6 +171,16 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   async function removeRoom() {
     if (!room || !window.confirm('Xoá cuộc trò chuyện này?')) return;
     try { await db.deleteChatRoom(room.id); navigate('/chat'); } catch (_) { alert('Chưa xoá được.'); }
+  }
+  async function toggleBlock() {
+    if (!room) return;
+    const other = room.participantIds?.find(id => id !== user!.id);
+    if (!other) return;
+    const on = !blockedIds.includes(other);
+    if (on && !window.confirm('Chặn ' + (partner?.name || 'người này') + '?\nHọ sẽ không nhắn tin, gửi yêu cầu hay thông báo cho bạn được nữa. Bạn có thể bỏ chặn trong trang Cá nhân.')) return;
+    setMenu(false);
+    try { await community.setBlocked(other, on); setBlockedIds(b => on ? [...b, other] : b.filter(x => x !== other)); }
+    catch (_) { alert('Chưa thực hiện được, thử lại nhé.'); }
   }
   async function report() {
     setMenu(false);
@@ -292,6 +305,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
       {expanded && <div className="px-4 pb-4 flex flex-col gap-3 max-h-[60vh] overflow-y-auto">
         <VStepper r={activeReq} uid={user.id} partnerName={partner?.name} />
         <RequestActions r={activeReq} uid={user.id} compact onDone={() => setExpanded(false)} />
+        <ThankButton r={activeReq} user={user} />
         {latestMeet && <span className="flex items-center gap-2 text-sm text-slate-700"><KIcon name="clock" className="w-4 h-4 text-emerald-700" />Hẹn: {latestMeet.text}</span>}
         <Link to={'/cong-dong/tin/' + room.listingId} className="text-sm font-semibold text-emerald-700 underline">Xem tin</Link>
       </div>}
@@ -313,6 +327,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
       {activeReq ? <>
         <VStepper r={activeReq} uid={user.id} partnerName={partner?.name} />
         <div className="bg-sun-light rounded-[14px] p-3"><RequestActions r={activeReq} uid={user.id} compact /></div>
+        <ThankButton r={activeReq} user={user} />
       </> : <p className="text-sm text-slate-600">Chưa có yêu cầu nào cho món này. Bấm "Xin món này" ở trang tin để bắt đầu.</p>}
       {latestMeet && <span className="flex items-center gap-2 text-sm text-slate-700"><KIcon name="clock" className="w-4 h-4 text-emerald-700" />Hẹn: {latestMeet.text}</span>}
       <div className="mt-auto flex flex-col gap-2 text-xs text-slate-600 leading-relaxed">
@@ -339,6 +354,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
           {menu && <div className="absolute right-0 top-12 z-10 w-56 bg-white border border-line rounded-2xl shadow-xl p-1.5 flex flex-col">
             <Link to={'/cong-dong/tin/' + room.listingId} className="px-3 py-2.5 rounded-xl hover:bg-cream text-sm font-semibold">Xem tin</Link>
             <button onClick={report} className="px-3 py-2.5 rounded-xl hover:bg-cream text-sm font-semibold text-left">Báo cáo</button>
+            <button onClick={toggleBlock} className="px-3 py-2.5 rounded-xl hover:bg-cream text-sm font-semibold text-left">{blockedIds.includes(room.participantIds?.find(id => id !== user.id) || '') ? 'Bỏ chặn' : 'Chặn người này'}</button>
             <button onClick={removeRoom} className="px-3 py-2.5 rounded-xl hover:bg-cream text-sm font-semibold text-left text-rose-700">Xoá trò chuyện</button>
           </div>}
         </div>
@@ -348,6 +364,9 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
         {room.messages?.length ? thread : <p className="self-center text-sm text-slate-600 py-10">Gửi lời chào tới {partner?.name} nhé!</p>}
         <div ref={endRef} />
       </div>
+      {blockedIds.includes(room.participantIds?.find(id => id !== user.id) || '') ? <div className="bg-white border-t border-line shrink-0 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] text-center text-sm text-slate-600">
+        Bạn đã chặn người này nên không nhắn tin được. <button onClick={toggleBlock} className="underline font-semibold text-emerald-700">Bỏ chặn</button>
+      </div> : <>
       {/* Ô soạn: 1 hàng — [+] | ô nhập | micro/gửi */}
       <div className="bg-white border-t border-line shrink-0 px-2.5 pt-2 pb-[max(10px,env(safe-area-inset-bottom))] flex flex-col gap-2">
         {tray === 'none' && !message && <div className="flex gap-2 overflow-x-auto px-0.5">
@@ -378,6 +397,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
             : <VoiceButton className="h-11 w-11 !bg-emerald-700 !text-white" onText={t => setMessage(m => (m ? m + ' ' : '') + t)} />}
         </form>
       </div>
+      </>}
     </main>
   ) : (
     <main className="hidden md:flex flex-1 items-center justify-center bg-cream text-slate-500 flex-col gap-3">

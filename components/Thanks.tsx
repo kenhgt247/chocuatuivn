@@ -1,0 +1,61 @@
+/** Lời cảm ơn: hiển thị và gửi. */
+import React, { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { community, receiverOf, type CommunityRequest, type ThankNote } from '../services/community';
+import { formatTimeAgo } from '../utils/format';
+import type { User } from '../types';
+
+function when(x: any) {
+  try { const d = x?.toDate ? x.toDate() : x ? new Date(x) : null; return d ? formatTimeAgo(d.toISOString()) : ''; } catch (_) { return ''; }
+}
+
+export function ThanksList({ items, title, more }: { items: ThankNote[]; title?: string; more?: string }) {
+  if (!items.length) return null;
+  return <section className="flex flex-col gap-2">
+    {title && <h2 className="font-extrabold">{title}</h2>}
+    {items.map(t => <article key={t.id} className="bg-white border border-line rounded-2xl p-3.5 flex gap-3">
+      {t.receiverAvatar ? <img src={t.receiverAvatar} alt="" className="h-10 w-10 rounded-full object-cover shrink-0" />
+        : <span className="h-10 w-10 rounded-full bg-sun-light text-sun-dark font-extrabold grid place-items-center shrink-0">{(t.receiverName || '?').charAt(0).toUpperCase()}</span>}
+      <div className="min-w-0 flex-1">
+        <p className="text-[15px] leading-snug">“{t.message}”</p>
+        <p className="text-xs text-slate-600 mt-1">{t.receiverName} · {t.listingTitle} {when(t.createdAt) ? '· ' + when(t.createdAt) : ''}</p>
+        {t.photo && <img src={t.photo} alt="" loading="lazy" className="mt-2 h-28 w-28 rounded-xl object-cover" />}
+      </div>
+    </article>)}
+    {more && <Link to={more} className="self-start text-sm font-semibold text-emerald-700 underline min-h-9">Xem tất cả lời cảm ơn</Link>}
+  </section>;
+}
+
+/** Nút + hộp viết lời cảm ơn (chỉ hiện cho người nhận khi yêu cầu đã hoàn thành). */
+export function ThankButton({ r, user, onSent }: { r: CommunityRequest; user: User; onSent?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState<boolean | null>(null);
+  const [err, setErr] = useState('');
+  const file = useRef<HTMLInputElement>(null);
+  React.useEffect(() => { if (r.status === 'completed' && receiverOf(r) === user.id) community.thankFor(r.id).then(t => setSent(!!t)); }, [r.id, r.status]);
+  if (r.status !== 'completed' || receiverOf(r) !== user.id || sent === null) return null;
+  if (sent) return <p className="text-sm text-emerald-800 font-semibold">💚 Bạn đã gửi lời cảm ơn.</p>;
+  async function send() {
+    setBusy(true); setErr('');
+    try { await community.sendThanks(r, user, text, photo); setSent(true); setOpen(false); onSent?.(); }
+    catch (e: any) { setErr(e?.message || 'Chưa gửi được, thử lại nhé.'); }
+    finally { setBusy(false); }
+  }
+  if (!open) return <button onClick={() => setOpen(true)} className="w-full min-h-12 rounded-[14px] bg-sun text-[#2E1F00] font-extrabold">💛 Gửi lời cảm ơn</button>;
+  const quick = ['Cảm ơn bạn nhiều nhé!', 'Món đồ rất hữu ích, cảm ơn bạn!', 'Bạn thật tốt bụng!'];
+  return <div className="rounded-2xl border border-line bg-cream p-3 flex flex-col gap-2">
+    <p className="text-sm font-bold">Lời cảm ơn sẽ hiện trên hồ sơ của người giúp bạn.</p>
+    <div className="flex flex-wrap gap-1.5">{quick.map(q => <button key={q} onClick={() => setText(q)} className="min-h-9 px-3 rounded-full bg-white border border-line text-[13px] font-semibold">{q}</button>)}</div>
+    <textarea value={text} onChange={e => setText(e.target.value)} maxLength={300} rows={3} placeholder="Viết vài lời cảm ơn…" className="w-full rounded-xl border border-line bg-white p-3 text-base" />
+    <input ref={file} type="file" accept="image/*" className="hidden" onChange={e => setPhoto(e.target.files?.[0] || null)} />
+    <button onClick={() => file.current?.click()} className="self-start text-sm font-semibold text-emerald-700 underline min-h-9">{photo ? '✓ Đã chọn ảnh: ' + photo.name.slice(0, 24) : '+ Thêm ảnh món đồ (không bắt buộc)'}</button>
+    {err && <p role="alert" className="text-sm text-rose-700">{err}</p>}
+    <div className="flex gap-2">
+      <button disabled={busy || text.trim().length < 2} onClick={send} className="flex-1 min-h-11 rounded-xl bg-emerald-700 text-white font-bold disabled:opacity-50">{busy ? 'Đang gửi…' : 'Gửi lời cảm ơn'}</button>
+      <button onClick={() => setOpen(false)} className="min-h-11 px-4 rounded-xl border border-line bg-white font-semibold">Để sau</button>
+    </div>
+  </div>;
+}

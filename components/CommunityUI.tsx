@@ -77,7 +77,7 @@ export function Steps({ r }: { r: CommunityRequest }) {
 }
 
 /** Các nút chuyển bước theo vai trò, có hỏi lại trước bước xác nhận. */
-export function RequestActions({ r, uid, onDone, compact, mainOnly }: { r: CommunityRequest; uid: string; onDone?: () => void; compact?: boolean; mainOnly?: boolean }) {
+export function RequestActions({ r, uid, onDone, compact, mainOnly, onAccepted }: { r: CommunityRequest; uid: string; onDone?: () => void; compact?: boolean; mainOnly?: boolean; onAccepted?: (r: CommunityRequest) => void }) {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
   const next = nextStatuses(r, uid);
@@ -85,7 +85,7 @@ export function RequestActions({ r, uid, onDone, compact, mainOnly }: { r: Commu
     if ((status === 'completed' || status === 'handed_over' || status === 'returned') && !window.confirm(actionLabel(r, status) + '?\nChỉ bấm khi việc này đã thật sự diễn ra.')) return;
     if (status === 'cancelled' && r.status === 'accepted' && !window.confirm('Hủy việc đã được đồng ý?')) return;
     setWorking(true); setError('');
-    try { await community.updateStatus(r, status); onDone?.(); }
+    try { await community.updateStatus(r, status); if (status === 'accepted') onAccepted?.(r); onDone?.(); }
     catch (e: any) { setError(e?.message || 'Chưa cập nhật được, thử lại nhé.'); }
     finally { setWorking(false); }
   }

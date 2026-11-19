@@ -6,10 +6,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cachedPage, loadPage, rememberScope, type Scope } from '../utils/feed';
 import ShareModal from '../components/ShareModal';
+import PhotoViewer from '../components/PhotoViewer';
+import { ThanksList, ThankButton } from '../components/Thanks';
+import { BadgeRow } from '../components/Badges';
 import { db } from '../services/db';
 import {
   community, kindLabels, statusLabels, MAX_PHOTOS, safetyNotes,
-  type CommunityKind, type CommunityIntent, type CommunityListing, type CommunityRequest
+  type CommunityKind, type CommunityIntent, type CommunityListing, type CommunityRequest, type ThankNote
 } from '../services/community';
 import { KIcon, KIND_META, kindText, IntentBadge, Steps, RequestActions, SafetyBox, VoiceButton } from '../components/CommunityUI';
 import { getArea, getAreaPoint, onAreaChange, sameArea } from '../utils/area';
@@ -258,8 +261,22 @@ function Home({ user }: { user: User | null }) {
 }
 
 /* ---------------- Đăng tin nhanh ---------------- */
-function Post({ user }: { user: User | null }) {
+function Post({ user, editId }: { user: User | null; editId?: string }) {
   const nav = useNavigate();
+  const editing = !!editId;
+  const [keep, setKeep] = useState<{ img: string; thumb: string }[]>([]);
+  const [loadingEdit, setLoadingEdit] = useState(editing);
+  useEffect(() => {
+    if (!editId || !user) return;
+    community.detail(editId).then(x => {
+      if (!x || x.sellerId !== user.id) { setError('Bạn chỉ sửa được tin của mình.'); return; }
+      setIntent((x.communityIntent || 'have') as CommunityIntent); setKind((x.communityKind || 'gift') as CommunityKind);
+      setTitle(x.title || ''); setDescription(x.description || ''); setShowDesc(!!x.description);
+      setMeetPlace((x as any).meetPlace || ''); setLocation(x.location || ''); setEditLoc(false);
+      const imgs = x.images || []; const th = ((x as any).thumbs as string[]) || [];
+      setKeep(imgs.map((u, i) => ({ img: u, thumb: th[i] || u })));
+    }).catch(() => setError('Không tải được tin.')).finally(() => setLoadingEdit(false));
+  }, [editId, user?.id]);
   const [intent, setIntent] = useState<CommunityIntent>(() => new URLSearchParams(window.location.search).get('y') === 'can' ? 'need' : 'have');
   const [kind, setKind] = useState<CommunityKind>('gift');
   const [title, setTitle] = useState('');
@@ -307,8 +324,13 @@ function Post({ user }: { user: User | null }) {
     if (bad) { setError('Tin có nội dung không được phép (' + bad.toLowerCase() + '). Xem Quy tắc cộng đồng.'); return; }
     setError(''); setSaving(true);
     try {
-      await community.create(user, { title, description, location, photos, kind, intent, approximateCoords, meetPlace, wardPoint });
-      nav('/cong-dong/da-dang');
+      if (editId) {
+        await community.edit(editId, { title, description, meetPlace, keepImages: keep.map(k => k.img), keepThumbs: keep.map(k => k.thumb), photos });
+        nav('/cong-dong/da-dang?sua=1');
+      } else {
+        await community.create(user, { title, description, location, photos, kind, intent, approximateCoords, meetPlace, wardPoint });
+        nav('/cong-dong/da-dang');
+      }
     } catch (err: any) { setError(err?.message || 'Chưa đăng được tin. Thử lại nhé.'); }
     finally { setSaving(false); }
   }
@@ -319,30 +341,35 @@ function Post({ user }: { user: User | null }) {
   return <form onSubmit={submit} className="mx-auto max-w-xl flex flex-col gap-4 pb-28 md:pb-0">
     <div className="flex items-center gap-2">
       <Link to="/" aria-label="Đóng" className="h-11 w-11 grid place-items-center rounded-full hover:bg-white"><KIcon name="x" /></Link>
-      <h1 className="text-xl font-extrabold">Đăng tin</h1>
+      <h1 className="text-xl font-extrabold">{editing ? 'Sửa tin' : 'Đăng tin'}</h1>
     </div>
-    <div role="group" aria-label="Bạn có hay bạn cần" className="grid grid-cols-2 p-1 bg-[#F1ECDF] rounded-2xl">
+    {loadingEdit && <p className="text-slate-600">Đang tải tin…</p>}
+    {editing && <p className="text-[13px] text-slate-600 bg-white border border-line rounded-xl px-3 py-2">Sửa xong, máy kiểm tra lại tin trong vài giây rồi cho hiện. Loại tin và khu vực giữ nguyên.</p>}
+    <div role="group" aria-label="Bạn có hay bạn cần" className={'grid grid-cols-2 p-1 bg-[#F1ECDF] rounded-2xl ' + (editing ? 'hidden' : '')}>
       {(['have', 'need'] as const).map(v => <button type="button" key={v} onClick={() => setIntent(v)} aria-pressed={intent === v}
         className={'min-h-12 rounded-xl text-[17px] ' + (intent === v ? (v === 'have' ? 'bg-emerald-700 text-white font-extrabold' : 'bg-sun text-[#2E1F00] font-extrabold') : 'text-ink font-bold')}>
         {v === 'have' ? 'Tôi có' : 'Tôi cần'}</button>)}
     </div>
 
     <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
-      onChange={e => { const files = Array.from(e.target.files || []); setPhotos(p => [...p, ...files].slice(0, MAX_PHOTOS)); e.target.value = ''; }} />
-    {photos.length === 0
+      onChange={e => { const files = Array.from(e.target.files || []); setPhotos(p => [...p, ...files].slice(0, Math.max(0, MAX_PHOTOS - keep.length))); e.target.value = ''; }} />
+    {photos.length + keep.length === 0
       ? <button type="button" onClick={() => fileRef.current?.click()} className="h-[168px] rounded-[20px] border-2 border-dashed border-[#B9C9BC] bg-white flex flex-col items-center justify-center gap-2 text-emerald-700">
           <span className="h-16 w-16 rounded-full bg-emerald-50 grid place-items-center"><KIcon name="camera" className="w-8 h-8" /></span>
           <span className="text-[17px] font-extrabold">{intent === 'have' ? 'Chụp ảnh món đồ' : 'Thêm ảnh (nếu có)'}</span>
           <span className="text-[13px] text-slate-600">hoặc chọn từ máy · tối đa {MAX_PHOTOS} ảnh</span>
         </button>
-      : <div className="flex gap-2 flex-wrap">{previews.map((u, i) =>
+      : <div className="flex gap-2 flex-wrap">{keep.map((k, i) =>
+          <div key={k.img} className="relative"><img src={k.thumb} alt="" className="h-24 w-24 rounded-2xl object-cover border border-line" />
+            <button type="button" aria-label="Bỏ ảnh" onClick={() => setKeep(p => p.filter((_, j) => j !== i))} className="absolute -top-2 -right-2 h-7 w-7 rounded-full bg-white border border-line grid place-items-center"><KIcon name="x" className="w-4 h-4" /></button>
+          </div>)}{previews.map((u, i) =>
           <div key={u} className="relative"><img src={u} alt="" className="h-24 w-24 rounded-2xl object-cover border border-line" />
             <button type="button" aria-label="Bỏ ảnh" onClick={() => setPhotos(p => p.filter((_, j) => j !== i))} className="absolute -top-2 -right-2 h-7 w-7 rounded-full bg-white border border-line grid place-items-center"><KIcon name="x" className="w-4 h-4" /></button>
           </div>)}
-          {photos.length < MAX_PHOTOS && <button type="button" onClick={() => fileRef.current?.click()} aria-label="Thêm ảnh" className="h-24 w-24 rounded-2xl border-2 border-dashed border-[#B9C9BC] bg-white grid place-items-center text-emerald-700"><KIcon name="camera" /></button>}
+          {photos.length + keep.length < MAX_PHOTOS && <button type="button" onClick={() => fileRef.current?.click()} aria-label="Thêm ảnh" className="h-24 w-24 rounded-2xl border-2 border-dashed border-[#B9C9BC] bg-white grid place-items-center text-emerald-700"><KIcon name="camera" /></button>}
         </div>}
 
-    <div className="grid grid-cols-2 gap-2" role="group" aria-label="Loại">
+    <div className={'grid grid-cols-2 gap-2 ' + (editing ? 'hidden' : '')} role="group" aria-label="Loại">
       {KINDS.map(k => <button type="button" key={k} onClick={() => setKind(k)} aria-pressed={kind === k}
         className={'flex items-center gap-2 min-h-[52px] px-3 rounded-[14px] text-[15px] font-bold ' + (kind === k ? 'border-2 border-emerald-700 bg-emerald-50 text-emerald-900' : 'border border-line bg-white')}>
         <KIcon name={k} className="w-[22px] h-[22px] text-emerald-700" />{kindText(k, intent)}</button>)}
@@ -363,12 +390,13 @@ function Post({ user }: { user: User | null }) {
       <span className="text-[15px] font-bold">Hẹn {intent === 'have' && (kind === 'gift' || kind === 'borrow') ? 'trao' : 'gặp'} ở đâu?</span>
       <div className="flex gap-2 flex-wrap">{MEET_PLACES.map(p => <button type="button" key={p} onClick={() => setMeetPlace(meetPlace === p ? '' : p)} aria-pressed={meetPlace === p}
         className={'min-h-9 px-3 rounded-full border text-[13px] font-semibold ' + (meetPlace === p ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white')}>{p}</button>)}</div>
-      {editLoc
+      {editing ? <span className="flex items-center gap-1.5 text-[13px] text-slate-600"><KIcon name="pin" className="w-4 h-4 text-emerald-700" />{location}</span>
+      : editLoc
         ? <div><label htmlFor="post-area" className="sr-only">Xã/phường</label>
             <AreaInput id="post-area" value={location} onType={t => { setLocation(t); setWardPoint(null); }} onPick={w => { setLocation(w.label); setWardPoint({ lat: w.lat, lng: w.lng, code: w.code }); setEditLoc(false); }} /></div>
         : <span className="flex items-center gap-1.5 text-[13px] text-slate-600"><KIcon name="pin" className="w-4 h-4 text-emerald-700" />{location} · <button type="button" className="underline text-emerald-700 font-semibold" onClick={() => setEditLoc(true)}>Đổi</button></span>}
-      <button type="button" onClick={askLocation} disabled={locating} className="self-start text-[13px] font-semibold underline text-emerald-700 min-h-8">
-        {locating ? 'Đang xác định…' : approximateCoords ? '✓ Đã gắn vị trí gần đúng lên bản đồ' : 'Thêm vị trí gần đúng lên bản đồ (không bắt buộc)'}</button>
+      {!editing && <button type="button" onClick={askLocation} disabled={locating} className="self-start text-[13px] font-semibold underline text-emerald-700 min-h-8">
+        {locating ? 'Đang xác định…' : approximateCoords ? '✓ Đã gắn vị trí gần đúng lên bản đồ' : 'Thêm vị trí gần đúng lên bản đồ (không bắt buộc)'}</button>}
       <span className="text-xs text-slate-500">Không ghi số nhà. Trên bản đồ, tin được đặt ở giữa xã/phường (hoặc vị trí làm tròn khoảng 1 km nếu bạn cho phép).</span>
     </div>
 
@@ -377,17 +405,21 @@ function Post({ user }: { user: User | null }) {
     {error && <ErrorMessage message={error} />}
 
     <div className="fixed md:static left-0 right-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-5 md:p-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:shadow-none flex flex-col gap-1">
-      <button disabled={saving || blocked} type="submit" className="min-h-14 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white text-lg font-extrabold disabled:opacity-60">{saving ? 'Đang đăng…' : 'Đăng tin'}</button>
+      <button disabled={saving || blocked} type="submit" className="min-h-14 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white text-lg font-extrabold disabled:opacity-60">{saving ? (editing ? 'Đang lưu…' : 'Đang đăng…') : editing ? 'Lưu thay đổi' : 'Đăng tin'}</button>
       <span className="text-center text-xs text-slate-600">Miễn phí. Máy tự kiểm tra, tin ổn sẽ hiện sau vài giây.</span>
     </div>
   </form>;
 }
 function Posted() {
+  const edited = new URLSearchParams(window.location.search).get('sua') === '1';
   return <div className="mx-auto max-w-lg rounded-3xl bg-white border border-line p-8 text-center">
     <span className="h-16 w-16 rounded-full bg-emerald-50 text-emerald-700 grid place-items-center mx-auto"><KIcon name="check" className="w-8 h-8" strokeWidth={3} /></span>
-    <h1 className="text-2xl font-extrabold mt-4">Đã nhận tin của bạn!</h1>
-    <p className="text-slate-600 mt-2">Tin đang chờ quản trị viên duyệt. Khi có người liên hệ, bạn sẽ thấy ở mục Tin nhắn.</p>
-    <Link className={btnPrimary + ' inline-flex items-center mt-6'} to="/">Về trang chủ</Link>
+    <h1 className="text-2xl font-extrabold mt-4">{edited ? 'Đã lưu thay đổi!' : 'Đã nhận tin của bạn!'}</h1>
+    <p className="text-slate-600 mt-2">Máy đang kiểm tra tin, thường xong trong vài giây. Tin ổn sẽ hiện ngay; nếu cần người duyệt xem, bạn sẽ nhận thông báo. Khi có người liên hệ, bạn sẽ thấy ở mục Tin nhắn.</p>
+    <div className="flex gap-2 justify-center flex-wrap mt-6">
+      <Link className={btnPrimary + ' inline-flex items-center'} to="/profile">Xem tin của tôi</Link>
+      <Link className={btnLight + ' inline-flex items-center'} to="/">Về trang chủ</Link>
+    </div>
   </div>;
 }
 
@@ -404,6 +436,9 @@ function Detail({ user, id }: { user: User | null; id: string }) {
   const [saved, setSaved] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [reported, setReported] = useState(false);
+  const [viewer, setViewer] = useState(false);
+  const [thanks, setThanks] = useState<ThankNote[]>([]);
+  const [iBlocked, setIBlocked] = useState(false);
   const area = useArea(user);
   useEffect(() => {
     if (!item) return;
@@ -412,11 +447,15 @@ function Detail({ user, id }: { user: User | null; id: string }) {
     return () => { document.title = prev; };
   }, [item?.id]);
   useEffect(() => { if (user) community.savedIds(user.id).then(ids => setSaved(ids.includes(id))); }, [user?.id, id]);
+  useEffect(() => { if (user && item) community.blockedIds(user.id).then(b => setIBlocked(b.includes(item.sellerId))); }, [user?.id, item?.sellerId]);
   useEffect(() => {
     let alive = true; setLoading(true);
     community.detail(id).then(x => {
       if (!alive) return; setItem(x);
-      if (x) { db.getPublicProfile(x.sellerId).then(p => alive && setOwner(p)); community.doneCount(x.sellerId).then(n => alive && setDone(n)); }
+      if (x) {
+        db.getPublicProfile(x.sellerId).then(p => alive && setOwner(p)); community.doneCount(x.sellerId).then(n => alive && setDone(n));
+        community.thanksFor(x.sellerId, 10).then(t => alive && setThanks(t));
+      }
     }).catch(e => alive && setError(e?.message || 'Không tải được tin')).finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, [id]);
@@ -452,26 +491,60 @@ function Detail({ user, id }: { user: User | null; id: string }) {
     try { await db.reportListing({ listingId: item.id, targetUserId: item.sellerId, userId: user.id, reason: reason.slice(0, 300) }); setReported(true); }
     catch (_) { setError('Chưa gửi được báo cáo.'); }
   }
+  async function unblock() {
+    if (!item) return;
+    try { await community.setBlocked(item.sellerId, false); setIBlocked(false); } catch (_) { setError('Chưa bỏ chặn được.'); }
+  }
   const roundBtn = 'h-11 w-11 rounded-full bg-white/95 grid place-items-center text-ink shadow-sm';
 
-  return <div className="mx-auto max-w-3xl pb-32 md:pb-0">
-    <div className="relative -mx-4 md:mx-0 md:rounded-3xl overflow-hidden">
-      {images.length
-        ? <img src={images[Math.min(photoIndex, images.length - 1)]} alt={item.title} className="w-full h-[300px] md:h-[420px] object-cover bg-emerald-950" />
-        : <div className={'h-[300px] grid place-items-center text-emerald-700 ' + KIND_META[kind].tint}><KIcon name={kind} className="w-28 h-28" strokeWidth={1.2} /></div>}
-      <button onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))} aria-label="Quay lại" className={roundBtn + ' absolute top-3.5 left-4'}><KIcon name="back" className="w-[22px] h-[22px]" /></button>
-      <div className="absolute top-3.5 right-4 flex gap-2">
-        <button onClick={() => setSharing(true)} aria-label="Chia sẻ" className={roundBtn}><KIcon name="share" className="w-5 h-5" /></button>
-        <button onClick={toggleSave} aria-label={saved ? 'Bỏ lưu' : 'Lưu tin'} aria-pressed={saved} className={roundBtn + (saved ? ' !bg-emerald-700 !text-white' : '')}><KIcon name="bookmark" className="w-5 h-5" /></button>
+  const ownerBox = <Link to={'/profile/' + item.sellerId} className="flex items-center gap-3 p-3 bg-white border border-line rounded-2xl">
+    {owner?.avatar ? <img src={owner.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
+      : <span className="h-11 w-11 rounded-full bg-emerald-700 text-white font-extrabold grid place-items-center">{ownerName.charAt(0).toUpperCase()}</span>}
+    <span className="flex flex-col flex-1 min-w-0">
+      <span className="text-[15px] font-bold truncate">{ownerName}</span>
+      <span className="text-xs text-slate-600">{[(owner?.sharedCount || done) > 0 ? 'Đã chia sẻ xong ' + (owner?.sharedCount || done) + ' lần' : 'Thành viên Chợ Của Tui', thanks.length ? thanks.length + ' lời cảm ơn' : ''].filter(Boolean).join(' · ')}</span>
+    </span>
+    <BadgeRow p={owner} />
+  </Link>;
+  const actionBox = <div className="fixed md:static left-0 right-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-5 md:p-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:shadow-none flex flex-col gap-1.5">
+    {mine
+      ? <div className="flex gap-2">
+          <Link to={'/cong-dong/sua/' + item.id} className="min-h-14 px-5 rounded-2xl border border-line bg-white text-base font-extrabold flex items-center justify-center gap-2"><KIcon name="repair" className="w-5 h-5 text-emerald-700" />Sửa tin</Link>
+          <Link to="/cong-dong/yeu-cau" className="flex-1 min-h-14 rounded-2xl bg-emerald-700 text-white text-lg font-extrabold flex items-center justify-center gap-2">Xem người liên hệ</Link>
+        </div>
+      : iBlocked ? <p className="text-center text-sm text-slate-600 py-3">Bạn đã chặn người này. <button onClick={unblock} className="underline font-semibold">Bỏ chặn</button></p>
+      : <button disabled={sending} onClick={ask} className="min-h-14 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white text-lg font-extrabold flex items-center justify-center gap-2 disabled:opacity-60">
+          <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>
+          {sending ? 'Đang mở trò chuyện…' : need ? 'Tôi giúp được' : 'Xin món này'}</button>}
+    {!mine && !iBlocked && <span className="text-center text-xs text-slate-600">{user ? 'Bấm là mở trò chuyện với ' + ownerName + ' ngay' : 'Bạn sẽ được mời đăng nhập trước'}</span>}
+  </div>;
+
+  return <div className="mx-auto max-w-3xl lg:max-w-6xl pb-32 md:pb-0 lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-8 lg:items-start">
+    <div className="lg:sticky lg:top-24">
+      <div className="relative -mx-4 md:mx-0 md:rounded-3xl overflow-hidden">
+        {images.length
+          ? <button onClick={() => setViewer(true)} aria-label="Xem ảnh lớn" className="block w-full">
+              <img src={images[Math.min(photoIndex, images.length - 1)]} alt={item.title} className="w-full h-[300px] md:h-[420px] lg:h-[520px] object-cover bg-emerald-950" />
+            </button>
+          : <div className={'h-[300px] lg:h-[420px] grid place-items-center text-emerald-700 ' + KIND_META[kind].tint}><KIcon name={kind} className="w-28 h-28" strokeWidth={1.2} /></div>}
+        <button onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))} aria-label="Quay lại" className={roundBtn + ' absolute top-3.5 left-4'}><KIcon name="back" className="w-[22px] h-[22px]" /></button>
+        <div className="absolute top-3.5 right-4 flex gap-2">
+          <button onClick={() => setSharing(true)} aria-label="Chia sẻ" className={roundBtn}><KIcon name="share" className="w-5 h-5" /></button>
+          <button onClick={toggleSave} aria-label={saved ? 'Bỏ lưu' : 'Lưu tin'} aria-pressed={saved} className={roundBtn + (saved ? ' !bg-emerald-700 !text-white' : '')}><KIcon name="bookmark" className="w-5 h-5" /></button>
+        </div>
+        {images.length > 1 && <div className="lg:hidden absolute bottom-3.5 left-0 right-0 flex justify-center gap-1.5">{images.map((_, i) =>
+          <button key={i} onClick={() => setPhotoIndex(i)} aria-label={'Ảnh ' + (i + 1)} className={'h-2.5 rounded-full ' + (i === photoIndex ? 'w-6 bg-white' : 'w-2.5 bg-white/60')} />)}</div>}
+        {images.length > 0 && <span className="absolute bottom-3.5 right-4 text-[11px] font-bold bg-black/55 text-white rounded-full px-2.5 py-1 pointer-events-none">Chạm để xem lớn</span>}
       </div>
-      {images.length > 1 && <div className="absolute bottom-3.5 left-0 right-0 flex justify-center gap-1.5">{images.map((_, i) =>
-        <button key={i} onClick={() => setPhotoIndex(i)} aria-label={'Ảnh ' + (i + 1)} className={'h-2.5 rounded-full ' + (i === photoIndex ? 'w-6 bg-white' : 'w-2.5 bg-white/60')} />)}</div>}
+      {images.length > 1 && <div className="hidden lg:flex gap-2 mt-3">{images.map((u, i) =>
+        <button key={u} onClick={() => setPhotoIndex(i)} aria-label={'Ảnh ' + (i + 1)} className={'h-20 w-20 rounded-xl overflow-hidden border-2 ' + (i === photoIndex ? 'border-emerald-700' : 'border-transparent opacity-70 hover:opacity-100')}><img src={u} alt="" className="h-full w-full object-cover" /></button>)}</div>}
     </div>
 
-    <div className="pt-5 flex flex-col gap-3.5">
+    <div className="pt-5 lg:pt-0 flex flex-col gap-3.5">
       <div className="flex gap-2 flex-wrap">
         <IntentBadge kind={kind} intent={item.communityIntent} className="!text-xs !px-2.5 !py-1" />
         <span className="text-xs font-bold text-emerald-700 bg-white border border-emerald-700 px-2.5 py-0.5 rounded-full">Miễn phí</span>
+        {mine && item.status !== 'approved' && <span className="text-xs font-bold text-sun-dark bg-sun-light px-2.5 py-0.5 rounded-full">{item.status === 'pending' ? 'Đang chờ kiểm tra' : item.status === 'rejected' ? 'Chưa được đăng' : 'Đã ẩn'}</span>}
       </div>
       <h1 className="text-2xl md:text-3xl font-extrabold leading-tight">{item.title}</h1>
       {item.description && <p className="text-[15px] leading-relaxed text-[#3B4A40] whitespace-pre-wrap">{item.description}</p>}
@@ -480,28 +553,18 @@ function Detail({ user, id }: { user: User | null; id: string }) {
         {item.meetPlace && <span className="flex items-center gap-2"><KIcon name="map" className="w-[18px] h-[18px] text-emerald-700" />Hẹn {need ? 'gặp' : 'trao'} ở: {item.meetPlace}</span>}
         {item.createdAt && <span className="flex items-center gap-2"><KIcon name="clock" className="w-[18px] h-[18px] text-emerald-700" />Đăng {formatTimeAgo(String(item.createdAt))}</span>}
       </div>
-      <Link to={'/profile/' + item.sellerId} className="flex items-center gap-3 p-3 bg-white border border-line rounded-2xl">
-        {owner?.avatar ? <img src={owner.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
-          : <span className="h-11 w-11 rounded-full bg-emerald-700 text-white font-extrabold grid place-items-center">{ownerName.charAt(0).toUpperCase()}</span>}
-        <span className="flex flex-col flex-1 min-w-0">
-          <span className="text-[15px] font-bold truncate">{ownerName}</span>
-          <span className="text-xs text-slate-600">{(owner?.sharedCount || done) > 0 ? 'Đã chia sẻ xong ' + (owner?.sharedCount || done) + ' lần' : 'Thành viên Chợ Của Tui'}</span>
-        </span>
-      </Link>
+      <div className="hidden md:block">{actionBox}</div>
+      {ownerBox}
+      {thanks.length > 0 && <ThanksList items={thanks.slice(0, 2)} title={'Lời cảm ơn gửi ' + ownerName} more={thanks.length > 2 ? '/profile/' + item.sellerId : ''} />}
       <SafetyBox notes={notes} />
       {!mine && <p className="text-[13px] leading-relaxed text-slate-600">{need ? 'Người đăng sẽ chọn người giúp phù hợp.' : 'Người cho sẽ chọn người nhận.'} Không chuyển khoản hay đặt cọc cho bất kỳ ai. {reported ? 'Đã gửi báo cáo, cảm ơn bạn.' : <button onClick={report} className="underline">Báo cáo tin này</button>}</p>}
       {error && <ErrorMessage message={error} />}
     </div>
-
-    <div className="fixed md:static left-0 right-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-5 md:pt-5 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:shadow-none flex flex-col gap-1.5">
-      {mine
-        ? <Link to="/chat" className="min-h-14 rounded-2xl bg-emerald-700 text-white text-lg font-extrabold flex items-center justify-center gap-2">Xem người liên hệ</Link>
-        : <button disabled={sending} onClick={ask} className="min-h-14 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white text-lg font-extrabold flex items-center justify-center gap-2 disabled:opacity-60">
-            <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>
-            {sending ? 'Đang mở trò chuyện…' : need ? 'Tôi giúp được' : 'Xin món này'}</button>}
-      {!mine && <span className="text-center text-xs text-slate-600">{user ? 'Bấm là mở trò chuyện với ' + ownerName + ' ngay' : 'Bạn sẽ được mời đăng nhập trước'}</span>}
-    </div>
-    <ShareModal isOpen={sharing} onClose={() => setSharing(false)} url={window.location.origin + tinPath(item)} title={item.title} image={images[0]} text={(need ? 'Tôi cần' : 'Tôi có') + ' · ' + kindText(kind, item.communityIntent) + ': ' + item.title + ' — miễn phí trên Chợ Của Tui'} />
+    <div className="md:hidden">{actionBox}</div>
+    {viewer && images.length > 0 && <PhotoViewer images={images} start={photoIndex} title={item.title} onClose={() => setViewer(false)} />}
+    <ShareModal isOpen={sharing} onClose={() => setSharing(false)} url={window.location.origin + tinPath(item)} title={item.title} image={images[0]}
+      card={{ title: item.title, image: thumbOf(item) || images[0], badge: (need ? 'Tôi cần' : 'Tôi có') + ' · ' + kindText(kind, item.communityIntent), place: (item.location || '').split(',')[0], need }}
+      text={(need ? 'Tôi cần' : 'Tôi có') + ' · ' + kindText(kind, item.communityIntent) + ': ' + item.title + ' — miễn phí trên Chợ Của Tui'} />
   </div>;
 }
 
@@ -513,6 +576,22 @@ function Requests({ user }: { user: User | null }) {
   const [error, setError] = useState('');
   const [working, setWorking] = useState('');
   const [tab, setTab] = useState<'received' | 'sent'>('received');
+  const [people, setPeople] = useState<Record<string, PublicProfile | null>>({});
+  const [dist, setDist] = useState<Record<string, number | undefined>>({});
+  useEffect(() => {
+    if (!user) return;
+    const ids = [...new Set(items.filter(x => x.ownerId === user.id).map(x => x.requesterId))].filter(id => !(id in people));
+    if (!ids.length) return;
+    (async () => {
+      const mine = await wardFromLabel(getArea(user.location || '') || user.location || '').catch(() => null);
+      const got: Record<string, PublicProfile | null> = {}; const dd: Record<string, number | undefined> = {};
+      await Promise.all(ids.map(async id => {
+        const p = await db.getPublicProfile(id).catch(() => null); got[id] = p;
+        if (p?.location && mine) { const w = await wardFromLabel(p.location).catch(() => null); if (w) dd[id] = distanceKm(mine.lat, mine.lng, w.lat, w.lng); }
+      }));
+      setPeople(x => ({ ...x, ...got })); setDist(x => ({ ...x, ...dd }));
+    })();
+  }, [items, user?.id]);
   async function refresh() {
     if (!user) return;
     setError('');
@@ -533,6 +612,36 @@ function Requests({ user }: { user: User | null }) {
     } catch (e: any) { setError(e?.message || 'Không thể mở tin nhắn'); }
     finally { setWorking(''); }
   }
+  // Người xin trên tin của mình: gộp theo tin, kèm gợi ý ưu tiên công bằng
+  const groups: CommunityRequest[][] = (() => {
+    if (tab !== 'received') return [];
+    const m = new Map<string, CommunityRequest[]>();
+    for (const r of visible) m.set(r.listingId, [...(m.get(r.listingId) || []), r]);
+    return [...m.values()].map(list => list.sort((a, b) => tsOf(a.createdAt) - tsOf(b.createdAt)));
+  })();
+  async function onAccepted(r: CommunityRequest) {
+    const waiting = items.filter(x => x.listingId === r.listingId && x.id !== r.id && x.status === 'requested').length;
+    if (!waiting) return;
+    if (!window.confirm('Đã chọn được người. Báo nhẹ nhàng cho ' + waiting + ' người còn lại đang chờ là đã có người nhận nhé?')) return;
+    await community.declineOthers(r.listingId, r.id);
+    await refresh();
+  }
+  const card = (r: CommunityRequest, hint?: React.ReactNode) => <article key={r.id} className="rounded-[18px] bg-white border border-line p-4 flex flex-col gap-3">
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0">
+        {tab === 'sent' && <Link className="text-[15px] font-bold hover:underline line-clamp-2" to={'/cong-dong/tin/' + r.listingId}>{r.listingTitle}</Link>}
+        {tab === 'received' && <span className="text-[15px] font-bold">{people[r.requesterId]?.name || 'Thành viên'}</span>}
+        <span className="block text-xs text-slate-600 mt-0.5">{kindText(r.kind, r.intent)} · {statusLabels[r.status]}</span>
+      </div>
+      {r.status !== 'declined' && r.status !== 'cancelled' && <button disabled={working === r.id} onClick={() => chat(r)} className="shrink-0 min-h-10 px-3 rounded-full border border-line text-sm font-semibold flex items-center gap-1.5"><KIcon name="send" className="w-4 h-4 text-emerald-700" />Trò chuyện</button>}
+    </div>
+    {hint}
+    <p className="text-sm text-slate-600">“{r.message}”</p>
+    <Steps r={r} />
+    <RequestActions r={r} uid={user.id} onDone={refresh} compact onAccepted={onAccepted} />
+    <ThankButton r={r} user={user} />
+  </article>;
+
   return <div className="mx-auto max-w-2xl">
     <h1 className="text-2xl md:text-3xl font-extrabold mb-1">Yêu cầu</h1>
     <p className="text-slate-600 mb-4">Ai đang xin, ai đang giúp, đã tới bước nào.</p>
@@ -541,20 +650,34 @@ function Requests({ user }: { user: User | null }) {
         className={'min-h-11 rounded-xl text-[15px] ' + (tab === k ? 'bg-white font-extrabold shadow-sm' : 'font-semibold text-slate-600')}>{l}</button>)}
     </div>
     {error && <ErrorMessage message={error} />}
-    {loading ? <p className="text-slate-600">Đang tải…</p> : !visible.length ? <p className="rounded-2xl bg-white border border-line p-6 text-slate-600">Chưa có yêu cầu nào ở mục này.</p> :
-      <div className="space-y-3">{visible.map(r => <article key={r.id} className="rounded-[18px] bg-white border border-line p-4 flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <Link className="text-[15px] font-bold hover:underline line-clamp-2" to={'/cong-dong/tin/' + r.listingId}>{r.listingTitle}</Link>
-            <span className="block text-xs text-slate-600 mt-0.5">{kindText(r.kind, r.intent)} · {statusLabels[r.status]}</span>
-          </div>
-          {r.status !== 'declined' && r.status !== 'cancelled' && <button disabled={working === r.id} onClick={() => chat(r)} className="shrink-0 min-h-10 px-3 rounded-full border border-line text-sm font-semibold flex items-center gap-1.5"><KIcon name="send" className="w-4 h-4 text-emerald-700" />Trò chuyện</button>}
-        </div>
-        <p className="text-sm text-slate-600">“{r.message}”</p>
-        <Steps r={r} />
-        <RequestActions r={r} uid={user.id} onDone={refresh} compact />
-      </article>)}</div>}
+    {loading ? <p className="text-slate-600">Đang tải…</p> : !visible.length ? <p className="rounded-2xl bg-white border border-line p-6 text-slate-600">Chưa có yêu cầu nào ở mục này.</p>
+      : tab === 'sent' ? <div className="space-y-3">{visible.map(r => card(r))}</div>
+      : <div className="space-y-6">{groups.map(list => {
+          const open = list.filter(x => x.status === 'requested');
+          const near = open.map(x => ({ id: x.id, d: dist[x.requesterId] })).filter(x => x.d != null).sort((a, b) => a.d! - b.d!)[0];
+          const firstNew = open.find(x => !(people[x.requesterId]?.receivedCount));
+          return <section key={list[0].listingId} className="flex flex-col gap-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <Link className="text-lg font-extrabold hover:underline line-clamp-1" to={'/cong-dong/tin/' + list[0].listingId}>{list[0].listingTitle}</Link>
+              <span className="text-sm text-slate-600 shrink-0">{list.length} người</span>
+            </div>
+            {open.length > 1 && <p className="text-[13px] text-slate-600 bg-cream border border-line rounded-xl px-3 py-2">Có {open.length} người đang chờ. Gợi ý cho công bằng: ưu tiên người <b>xin trước</b>, <b>ở gần</b> hoặc <b>chưa nhận lần nào</b>.</p>}
+            {list.map((r, i) => {
+              const tags: string[] = [];
+              if (r.status === 'requested') {
+                if (open[0]?.id === r.id && open.length > 1) tags.push('⏱ Xin đầu tiên');
+                if (near && near.id === r.id && open.length > 1) tags.push('📍 Gần nhất' + (near.d! < 1 ? '' : ' ~' + Math.round(near.d!) + ' km'));
+                if (firstNew && firstNew.id === r.id && open.length > 1) tags.push('🌱 Chưa nhận lần nào');
+              }
+              return card(r, tags.length ? <div className="flex flex-wrap gap-1.5 -mt-1">{tags.map(t => <span key={t} className="text-xs font-bold bg-emerald-50 text-emerald-900 rounded-full px-2.5 py-1">{t}</span>)}</div> : null);
+            })}
+          </section>;
+        })}</div>}
   </div>;
+}
+
+function tsOf(x: any): number {
+  try { return x?.toMillis ? x.toMillis() : x?.seconds ? x.seconds * 1000 : x ? new Date(x).getTime() : 0; } catch (_) { return 0; }
 }
 
 /* ---------------- Đã lưu ---------------- */
@@ -576,6 +699,7 @@ function Saved({ user }: { user: User | null }) {
 export default function CommunityApp({ user }: { user: User | null }) {
   const route = useLocation().pathname;
   if (route === '/cong-dong/dang-tin') return <Post user={user} />;
+  if (route.startsWith('/cong-dong/sua/')) return <Post user={user} editId={route.split('/').pop()} key={route} />;
   if (route === '/cong-dong/yeu-cau') return <Requests user={user} />;
   if (route === '/cong-dong/da-dang') return <Posted />;
   if (route === '/cong-dong/da-luu') return <Saved user={user} />;

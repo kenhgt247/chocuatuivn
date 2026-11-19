@@ -12,6 +12,10 @@ import { Card } from './CommunityApp';
 import { thumbOf } from '../utils/format';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import { AreaInput } from '../components/AreaInput';
+import { BadgeList } from '../components/Badges';
+import { ThanksList } from '../components/Thanks';
+import { isBigText, setBigText } from '../utils/textSize';
+import type { ThankNote } from '../services/community';
 
 interface ProfileProps {
   user: User;
@@ -40,8 +44,15 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout, onUpdateUser }) => {
   const [form, setForm] = useState({ name: user.name || '', phone: user.phone || '', location: user.location || '' });
   const [savingForm, setSavingForm] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [rep, setRep] = useState<{ sharedCount?: number; receivedCount?: number } | null>(null);
+  const [rep, setRep] = useState<any>(null);
   useEffect(() => { db.getPublicProfile(user.id).then(p => setRep(p)); }, [user.id]);
+  const [thanks, setThanks] = useState<ThankNote[]>([]);
+  useEffect(() => { community.thanksFor(user.id, 20).then(setThanks); }, [user.id]);
+  const [bigText, setBig] = useState(isBigText());
+  const [blocked, setBlocked] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    community.blockedIds(user.id).then(ids => Promise.all(ids.map(async id => ({ id, name: (await db.getPublicProfile(id))?.name || 'Thành viên' })))).then(setBlocked);
+  }, [user.id]);
   const avatarRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -130,6 +141,10 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout, onUpdateUser }) => {
         </div>
       </section>
 
+      {(rep && (rep.sharedCount || 0) > 0) || thanks.length ? <section className="mt-4 bg-white rounded-3xl border border-line p-5 flex flex-col gap-4">
+        <BadgeList p={rep} />
+        <ThanksList items={thanks.slice(0, 3)} title={thanks.length ? 'Lời cảm ơn bạn nhận được (' + thanks.length + ')' : ''} />
+      </section> : null}
       {message && <p role="status" className="mt-4 rounded-xl bg-emerald-50 text-emerald-800 p-3 text-sm">{message} <button className="underline" onClick={() => setMessage('')}>Đóng</button></p>}
 
       <div className="flex gap-2 mt-6 mb-4 overflow-x-auto">
@@ -159,6 +174,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout, onUpdateUser }) => {
                     <button disabled={working === item.id} onClick={() => setStatus(item, 'sold')} className={btn}>✓ Đã xong</button>
                     <button disabled={working === item.id} onClick={() => setStatus(item, 'hidden')} className={btn}>Ẩn tin</button>
                   </>}
+                  {['approved', 'pending', 'rejected'].includes(item.status) && <Link to={'/cong-dong/sua/' + item.id} className={btn + ' inline-flex items-center'}>Sửa</Link>}
                   <button disabled={working === item.id} onClick={() => remove(item)} className={btn + ' text-rose-700'}>Xóa</button>
                 </div>
               </div>
@@ -180,6 +196,22 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout, onUpdateUser }) => {
           <p className="text-xs text-slate-500">Email: {user.email}. Chỉ chia sẻ số điện thoại trong tin nhắn khi bạn tin tưởng người kia.</p>
           <button disabled={savingForm} className="min-h-12 w-full rounded-2xl bg-emerald-700 text-white font-bold disabled:opacity-60">{savingForm ? 'Đang lưu…' : 'Lưu thông tin'}</button>
         </form>
+      )}
+      {tab === 'settings' && (
+        <div className="bg-white rounded-2xl border p-5 space-y-4 max-w-xl mt-4">
+          <label className="flex items-center justify-between gap-4">
+            <span><span className="font-semibold block">Chữ to</span><span className="text-sm text-slate-600">Phóng to chữ và nút cho dễ đọc, dễ bấm.</span></span>
+            <input type="checkbox" className="h-6 w-11 accent-emerald-700" checked={bigText} onChange={e => { setBig(e.target.checked); setBigText(e.target.checked); }} />
+          </label>
+          <div>
+            <span className="font-semibold block">Người đã chặn</span>
+            {!blocked.length ? <p className="text-sm text-slate-600">Bạn chưa chặn ai. Chặn trong trang trò chuyện (nút ⋯ → Chặn).</p>
+              : <ul className="mt-2 space-y-2">{blocked.map(b => <li key={b.id} className="flex items-center justify-between gap-2">
+                  <span className="truncate">{b.name}</span>
+                  <button className={btn} onClick={async () => { await community.setBlocked(b.id, false); setBlocked(x => x.filter(y => y.id !== b.id)); }}>Bỏ chặn</button>
+                </li>)}</ul>}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -9,6 +9,7 @@ import { User } from '../types';
 import { db } from '../services/db';
 import { community, kindLabels, type CommunityListing } from '../services/community';
 import { Card } from './CommunityApp';
+import { thumbOf } from '../utils/format';
 import { compressAndGetBase64 } from '../utils/imageCompression';
 import { AreaInput } from '../components/AreaInput';
 
@@ -143,7 +144,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout, onUpdateUser }) => {
         : <div className="space-y-3">{mine.map(item => {
             const st = statusText[item.status] || statusText.pending;
             return <article key={item.id} className="bg-white rounded-2xl border p-4 flex gap-4">
-              {item.images?.[0] ? <img src={item.images[0]} alt="" className="h-20 w-20 rounded-xl object-cover shrink-0" />
+              {thumbOf(item) ? <img src={thumbOf(item)} alt="" loading="lazy" className="h-20 w-20 rounded-xl object-cover shrink-0" />
                 : <span className="h-20 w-20 rounded-xl bg-emerald-50 grid place-items-center text-3xl shrink-0">🌿</span>}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap text-xs">

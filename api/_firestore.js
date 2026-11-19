@@ -31,6 +31,28 @@ export async function getListing(id) {
   return { id, ...fields(d.fields) };
 }
 
+/** Tin cộng đồng đang hiện, mới nhất trước. Cần chỉ mục (isCommunityFree, status, createdAt);
+ *  chưa có chỉ mục thì tự lùi về truy vấn không sắp xếp. */
+export async function listNewest(max = 200) {
+  const where = { compositeFilter: { op: 'AND', filters: [
+    { fieldFilter: { field: { fieldPath: 'isCommunityFree' }, op: 'EQUAL', value: { booleanValue: true } } },
+    { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'approved' } } },
+  ] } };
+  const body = { structuredQuery: { from: [{ collectionId: 'listings' }], where,
+    orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }], limit: max } };
+  const r = await fetch(`${BASE}:runQuery?key=${API_KEY}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) {
+    // Chưa có chỉ mục sắp xếp: lấy không sắp xếp
+    const r2 = await fetch(`${BASE}:runQuery?key=${API_KEY}`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'listings' }], where, limit: 300 } }) });
+    if (!r2.ok) throw new Error('firestore ' + r2.status);
+    const rows2 = await r2.json();
+    return rows2.filter(x => x.document).map(x => ({ id: x.document.name.split('/').pop(), ...fields(x.document.fields) }));
+  }
+  const rows = await r.json();
+  return rows.filter(x => x.document).map(x => ({ id: x.document.name.split('/').pop(), ...fields(x.document.fields) }));
+}
+
 export async function listApproved(max = 1000) {
   const body = {
     structuredQuery: {

@@ -4,15 +4,15 @@ import { HelmetProvider } from 'react-helmet-async';
 
 // --- Layout & Pages ---
 import CommunityShell from './components/CommunityShell';
-import AppSkeleton from './components/AppSkeleton';
 import CommunityApp from './pages/CommunityApp';
-import Chat from './pages/Chat';
-import Profile from './pages/Profile';
-import SellerProfile from './pages/SellerProfile';
-import Auth from './pages/Auth';
-import Register from './pages/Register';
-import Admin from './pages/Admin';
-import StaticPage from './pages/StaticPage';
+// Các trang ít dùng ngay lúc đầu: tải khi mở tới (trang chủ nhẹ hơn)
+const Chat = React.lazy(() => import('./pages/Chat'));
+const Profile = React.lazy(() => import('./pages/Profile'));
+const SellerProfile = React.lazy(() => import('./pages/SellerProfile'));
+const Auth = React.lazy(() => import('./pages/Auth'));
+const Register = React.lazy(() => import('./pages/Register'));
+const Admin = React.lazy(() => import('./pages/Admin'));
+const StaticPage = React.lazy(() => import('./pages/StaticPage'));
 
 // --- Component ---
 import GoogleOneTap from './components/GoogleOneTap';
@@ -24,9 +24,16 @@ import { User } from './types';
 // --- Firebase ---
 import { onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, updateDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
-// [THÊM] Import Messaging để xử lý token và tin nhắn
-import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { app } from './services/db'; // Import app từ db service
+
+// Chờ trong khung trang (đầu trang + thanh dưới vẫn hiện)
+const PageWait = () => (
+  <div className="flex flex-col gap-3" aria-busy="true" aria-label="Đang tải">
+    <div className="h-7 w-1/2 rounded-xl bg-[#ECE5D4] animate-pulse" />
+    <div className="h-40 rounded-2xl bg-[#ECE5D4] animate-pulse" />
+    <div className="h-24 rounded-2xl bg-[#ECE5D4] animate-pulse" />
+  </div>
+);
 
 // Helper: Scroll to Top
 const ScrollToTop = () => {
@@ -59,6 +66,15 @@ const CommunityFrame: React.FC<{user: User | null; children: React.ReactNode}> =
   <CommunityShell user={user}>{children}</CommunityShell>
 );
 
+// Lưu hồ sơ người dùng trên máy để lần sau mở web không phải chờ tải hồ sơ
+const USER_CACHE = 'ccut-user-v1';
+function readUserCache(uid: string): User | null {
+  try { const u = JSON.parse(localStorage.getItem(USER_CACHE) || 'null'); return u && u.id === uid ? u : null; } catch (_) { return null; }
+}
+function writeUserCache(u: User | null) {
+  try { if (u) localStorage.setItem(USER_CACHE, JSON.stringify(u)); else localStorage.removeItem(USER_CACHE); } catch (_) { /* bỏ qua */ }
+}
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -81,18 +97,25 @@ const App: React.FC = () => {
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        // Có hồ sơ lưu trên máy từ lần trước: mở trang ngay, cập nhật hồ sơ sau
+        const cached = readUserCache(firebaseUser.uid);
+        if (cached) { setUser(cached); setIsInitializing(false); }
         try {
           // --- BƯỚC 1: LẤY THÔNG TIN USER ---
           const currentUser = await db.getUserProfile(firebaseUser.uid);
           
           if (currentUser) {
             setUser(currentUser);
+            writeUserCache(currentUser);
             // Giữ hồ sơ công khai (tên, ảnh, khu vực) luôn cập nhật; không chứa email/SĐT.
             db.syncPublicProfile({ ...currentUser, id: firebaseUser.uid });
             prevBalanceRef.current = currentUser.walletBalance;
 
             // --- BƯỚC 2: CẤU HÌNH PUSH NOTIFICATION (AN TOÀN TUYỆT ĐỐI) ---
             try {
+                // Thư viện thông báo đẩy chỉ tải khi đã đăng nhập
+                const { getMessaging, getToken, onMessage, isSupported } = await import('firebase/messaging');
+                if (!(await isSupported().catch(() => false))) throw new Error('push-unsupported');
                 const messaging = getMessaging(app);
 
                 // A. Xin quyền
@@ -150,6 +173,7 @@ const App: React.FC = () => {
               unsubscribeUserChange = db.onUserChange(currentUser.id, (updatedUser) => {
                 // Cập nhật state
                 setUser(updatedUser);
+                writeUserCache(updatedUser);
                 prevBalanceRef.current = updatedUser.walletBalance;
               });
             }
@@ -160,6 +184,7 @@ const App: React.FC = () => {
       } else {
         // --- KHI LOGOUT ---
         if (unsubscribeUserChange) unsubscribeUserChange();
+        writeUserCache(null);
         
         setUser(null);
         prevBalanceRef.current = 0; 
@@ -189,7 +214,7 @@ const App: React.FC = () => {
     };
 
     reportOnline();
-    const intervalId = setInterval(reportOnline, 120000);
+    const intervalId = setInterval(reportOnline, 300000); // 5 phút/lần cho đỡ tốn lượt ghi
     window.addEventListener("beforeunload", reportOffline);
     document.addEventListener("visibilitychange", reportOnline);
 
@@ -234,18 +259,22 @@ const App: React.FC = () => {
     prevBalanceRef.current = u.walletBalance;
   };
 
-  if (isInitializing) return <AppSkeleton />;
+  // Trang chủ và trang xem tin hiện ngay, không chờ đăng nhập.
+  // Trang cần biết đã đăng nhập hay chưa thì chờ tới khi biết.
+  const wait = (el: React.ReactElement) => isInitializing ? <PageWait /> : el;
 
   return (
     <HelmetProvider>
       <Router>
         <ScrollToTop />
-        {!user && <GoogleOneTap onLogin={handleLogin} />}
+        {!user && !isInitializing && <GoogleOneTap onLogin={handleLogin} />}
 
         <CommunityFrame user={user}>
+          <React.Suspense fallback={<PageWait />}>
           <Routes>
             <Route path="/" element={<CommunityApp user={user} />} />
-            <Route path="/cong-dong/*" element={<CommunityApp user={user} />} />
+            <Route path="/cong-dong/tin/*" element={<CommunityApp user={user} />} />
+            <Route path="/cong-dong/*" element={wait(<CommunityApp user={user} />)} />
             {/* Rao vặt đã lưu trữ: các đường dẫn cũ chuyển về cộng đồng */}
             <Route path="/rao-vat" element={<Navigate to="/" replace />} />
             <Route path="/search" element={<Navigate to="/" replace />} />
@@ -254,7 +283,7 @@ const App: React.FC = () => {
             <Route path="/listings/:slugWithId" element={<OldListingRedirect />} />
             <Route path="/listing/:slugWithId" element={<OldListingRedirect />} />
 
-            <Route path="/profile" element={user ? <Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
+            <Route path="/profile" element={wait(user ? <Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />)} />
             <Route path="/profile/:id" element={<SellerProfile currentUser={user} />} />
             <Route path="/seller/:id" element={<SellerProfile currentUser={user} />} />
             
@@ -262,20 +291,21 @@ const App: React.FC = () => {
             <Route path="/edit/:id" element={<Navigate to="/profile" replace />} />
             <Route path="/manage-ads" element={<Navigate to="/cong-dong/yeu-cau" replace />} />
 
-            <Route path="/chat" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
-            <Route path="/chat/:roomId" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
+            <Route path="/chat" element={wait(user ? <Chat user={user} /> : <Navigate to="/login" />)} />
+            <Route path="/chat/:roomId" element={wait(user ? <Chat user={user} /> : <Navigate to="/login" />)} />
             
             <Route path="/upgrade" element={<Navigate to="/" replace />} />
             <Route path="/wallet" element={<Navigate to="/" replace />} />
             
-            <Route path="/admin" element={user?.role === 'admin' ? <Admin user={user} /> : <Navigate to="/" />} />
+            <Route path="/admin" element={wait(user?.role === 'admin' ? <Admin user={user!} /> : <Navigate to="/" />)} />
 
-            <Route path="/login" element={!user ? <Auth onLogin={handleLogin} /> : <Navigate to="/" replace />} />
-            <Route path="/register" element={!user ? <Register onLogin={handleLogin} /> : <Navigate to="/" replace />} />
+            <Route path="/login" element={wait(!user ? <Auth onLogin={handleLogin} /> : <Navigate to="/" replace />)} />
+            <Route path="/register" element={wait(!user ? <Register onLogin={handleLogin} /> : <Navigate to="/" replace />)} />
             
             <Route path="/page/:slug" element={<StaticPage />} />
             <Route path="*" element={<div className="h-[50vh] flex items-center justify-center font-bold text-gray-400">404 - Trang không tồn tại</div>} />
           </Routes>
+          </React.Suspense>
         </CommunityFrame>
 
         {/* --- [CUSTOM TOAST] --- */}

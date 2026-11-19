@@ -11,7 +11,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { CommunityListing, CommunityKind } from '../services/community';
 import { KIcon, KIND_META, IntentBadge, kindText } from './CommunityUI';
-import { tinPath } from '../utils/format';
+import { tinPath, thumbOf } from '../utils/format';
 import { wardFromLabel, distanceKm, type Ward } from '../utils/dvhc';
 import { wardShape } from '../utils/ranhgioi';
 
@@ -100,8 +100,9 @@ function hasPt(x: CommunityListing) { return typeof x.lat === 'number' && typeof
 
 function Thumb({ item, size = 'h-14 w-14' }: { item: CommunityListing; size?: string }) {
   const kind = (item.communityKind || 'gift') as CommunityKind;
-  return item.images?.[0]
-    ? <img src={item.images[0]} alt="" loading="lazy" className={size + ' rounded-xl object-cover shrink-0'} />
+  const img = thumbOf(item);
+  return img
+    ? <img src={img} alt="" loading="lazy" className={size + ' rounded-xl object-cover shrink-0'} />
     : <span className={size + ' rounded-xl grid place-items-center text-emerald-700 shrink-0 ' + KIND_META[kind].tint}><KIcon name={kind} className="w-6 h-6" /></span>;
 }
 

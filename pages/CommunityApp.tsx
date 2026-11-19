@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import CommunityMap from '../components/CommunityMap';
+import { cachedFeed, freshFeed } from '../utils/feed';
 import ShareModal from '../components/ShareModal';
 import { db } from '../services/db';
 import {
@@ -15,8 +15,9 @@ import { KIcon, KIND_META, kindText, IntentBadge, Steps, RequestActions, SafetyB
 import { getArea, getAreaPoint, onAreaChange, sameArea } from '../utils/area';
 import { AreaInput } from '../components/AreaInput';
 import { wardFromLabel } from '../utils/dvhc';
-import { formatTimeAgo, tinPath } from '../utils/format';
+import { formatTimeAgo, tinPath, thumbOf } from '../utils/format';
 import type { User, PublicProfile } from '../types';
+const CommunityMap = React.lazy(() => import('../components/CommunityMap'));
 
 const KINDS: CommunityKind[] = ['gift', 'borrow', 'help', 'repair'];
 const MEET_PLACES = ['Cổng chợ', 'Cổng trường', 'Nhà văn hoá', 'UBND phường/xã', 'Gửi tiệm tạp hoá', 'Tại nhà'];
@@ -50,11 +51,12 @@ function metaLine(item: CommunityListing, area: string) {
 }
 
 /* ---------------- Thẻ tin ---------------- */
-function Card({ item, area = '' }: { item: CommunityListing; area?: string; key?: React.Key }) {
+function Card({ item, area = '', eager = false }: { item: CommunityListing; area?: string; eager?: boolean; key?: React.Key }) {
   const kind = (item.communityKind || 'gift') as CommunityKind;
+  const img = thumbOf(item);
   return <Link to={tinPath(item)} className="flex flex-col bg-white rounded-2xl overflow-hidden border border-line hover:shadow-md transition-shadow">
-    {item.images?.[0]
-      ? <img src={item.images[0]} alt="" loading="lazy" className="h-[108px] sm:h-40 w-full object-cover" />
+    {img
+      ? <img src={img} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" {...(eager ? { fetchpriority: 'high' } as any : {})} width={480} height={360} className="h-[108px] sm:h-40 w-full object-cover bg-[#ECE5D4]" />
       : <div className={'h-[108px] sm:h-40 grid place-items-center text-emerald-700 ' + KIND_META[kind].tint}><KIcon name={kind} className="w-11 h-11" strokeWidth={1.6} /></div>}
     <div className="p-3 flex flex-col gap-1.5">
       <IntentBadge kind={kind} intent={item.communityIntent} className="self-start" />
@@ -76,8 +78,11 @@ function Home({ user }: { user: User | null }) {
   const area = useArea(user);
   useEffect(() => {
     let alive = true;
-    community.list().then(r => { if (alive) setItems(r); })
-      .catch(e => { if (alive) setError(e?.message || 'Không tải được tin'); })
+    // Có bản lưu trên máy: hiện ngay, rồi cập nhật bản mới
+    const saved = cachedFeed();
+    if (saved) { setItems(saved); setLoading(false); }
+    freshFeed().then(r => { if (alive) setItems(r); })
+      .catch(e => { if (alive && !saved) setError(e?.message || 'Không tải được tin'); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, []);
@@ -129,8 +134,8 @@ function Home({ user }: { user: User | null }) {
           <p className="text-slate-600 mt-1">Hãy là người chia sẻ đầu tiên trong khu vực của bạn.</p>
           <Link className={btnPrimary + ' inline-flex items-center mt-4'} to="/cong-dong/dang-tin">Đăng tin đầu tiên</Link>
         </div>
-      : map ? <CommunityMap items={mapped as CommunityListing[]} area={area} />
-      : <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{filtered.map(it => <Card item={it} area={area} key={it.id} />)}</div>}
+      : map ? <React.Suspense fallback={<div className="h-[440px] md:h-[640px] rounded-2xl bg-[#ECE5D4] animate-pulse" />}><CommunityMap items={mapped as CommunityListing[]} area={area} /></React.Suspense>
+      : <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{filtered.map((it, i) => <Card item={it} area={area} eager={i < 4} key={it.id} />)}</div>}
   </div>;
 }
 

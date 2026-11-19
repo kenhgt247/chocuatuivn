@@ -19,9 +19,12 @@ import {
   signInWithPopup,
   signInWithCredential
 } from "firebase/auth";
-import { getStorage, ref, uploadString, getDownloadURL, uploadBytes } from "firebase/storage";
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { getMessaging, getToken, onMessage } from "firebase/messaging"; // <-- THÊM DÒNG NÀY Ở ĐẦU FILE
+// Lưu ảnh (Storage) và thông báo đẩy (Messaging) chỉ tải khi cần, cho trang chủ nhẹ hơn
+let storagePromise: Promise<{ s: any; m: typeof import('firebase/storage') }> | null = null;
+function storageLib() {
+  if (!storagePromise) storagePromise = import('firebase/storage').then(m => ({ s: m.getStorage(app), m }));
+  return storagePromise;
+}
 // Import Types
 import { PublicProfile, Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, AppNotification, Review, VerificationStatus, Offer, Category, Bid, Message, Story } from '../types';
 
@@ -153,9 +156,7 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const firestore = getFirestore(app);
 const auth = getAuth(app);
-const storage = getStorage(app);
-const functions = getFunctions(app);
-export { app, auth, storage, firestore };
+export { app, auth, firestore };
 
 export const db = {
   toSlug: (str: string) => {
@@ -514,9 +515,10 @@ export const db = {
   },
 
   uploadImage: async (base64: string, path: string): Promise<string> => {
-    const storageRef = ref(storage, path);
-    await uploadString(storageRef, base64, 'data_url');
-    return await getDownloadURL(storageRef);
+    const { s: storage, m } = await storageLib();
+    const storageRef = m.ref(storage, path);
+    await m.uploadString(storageRef, base64, 'data_url');
+    return await m.getDownloadURL(storageRef);
   },
 
   getSettings: async (): Promise<SystemSettings | null> => {
@@ -624,11 +626,12 @@ export const db = {
       // 2. Upload
       // Lưu trong thư mục của người gửi (Storage rules chỉ cho ghi users/<uid>/)
       const path = `users/${auth.currentUser?.uid}/chat/${Date.now()}.jpg`;
-      const storageRef = ref(storage, path);
-      const snapshot = await uploadBytes(storageRef, compressedBlob, { contentType: 'image/jpeg' });
+      const { s: storage, m } = await storageLib();
+      const storageRef = m.ref(storage, path);
+      const snapshot = await m.uploadBytes(storageRef, compressedBlob, { contentType: 'image/jpeg' });
       
       // 3. Lấy URL
-      return await getDownloadURL(snapshot.ref);
+      return await m.getDownloadURL(snapshot.ref);
     } catch (e) {
       console.error("Lỗi upload ảnh chat:", e);
       throw e;
@@ -770,6 +773,7 @@ export const db = {
   // Hàm xin quyền và lưu Token (Đã cấu hình lại cho sw.js)
   requestNotificationPermission: async (userId: string) => {
     try {
+      const { getMessaging, getToken } = await import('firebase/messaging');
       const messaging = getMessaging(app);
       
       // 1. Xin quyền trình duyệt

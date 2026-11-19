@@ -4,7 +4,7 @@
  */
 import {
   collection, doc, getDoc, getDocs, query, where, orderBy, limit, onSnapshot,
-  runTransaction, serverTimestamp
+  runTransaction, serverTimestamp, updateDoc
 } from 'firebase/firestore';
 import { auth, db, firestore } from './db';
 import { compressAndGetBase64 } from '../utils/imageCompression';
@@ -41,6 +41,7 @@ export interface CommunityPostInput {
   photos?: File[];
   approximateCoords?: {lat:number;lng:number} | null;
   meetPlace?: string; // chỗ hẹn trao: cổng chợ, cổng trường...
+  wardPoint?: { lat: number; lng: number; code?: string } | null; // tâm xã/phường đã chọn
 }
 
 const kinds: CommunityKind[] = ['gift', 'borrow', 'help', 'repair'];
@@ -163,6 +164,10 @@ export const community = {
   async setMyStatus(id: string, status: 'sold' | 'hidden'): Promise<void> {
     await db.updateListingStatus(id, status);
   },
+  /** Gia hạn tin đã hết hạn (sau 30 ngày): hiện lại, nội dung giữ nguyên. */
+  async renew(id: string): Promise<void> {
+    await updateDoc(doc(firestore, 'listings', id), { status: 'approved', renewedAt: serverTimestamp() });
+  },
   async remove(id: string): Promise<void> {
     await db.deleteListing(id);
   },
@@ -208,8 +213,10 @@ export const community = {
     const safe = typeof lat === 'number' && typeof lng === 'number' &&
       Number.isFinite(lat) && Number.isFinite(lng) &&
       Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
-    const safeLat = safe ? Math.round(lat! * 100) / 100 : null;
-    const safeLng = safe ? Math.round(lng! * 100) / 100 : null;
+    // Có GPS (đã đồng ý): làm tròn ~1 km. Không có: đặt ở tâm xã/phường (thông tin công khai).
+    const wp = input.wardPoint;
+    const safeLat = safe ? Math.round(lat! * 100) / 100 : (wp ? Math.round(wp.lat * 1e4) / 1e4 : null);
+    const safeLng = safe ? Math.round(lng! * 100) / 100 : (wp ? Math.round(wp.lng * 1e4) / 1e4 : null);
     // Dữ liệu được lưu ngay trong listings cũ, không làm thay đổi các tin cũ.
     return db.saveListing({
       title, description, location, address: '', lat: safeLat, lng: safeLng,
@@ -220,7 +227,8 @@ export const community = {
       sellerAvatar: user.avatar || '', sellerPhone: '',
       images, videoUrl: null, isAuction: false, affiliateLink: null,
       condition: 'used', status: 'pending', attributes: {},
-      meetPlace: safeText(input.meetPlace || '', 60)
+      meetPlace: safeText(input.meetPlace || '', 60),
+      areaCode: input.wardPoint?.code || null
     });
   },
   async request(item: CommunityListing, message: string): Promise<string> {

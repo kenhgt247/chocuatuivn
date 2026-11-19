@@ -1,224 +1,97 @@
-const { onRequest } = require("firebase-functions/v2/https");
-const admin = require("firebase-admin");
-const cors = require("cors")({ origin: true });
-const crypto = require("crypto");
+/**
+ * Cloud Functions — Chợ Của Tui (cộng đồng chia sẻ miễn phí).
+ * Không có thanh toán. Ba việc chạy trên máy chủ:
+ *  1. pushThongBao   : có thông báo mới -> đẩy về điện thoại (FCM).
+ *  2. hetHanTin      : mỗi sáng, tin cộng đồng quá 30 ngày -> "hết hạn", báo người đăng gia hạn.
+ *  3. diemUyTin      : yêu cầu được cả hai bên xác nhận xong -> cộng 1 lần "đã chia sẻ" cho người trao.
+ */
+const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { setGlobalOptions, logger } = require('firebase-functions/v2');
+const admin = require('firebase-admin');
 
 admin.initializeApp();
 const db = admin.firestore();
+setGlobalOptions({ maxInstances: 5 });
 
-// --- 1. HÀM LỌC TÊN (XỬ LÝ TIẾNG VIỆT) ---
-function cleanVietnamese(str) {
-    if (!str) return "";
-    str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
-    str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
-    str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
-    str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
-    str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
-    str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
-    str = str.replace(/đ/g, "d");
-    str = str.replace(/À|Á|Ạ|Ả|Ã|Â|Ầ|Ấ|Ậ|Ẩ|Ẫ|Ă|Ằ|Ắ|Ặ|Ẳ|Ẵ/g, "A");
-    str = str.replace(/È|É|Ẹ|Ẻ|Ẽ|Ê|Ề|Ế|Ệ|Ể|Ễ/g, "E");
-    str = str.replace(/Ì|Í|Ị|Ỉ|Ĩ/g, "I");
-    str = str.replace(/Ò|Ó|Ọ|Ỏ|Õ|Ô|Ồ|Ố|Ộ|Ổ|Ỗ|Ơ|Ờ|Ớ|Ợ|Ở|Ỡ/g, "O");
-    str = str.replace(/Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ/g, "U");
-    str = str.replace(/Ỳ|Ý|Ỵ|Ỷ|Ỹ/g, "Y");
-    str = str.replace(/Đ/g, "D");
-    return str.replace(/[^a-zA-Z0-9 ]/g, "").trim();
-}
+const SITE = 'https://www.chocuatui.vn';
+const EXPIRE_DAYS = 30;
 
-// --- 2. HÀM TẠO CHỮ KÝ PAYOS ---
-function createSignature(data, checksumKey) {
-    const sortedData = {
-        amount: data.amount,
-        cancelUrl: data.cancelUrl,
-        description: data.description,
-        orderCode: data.orderCode,
-        returnUrl: data.returnUrl
-    };
-    const signString = Object.keys(sortedData)
-        .sort()
-        .map(key => `${key}=${sortedData[key]}`)
-        .join("&");
-    return crypto.createHmac("sha256", checksumKey).update(signString).digest("hex");
-}
+// ---------------------------------------------------------------- 1. Thông báo đẩy
+exports.pushThongBao = onDocumentCreated('notifications/{id}', async (event) => {
+  const n = event.data && event.data.data();
+  if (!n || !n.userId) return;
+  const userRef = db.collection('users').doc(n.userId);
+  const user = (await userRef.get()).data();
+  const token = user && user.fcmToken;
+  if (!token || user.notificationsEnabled === false) return;
 
-// --- 3. API TẠO LINK THANH TOÁN (PAYOS) ---
-exports.createPaymentLink = onRequest({ cors: true }, async (req, res) => {
+  let badge = 1;
   try {
-    const CLIENT_ID = process.env.PAYOS_CLIENT_ID;
-    const API_KEY = process.env.PAYOS_API_KEY;
-    const CHECKSUM_KEY = process.env.PAYOS_CHECKSUM_KEY;
+    const c = await db.collection('notifications').where('userId', '==', n.userId).where('read', '==', false).count().get();
+    badge = c.data().count;
+  } catch (_) { /* bỏ qua */ }
 
-    if (!CLIENT_ID || !API_KEY || !CHECKSUM_KEY) throw new Error("Thiếu Key PayOS");
-
-    const { amount, userId, fullName } = req.body; 
-    const orderCode = Number(String(Date.now()).slice(-10));
-
-    let displayRawName = fullName || userId || "Khach";
-    let cleanName = cleanVietnamese(displayRawName);
-    if (cleanName.length > 15) cleanName = cleanName.substring(0, 15);
-
-    const descriptionText = `Nap ${cleanName}`; 
-
-    const requestData = {
-        orderCode: orderCode,
-        amount: Number(amount),
-        description: descriptionText,
-        cancelUrl: "https://www.chocuatui.vn/wallet",
-        returnUrl: "https://www.chocuatui.vn/wallet",
-        items: [],
-        buyerName: cleanName, 
-        expiredAt: Math.floor(Date.now() / 1000) + (15 * 60)
-    };
-
-    requestData.signature = createSignature(requestData, CHECKSUM_KEY);
-
-    const response = await fetch("https://api-merchant.payos.vn/v2/payment-requests", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "x-client-id": CLIENT_ID,
-            "x-api-key": API_KEY
-        },
-        body: JSON.stringify(requestData)
-    });
-
-    const result = await response.json();
-    if (!response.ok || result.code !== "00") throw new Error(result.desc);
-
-    await db.collection("transactions").add({
-        userId: userId || "guest",
-        fullName: fullName || "",
-        orderCode: orderCode,
-        amount: Number(amount),
-        status: "pending",
-        type: "deposit",
-        createdAt: new Date().toISOString(),
-        paymentLinkId: result.data.paymentLinkId,
-        checkoutUrl: result.data.checkoutUrl,
-        description: descriptionText
-    });
-
-    return res.json(result.data);
-
-  } catch (error) {
-    console.error("❌ Lỗi:", error);
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-// --- 4. XỬ LÝ WEBHOOK PAYOS (CỘNG TIỀN + GỬI THÔNG BÁO) ---
-exports.handlePayOSWebhook = onRequest({ cors: true }, async (req, res) => {
+  const link = typeof n.link === 'string' && n.link.startsWith('/') ? n.link : '/';
   try {
-    const webhookData = req.body.data;
-    if (!webhookData || !webhookData.orderCode) return res.json({ success: false, reason: "No data" });
-
-    const { orderCode, amount } = webhookData;
-    console.log(`🔔 PayOS báo tin: Đơn hàng ${orderCode} đã thanh toán ${amount}đ`);
-
-    const snapshot = await db.collection("transactions")
-        .where("orderCode", "==", Number(orderCode))
-        .limit(1)
-        .get();
-
-    if (snapshot.empty) return res.json({ success: false, reason: "Transaction not found" });
-
-    const doc = snapshot.docs[0];
-    const transData = doc.data();
-
-    if (transData.status === "success") return res.json({ success: true, message: "Already processed" });
-
-    // 🔥 TRANSACTION: CỘNG TIỀN VÀ TẠO THÔNG BÁO
-    await db.runTransaction(async (t) => {
-        const userRef = db.collection("users").doc(transData.userId);
-        const transRef = db.collection("transactions").doc(doc.id);
-        const newNotiRef = db.collection("notifications").doc();
-
-        // 1. Cộng tiền ví chính
-        t.update(userRef, { 
-            walletBalance: admin.firestore.FieldValue.increment(Number(amount)) 
-        });
-
-        // 2. Đổi trạng thái giao dịch
-        t.update(transRef, { 
-            status: "success",
-            webhookTime: new Date().toISOString(),
-            payOSReference: webhookData.reference || ""
-        });
-
-        // 3. Tạo thông báo
-        t.set(newNotiRef, {
-            userId: transData.userId,
-            title: "Nạp tiền thành công! 🎉",
-            message: `Hệ thống đã cộng ${Number(amount).toLocaleString('vi-VN')}đ vào ví của bạn.`,
-            type: "wallet",
-            read: false,
-            link: "/wallet",
-            createdAt: new Date().toISOString()
-        });
+    await admin.messaging().send({
+      token,
+      // Chỉ gửi "data": service worker (public/sw.js) tự hiện thông báo -> không bị hiện 2 lần
+      data: {
+        title: String(n.title || 'Chợ Của Tui').slice(0, 120),
+        body: String(n.message || '').slice(0, 300),
+        link, badge: String(badge), type: String(n.type || 'info'),
+      },
+      webpush: { headers: { Urgency: 'high', TTL: '86400' } },
     });
-
-    console.log(`✅ Đã cộng tiền và gửi thông báo cho User: ${transData.userId}`);
-    return res.json({ success: true });
-
-  } catch (error) {
-    console.error("❌ Lỗi xử lý Webhook:", error);
-    return res.json({ success: true }); 
-  }
-});
-
-// --- 5. API TÍCH ĐIỂM CHIA SẺ (AFFILIATE POINTS) [MỚI] ---
-exports.trackAffiliateClick = onRequest({ cors: true }, async (req, res) => {
-  try {
-    const { refId, listingId } = req.body;
-    // Lấy IP người click (để chống spam)
-    const visitorIp = req.headers['fastly-client-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-
-    if (!refId || !listingId) return res.json({ success: false, message: "Thiếu thông tin" });
-
-    // --- CẤU HÌNH ĐIỂM ---
-    const POINTS_PER_VIEW = 10; // 10 điểm cho 1 lượt xem
-
-    // 1. CHECK SPAM (IP + Listing + RefId trong 24h)
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const spamCheck = await db.collection("affiliate_logs")
-        .where("refId", "==", refId)
-        .where("visitorIp", "==", visitorIp)
-        .where("listingId", "==", listingId)
-        .where("createdAt", ">", yesterday)
-        .limit(1)
-        .get();
-
-    if (!spamCheck.empty) {
-        return res.json({ success: false, message: "IP này đã xem rồi" });
+  } catch (err) {
+    // Máy đã gỡ app hoặc tắt thông báo: xoá mã cũ để không gửi lại
+    const code = err && err.code;
+    if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') {
+      await userRef.update({ fcmToken: admin.firestore.FieldValue.delete() }).catch(() => {});
+    } else {
+      logger.error('Gửi thông báo đẩy lỗi', err);
     }
-
-    // 2. CỘNG ĐIỂM VÀO VÍ ĐIỂM (pointBalance)
-    await db.runTransaction(async (t) => {
-        const userRef = db.collection("users").doc(refId);
-        
-        // Cộng vào pointBalance (KHÔNG CỘNG VÀO walletBalance)
-        t.update(userRef, { 
-            pointBalance: admin.firestore.FieldValue.increment(POINTS_PER_VIEW),
-            totalPointsEarned: admin.firestore.FieldValue.increment(POINTS_PER_VIEW)
-        });
-
-        // Lưu log lịch sử điểm
-        const logRef = db.collection("affiliate_logs").doc();
-        t.set(logRef, {
-            refId,
-            listingId,
-            visitorIp,
-            points: POINTS_PER_VIEW,
-            type: 'share_view',
-            createdAt: new Date().toISOString()
-        });
-    });
-
-    return res.json({ success: true, points: POINTS_PER_VIEW });
-
-  } catch (error) {
-    console.error("❌ Lỗi Tích điểm:", error);
-    return res.status(500).json({ error: error.message });
   }
+});
+
+// ---------------------------------------------------------------- 2. Tin hết hạn sau 30 ngày
+function toMillis(v) {
+  if (!v) return 0;
+  if (typeof v === 'string') return Date.parse(v) || 0;
+  if (typeof v.toMillis === 'function') return v.toMillis();
+  return 0;
+}
+exports.hetHanTin = onSchedule({ schedule: 'every day 07:00', timeZone: 'Asia/Ho_Chi_Minh' }, async () => {
+  const cutoff = Date.now() - EXPIRE_DAYS * 86400000;
+  const snap = await db.collection('listings').where('isCommunityFree', '==', true).where('status', '==', 'approved').get();
+  const old = snap.docs.filter(d => Math.max(toMillis(d.get('renewedAt')), toMillis(d.get('createdAt'))) < cutoff);
+  for (let i = 0; i < old.length; i += 200) {
+    const batch = db.batch();
+    for (const d of old.slice(i, i + 200)) {
+      batch.update(d.ref, { status: 'expired', expiredAt: admin.firestore.FieldValue.serverTimestamp() });
+      batch.set(db.collection('notifications').doc(), {
+        userId: d.get('sellerId'),
+        title: 'Tin của bạn đã hết hạn',
+        message: '"' + String(d.get('title') || '').slice(0, 80) + '" đã hiện ' + EXPIRE_DAYS + ' ngày. Nếu vẫn còn, vào Cá nhân và bấm Gia hạn nhé.',
+        type: 'info', link: '/profile', read: false, createdAt: new Date().toISOString(),
+      });
+    }
+    await batch.commit();
+  }
+  logger.info('Đã cho hết hạn ' + old.length + ' tin');
+});
+
+// ---------------------------------------------------------------- 3. Điểm uy tín
+// Chỉ tính khi yêu cầu chuyển sang "completed" (bước cuối luôn do bên còn lại xác nhận).
+exports.diemUyTin = onDocumentUpdated('communityRequests/{id}', async (event) => {
+  const before = event.data.before.data();
+  const after = event.data.after.data();
+  if (!before || !after || before.status === 'completed' || after.status !== 'completed') return;
+  const need = after.intent === 'need';
+  const giverId = need ? after.requesterId : after.ownerId;
+  const receiverId = need ? after.ownerId : after.requesterId;
+  const inc = admin.firestore.FieldValue.increment(1);
+  await db.collection('publicProfiles').doc(giverId).set({ sharedCount: inc }, { merge: true });
+  await db.collection('publicProfiles').doc(receiverId).set({ receivedCount: inc }, { merge: true });
 });

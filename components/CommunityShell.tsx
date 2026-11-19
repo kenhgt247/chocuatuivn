@@ -9,6 +9,7 @@ import NotificationMenu from './NotificationMenu';
 import UniversalInstallPrompt from './UniversalInstallPrompt';
 import { db } from '../services/db';
 import { getArea, setArea, onAreaChange } from '../utils/area';
+import { AreaInput } from './AreaInput';
 import type { ChatRoom, User } from '../types';
 
 export const Icon = {
@@ -66,16 +67,15 @@ function AreaPicker({ user }: { user: User | null }) {
         <Svg name="down" className="w-4 h-4" />
       </button>
       {open && (
-        <form onSubmit={e => { e.preventDefault(); save(draft); }} className="absolute left-0 top-8 z-50 w-72 bg-white border border-line rounded-2xl shadow-xl p-4 space-y-3">
+        <div className="absolute left-0 top-8 z-50 w-80 bg-white border border-line rounded-2xl shadow-xl p-4 space-y-3">
           <label htmlFor="area-input" className="block text-sm font-bold">Bạn ở xã/phường nào?</label>
-          <input id="area-input" autoFocus value={draft} onChange={e => setDraft(e.target.value)} maxLength={100}
-            placeholder="Ví dụ: Phường Chí Linh" className="w-full min-h-12 rounded-xl border border-slate-300 px-3 text-base outline-none focus:ring-2 focus:ring-emerald-600" />
-          <p className="text-xs text-slate-500">Tin cùng khu vực sẽ hiện lên trước. Không dùng GPS.</p>
+          <AreaInput id="area-input" autoFocus value={draft} onPick={w => { setArea(w.label, { lat: w.lat, lng: w.lng }); setAreaState(w.label); setOpen(false); }} />
+          <p className="text-xs text-slate-500">Tin cùng xã/phường hiện lên trước. Danh sách theo đơn vị hành chính mới (từ 01/07/2025).</p>
           <div className="flex gap-2">
-            <button type="submit" className="flex-1 min-h-11 rounded-xl bg-emerald-700 text-white font-bold">Lưu</button>
-            <button type="button" onClick={() => save('')} className="min-h-11 px-3 rounded-xl border border-line text-sm font-semibold">Xem tất cả</button>
+            <button type="button" onClick={() => save('')} className="flex-1 min-h-11 rounded-xl border border-line text-sm font-semibold">Xem tất cả khu vực</button>
+            <button type="button" onClick={() => setOpen(false)} className="min-h-11 px-4 rounded-xl text-sm font-semibold">Đóng</button>
           </div>
-        </form>
+        </div>
       )}
     </div>
   );
@@ -150,6 +150,8 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
           <Link className="underline" to="/page/gioi-thieu">Giới thiệu</Link>
           <Link className="underline" to="/page/quy-tac">Quy tắc cộng đồng</Link>
           <Link className="underline" to="/page/an-toan">An toàn khi trao đồ</Link>
+          <Link className="underline" to="/page/chinh-sach-bao-mat">Bảo mật</Link>
+          <Link className="underline" to="/page/dieu-khoan">Điều khoản</Link>
         </div>
       </footer>}
 

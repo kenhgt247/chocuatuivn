@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   const site = origin(req);
   let items = [];
   try { items = await listApproved(1000); } catch (_) { items = []; }
-  const pages = ['/', '/cong-dong/dang-tin', '/page/gioi-thieu', '/page/quy-tac', '/page/an-toan'];
+  const pages = ['/', '/cong-dong/dang-tin', '/page/gioi-thieu', '/page/quy-tac', '/page/an-toan', '/page/chinh-sach-bao-mat', '/page/dieu-khoan'];
   const urls = pages.map(p => `<url><loc>${esc(site + p)}</loc><changefreq>${p === '/' ? 'hourly' : 'monthly'}</changefreq></url>`)
     .concat(items.map(l => {
       const d = String(l.updatedAt || l.createdAt || '').slice(0, 10);

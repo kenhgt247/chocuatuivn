@@ -28,17 +28,19 @@ try {
   messaging.onBackgroundMessage((payload) => {
     console.log('[sw.js] Nhận tin nhắn nền:', payload);
 
-    const notificationTitle = payload.notification.title || 'Chợ Của Tui';
+    // Máy chủ gửi tiêu đề/nội dung trong "data" (không kèm "notification" để khỏi hiện 2 lần)
+    const d = payload.data || {};
+    const n = payload.notification || {};
+    const notificationTitle = d.title || n.title || 'Chợ Của Tui';
     const notificationOptions = {
-      body: payload.notification.body,
+      body: d.body || n.body || '',
       icon: '/icons/icon-192.png',
       badge: '/icons/favicon-32.png',
-      image: payload.notification.image,
-      data: payload.data,
+      data: d,
+      tag: d.link || undefined,
+      renotify: true,
       vibrate: [100, 50, 100],
-      actions: [
-         { action: 'open', title: 'Xem ngay' }
-      ]
+      actions: [{ action: 'open', title: 'Xem ngay' }]
     };
 
     // Cập nhật số đỏ (Badge) trên iPhone/Android
@@ -84,7 +86,7 @@ self.addEventListener('notificationclick', (event) => {
 // 4. CACHE
 // ==========================================
 // Đổi tên cache để máy người dùng bỏ icon/giao diện rao vặt cũ.
-const CACHE_NAME = 'chocuatui-v7-cong-dong';
+const CACHE_NAME = 'chocuatui-v8-cong-dong';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

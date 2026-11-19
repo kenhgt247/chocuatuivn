@@ -37,7 +37,12 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
         <div className="min-w-0">
           <h1 className="text-2xl font-black truncate">{person.name || 'Thành viên'}</h1>
           <p className="text-sm text-slate-500 mt-1">📍 {person.location || 'Chưa có khu vực'}{person.joinedAt ? ' · Tham gia ' + new Date(person.joinedAt).toLocaleDateString('vi-VN') : ''}</p>
-          <p className="text-sm mt-2"><b className="text-emerald-700">{items.length}</b> tin đang chia sẻ</p>
+          <p className="text-sm mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            <span><b className="text-emerald-700">{items.length}</b> tin đang hiện</span>
+            <span><b className="text-emerald-700">{person.sharedCount || 0}</b> lần đã cho/giúp xong</span>
+            {(person.receivedCount || 0) > 0 && <span><b className="text-emerald-700">{person.receivedCount}</b> lần đã nhận</span>}
+          </p>
+          <p className="text-xs text-slate-500 mt-1">Chỉ tính những lần cả hai bên đã xác nhận.</p>
         </div>
       </section>
       <h2 className="text-xl font-extrabold mt-8 mb-3">Đang chia sẻ</h2>

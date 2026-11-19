@@ -12,7 +12,9 @@ import {
   type CommunityKind, type CommunityIntent, type CommunityListing, type CommunityRequest
 } from '../services/community';
 import { KIcon, KIND_META, kindText, IntentBadge, Steps, RequestActions, SafetyBox, VoiceButton } from '../components/CommunityUI';
-import { getArea, onAreaChange, sameArea } from '../utils/area';
+import { getArea, getAreaPoint, onAreaChange, sameArea } from '../utils/area';
+import { AreaInput } from '../components/AreaInput';
+import { wardFromLabel } from '../utils/dvhc';
 import { formatTimeAgo, tinPath } from '../utils/format';
 import type { User, PublicProfile } from '../types';
 
@@ -145,6 +147,9 @@ function Post({ user }: { user: User | null }) {
   const [location, setLocation] = useState(() => getArea(user?.location || '') || user?.location || '');
   const [editLoc, setEditLoc] = useState(!location);
   const [meetPlace, setMeetPlace] = useState('');
+  const [wardPoint, setWardPoint] = useState<{ lat: number; lng: number; code?: string } | null>(() => getAreaPoint());
+  // Khu vực lấy từ hồ sơ: tìm tâm xã/phường tương ứng để đặt tin lên bản đồ
+  useEffect(() => { if (location && !wardPoint) wardFromLabel(location).then(w => w && setWardPoint({ lat: w.lat, lng: w.lng, code: w.code })); }, []);
   const [photos, setPhotos] = useState<File[]>([]);
   const previews = useMemo(() => photos.map(f => URL.createObjectURL(f)), [photos]);
   useEffect(() => () => previews.forEach(u => URL.revokeObjectURL(u)), [previews]);
@@ -174,7 +179,7 @@ function Post({ user }: { user: User | null }) {
     if (needAck && !safetyAck) { setError('Hãy đọc và đánh dấu đã hiểu lưu ý an toàn.'); return; }
     setError(''); setSaving(true);
     try {
-      await community.create(user, { title, description, location, photos, kind, intent, approximateCoords, meetPlace });
+      await community.create(user, { title, description, location, photos, kind, intent, approximateCoords, meetPlace, wardPoint });
       nav('/cong-dong/da-dang');
     } catch (err: any) { setError(err?.message || 'Chưa đăng được tin. Thử lại nhé.'); }
     finally { setSaving(false); }
@@ -231,12 +236,12 @@ function Post({ user }: { user: User | null }) {
       <div className="flex gap-2 flex-wrap">{MEET_PLACES.map(p => <button type="button" key={p} onClick={() => setMeetPlace(meetPlace === p ? '' : p)} aria-pressed={meetPlace === p}
         className={'min-h-9 px-3 rounded-full border text-[13px] font-semibold ' + (meetPlace === p ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white')}>{p}</button>)}</div>
       {editLoc
-        ? <label className="block"><span className="sr-only">Xã/phường</span>
-            <input required maxLength={100} className={inputCls} placeholder="Xã/phường, ví dụ: Phường Chí Linh" value={location} onChange={e => setLocation(e.target.value)} /></label>
+        ? <div><label htmlFor="post-area" className="sr-only">Xã/phường</label>
+            <AreaInput id="post-area" value={location} onType={t => { setLocation(t); setWardPoint(null); }} onPick={w => { setLocation(w.label); setWardPoint({ lat: w.lat, lng: w.lng, code: w.code }); setEditLoc(false); }} /></div>
         : <span className="flex items-center gap-1.5 text-[13px] text-slate-600"><KIcon name="pin" className="w-4 h-4 text-emerald-700" />{location} · <button type="button" className="underline text-emerald-700 font-semibold" onClick={() => setEditLoc(true)}>Đổi</button></span>}
       <button type="button" onClick={askLocation} disabled={locating} className="self-start text-[13px] font-semibold underline text-emerald-700 min-h-8">
         {locating ? 'Đang xác định…' : approximateCoords ? '✓ Đã gắn vị trí gần đúng lên bản đồ' : 'Thêm vị trí gần đúng lên bản đồ (không bắt buộc)'}</button>
-      <span className="text-xs text-slate-500">Không ghi số nhà. Bản đồ chỉ dùng vị trí làm tròn khoảng 1 km.</span>
+      <span className="text-xs text-slate-500">Không ghi số nhà. Trên bản đồ, tin được đặt ở giữa xã/phường (hoặc vị trí làm tròn khoảng 1 km nếu bạn cho phép).</span>
     </div>
 
     <SafetyBox notes={notes} />
@@ -352,7 +357,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
           : <span className="h-11 w-11 rounded-full bg-emerald-700 text-white font-extrabold grid place-items-center">{ownerName.charAt(0).toUpperCase()}</span>}
         <span className="flex flex-col flex-1 min-w-0">
           <span className="text-[15px] font-bold truncate">{ownerName}</span>
-          <span className="text-xs text-slate-600">{done > 0 ? 'Đã chia sẻ xong ' + done + ' lần' : 'Thành viên Chợ Của Tui'}</span>
+          <span className="text-xs text-slate-600">{(owner?.sharedCount || done) > 0 ? 'Đã chia sẻ xong ' + (owner?.sharedCount || done) + ' lần' : 'Thành viên Chợ Của Tui'}</span>
         </span>
       </Link>
       <SafetyBox notes={notes} />

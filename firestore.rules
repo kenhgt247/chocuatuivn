@@ -54,6 +54,7 @@ service cloud.firestore {
       //  và không thể tự gắn trạng thái "approved".)
       allow create: if isSignedIn()
         && request.resource.data.sellerId == request.auth.uid
+        && getUserData().get('status', 'active') != 'banned'
         && (
           isAdmin() ||
           (
@@ -67,11 +68,18 @@ service cloud.firestore {
 
       // Admin sửa được mọi thứ. Chủ tin chỉ được đánh dấu "đã xong" (sold)
       // hoặc ẩn tin (hidden); không sửa nội dung tin đã được duyệt.
+      // Gia hạn: tin hết hạn (sau 30 ngày) được chủ tin cho hiện lại, nội dung không đổi.
       allow update: if isAdmin() || (
         isSignedIn()
         && resource.data.sellerId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-        && request.resource.data.status in ['sold','hidden']
+        && (
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+            && request.resource.data.status in ['sold','hidden']) ||
+          (resource.data.status == 'expired'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','renewedAt'])
+            && request.resource.data.status == 'approved'
+            && request.resource.data.renewedAt == request.time)
+        )
       );
 
       allow delete: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
@@ -80,9 +88,17 @@ service cloud.firestore {
 
     // Chợ Của Tui 2.0: yêu cầu riêng tư, không có thanh toán.
     match /publicProfiles/{uid} {
+      // sharedCount/receivedCount do máy chủ tính (functions/diemUyTin); người dùng không tự sửa.
+      function countersKept() {
+        return resource == null
+          ? !('sharedCount' in request.resource.data) && !('receivedCount' in request.resource.data)
+          : request.resource.data.get('sharedCount', 0) == resource.data.get('sharedCount', 0)
+            && request.resource.data.get('receivedCount', 0) == resource.data.get('receivedCount', 0);
+      }
       function validProfile() {
         let d = request.resource.data;
-        return d.keys().hasOnly(['name','avatar','location','joinedAt','updatedAt'])
+        return d.keys().hasOnly(['name','avatar','location','joinedAt','updatedAt','areaCode','sharedCount','receivedCount'])
+          && (isAdmin() || countersKept())
           && d.name is string && d.name.size() <= 60
           && (!('avatar' in d) || (d.avatar is string && d.avatar.size() <= 600))
           && (!('location' in d) || (d.location is string && d.location.size() <= 100));
@@ -102,8 +118,9 @@ service cloud.firestore {
       function sourceListing() {
         return get(/databases/$(database)/documents/listings/$(request.resource.data.listingId)).data;
       }
-      allow get, list: if isParticipant();
+      allow get, list: if isParticipant() || isAdmin();
       allow create: if isSignedIn()
+        && getUserData().get('status', 'active') != 'banned'
         && request.resource.data.keys().hasOnly([
           'listingId','listingTitle','kind','intent','ownerId','requesterId',
           'message','status','createdAt','updatedAt'

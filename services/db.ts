@@ -1393,7 +1393,8 @@ export const db = {
       const compressedBlob = await db.compressImage(file);
       
       // 2. Upload
-      const path = `chat-images/${Date.now()}_${file.name}`;
+      // Lưu trong thư mục của người gửi (Storage rules chỉ cho ghi users/<uid>/)
+      const path = `users/${auth.currentUser?.uid}/chat/${Date.now()}.jpg`;
       const storageRef = ref(storage, path);
       const snapshot = await uploadBytes(storageRef, compressedBlob);
       

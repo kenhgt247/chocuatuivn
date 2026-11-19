@@ -3,7 +3,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
 import { ChatRoom, User, Message } from '../types';
 import { formatPrice, formatTimeAgo, getListingUrl } from '../utils/format';
-import { getLocationFromCoords } from '../utils/locationHelper';
+import { community, type CommunityRequest } from '../services/community';
+import { KIcon, Steps, RequestActions, VoiceButton } from '../components/CommunityUI';
 
 const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=random&color=fff&name=User";
 
@@ -14,11 +15,13 @@ const IconSend = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height
 const IconLoader = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
 
 const QUICK_REPLIES = [
-  "Sản phẩm này còn không bạn?",
-  "Hàng chuẩn như hình không ạ?",
-  "Bạn cho mình xin địa chỉ xem hàng nhé.",
-  "Giá này có bớt thêm được không?"
+  "Món này còn không ạ?",
+  "Mình đến lấy ngay được không?",
+  "Hẹn giờ khác được không ạ?",
+  "Cảm ơn bạn nhiều nha!"
 ];
+const MEET_TIMES = ['Sáng nay', 'Trưa nay', 'Chiều nay', 'Tối nay', 'Ngày mai'];
+const MEET_PLACES = ['Cổng chợ', 'Cổng trường', 'Nhà văn hoá', 'UBND phường/xã', 'Gửi tiệm tạp hoá', 'Tại nhà'];
 
 const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   const { roomId } = useParams();
@@ -29,6 +32,10 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   const [isSending, setIsSending] = useState(false);
   
   // Cache thông tin partner để tránh giật lag
+  const [request, setRequest] = useState<CommunityRequest | null>(null);
+  const [showMeet, setShowMeet] = useState(false);
+  const [meetTime, setMeetTime] = useState('');
+  const [meetPlace, setMeetPlace] = useState('');
   const [fetchedPartners, setFetchedPartners] = useState<Record<string, { name: string, avatar: string }>>({});
   
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -101,6 +108,13 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     loadActiveRoom();
   }, [roomId, user, rooms]); 
 
+  // Yêu cầu chia sẻ gắn với phòng chat (thẻ tiến trình ở đầu khung chat)
+  useEffect(() => {
+    setRequest(null);
+    if (!activeRoom?.id || !activeRoom.listingId) return;
+    return community.watchRequestForRoom(activeRoom.id, activeRoom.listingId, setRequest);
+  }, [activeRoom?.id, activeRoom?.listingId]);
+
   // Auto scroll xuống cuối khi có tin nhắn mới
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -150,31 +164,21 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
       }
   };
 
-  // Gửi Vị trí (Logic mới)
-  const handleSendLocation = () => {
-      if (!navigator.geolocation) return alert("Trình duyệt không hỗ trợ vị trí");
-      if (!activeRoom || !user) return;
+  // Hẹn giờ & chỗ (không gửi vị trí GPS chính xác cho người lạ)
+  const handleSendMeet = async () => {
+      if (!activeRoom || !user || (!meetTime && !meetPlace)) return;
+      const text = 'Hẹn gặp: ' + [meetTime, meetPlace].filter(Boolean).join(' · ') + '. Bạn thấy được không?';
+      setShowMeet(false); setMeetTime(''); setMeetPlace('');
+      try { await db.addMessage(activeRoom.id, { senderId: user.id, text, type: 'text' }); } catch (_) { alert('Gửi thất bại, thử lại nhé.'); }
+  };
 
-      setIsSending(true);
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-          try {
-              const { latitude, longitude } = pos.coords;
-              const locInfo = await getLocationFromCoords(latitude, longitude);
-              await db.addMessage(activeRoom.id, {
-                  senderId: user.id,
-                  text: `📍 Vị trí: ${locInfo.address}`,
-                  type: 'location',
-                  location: { lat: latitude, lng: longitude, address: locInfo.address }
-              });
-          } catch (e) {
-              alert("Không lấy được vị trí.");
-          } finally {
-              setIsSending(false);
-          }
-      }, () => {
-          setIsSending(false);
-          alert("Vui lòng cấp quyền vị trí.");
-      });
+  // Chỉ gửi số Zalo khi chính người dùng bấm và xác nhận
+  const handleSendZalo = async () => {
+      if (!activeRoom || !user) return;
+      const phone = window.prompt('Số Zalo bạn muốn gửi cho người này:', user.phone || '');
+      if (!phone || !phone.trim()) return;
+      if (!window.confirm('Gửi số ' + phone.trim() + ' cho người này?')) return;
+      try { await db.addMessage(activeRoom.id, { senderId: user.id, text: 'Zalo của mình: ' + phone.trim().slice(0, 20), type: 'text' }); } catch (_) { alert('Gửi thất bại, thử lại nhé.'); }
   };
 
   const handleSendQuickReply = async (text: string) => {
@@ -299,11 +303,11 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   const activePartner = activeRoom ? getPartnerInfo(activeRoom, user.id) : null;
 
   return (
-    <div className="bg-white border border-borderMain rounded-2xl h-[calc(100dvh-13rem)] md:h-[calc(100vh-140px)] flex overflow-hidden shadow-soft">
+    <div className="bg-white border border-line rounded-2xl h-[calc(100dvh-68px-76px-2.25rem)] md:h-[calc(100vh-68px-3rem)] flex overflow-hidden">
       
       {/* Sidebar */}
       <aside className={`w-full md:w-80 flex-shrink-0 border-r border-borderMain flex flex-col ${roomId ? 'hidden md:flex' : 'flex'}`}>
-        <div className="p-4 border-b border-borderMain"><h2 className="font-bold text-lg">Tin nhắn</h2></div>
+        <div className="p-4 border-b border-line"><h2 className="font-extrabold text-lg">Tin nhắn</h2></div>
         <div className="flex-1 overflow-y-auto">
           {rooms.length > 0 ? (
             rooms.map(room => {
@@ -332,7 +336,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                 </Link>
               );
             })
-          ) : <div className="p-10 text-center text-gray-400">Bạn chưa có tin nhắn nào</div>}
+          ) : <div className="p-10 text-center text-slate-600">Chưa có trò chuyện nào. Bấm "Xin món này" ở một tin để bắt đầu.</div>}
         </div>
       </aside>
 
@@ -357,8 +361,25 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
               )}
             </div>
 
+            {/* Thẻ tiến trình: món đồ + các bước + nút xác nhận ngay trong chat */}
+            {request && (
+              <section aria-label="Tiến trình" className="mx-3 mt-3 p-3.5 bg-white border border-line rounded-[18px] shadow-[0_4px_14px_rgba(18,53,36,.06)] flex flex-col gap-3">
+                <div className="flex items-center gap-2.5">
+                  {activeRoom.listingImage && !activeRoom.listingImage.includes('placehold.co')
+                    ? <img src={activeRoom.listingImage} alt="" className="h-12 w-12 rounded-xl object-cover" />
+                    : <span className="h-12 w-12 rounded-xl bg-emerald-50 text-emerald-700 grid place-items-center"><KIcon name={request.kind} className="w-7 h-7" strokeWidth={1.6} /></span>}
+                  <Link to={'/cong-dong/tin/' + activeRoom.listingId} className="flex-1 min-w-0">
+                    <span className="block text-[15px] font-bold truncate">{activeRoom.listingTitle}</span>
+                    <span className="block text-xs text-slate-600">Xem tin</span>
+                  </Link>
+                </div>
+                <Steps r={request} />
+                <div className="bg-sun-light rounded-xl p-2.5"><RequestActions r={request} uid={user.id} compact /></div>
+              </section>
+            )}
+
             {/* Messages List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 overscroll-contain">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-cream overscroll-contain">
               {activeRoom.messages.length > 0 ? (
                 activeRoom.messages.map((msg, index) => {
                    const isMe = msg.senderId === user.id;
@@ -394,29 +415,37 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
             {/* Quick Replies */}
             <div className="bg-white border-t border-borderMain/50 px-4 py-2 flex gap-2 overflow-x-auto no-scrollbar whitespace-nowrap">
                 {QUICK_REPLIES.map((text, idx) => (
-                    <button key={idx} onClick={() => handleSendQuickReply(text)} className="bg-gray-100 hover:bg-primary/10 hover:text-primary text-[10px] font-black uppercase px-4 py-2 rounded-full border border-gray-200 transition-all active:scale-95 shadow-sm">
+                    <button key={idx} onClick={() => handleSendQuickReply(text)} className="bg-white hover:bg-emerald-50 text-[13px] font-semibold min-h-9 px-3.5 rounded-full border border-line transition-all active:scale-95">
                         {text}
                     </button>
                 ))}
             </div>
 
+            {/* Hẹn giờ & chỗ, gửi Zalo */}
+            <div className="bg-white px-3 pt-2 flex gap-2 overflow-x-auto no-scrollbar">
+              <button type="button" onClick={() => setShowMeet(v => !v)} aria-expanded={showMeet} className="shrink-0 flex items-center gap-1.5 min-h-9 px-3 rounded-full border border-emerald-700 bg-emerald-50 text-emerald-900 text-[13px] font-semibold"><KIcon name="clock" className="w-4 h-4 text-emerald-700" />Hẹn giờ & chỗ</button>
+              <button type="button" onClick={handleSendZalo} className="shrink-0 flex items-center gap-1.5 min-h-9 px-3 rounded-full border border-line bg-white text-[13px] font-semibold"><KIcon name="phone" className="w-4 h-4 text-emerald-700" />Gửi Zalo của tôi</button>
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isSending} className="shrink-0 flex items-center gap-1.5 min-h-9 px-3 rounded-full border border-line bg-white text-[13px] font-semibold"><KIcon name="image" className="w-4 h-4 text-emerald-700" />Ảnh</button>
+            </div>
+            {showMeet && (
+              <div className="bg-white px-3 pt-3 flex flex-col gap-2">
+                <span className="text-sm font-bold">Khi nào?</span>
+                <div className="flex gap-2 flex-wrap">{MEET_TIMES.map(t => <button type="button" key={t} onClick={() => setMeetTime(meetTime === t ? '' : t)} aria-pressed={meetTime === t} className={'min-h-9 px-3 rounded-full border text-[13px] font-semibold ' + (meetTime === t ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white')}>{t}</button>)}</div>
+                <span className="text-sm font-bold">Ở đâu?</span>
+                <div className="flex gap-2 flex-wrap">{MEET_PLACES.map(p => <button type="button" key={p} onClick={() => setMeetPlace(meetPlace === p ? '' : p)} aria-pressed={meetPlace === p} className={'min-h-9 px-3 rounded-full border text-[13px] font-semibold ' + (meetPlace === p ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white')}>{p}</button>)}</div>
+                <button type="button" onClick={handleSendMeet} disabled={!meetTime && !meetPlace} className="min-h-11 rounded-xl bg-emerald-700 text-white font-bold disabled:opacity-50">Gửi đề nghị hẹn</button>
+              </div>
+            )}
+
             {/* Input Form [NÂNG CẤP] */}
             <form onSubmit={handleSendMessage} className="p-3 md:p-4 bg-white border-t border-borderMain">
-              <div className="flex gap-2 items-end bg-gray-100 p-1.5 rounded-[1.5rem]">
-                {/* Image Upload Button */}
-                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isSending} className="p-2 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-full transition-all">
-                    <IconImage />
-                </button>
+              <div className="flex gap-2 items-center bg-cream border border-line p-1.5 rounded-[1.5rem]">
                 <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
 
-                {/* Location Button */}
-                <button type="button" onClick={handleSendLocation} disabled={isSending} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
-                    <IconMapPin />
-                </button>
-
-                <input type="text" placeholder={isSending ? "Đang gửi..." : `Nhắn cho ${activePartner.name}...`} value={message} onChange={(e) => setMessage(e.target.value)} onFocus={() => setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 300)} className="flex-1 bg-transparent border-none focus:ring-0 px-2 py-2 text-sm font-medium max-h-24" />
+                <input type="text" placeholder={isSending ? "Đang gửi..." : "Nhắn tin…"} value={message} onChange={(e) => setMessage(e.target.value)} onFocus={() => setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 300)} className="flex-1 bg-transparent border-none outline-none focus:ring-0 px-3 py-2 text-[15px] max-h-24" aria-label="Tin nhắn" />
+                <VoiceButton className="w-10 h-10" onText={t => setMessage(m => (m ? m + ' ' : '') + t)} />
                 
-                <button type="submit" disabled={!message.trim() && !isSending} className="w-9 h-9 bg-primary text-white rounded-full flex items-center justify-center shadow-md disabled:opacity-50 disabled:shadow-none hover:scale-105 transition-transform">
+                <button type="submit" disabled={!message.trim() && !isSending} aria-label="Gửi" className="w-10 h-10 bg-emerald-700 text-white rounded-full flex items-center justify-center disabled:opacity-50 hover:bg-emerald-800 transition-colors">
                   {isSending ? <IconLoader /> : <IconSend />}
                 </button>
               </div>

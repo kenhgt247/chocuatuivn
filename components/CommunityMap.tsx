@@ -306,12 +306,15 @@ const CommunityMap: React.FC<Props> = ({ items, area }) => {
       setLocating(false);
       const pt = { lat: p.coords.latitude, lng: p.coords.longitude };
       setMe(pt); setBounds(null); setGroup(null); setSel(null); setMoved(false);
-      mapRef.current?.flyTo({ center: [pt.lng, pt.lat], zoom: 13.5 });
-      setNotice('Đã sắp tin theo khoảng cách. Vị trí chỉ dùng trên máy bạn, không gửi đi.');
+      const acc = p.coords.accuracy || 0;
+      mapRef.current?.flyTo({ center: [pt.lng, pt.lat], zoom: acc > 1500 ? 12 : 13.5 });
+      setNotice(acc > 1500
+        ? 'Máy chỉ đoán được vị trí trong khoảng ' + (Math.round(acc / 100) / 10).toString().replace('.', ',') + ' km (máy tính thường đoán theo Wi‑Fi nên hay lệch). Chấm xanh dương có thể chưa đúng chỗ bạn — hãy chọn xã/phường ở đầu trang để chính xác hơn.'
+        : 'Đã sắp tin theo khoảng cách. Vị trí chỉ dùng trên máy bạn, không gửi đi.');
     }, () => {
       setLocating(false);
       setNotice('Chưa lấy được vị trí. Hãy bật định vị hoặc chọn xã/phường ở đầu trang.');
-    }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 });
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
   };
   const searchHere = () => {
     const map = mapRef.current; if (!map) return;

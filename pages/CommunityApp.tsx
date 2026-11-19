@@ -166,9 +166,13 @@ function Post({ user }: { user: User | null }) {
     if (!navigator.geolocation) { setError('Thiết bị chưa hỗ trợ định vị. Bạn vẫn đăng được bằng tên khu vực.'); return; }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      pos => { setApproximateCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocating(false); setError(''); },
+      pos => {
+        setLocating(false);
+        if ((pos.coords.accuracy || 0) > 1500) { setApproximateCoords(null); setError('Máy đoán vị trí chưa chính xác (lệch vài km), nên tin sẽ hiện ở giữa xã/phường bạn chọn.'); return; }
+        setApproximateCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setError('');
+      },
       () => { setLocating(false); setError('Chưa lấy được vị trí. Bạn vẫn đăng được bằng tên khu vực.'); },
-      { timeout: 10000, enableHighAccuracy: false });
+      { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 });
   }
   async function submit(e: React.FormEvent) {
     e.preventDefault();

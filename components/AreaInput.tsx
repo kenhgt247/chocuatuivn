@@ -13,6 +13,8 @@ export function AreaInput({ value, onPick, onType, placeholder = 'Gõ tên xã/p
   const [open, setOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const [err, setErr] = useState('');
+  const [guess, setGuess] = useState<Ward | null>(null);
+  const [guessKm, setGuessKm] = useState(0);
   const [active, setActive] = useState(0);
   const seq = useRef(0);
   useEffect(() => { setText(value); }, [value]);
@@ -22,14 +24,19 @@ export function AreaInput({ value, onPick, onType, placeholder = 'Gõ tên xã/p
     const t = setTimeout(() => searchWards(text).then(r => { if (n === seq.current) { setItems(r); setActive(0); } }).catch(() => setErr('Chưa tải được danh sách xã/phường.')), 120);
     return () => clearTimeout(t);
   }, [text]);
-  function pick(w: Ward) { setText(w.label); setOpen(false); setErr(''); onPick(w); }
+  function pick(w: Ward) { setGuess(null); setText(w.label); setOpen(false); setErr(''); onPick(w); }
   function useMyLocation() {
     if (!navigator.geolocation) { setErr('Thiết bị chưa hỗ trợ định vị.'); return; }
     setLocating(true); setErr('');
     navigator.geolocation.getCurrentPosition(async pos => {
-      try { const w = await wardAt(pos.coords.latitude, pos.coords.longitude); if (w) pick(w); else setErr('Chưa tìm được xã/phường.'); }
-      finally { setLocating(false); }
-    }, () => { setLocating(false); setErr('Chưa lấy được vị trí. Bạn gõ tên xã/phường nhé.'); }, { timeout: 10000, enableHighAccuracy: false, maximumAge: 600000 });
+      try {
+        const w = await wardAt(pos.coords.latitude, pos.coords.longitude);
+        const acc = pos.coords.accuracy || 0;
+        if (!w) setErr('Chưa tìm được xã/phường. Bạn gõ tên xã/phường nhé.');
+        else if (acc > 1500) { setGuess(w); setGuessKm(Math.round(acc / 100) / 10); }
+        else pick(w);
+      } finally { setLocating(false); }
+    }, () => { setLocating(false); setErr('Chưa lấy được vị trí. Bạn gõ tên xã/phường nhé.'); }, { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 });
   }
   const listId = (id || 'area') + '-list';
   return <div className="relative">
@@ -56,6 +63,14 @@ export function AreaInput({ value, onPick, onType, placeholder = 'Gõ tên xã/p
     <button type="button" onClick={useMyLocation} disabled={locating} className="mt-2 text-[13px] font-semibold text-emerald-700 underline min-h-8">
       {locating ? 'Đang tìm xã/phường của bạn…' : 'Dùng vị trí hiện tại để chọn'}</button>
     {err && <p className="text-xs text-rose-700">{err}</p>}
+    {guess && <div className="mt-1 rounded-xl bg-sun-light text-[#4A3200] p-3 text-[13px] leading-snug">
+      Máy của bạn chỉ đoán được vị trí trong khoảng {String(guessKm).replace('.', ',')} km (máy tính thường đoán theo mạng Wi‑Fi nên hay lệch).
+      Đoán là <b>{guess.label.split(',')[0]}</b>. Nếu chưa đúng, bạn gõ tên xã/phường ở ô trên.
+      <div className="flex gap-2 mt-2">
+        <button type="button" onClick={() => pick(guess)} className="h-9 px-3 rounded-full bg-white border border-line font-semibold">Đúng, chọn {guess.label.split(',')[0]}</button>
+        <button type="button" onClick={() => setGuess(null)} className="h-9 px-3 rounded-full font-semibold underline">Tôi tự gõ</button>
+      </div>
+    </div>}
   </div>;
 }
 export default AreaInput;

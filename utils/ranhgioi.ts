@@ -15,6 +15,23 @@ function loadProvince(code: string) {
   return cache[code];
 }
 
+/** Các vòng ranh giới [lng,lat] của một xã/phường (rỗng nếu không có). */
+export async function wardRings(provinceCode: string, wardCode: string): Promise<Rings> {
+  try { return (await loadProvince(provinceCode))[wardCode] || []; } catch (_) { return []; }
+}
+/** Điểm có nằm trong một trong các vòng không (thuật toán tia). */
+export function insideRings(lng: number, lat: number, rings: Rings): boolean {
+  for (const r of rings) {
+    let ins = false;
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      const [xi, yi] = r[i], [xj, yj] = r[j];
+      if ((yi > lat) !== (yj > lat) && lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) ins = !ins;
+    }
+    if (ins) return true;
+  }
+  return false;
+}
+
 /** Trả về GeoJSON MultiPolygon của một xã/phường, hoặc null nếu không có. */
 export async function wardShape(provinceCode: string, wardCode: string): Promise<any | null> {
   try {

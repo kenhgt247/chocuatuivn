@@ -24,6 +24,7 @@ const STATUS_TEXT: Record<string, [string, string]> = {
 };
 export const HIDE_REASONS = ['Có dấu hiệu mua bán, đòi tiền', 'Nội dung không phù hợp', 'Ảnh không phù hợp', 'Lừa đảo hoặc nghi lừa đảo', 'Tin trùng lặp', 'Việc nguy hiểm'];
 const PAGE = 100;
+const timeOf = (v: any): string => { try { return v ? formatTimeAgo(v?.toDate ? v.toDate().toISOString() : String(v)) : ''; } catch (_) { return ''; } };
 
 /** Ẩn tin (kèm lý do gửi cho người đăng). Dùng chung cho trang quản trị và trang tin. */
 export async function adminHide(l: Pick<CommunityListing, 'id' | 'title' | 'sellerId'>, reason: string) {
@@ -114,7 +115,7 @@ function Row({ l, onChange }: { l: CommunityListing; onChange: (v: Partial<Commu
       <Link to={tinPath(l)} className="shrink-0">{img ? <img src={img} alt="" className="h-16 w-16 rounded-xl object-cover" /> : <span className="h-16 w-16 rounded-xl bg-emerald-50 block" />}</Link>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2"><span className={'text-[11px] font-bold px-2 py-0.5 rounded-full ' + st[1]}>{st[0]}</span>
-          <span className="text-xs text-slate-500 truncate">{l.createdAt ? formatTimeAgo(String(l.createdAt?.toDate ? l.createdAt.toDate().toISOString() : l.createdAt)) : ''}</span></div>
+          <span className="text-xs text-slate-500 truncate">{timeOf(l.createdAt)}</span></div>
         <Link to={tinPath(l)} className="font-bold leading-snug line-clamp-2 mt-0.5 block">{l.title}</Link>
         <div className="text-xs text-slate-600 truncate">{l.sellerName || 'Thành viên'} · {String(l.location || '').split(',')[0]}</div>
         {(l as any).adminNote && l.status === 'hidden' && <div className="text-xs text-rose-700 mt-0.5">Lý do ẩn: {(l as any).adminNote}</div>}

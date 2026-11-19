@@ -29,5 +29,7 @@ jobs:
           PUPPETEER_SKIP_DOWNLOAD: 'true'
       - name: Kiểm tra TypeScript
         run: npx tsc --noEmit
-      - name: Build Vite
-        run: npm run build
+      - name: Build (Vite + Cloudflare worker)
+        run: npm run build:cf
+      - name: Thử máy chủ Cloudflare
+        run: node cloudflare/smoke.mjs

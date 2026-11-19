@@ -208,3 +208,7 @@ export const calculateRelevanceScore = (targetText: string, searchQuery: string)
 
   return score;
 };
+
+/** Ảnh nhỏ của tin (có từ khi đăng tin mới), không có thì dùng ảnh gốc. */
+export const thumbOf = (l: { images?: string[]; thumbs?: string[] } | any): string | undefined =>
+  (Array.isArray(l?.thumbs) && l.thumbs[0]) || (Array.isArray(l?.images) && l.images[0]) || undefined;

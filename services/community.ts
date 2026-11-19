@@ -7,7 +7,7 @@ import {
   runTransaction, serverTimestamp, updateDoc
 } from 'firebase/firestore';
 import { auth, db, firestore } from './db';
-import { compressAndGetBase64 } from '../utils/imageCompression';
+import { compressAndGetBase64, makeThumbBase64 } from '../utils/imageCompression';
 import type { Listing, User } from '../types';
 
 export type CommunityKind = 'gift' | 'borrow' | 'help' | 'repair';
@@ -203,9 +203,16 @@ export const community = {
       if (!photo.type.startsWith('image/') || photo.size > 8 * 1024 * 1024)
         throw new Error('Mỗi ảnh phải là hình và dưới 8 MB.');
     const images: string[] = [];
+    const thumbs: string[] = [];
     for (let i = 0; i < photos.length; i++) {
-      const compressed = await compressAndGetBase64(photos[i]);
-      images.push(await db.uploadImage(compressed, 'listings/' + uid + '/community-' + Date.now() + '-' + i + '.jpg'));
+      const stamp = 'listings/' + uid + '/community-' + Date.now() + '-' + i;
+      const [compressed, small] = await Promise.all([compressAndGetBase64(photos[i]), makeThumbBase64(photos[i])]);
+      const [big, thumb] = await Promise.all([
+        db.uploadImage(compressed, stamp + '.jpg'),
+        small ? db.uploadImage(small, stamp + '-nho.jpg').catch(() => null) : Promise.resolve(null),
+      ]);
+      images.push(big);
+      thumbs.push(thumb || big);
     }
     // Chỉ chia sẻ vị trí đã làm mờ khi người dùng chủ động cho phép.
     const lat = input.approximateCoords?.lat;
@@ -225,7 +232,7 @@ export const community = {
       category: 'cong-dong', parentCategory: null,
       sellerId: uid, sellerName: user.name || 'Thành viên',
       sellerAvatar: user.avatar || '', sellerPhone: '',
-      images, videoUrl: null, isAuction: false, affiliateLink: null,
+      images, thumbs, videoUrl: null, isAuction: false, affiliateLink: null,
       condition: 'used', status: 'pending', attributes: {},
       meetPlace: safeText(input.meetPlace || '', 60),
       areaCode: input.wardPoint?.code || null

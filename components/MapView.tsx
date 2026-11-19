@@ -4,7 +4,6 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Listing } from '../types';
 import { Link } from 'react-router-dom';
-import { formatPrice, getListingUrl } from '../utils/format';
 
 // --- FIX LỖI ICON MẶC ĐỊNH CỦA LEAFLET TRONG REACT ---
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -57,23 +56,21 @@ const MapView: React.FC<MapViewProps> = ({ listings, center }) => {
                     <Marker key={listing.id} position={[listing.lat!, listing.lng!]}>
                         <Popup>
                             <div className="min-w-[200px]">
-                                <Link to={getListingUrl(listing)} className="flex gap-3 items-start group">
+                                <Link to={'/cong-dong/tin/' + listing.id} className="flex gap-3 items-start group">
                                     <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
                                         <img 
-                                            src={listing.images[0] || 'https://placehold.co/100'} 
+                                            src={listing.images?.[0] || '/icons/icon-192.png'} 
                                             className="w-full h-full object-cover group-hover:scale-110 transition-transform" 
                                             alt=""
                                         />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <h3 className="font-bold text-sm text-slate-800 line-clamp-2 leading-tight group-hover:text-blue-600">
+                                        <h3 className="font-bold text-sm text-slate-800 line-clamp-2 leading-tight group-hover:text-emerald-600">
                                             {listing.title}
                                         </h3>
-                                        <p className="text-red-500 font-black text-xs mt-1">
-                                            {formatPrice(listing.price)}
-                                        </p>
+                                        <p className="text-emerald-700 font-bold text-xs mt-1">Miễn phí</p>
                                         <p className="text-[10px] text-gray-400 mt-0.5 truncate">
-                                            📍 {listing.address || listing.location}
+                                            📍 {listing.location}
                                         </p>
                                     </div>
                                 </Link>

@@ -82,10 +82,8 @@ export const generateKeywords = (title: string): string[] => {
 };
 
 // Sử dụng slug từ DB nếu có (chuẩn SEO), nếu tin cũ chưa có slug thì tự tạo
-export const getListingUrl = (listing: Listing): string => {
-  const slug = listing.slug || slugify(listing.title);
-  return `/san-pham/${slug}-${listing.id}`;
-};
+// Trang chi tiết tin cộng đồng.
+export const getListingUrl = (listing: Listing): string => `/cong-dong/tin/${listing.id}`;
 
 export const getCategoryUrl = (category: Category): string => {
   const slug = category.slug || slugify(category.name);

@@ -97,9 +97,7 @@ const UniversalInstallPrompt: React.FC = () => {
         </button>
 
         <div className="flex items-center gap-5">
-          <div className="w-16 h-16 bg-gradient-to-tr from-primary to-blue-400 rounded-[1.5rem] flex items-center justify-center text-white text-3xl shadow-lg shadow-primary/25 shrink-0 animate-bounce-slow">
-            ⚡
-          </div>
+          <img src="/icons/icon-192.png" alt="" className="w-16 h-16 rounded-[1.5rem] shadow-lg shrink-0" />
           <div className="space-y-1">
             <h3 className="font-black text-sm text-textMain uppercase tracking-tight">Cài đặt Chợ Của Tui</h3>
             <p className="text-[11px] text-gray-500 font-medium leading-relaxed">
@@ -113,7 +111,7 @@ const UniversalInstallPrompt: React.FC = () => {
             <div className="flex items-center gap-4 bg-bgMain/50 p-3 rounded-2xl">
               <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-xs font-black text-primary">1</div>
               <p className="text-[11px] font-bold text-gray-600">
-                Nhấn biểu tượng <span className="inline-block mx-1 align-middle"><svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg></span> trên thanh công cụ Safari.
+                Nhấn biểu tượng <span className="inline-block mx-1 align-middle"><svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg></span> trên thanh công cụ Safari.
               </p>
             </div>
             <div className="flex items-center gap-4 bg-bgMain/50 p-3 rounded-2xl">

@@ -1,20 +1,20 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Chợ Của Tui — cộng đồng chia sẻ miễn phí
 
-# Run and deploy your AI Studio app
+Có gì chia sẻ, cần gì có nhau: **Cho tặng · Mượn đồ · Giúp nhau · Sửa đồ**. Không VIP, không ví tiền, không thu phí.
 
-This contains everything you need to run your app locally.
+- Web: https://chocuatuivn.vercel.app
+- Công nghệ: React + Vite + Tailwind, Firebase (Auth, Firestore, Storage, Cloud Messaging), bản đồ Leaflet/OSM.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1dOvP_GT1jkBJOt-qZcBLjpTNf-XukNie
+## Bản rao vặt cũ
+Toàn bộ mã rao vặt (ví tiền, VIP, đấu giá, đẩy tin, thanh toán) được lưu nguyên vẹn ở nhánh
+`luu-tru-rao-vat-2026-11`. Dữ liệu cũ trên Firestore **không bị xóa**. Link cũ `/san-pham/...` tự chuyển sang trang tin cộng đồng.
 
-## Run Locally
+## Chạy thử trên máy
+```
+npm ci --legacy-peer-deps
+npm run dev
+```
 
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Phát hành
+Xem `COMMUNITY_DEPLOY.md`. Sau khi gộp code, nhớ phát hành quy tắc bảo mật:
+`firebase deploy --only firestore:rules,storage --project <project-id>`

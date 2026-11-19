@@ -265,7 +265,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                             <button onClick={() => handleRespondOffer(msg.offerId!, 'accepted')} className="py-2 bg-green-500 hover:bg-green-600 text-white font-bold text-xs rounded-xl shadow-lg">Đồng ý</button>
                         </div>
                     )}
-                    {isMe && <div className="text-center text-[10px] text-gray-400 italic bg-gray-50 py-1 rounded-lg">Đang chờ người bán phản hồi...</div>}
+                    {isMe && <div className="text-center text-[10px] text-gray-400 italic bg-gray-50 py-1 rounded-lg">Đang chờ phản hồi...</div>}
                 </div>
                );
           case 'swap':
@@ -349,11 +349,11 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm font-bold leading-none truncate max-w-[150px] md:max-w-xs">{activePartner.name}</h3>
-                  <p className="text-[10px] text-gray-500 font-medium truncate max-w-[200px] flex items-center gap-1 mt-1"><span>🛒</span> {activeRoom.listingTitle} • <span className="text-primary font-bold">{formatPrice(activeRoom.listingPrice)}</span></p>
+                  <p className="text-[10px] text-gray-500 font-medium truncate max-w-[200px] flex items-center gap-1 mt-1"><span>🌿</span> {activeRoom.listingTitle}</p>
                 </div>
               </div>
               {!activeRoom.listingId.startsWith('profile_') && (
-                  <Link to={getListingUrl({ id: activeRoom.listingId, title: activeRoom.listingTitle } as any)} className="text-[10px] md:text-xs font-bold text-primary hover:underline bg-primary/5 px-3 py-1.5 rounded-lg whitespace-nowrap">Xem tin</Link>
+                  <Link to={'/cong-dong/tin/' + activeRoom.listingId} className="text-[10px] md:text-xs font-bold text-primary hover:underline bg-primary/5 px-3 py-1.5 rounded-lg whitespace-nowrap">Xem tin</Link>
               )}
             </div>
 
@@ -404,7 +404,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
             <form onSubmit={handleSendMessage} className="p-3 md:p-4 bg-white border-t border-borderMain">
               <div className="flex gap-2 items-end bg-gray-100 p-1.5 rounded-[1.5rem]">
                 {/* Image Upload Button */}
-                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isSending} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-all">
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isSending} className="p-2 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-full transition-all">
                     <IconImage />
                 </button>
                 <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />

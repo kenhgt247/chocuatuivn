@@ -31,7 +31,8 @@ try {
     const notificationTitle = payload.notification.title || 'Chợ Của Tui';
     const notificationOptions = {
       body: payload.notification.body,
-      icon: '/vite.svg', 
+      icon: '/icons/icon-192.png',
+      badge: '/icons/favicon-32.png',
       image: payload.notification.image,
       data: payload.data,
       vibrate: [100, 50, 100],
@@ -80,14 +81,16 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ==========================================
-// 4. PHẦN CACHE CŨ CỦA BẠN (GIỮ NGUYÊN 100%)
+// 4. CACHE
 // ==========================================
-const CACHE_NAME = 'chocuatui-v6-combined';
+// Đổi tên cache để máy người dùng bỏ icon/giao diện rao vặt cũ.
+const CACHE_NAME = 'chocuatui-v7-cong-dong';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/vite.svg',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {

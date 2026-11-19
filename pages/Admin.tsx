@@ -62,7 +62,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
   }, [user?.id]); 
 
   useEffect(() => {
-    if (activeTab === 'listings') {
+    if (activeTab === 'listings' || activeTab === 'stats') {
         setListingPage(1); setListingLastDocs([]); loadListings(null);
     }
     if (activeTab === 'categories') {
@@ -91,7 +91,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
       setTransactions(allTxs);
       
       const defaultSlides = [
-         { id: 1, type: 'text', title: "Đăng tin siêu tốc 🚀", desc: "Tiếp cận hàng ngàn khách hàng mỗi ngày.", btnText: "Đăng ngay", btnLink: "/post", colorFrom: "from-blue-600", colorTo: "to-indigo-600", icon: "⚡", isActive: true },
+         { id: 1, type: 'text', title: "Đăng tin siêu tốc 🚀", desc: "Tiếp cận hàng ngàn khách hàng mỗi ngày.", btnText: "Đăng ngay", btnLink: "/post", colorFrom: "from-emerald-600", colorTo: "to-emerald-600", icon: "⚡", isActive: true },
          { id: 2, type: 'text', title: "Nâng cấp VIP 👑", desc: "Tin đăng nổi bật, chốt đơn nhanh gấp 5 lần.", btnText: "Xem gói VIP", btnLink: "/profile", colorFrom: "from-orange-500", colorTo: "to-red-500", icon: "💎", isActive: true }
       ];
 
@@ -348,13 +348,9 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
             <nav className="space-y-1">
                {[
                    { id: 'stats', label: 'Bàn làm việc', icon: '📊', notify: false }, 
-                   { id: 'payments', label: 'Duyệt tiền', icon: '💰', notify: pendingPayments.length > 0 }, 
                    { id: 'listings', label: 'Duyệt tin', icon: '📦', notify: hasPendingListings }, 
-                   { id: 'categories', label: 'Danh mục', icon: '📂', notify: false }, 
                    { id: 'reports', label: 'Báo cáo', icon: '🚨', notify: activeReports.length > 0 }, 
-                   { id: 'users', label: 'Thành viên', icon: '👥', notify: pendingVerifications.length > 0 }, 
-                   { id: 'ads', label: 'Quảng cáo', icon: '📢', notify: false },
-                   { id: 'settings', label: 'Cấu hình', icon: '⚙️', notify: false }
+                   { id: 'users', label: 'Thành viên', icon: '👥', notify: false },
                ].map(tab => (
                    <button key={tab.id} onClick={() => setActiveTab(tab.id as AdminTab)} className={`w-full flex items-center justify-between px-5 py-3.5 rounded-2xl text-[11px] font-black uppercase transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}>
                       <div className="flex items-center gap-4"><span className="text-lg">{tab.icon}</span><span>{tab.label}</span></div>
@@ -370,8 +366,8 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
 
          {activeTab === 'stats' && (
              <div className="space-y-8">
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{[{ label: 'Doanh thu', value: formatPrice(transactions.filter(t => t.status === 'success' && t.type === 'payment').reduce((s, t) => s + t.amount, 0)), color: 'text-primary' }, { label: 'Chờ duyệt tiền', value: formatPrice(pendingPayments.reduce((s, t) => s + t.amount, 0)), color: 'text-yellow-600' }, { label: 'Tổng User', value: users.length, color: 'text-textMain' }, { label: 'Trạng thái', value: "Online", color: 'text-green-600' }].map((s, i) => (<div key={i} className="bg-white p-6 rounded-3xl border border-borderMain shadow-soft text-center space-y-1"><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{s.label}</p><p className={`text-xl font-black ${s.color}`}>{s.value}</p></div>))}</div>
-                 <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft"><h3 className="text-xl font-black mb-6">Giao dịch mới nhất</h3><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100"><th className="pb-4">Mô tả</th><th className="pb-4">Số tiền</th><th className="pb-4">Thời gian</th><th className="pb-4">Trạng thái</th></tr></thead><tbody className="divide-y divide-gray-50">{transactions.slice(0, 5).map(tx => (<tr key={tx.id}><td className="py-4 font-bold text-xs">{tx.description}</td><td className="py-4 font-black">{formatPrice(tx.amount)}</td><td className="py-4 text-gray-400 text-[10px]">{new Date(tx.createdAt).toLocaleString()}</td><td className="py-4"><span className={`text-[9px] px-2 py-1 rounded font-black uppercase ${tx.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}`}>{tx.status}</span></td></tr>))}</tbody></table></div></div>
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{[{ label: 'Tin chờ duyệt (trang này)', value: listings.filter(l => l.status === 'pending').length, color: 'text-amber-600' }, { label: 'Báo cáo chờ xử lý', value: activeReports.length, color: 'text-rose-600' }, { label: 'Thành viên (đã tải)', value: users.length, color: 'text-textMain' }, { label: 'Phí người dùng', value: 'Miễn phí', color: 'text-emerald-700' }].map((s, i) => (<div key={i} className="bg-white p-6 rounded-3xl border border-borderMain shadow-soft text-center space-y-1"><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{s.label}</p><p className={`text-xl font-black ${s.color}`}>{s.value}</p></div>))}</div>
+                 <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft"><h3 className="text-xl font-black mb-2">Việc cần làm</h3><p className="text-sm text-gray-500">Vào tab <b>Duyệt tin</b> để duyệt tin cộng đồng mới và tab <b>Báo cáo</b> để xử lý tin bị báo cáo.</p></div>
              </div>
          )}
 
@@ -433,9 +429,9 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                                 <Link to={getListingUrl(l)} target="_blank" className="text-xs font-black truncate block hover:text-primary">
                                                     {l.title}
                                                 </Link>
-                                                <p className="text-[10px] text-primary font-bold">{formatPrice(l.price)}</p>
+                                                <p className="text-[10px] text-primary font-bold">{(l as any).communityKind ? "Cộng đồng · " + ({gift:"Cho tặng",borrow:"Mượn đồ",help:"Giúp nhau",repair:"Sửa đồ"} as any)[(l as any).communityKind] : "Tin rao vặt cũ"}</p>
                                                 {l.affiliateLink && (
-                                                    <a href={l.affiliateLink} target="_blank" rel="noreferrer" className="text-[9px] text-blue-500 hover:underline flex items-center gap-1 mt-0.5">
+                                                    <a href={l.affiliateLink} target="_blank" rel="noreferrer" className="text-[9px] text-emerald-500 hover:underline flex items-center gap-1 mt-0.5">
                                                         <span>🔗 Link Gốc</span>
                                                     </a>
                                                 )}
@@ -472,7 +468,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                                     <button onClick={() => handleRejectListing(l.id)} className="bg-red-100 text-red-500 p-2 rounded-lg hover:bg-red-200">⛔</button>
                                                 </>
                                             )}
-                                            <button onClick={() => openEditModal(l)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg">✏️</button>
+                                            <button onClick={() => openEditModal(l)} className="text-emerald-500 hover:bg-emerald-50 p-2 rounded-lg">✏️</button>
                                             <button onClick={() => { setSelectedListings(new Set([l.id])); handleBatchDelete(); }} className="text-red-500 hover:bg-red-50 p-2 rounded-lg">🗑</button>
                                         </div>
                                     </td>
@@ -521,7 +517,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                              <div key={parent.id} className="space-y-1">
                                  <div 
                                      onClick={() => setEditingCat(parent)}
-                                     className={`p-3 rounded-xl border cursor-pointer flex justify-between items-center transition-all ${editingCat?.id === parent.id ? 'border-primary bg-blue-50 shadow-sm' : 'border-gray-100 hover:bg-gray-50'}`}
+                                     className={`p-3 rounded-xl border cursor-pointer flex justify-between items-center transition-all ${editingCat?.id === parent.id ? 'border-primary bg-emerald-50 shadow-sm' : 'border-gray-100 hover:bg-gray-50'}`}
                                  >
                                      <span className="font-bold text-sm flex items-center gap-2">{parent.icon} {parent.name}</span>
                                      <span className="text-[9px] bg-gray-200 px-1.5 rounded text-gray-600 font-bold">{parent.attributes?.length || 0} fields</span>
@@ -530,7 +526,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                      <div 
                                          key={child.id}
                                          onClick={() => setEditingCat(child)}
-                                         className={`ml-6 p-2 rounded-lg border-l-2 border-gray-100 cursor-pointer flex justify-between items-center hover:bg-gray-50 ${editingCat?.id === child.id ? 'text-primary font-bold bg-blue-50/50' : 'text-gray-500 text-xs font-medium'}`}
+                                         className={`ml-6 p-2 rounded-lg border-l-2 border-gray-100 cursor-pointer flex justify-between items-center hover:bg-gray-50 ${editingCat?.id === child.id ? 'text-primary font-bold bg-emerald-50/50' : 'text-gray-500 text-xs font-medium'}`}
                                      >
                                          <span>↳ {child.icon} {child.name}</span>
                                      </div>
@@ -562,15 +558,15 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                      </div>
                                  </div>
 
-                                 <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-sm">
+                                 <div className="bg-white p-4 rounded-2xl border border-emerald-100 shadow-sm">
                                      <div className="flex justify-between items-center mb-4">
-                                         <label className="text-[10px] font-black uppercase text-blue-500">Các trường nhập liệu đặc thù</label>
-                                         <button onClick={() => setEditingCat({...editingCat, attributes: [...(editingCat.attributes || []), { key: '', label: '', type: 'text' }]})} className="text-[9px] font-bold bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 uppercase">+ Thêm trường</button>
+                                         <label className="text-[10px] font-black uppercase text-emerald-500">Các trường nhập liệu đặc thù</label>
+                                         <button onClick={() => setEditingCat({...editingCat, attributes: [...(editingCat.attributes || []), { key: '', label: '', type: 'text' }]})} className="text-[9px] font-bold bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg hover:bg-emerald-100 uppercase">+ Thêm trường</button>
                                      </div>
 
                                      <div className="space-y-3">
                                          {(editingCat.attributes || []).map((attr, idx) => (
-                                             <div key={idx} className="flex gap-2 items-start p-3 bg-gray-50 rounded-xl border border-gray-100 group hover:border-blue-200 transition-colors">
+                                             <div key={idx} className="flex gap-2 items-start p-3 bg-gray-50 rounded-xl border border-gray-100 group hover:border-emerald-200 transition-colors">
                                                  <div className="grid grid-cols-3 gap-2 flex-1">
                                                      <input type="text" placeholder="Tên hiển thị" value={attr.label} onChange={e => { const attrs = [...(editingCat.attributes || [])]; attrs[idx].label = e.target.value; setEditingCat({...editingCat, attributes: attrs}); }} className="border border-gray-200 rounded-lg p-2 text-xs font-bold" />
                                                      <input type="text" placeholder="Key (VD: odo)" value={attr.key} onChange={e => { const attrs = [...(editingCat.attributes || [])]; attrs[idx].key = e.target.value; setEditingCat({...editingCat, attributes: attrs}); }} className="border border-gray-200 rounded-lg p-2 text-xs font-mono" />
@@ -609,7 +605,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
          )}
 
          {activeTab === 'users' && (
-             <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-8">{pendingVerifications.length > 0 && (<div className="bg-yellow-50 border border-yellow-100 rounded-3xl p-6"><h3 className="text-lg font-black text-yellow-800 mb-4 flex items-center gap-2"><span className="animate-pulse">⚠️</span> Yêu cầu xác thực (Trang này)</h3><div className="grid md:grid-cols-2 gap-4">{pendingVerifications.map(u => (<div key={u.id} className="bg-white p-4 rounded-2xl flex items-center justify-between shadow-sm"><div className="flex items-center gap-3"><img src={u.avatar} className="w-10 h-10 rounded-full" /><div><p className="text-xs font-black">{u.name}</p><p className="text-[9px] text-gray-400">{u.email}</p></div></div><button onClick={() => setVerifyModal({ show: true, user: u })} className="bg-primary text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase hover:scale-105 transition-transform">Xem hồ sơ</button></div>))}</div></div>)}<div className="flex justify-between items-center"><h3 className="text-xl font-black">Danh sách thành viên</h3>{isUserLoading && <span className="text-xs font-bold text-primary animate-pulse">Đang tải...</span>}</div><div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100"><th className="pb-4">User</th><th className="pb-4">Xác thực</th><th className="pb-4">Ví</th><th className="pb-4">Thao tác</th></tr></thead><tbody className="divide-y divide-gray-50">{users.map(u => (<tr key={u.id} className={u.status === 'banned' ? 'opacity-50 grayscale' : ''}><td className="py-4"><div className="flex items-center gap-3"><img src={u.avatar} className="w-10 h-10 rounded-xl" /><div><p className="text-xs font-black">{u.name}</p><p className="text-[9px] text-gray-400">{u.email}</p></div></div></td><td className="py-4"><div className="flex items-center gap-2">{u.verificationStatus === 'verified' ? <span className="text-green-500 text-lg">✅</span> : u.verificationStatus === 'pending' ? <span className="text-yellow-500 text-lg animate-pulse">🕒</span> : <span className="text-gray-300 text-lg">⚪</span>}<button onClick={() => setVerifyModal({ show: true, user: u })} className={`text-[9px] font-black px-3 py-1.5 rounded-lg border ${u.verificationStatus === 'pending' ? 'bg-primary text-white' : 'bg-white text-gray-500'}`}>{u.verificationStatus === 'pending' ? 'DUYỆT' : 'HỒ SƠ'}</button></div></td><td className="py-4 text-xs font-black">{formatPrice(u.walletBalance || 0)}</td><td className="py-4"><button onClick={() => toggleUserStatus(u)} className={`text-[10px] font-black uppercase px-4 py-2 rounded-xl transition-all ${u.status === 'active' ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-600'}`}>{u.status === 'active' ? 'Khóa' : 'Mở'}</button></td></tr>))}</tbody></table>{users.length === 0 && !isUserLoading && <div className="text-center py-10 text-gray-400 font-bold text-xs uppercase">Không tìm thấy thành viên nào.</div>}</div><div className="flex justify-between items-center pt-4 border-t border-gray-100"><p className="text-[10px] font-bold text-gray-400 uppercase">Trang {userPage}</p><div className="flex gap-2"><button onClick={handlePrevUserPage} disabled={userPage === 1 || isUserLoading} className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-bold uppercase hover:bg-gray-50 disabled:opacity-50">Trước</button><button onClick={handleNextUserPage} disabled={!hasMoreUsers || isUserLoading} className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold uppercase hover:bg-primaryHover disabled:opacity-50">Sau</button></div></div></div>
+             <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-8">{pendingVerifications.length > 0 && (<div className="bg-yellow-50 border border-yellow-100 rounded-3xl p-6"><h3 className="text-lg font-black text-yellow-800 mb-4 flex items-center gap-2"><span className="animate-pulse">⚠️</span> Yêu cầu xác thực (Trang này)</h3><div className="grid md:grid-cols-2 gap-4">{pendingVerifications.map(u => (<div key={u.id} className="bg-white p-4 rounded-2xl flex items-center justify-between shadow-sm"><div className="flex items-center gap-3"><img src={u.avatar} className="w-10 h-10 rounded-full" /><div><p className="text-xs font-black">{u.name}</p><p className="text-[9px] text-gray-400">{u.email}</p></div></div><button onClick={() => setVerifyModal({ show: true, user: u })} className="bg-primary text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase hover:scale-105 transition-transform">Xem hồ sơ</button></div>))}</div></div>)}<div className="flex justify-between items-center"><h3 className="text-xl font-black">Danh sách thành viên</h3>{isUserLoading && <span className="text-xs font-bold text-primary animate-pulse">Đang tải...</span>}</div><div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100"><th className="pb-4">User</th><th className="pb-4">Xác thực</th><th className="pb-4">Khu vực</th><th className="pb-4">Thao tác</th></tr></thead><tbody className="divide-y divide-gray-50">{users.map(u => (<tr key={u.id} className={u.status === 'banned' ? 'opacity-50 grayscale' : ''}><td className="py-4"><div className="flex items-center gap-3"><img src={u.avatar} className="w-10 h-10 rounded-xl" /><div><p className="text-xs font-black">{u.name}</p><p className="text-[9px] text-gray-400">{u.email}</p></div></div></td><td className="py-4"><div className="flex items-center gap-2">{u.verificationStatus === 'verified' ? <span className="text-green-500 text-lg">✅</span> : u.verificationStatus === 'pending' ? <span className="text-yellow-500 text-lg animate-pulse">🕒</span> : <span className="text-gray-300 text-lg">⚪</span>}<button onClick={() => setVerifyModal({ show: true, user: u })} className={`text-[9px] font-black px-3 py-1.5 rounded-lg border ${u.verificationStatus === 'pending' ? 'bg-primary text-white' : 'bg-white text-gray-500'}`}>{u.verificationStatus === 'pending' ? 'DUYỆT' : 'HỒ SƠ'}</button></div></td><td className="py-4 text-xs font-black">{u.location || "—"}</td><td className="py-4"><button onClick={() => toggleUserStatus(u)} className={`text-[10px] font-black uppercase px-4 py-2 rounded-xl transition-all ${u.status === 'active' ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-600'}`}>{u.status === 'active' ? 'Khóa' : 'Mở'}</button></td></tr>))}</tbody></table>{users.length === 0 && !isUserLoading && <div className="text-center py-10 text-gray-400 font-bold text-xs uppercase">Không tìm thấy thành viên nào.</div>}</div><div className="flex justify-between items-center pt-4 border-t border-gray-100"><p className="text-[10px] font-bold text-gray-400 uppercase">Trang {userPage}</p><div className="flex gap-2"><button onClick={handlePrevUserPage} disabled={userPage === 1 || isUserLoading} className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-bold uppercase hover:bg-gray-50 disabled:opacity-50">Trước</button><button onClick={handleNextUserPage} disabled={!hasMoreUsers || isUserLoading} className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold uppercase hover:bg-primaryHover disabled:opacity-50">Sau</button></div></div></div>
          )}
 
          {activeTab === 'reports' && (
@@ -660,7 +656,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                 <div className="grid gap-8">
                     {/* Kiểm tra settings.adsConfig tồn tại trước khi map */}
                     {settings.adsConfig && Object.entries(settings.adsConfig).map(([key, ad]: [string, any]) => (
-                        <div key={key} className={`border-2 rounded-[2rem] p-6 transition-all relative group ${ad.enabled ? 'border-blue-100 bg-white shadow-sm' : 'border-gray-100 bg-gray-50 opacity-70 grayscale-[0.5]'}`}>
+                        <div key={key} className={`border-2 rounded-[2rem] p-6 transition-all relative group ${ad.enabled ? 'border-emerald-100 bg-white shadow-sm' : 'border-gray-100 bg-gray-50 opacity-70 grayscale-[0.5]'}`}>
                             <button onClick={() => { if(confirm(`Xóa vị trí "${ad.name}"?`)) { const newAds = { ...settings.adsConfig }; delete (newAds as any)[key]; setSettings({ ...settings, adsConfig: newAds }); }}} className="absolute top-4 right-4 text-gray-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity" title="Xóa vị trí này">🗑</button>
                             
                             <div className="flex flex-col lg:flex-row gap-8">
@@ -696,7 +692,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                     {ad.type === 'image' ? (
                                         <div className="space-y-4">
                                             <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Link Ảnh</label><div className="flex gap-2"><input type="text" value={ad.image || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].image = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="flex-1 border border-gray-200 rounded-xl p-2.5 text-xs bg-white" placeholder="https://..." /><label className="bg-white border border-gray-200 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase hover:bg-gray-100 cursor-pointer flex items-center gap-1 shadow-sm"><span>Upload</span><input type="file" className="hidden" accept="image/*" onChange={async (e) => { if(e.target.files?.[0]) { setIsLoading(true); try { const compressed = await compressAndGetBase64(e.target.files[0]); const url = await db.uploadImage(compressed, `ads/${key}_${Date.now()}.jpg`); const newAds = { ...settings.adsConfig }; newAds[key].image = url; setSettings({ ...settings, adsConfig: newAds }); showToast("Đã tải ảnh lên!"); } catch (err) { showToast("Lỗi tải ảnh", "error"); } setIsLoading(false); } }} /></label></div></div>
-                                            <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Link Đích</label><input type="text" value={ad.link || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].link = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs bg-white text-blue-600 font-medium" placeholder="https://..." /></div>
+                                            <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Link Đích</label><input type="text" value={ad.link || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].link = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs bg-white text-emerald-600 font-medium" placeholder="https://..." /></div>
                                             {ad.image && <div className="mt-2 relative group rounded-lg overflow-hidden border border-gray-300 bg-white" style={{ maxHeight: '150px' }}><img src={ad.image} className="w-full h-full object-contain" /></div>}
                                         </div>
                                     ) : ad.type === 'code' ? (
@@ -726,7 +722,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                             </div>
 
                                             {/* Nút bấm & Link */}
-                                            <div className="flex gap-4"><div className="flex-1"><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Nút bấm</label><input type="text" value={ad.textBtnLabel || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].textBtnLabel = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-bold text-center" /></div><div className="flex-[2]"><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Link đích</label><input type="text" value={ad.link || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].link = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs text-blue-600" /></div></div>
+                                            <div className="flex gap-4"><div className="flex-1"><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Nút bấm</label><input type="text" value={ad.textBtnLabel || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].textBtnLabel = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-bold text-center" /></div><div className="flex-[2]"><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Link đích</label><input type="text" value={ad.link || ''} onChange={e => { const newAds = { ...settings.adsConfig }; newAds[key].link = e.target.value; setSettings({ ...settings, adsConfig: newAds }); }} className="w-full border border-gray-200 rounded-xl p-2.5 text-xs text-emerald-600" /></div></div>
                                             
                                             {/* Preview */}
                                             <div className="mt-4 p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between gap-4" style={{ backgroundColor: ad.bgColor || '#ffffff', color: ad.textColor || '#000000' }}>
@@ -784,7 +780,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                              <button 
                                  type="button"
                                  onClick={() => {
-                                     const newSlide = { id: Date.now(), type: 'text', title: 'Slide Mới', desc: 'Mô tả...', btnText: 'Xem', btnLink: '/', colorFrom: 'from-blue-600', colorTo: 'to-indigo-600', icon: '⚡', isActive: true };
+                                     const newSlide = { id: Date.now(), type: 'text', title: 'Slide Mới', desc: 'Mô tả...', btnText: 'Xem', btnLink: '/', colorFrom: 'from-emerald-600', colorTo: 'to-emerald-600', icon: '⚡', isActive: true };
                                      setSettings({...settings, bannerSlides: [...(settings.bannerSlides || []), newSlide]});
                                  }}
                                  className="bg-primary/10 text-primary px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-primary/20 transition-colors"
@@ -868,7 +864,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                                      </div>
                                                      <div className="grid grid-cols-2 gap-3">
                                                           <select value={slide.colorFrom} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorFrom=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
-                                                              <option value="from-blue-600">Xanh Dương (Đậm)</option>
+                                                              <option value="from-emerald-600">Xanh Dương (Đậm)</option>
                                                               <option value="from-red-600">Đỏ (Đậm)</option>
                                                               <option value="from-green-600">Xanh Lá (Đậm)</option>
                                                               <option value="from-yellow-500">Vàng (Đậm)</option>
@@ -878,8 +874,8 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                                               <option value="from-gray-800">Đen</option>
                                                           </select>
                                                           <select value={slide.colorTo} onChange={e => {const ns=[...settings.bannerSlides]; ns[idx].colorTo=e.target.value; setSettings({...settings, bannerSlides: ns})}} className="border border-gray-200 rounded-xl p-3 text-xs font-bold">
-                                                              <option value="to-indigo-600">Indigo</option>
-                                                              <option value="to-blue-400">Xanh Nhạt</option>
+                                                              <option value="to-emerald-600">Indigo</option>
+                                                              <option value="to-emerald-400">Xanh Nhạt</option>
                                                               <option value="to-red-400">Đỏ Nhạt</option>
                                                               <option value="to-green-400">Lá Nhạt</option>
                                                               <option value="to-yellow-400">Vàng Nhạt</option>
@@ -930,7 +926,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                         <div className="grid lg:grid-cols-3 gap-6">
                             {/* Lặp qua tất cả các gói trong tierConfigs */}
                             {Object.entries(settings.tierConfigs).map(([tierKey, config]: [string, any]) => (
-                                <div key={tierKey} className={`p-6 rounded-[2.5rem] border-2 space-y-5 transition-all ${tierKey === 'pro' ? 'border-yellow-400 bg-yellow-50/20' : tierKey === 'basic' ? 'border-blue-200 bg-blue-50/10' : 'border-gray-100 bg-gray-50/30'}`}>
+                                <div key={tierKey} className={`p-6 rounded-[2.5rem] border-2 space-y-5 transition-all ${tierKey === 'pro' ? 'border-yellow-400 bg-yellow-50/20' : tierKey === 'basic' ? 'border-emerald-200 bg-emerald-50/10' : 'border-gray-100 bg-gray-50/30'}`}>
                                     
                                     <div className="flex justify-between items-center">
                                         <label className="text-[9px] font-black text-gray-400 uppercase ml-1">ID: {tierKey}</label>
@@ -1056,7 +1052,7 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                                                 showToast("Đã Reset Cấu hình!");
                                             }
                                     }} 
-                                    className="bg-blue-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-blue-600 transition-colors"
+                                    className="bg-emerald-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-emerald-600 transition-colors"
                                     >
                                         ⚙️ Cập nhật Gói Cước & Ads
                                     </button>
@@ -1096,10 +1092,10 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
                             </div>
 
                             {/* Cột 2: SEO */}
-                            <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
-                                <h5 className="font-black text-sm text-blue-700">Sitemap SEO</h5>
-                                <p className="text-[11px] text-blue-600/70 mb-4 font-medium">Tạo file sitemap.xml cho Google.</p>
-                                <button type="button" onClick={handleDownloadSitemap} className="bg-blue-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg w-full">Tải Sitemap.xml</button>
+                            <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100">
+                                <h5 className="font-black text-sm text-emerald-700">Sitemap SEO</h5>
+                                <p className="text-[11px] text-emerald-600/70 mb-4 font-medium">Tạo file sitemap.xml cho Google.</p>
+                                <button type="button" onClick={handleDownloadSitemap} className="bg-emerald-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg w-full">Tải Sitemap.xml</button>
                             </div>
                         </div>
                     </div>

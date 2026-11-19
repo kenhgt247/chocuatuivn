@@ -22,12 +22,7 @@ export default defineConfig(({ mode }) => {
       open: true,
     },
 
-    define: {
-      // Ép kiểu biến môi trường để code React đọc được chính xác
-      'process.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
-      // Giữ nguyên fallback cho import.meta.env
-      'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
-    },
+    // Không đưa khóa Gemini vào code trình duyệt (ai cũng đọc được).
 
     resolve: {
       alias: {

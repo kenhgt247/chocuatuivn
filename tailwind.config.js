@@ -9,8 +9,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#1677ff',  // Màu Cam chủ đạo
-        bgMain: '#F8F9FA',   // Màu nền Xám nhạt
+        primary: '#047857',       // Xanh lá cộng đồng
+        primaryHover: '#065f46',
+        textMain: '#0f172a',
+        bgMain: '#f7faf8',
       }
     },
   },

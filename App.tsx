@@ -1,21 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 
 // --- Layout & Pages ---
-import Layout from './components/Layout';
-import Home from './pages/Home';
+import CommunityShell from './components/CommunityShell';
 import CommunityApp from './pages/CommunityApp';
-import ListingDetail from './pages/ListingDetail';
-import PostListing from './pages/PostListing';
 import Chat from './pages/Chat';
 import Profile from './pages/Profile';
 import SellerProfile from './pages/SellerProfile';
 import Auth from './pages/Auth';
 import Register from './pages/Register';
-import ManageAds from './pages/ManageAds';
-import Subscription from './pages/Subscription';
-import Wallet from './pages/Wallet';
 import Admin from './pages/Admin';
 import StaticPage from './pages/StaticPage';
 
@@ -25,7 +19,6 @@ import GoogleOneTap from './components/GoogleOneTap';
 // --- Services ---
 import { db, auth } from './services/db'; 
 import { User } from './types';
-import { formatPrice } from './utils/format';
 
 // --- Firebase ---
 import { onAuthStateChanged } from 'firebase/auth';
@@ -52,12 +45,18 @@ const IconCheckCircle = () => (
 );
 
 
-const CommunityFrame: React.FC<{user: User | null; children: React.ReactNode}> = ({user,children}) => {
-  const { pathname } = useLocation();
-  const isCommunity = pathname === '/' || pathname.startsWith('/cong-dong');
-  if (isCommunity) return <>{children}</>;
-  return <Layout user={user}>{children}</Layout>;
+// Link cũ của rao vặt (/san-pham/ten-tin-<id>) chuyển sang trang tin cộng đồng.
+// Bản rao vặt đầy đủ được lưu ở nhánh git "luu-tru-rao-vat-2026-11".
+const OldListingRedirect = () => {
+  const { slugWithId = '' } = useParams();
+  const id = slugWithId.split('-').pop() || '';
+  return <Navigate to={id ? '/cong-dong/tin/' + encodeURIComponent(id) : '/'} replace />;
 };
+
+// Mọi trang dùng chung một khung giao diện cộng đồng.
+const CommunityFrame: React.FC<{user: User | null; children: React.ReactNode}> = ({user,children}) => (
+  <CommunityShell user={user}>{children}</CommunityShell>
+);
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -145,14 +144,6 @@ const App: React.FC = () => {
             // --- BƯỚC 3: LẮNG NGHE THAY ĐỔI VÍ TIỀN (REALTIME) ---
             if (db.onUserChange) {
               unsubscribeUserChange = db.onUserChange(currentUser.id, (updatedUser) => {
-                // Kiểm tra nếu số dư TĂNG LÊN thì mới báo
-                if (updatedUser.walletBalance > prevBalanceRef.current) {
-                   const amount = updatedUser.walletBalance - prevBalanceRef.current;
-                   if (amount > 0) {
-                       showSafeToast(`Ting ting! Ví vừa cộng ${formatPrice(amount)}`);
-                   }
-                }
-                
                 // Cập nhật state
                 setUser(updatedUser);
                 prevBalanceRef.current = updatedUser.walletBalance;
@@ -258,23 +249,22 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<CommunityApp user={user} />} />
             <Route path="/cong-dong/*" element={<CommunityApp user={user} />} />
-            <Route path="/rao-vat" element={<Home user={user} />} />
-            <Route path="/search" element={<Home user={user} />} />
-            <Route path="/danh-muc/:slug" element={<Home user={user} />} />
-            <Route path="/danh-muc/:parentSlug/:childSlug" element={<Home user={user} />} />
+            {/* Rao vặt đã lưu trữ: các đường dẫn cũ chuyển về cộng đồng */}
+            <Route path="/rao-vat" element={<Navigate to="/" replace />} />
+            <Route path="/search" element={<Navigate to="/" replace />} />
+            <Route path="/danh-muc/*" element={<Navigate to="/" replace />} />
+            <Route path="/san-pham/:slugWithId" element={<OldListingRedirect />} />
+            <Route path="/listings/:slugWithId" element={<OldListingRedirect />} />
+            <Route path="/listing/:slugWithId" element={<OldListingRedirect />} />
 
-            <Route path="/san-pham/:slugWithId" element={<ListingDetail user={user} />} />
-            <Route path="/listings/:slugWithId" element={<ListingDetail user={user} />} />
-            
             <Route path="/profile" element={user ? <Profile user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
             <Route path="/profile/:id" element={<SellerProfile currentUser={user} />} />
             <Route path="/seller/:id" element={<SellerProfile currentUser={user} />} />
             
-            <Route path="/post" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
-            <Route path="/edit/:id" element={user ? <PostListing user={user} /> : <Navigate to="/login" />} />
-            
-            <Route path="/manage-ads" element={user ? <ManageAds user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/login" />} />
-            
+            <Route path="/post" element={<Navigate to="/cong-dong/dang-tin" replace />} />
+            <Route path="/edit/:id" element={<Navigate to="/profile" replace />} />
+            <Route path="/manage-ads" element={<Navigate to="/cong-dong/yeu-cau" replace />} />
+
             <Route path="/chat" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
             <Route path="/chat/:roomId" element={user ? <Chat user={user} /> : <Navigate to="/login" />} />
             

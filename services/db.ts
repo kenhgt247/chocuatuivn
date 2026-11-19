@@ -326,10 +326,13 @@ export const db = {
           }
       }
 
-      const finalLat = listingData.lat || seller?.lat || null;
-      const finalLng = listingData.lng || seller?.lng || null;
+      // Tin cộng đồng: KHÔNG lấy tọa độ/địa chỉ chính xác từ hồ sơ người dùng.
+      // Chỉ dùng vị trí gần đúng mà người dùng đã đồng ý chia sẻ khi đăng tin.
+      const isCommunity = listingData.isCommunityFree === true;
+      const finalLat = isCommunity ? (listingData.lat ?? null) : (listingData.lat || seller?.lat || null);
+      const finalLng = isCommunity ? (listingData.lng ?? null) : (listingData.lng || seller?.lng || null);
       const finalLocation = listingData.location || seller?.location || "Toàn quốc";
-      const finalAddress = listingData.address || seller?.address || "";
+      const finalAddress = isCommunity ? "" : (listingData.address || seller?.address || "");
 
       const dataToSave = {
         ...listingData,

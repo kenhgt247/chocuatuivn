@@ -55,9 +55,9 @@ const Auth: React.FC<{ onLogin: (user: any) => void }> = ({ onLogin }) => {
     <div className="max-w-md mx-auto py-10 px-4">
       <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-8 animate-fade-in-up">
         <div className="text-center space-y-2">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white text-3xl mx-auto shadow-lg shadow-primary/20">⚡</div>
+          <img src="/icons/icon-192.png" alt="" className="w-16 h-16 rounded-2xl mx-auto" />
           <h1 className="text-2xl font-black">Chào mừng trở lại!</h1>
-          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Đăng nhập vào hệ thống Chợ của tui</p>
+          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Cộng đồng chia sẻ miễn phí</p>
         </div>
 
         {error && (

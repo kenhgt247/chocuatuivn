@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "vn.chocuatui.app",
+      "sha256_cert_fingerprints": [
+        "CB:29:9B:DC:72:5E:9A:C2:6E:19:B9:DD:9D:8E:2A:79:3D:88:B4:E6:82:BA:B7:CB:96:97:9B:61:06:07:F9:92"
+      ]
+    }
+  }
+]

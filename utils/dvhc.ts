@@ -12,6 +12,8 @@ export type Ward = {
 };
 type Data = { provinces: Province[]; wards: Ward[] };
 
+import { wardRings, insideRings } from './ranhgioi';
+
 let cache: Promise<Data> | null = null;
 export function plain(s: string) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
@@ -53,13 +55,18 @@ function dist2(lat1: number, lng1: number, lat2: number, lng2: number) {
 export function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   return Math.sqrt(dist2(lat1, lng1, lat2, lng2)) * 111.32;
 }
-/** Xã/phường chứa (hoặc gần nhất) một toạ độ. Dùng khung bao + tâm gần nhất. */
+/** Xã/phường chứa một toạ độ: thử theo ranh giới thật trước, không được thì lấy tâm gần nhất. */
 export async function wardAt(lat: number, lng: number): Promise<Ward | null> {
   const { wards } = await loadDvhc();
+  const pad = 0.01;
+  const cands = wards.filter(w => lat >= w.bbox[0] - pad && lat <= w.bbox[2] + pad && lng >= w.bbox[1] - pad && lng <= w.bbox[3] + pad)
+    .sort((a, b) => dist2(lat, lng, a.lat, a.lng) - dist2(lat, lng, b.lat, b.lng));
+  for (const w of cands) {
+    if (insideRings(lng, lat, await wardRings(w.provinceCode, w.code))) return w;
+  }
   let best: Ward | null = null, bestD = Infinity;
-  for (const w of wards) {
-    const inside = lat >= w.bbox[0] && lat <= w.bbox[2] && lng >= w.bbox[1] && lng <= w.bbox[3];
-    const d = dist2(lat, lng, w.lat, w.lng) * (inside ? 1 : 4);
+  for (const w of (cands.length ? cands : wards)) {
+    const d = dist2(lat, lng, w.lat, w.lng);
     if (d < bestD) { bestD = d; best = w; }
   }
   return best;

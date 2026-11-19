@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import MapView from '../components/MapView';
+import CommunityMap from '../components/CommunityMap';
 import ShareModal from '../components/ShareModal';
 import { db } from '../services/db';
 import {
@@ -90,8 +90,6 @@ function Home({ user }: { user: User | null }) {
   }, [items, kind, search, area]);
   const near = area ? filtered.filter(x => sameArea(x.location, area)).length : 0;
   const mapped = filtered.map(x => ({ ...x, lat: x.lat == null ? null : Math.round(x.lat * 100) / 100, lng: x.lng == null ? null : Math.round(x.lng * 100) / 100 }));
-  const first = mapped.find(x => x.lat != null && x.lng != null);
-  const center: [number, number] = first?.lat != null && first?.lng != null ? [first.lat, first.lng] : [21.0, 105.85];
 
   return <div className="flex flex-col gap-4">
     <h1 className="text-2xl md:text-4xl font-extrabold leading-tight">Có gì chia sẻ,<br />cần gì có nhau.</h1>
@@ -131,7 +129,7 @@ function Home({ user }: { user: User | null }) {
           <p className="text-slate-600 mt-1">Hãy là người chia sẻ đầu tiên trong khu vực của bạn.</p>
           <Link className={btnPrimary + ' inline-flex items-center mt-4'} to="/cong-dong/dang-tin">Đăng tin đầu tiên</Link>
         </div>
-      : map ? <MapView listings={mapped} center={center} />
+      : map ? <CommunityMap items={mapped as CommunityListing[]} area={area} />
       : <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{filtered.map(it => <Card item={it} area={area} key={it.id} />)}</div>}
   </div>;
 }
@@ -168,9 +166,13 @@ function Post({ user }: { user: User | null }) {
     if (!navigator.geolocation) { setError('Thiết bị chưa hỗ trợ định vị. Bạn vẫn đăng được bằng tên khu vực.'); return; }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      pos => { setApproximateCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocating(false); setError(''); },
+      pos => {
+        setLocating(false);
+        if ((pos.coords.accuracy || 0) > 1500) { setApproximateCoords(null); setError('Máy đoán vị trí chưa chính xác (lệch vài km), nên tin sẽ hiện ở giữa xã/phường bạn chọn.'); return; }
+        setApproximateCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setError('');
+      },
       () => { setLocating(false); setError('Chưa lấy được vị trí. Bạn vẫn đăng được bằng tên khu vực.'); },
-      { timeout: 10000, enableHighAccuracy: false });
+      { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 });
   }
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -248,7 +250,7 @@ function Post({ user }: { user: User | null }) {
     {needAck && !blocked && <label className="flex gap-2 items-start text-sm"><input type="checkbox" className="mt-1 h-4 w-4" checked={safetyAck} onChange={e => setSafetyAck(e.target.checked)} />Tôi đã đọc lưu ý an toàn ở trên.</label>}
     {error && <ErrorMessage message={error} />}
 
-    <div className="fixed md:static left-0 right-0 bottom-[76px] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-3 md:p-0 flex flex-col gap-1">
+    <div className="fixed md:static left-0 right-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-5 md:p-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:shadow-none flex flex-col gap-1">
       <button disabled={saving || blocked} type="submit" className="min-h-14 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white text-lg font-extrabold disabled:opacity-60">{saving ? 'Đang đăng…' : 'Đăng tin'}</button>
       <span className="text-center text-xs text-slate-600">Miễn phí. Tin hiện sau khi được duyệt.</span>
     </div>
@@ -365,7 +367,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
       {error && <ErrorMessage message={error} />}
     </div>
 
-    <div className="fixed md:static left-0 right-0 bottom-[76px] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-3 md:pt-5 flex flex-col gap-1.5">
+    <div className="fixed md:static left-0 right-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-5 md:pt-5 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:shadow-none flex flex-col gap-1.5">
       {mine
         ? <Link to="/chat" className="min-h-14 rounded-2xl bg-emerald-700 text-white text-lg font-extrabold flex items-center justify-center gap-2">Xem người liên hệ</Link>
         : <button disabled={sending} onClick={ask} className="min-h-14 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white text-lg font-extrabold flex items-center justify-center gap-2 disabled:opacity-60">

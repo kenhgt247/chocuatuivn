@@ -89,6 +89,8 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
   const pushGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
   // Trang chat cần chiều cao cố định, ẩn chân trang cho gọn
   const isChat = pathname.startsWith('/chat');
+  // Trang có thanh nút cố định ở đáy (đăng tin, xem tin) trên điện thoại
+  const hasActionBar = pathname.startsWith('/cong-dong/dang-tin') || pathname.startsWith('/cong-dong/tin/');
 
   async function enablePush() {
     if (!user) return;
@@ -141,21 +143,29 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
         {pushNotice && <p role="status" className="text-center text-xs bg-emerald-50 text-emerald-800 py-2">{pushNotice} <button className="underline" onClick={() => setPushNotice('')}>Đóng</button></p>}
       </header>
 
-      <main className={'max-w-6xl mx-auto px-4 md:px-5 ' + (isChat ? 'py-3 md:py-6 pb-24 md:pb-6' : 'py-5 md:py-8 pb-28 md:pb-10')}>{children}</main>
+      <main className={'max-w-6xl mx-auto px-4 md:px-5 ' + (isChat ? 'py-3 md:py-6 pb-24 md:pb-6' : 'pt-5 md:pt-8 ' + (hasActionBar ? 'pb-36 md:pb-10' : 'pb-8 md:pb-10'))}>{children}</main>
 
-      {!isChat && <footer className="border-t border-line bg-white p-6 mb-[76px] md:mb-0 text-center text-sm text-slate-500">
-        <img src="/icons/icon-192.png" alt="" className="inline h-6 w-6 rounded-lg align-middle mr-2" />
-        Chợ Của Tui · Mọi người cùng chia sẻ · Hoàn toàn miễn phí
-        <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
-          <Link className="underline" to="/page/gioi-thieu">Giới thiệu</Link>
-          <Link className="underline" to="/page/quy-tac">Quy tắc cộng đồng</Link>
-          <Link className="underline" to="/page/an-toan">An toàn khi trao đồ</Link>
-          <Link className="underline" to="/page/chinh-sach-bao-mat">Bảo mật</Link>
-          <Link className="underline" to="/page/dieu-khoan">Điều khoản</Link>
+      {!isChat && <footer className="border-t border-line bg-white">
+        <div className={'max-w-6xl mx-auto px-4 md:px-5 pt-4 md:py-6 md:flex md:items-center md:justify-between md:gap-6 ' +
+          (hasActionBar ? 'pb-[calc(176px+env(safe-area-inset-bottom))]' : 'pb-[calc(92px+env(safe-area-inset-bottom))]') + ' md:pb-6'}>
+          <div className="flex items-center justify-center md:justify-start gap-2 md:gap-3">
+            <img src="/icons/icon-192.png" alt="" className="h-6 w-6 md:h-10 md:w-10 rounded-lg md:rounded-xl shrink-0" />
+            <p className="text-[13px] md:text-base text-slate-600">
+              <span className="font-extrabold text-emerald-900">Chợ Của Tui</span>
+              <span className="md:hidden"> · Miễn phí</span>
+              <span className="hidden md:block text-[13px]">Mọi người cùng chia sẻ · Hoàn toàn miễn phí</span>
+            </p>
+          </div>
+          <nav aria-label="Thông tin" className="mt-1 md:mt-0 flex flex-wrap justify-center md:justify-end gap-x-3 md:gap-x-5 text-xs md:text-sm font-semibold text-slate-600">
+            {[['/page/gioi-thieu', 'Giới thiệu'], ['/page/quy-tac', 'Quy tắc'], ['/page/an-toan', 'An toàn'],
+              ['/page/chinh-sach-bao-mat', 'Bảo mật'], ['/page/dieu-khoan', 'Điều khoản']].map(([to, label]) =>
+              <Link key={to} to={to} className="min-h-9 md:min-h-11 flex items-center hover:text-emerald-700">{label}</Link>)}
+          </nav>
         </div>
       </footer>}
 
-      <nav aria-label="Điều hướng nhanh" className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-start bg-white border-t border-line pb-[env(safe-area-inset-bottom)]">
+      <nav aria-label="Điều hướng nhanh" className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-line pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_12px_rgba(0,0,0,0.05)]">
+        <div className="h-16 flex items-start">
         {tab('/', 'Khám phá', 'home', pathname === '/' || pathname === '/cong-dong' || pathname.startsWith('/cong-dong/tin'))}
         {tab('/cong-dong/yeu-cau', 'Yêu cầu', 'inbox', pathname.startsWith('/cong-dong/yeu-cau'))}
         <Link to="/cong-dong/dang-tin" className="flex-1 flex flex-col items-center pb-2 text-xs font-bold text-emerald-700" aria-label="Đăng tin">
@@ -163,6 +173,7 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
         </Link>
         {tab('/chat', 'Tin nhắn', 'chat', pathname.startsWith('/chat'), unread)}
         {tab('/profile', 'Cá nhân', 'user', pathname.startsWith('/profile') || pathname.startsWith('/cong-dong/da-luu'))}
+        </div>
       </nav>
 
       <UniversalInstallPrompt />

@@ -172,6 +172,11 @@ service cloud.firestore {
       allow create: if isSignedIn();
     }
 
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /system/{document=**} {
       allow read: if true;
       allow write: if isAdmin();

@@ -319,7 +319,8 @@ export const db = {
     try {
       const seller = await db.getUserById(listingData.sellerId);
       let parentCategory = null;
-      if (listingData.category) {
+      // Tin cộng đồng không dùng danh mục rao vặt -> không đọc bảng categories.
+      if (listingData.category && listingData.isCommunityFree !== true) {
           const catDoc = await getDoc(doc(firestore, "categories", listingData.category));
           if (catDoc.exists()) {
               parentCategory = catDoc.data().parentId || null;
@@ -359,10 +360,9 @@ export const db = {
             message: {
               subject: `[Tin Mới] ${listingData.title} - Cần duyệt`,
               html: `
-                <h3 style="color: #0066cc;">Có người đăng tin bán hàng mới!</h3>
+                <h3 style="color: #047857;">Có tin chia sẻ mới cần duyệt</h3>
                 <p><strong>Tiêu đề:</strong> ${listingData.title}</p>
-                <p><strong>Giá:</strong> ${Number(listingData.price).toLocaleString()} VNĐ</p>
-                <p><strong>Người bán:</strong> ${listingData.sellerName}</p>
+                <p><strong>Người đăng:</strong> ${listingData.sellerName}</p>
               `
             }
           });
@@ -383,8 +383,7 @@ export const db = {
       if (listing) {
         if (status === 'sold' || status === 'hidden') return;
 
-        const slug = listing.slug || db.toSlug(listing.title);
-        const prettyLink = `/san-pham/${slug}-${listingId}`;
+        const prettyLink = `/cong-dong/tin/${listingId}`;
 
         await db.sendNotification({
           userId: listing.sellerId,

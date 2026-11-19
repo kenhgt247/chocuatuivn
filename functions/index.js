@@ -23,8 +23,10 @@ exports.pushThongBao = onDocumentCreated('notifications/{id}', async (event) => 
   if (!n || !n.userId) return;
   const userRef = db.collection('users').doc(n.userId);
   const user = (await userRef.get()).data();
-  const token = user && user.fcmToken;
-  if (!token || user.notificationsEnabled === false) return;
+  if (!user || user.notificationsEnabled === false) return;
+  // Mỗi máy (điện thoại, máy tính) có một mã riêng: gửi tới tất cả
+  const tokens = [...new Set([...(Array.isArray(user.fcmTokens) ? user.fcmTokens : []), user.fcmToken].filter(t => typeof t === 'string' && t))].slice(-10);
+  if (!tokens.length) return;
 
   let badge = 1;
   try {
@@ -33,25 +35,28 @@ exports.pushThongBao = onDocumentCreated('notifications/{id}', async (event) => 
   } catch (_) { /* bỏ qua */ }
 
   const link = typeof n.link === 'string' && n.link.startsWith('/') ? n.link : '/';
-  try {
-    await admin.messaging().send({
-      token,
-      // Chỉ gửi "data": service worker (public/sw.js) tự hiện thông báo -> không bị hiện 2 lần
-      data: {
-        title: String(n.title || 'Chợ Của Tui').slice(0, 120),
-        body: String(n.message || '').slice(0, 300),
-        link, badge: String(badge), type: String(n.type || 'info'),
-      },
-      webpush: { headers: { Urgency: 'high', TTL: '86400' } },
-    });
-  } catch (err) {
-    // Máy đã gỡ app hoặc tắt thông báo: xoá mã cũ để không gửi lại
-    const code = err && err.code;
-    if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') {
-      await userRef.update({ fcmToken: admin.firestore.FieldValue.delete() }).catch(() => {});
-    } else {
-      logger.error('Gửi thông báo đẩy lỗi', err);
-    }
+  const res = await admin.messaging().sendEachForMulticast({
+    tokens,
+    // Chỉ gửi "data": service worker (public/sw.js) tự hiện thông báo -> không bị hiện 2 lần
+    data: {
+      title: String(n.title || 'Chợ Của Tui').slice(0, 120),
+      body: String(n.message || '').slice(0, 300),
+      link, badge: String(badge), type: String(n.type || 'info'),
+    },
+    webpush: { headers: { Urgency: 'high', TTL: '86400' } },
+  });
+  // Máy đã gỡ app hoặc tắt thông báo: xoá mã cũ để không gửi lại
+  const dead = [];
+  res.responses.forEach((r, i) => {
+    const code = r.error && r.error.code;
+    if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token' || code === 'messaging/invalid-argument') dead.push(tokens[i]);
+    else if (r.error) logger.error('Gửi thông báo đẩy lỗi', r.error);
+  });
+  logger.info('Thông báo đẩy', { userId: n.userId, may: tokens.length, thanhCong: res.successCount });
+  if (dead.length) {
+    const upd = { fcmTokens: admin.firestore.FieldValue.arrayRemove(...dead) };
+    if (dead.includes(user.fcmToken)) upd.fcmToken = admin.firestore.FieldValue.delete();
+    await userRef.update(upd).catch(() => {});
   }
 });
 

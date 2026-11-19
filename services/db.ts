@@ -793,7 +793,7 @@ export const db = {
         if (token) {
           console.log("✅ FCM Token:", token);
           await updateDoc(doc(firestore, "users", userId), {
-            fcmToken: token,
+            fcmTokens: arrayUnion(token),
             notificationsEnabled: true
           });
           return token;

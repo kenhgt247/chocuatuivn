@@ -97,7 +97,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
     if (method === 'money') {
         if ((currentUser?.walletBalance || 0) < finalPrice) {
             if(confirm(`Số dư không đủ (Thiếu ${formatPrice(finalPrice - (currentUser?.walletBalance || 0))}). Nạp ngay?`)) {
-                navigate('/wallet');
+                navigate("/");
             }
             return;
         }
@@ -171,7 +171,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
         
         {/* --- PHẦN HÌNH ẢNH --- */}
         <div className="relative aspect-square overflow-hidden bg-gray-100">
-            <Link to={`/san-pham/${listing.slug}-${listing.id}`} className="block w-full h-full">
+            <Link to={`/cong-dong/tin/${listing.id}`} className="block w-full h-full">
                 <img 
                 src={listing.images?.[0] || 'https://placehold.co/400?text=No+Image'} 
                 alt={listing.title} 
@@ -224,7 +224,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
         </div>
 
         {/* --- PHẦN NỘI DUNG --- */}
-        <Link to={`/san-pham/${listing.slug}-${listing.id}`} className={`flex flex-col flex-1 p-3 space-y-2 ${cardStyle.bgTitle}`}>
+        <Link to={`/cong-dong/tin/${listing.id}`} className={`flex flex-col flex-1 p-3 space-y-2 ${cardStyle.bgTitle}`}>
             <h3 className={`text-xs ${listing.tier === 'pro' ? 'font-black text-black' : 'font-bold text-slate-700'} line-clamp-2 min-h-[2.5em] leading-relaxed group-hover:text-primary transition-colors`}>
             {listing.title}
             </h3>
@@ -312,7 +312,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
         <ShareModal 
             isOpen={isShareModalOpen} 
             onClose={() => setIsShareModalOpen(false)} 
-            url={`${window.location.origin}/san-pham/${listing.slug}-${listing.id}${currentUser ? `?ref=${currentUser.id}` : ''}`} 
+            url={`${window.location.origin}/cong-dong/tin/${listing.id}${currentUser ? `?ref=${currentUser.id}` : ''}`} 
             title={listing.title} 
         />
     </>

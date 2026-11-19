@@ -44,11 +44,13 @@ service cloud.firestore {
     match /listings/{listingId} {
       allow read: if true;
       
-      // Đảm bảo người đăng tin là chính họ
+      // Chỉ nhận tin cộng đồng miễn phí, luôn ở trạng thái chờ duyệt.
+      // (Rao vặt đã lưu trữ: người dùng không còn tạo được tin rao vặt/VIP
+      //  và không thể tự gắn trạng thái "approved".)
       allow create: if isSignedIn()
         && request.resource.data.sellerId == request.auth.uid
         && (
-          !('communityKind' in request.resource.data) ||
+          isAdmin() ||
           (
             request.resource.data.communityKind in ['gift','borrow','help','repair'] &&
             request.resource.data.isCommunityFree == true &&
@@ -57,26 +59,16 @@ service cloud.firestore {
             request.resource.data.status == 'pending'
           )
         );
-      
-      // Chỉ chủ tin hoặc admin mới được sửa/xóa, và không được đổi người bán
-      allow update: if (isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin()))
-        && request.resource.data.sellerId == resource.data.sellerId
-        && (
-          isAdmin() ||
-          request.resource.data.status == resource.data.status ||
-          request.resource.data.status in ['sold','hidden']
-        )
-        && (
-          !('communityKind' in resource.data) ||
-          isAdmin() ||
-          (
-            request.resource.data.communityKind == resource.data.communityKind &&
-            request.resource.data.isCommunityFree == true &&
-            request.resource.data.price == 0 &&
-            request.resource.data.tier == 'free'
-          )
-        );
-        
+
+      // Admin sửa được mọi thứ. Chủ tin chỉ được đánh dấu "đã xong" (sold)
+      // hoặc ẩn tin (hidden); không sửa nội dung tin đã được duyệt.
+      allow update: if isAdmin() || (
+        isSignedIn()
+        && resource.data.sellerId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['sold','hidden']
+      );
+
       allow delete: if isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
     }
 
@@ -150,8 +142,11 @@ service cloud.firestore {
 
     match /chats/{chatId} {
       // Chỉ những người trong cuộc hội thoại mới được xem và gửi tin
-      allow read, write: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      allow read, delete: if isSignedIn() && request.auth.uid in resource.data.participantIds;
       allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantIds;
+      // Người trong cuộc chat không được tự thêm/bớt người khác.
+      allow update: if isSignedIn() && request.auth.uid in resource.data.participantIds
+        && request.resource.data.participantIds == resource.data.participantIds;
     }
 
     match /reports/{reportId} {

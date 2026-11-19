@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { User, ChatRoom } from '../types'; 
-import { identifyProductForSearch } from '../services/geminiService';
 import { db, app } from '../services/db'; 
 import UniversalInstallPrompt from './UniversalInstallPrompt';
 import { compressAndGetBase64 } from '../utils/imageCompression';
@@ -123,7 +122,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     
     saveToHistory(q);
     setShowSuggestions(false);
-    navigate(`/?search=${encodeURIComponent(q)}`);
+    navigate(`/cong-dong?search=${encodeURIComponent(q)}`);
   };
 
   const handleVoiceSearch = () => {
@@ -145,20 +144,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
     };
     recognition.onerror = () => setIsListening(false);
     recognition.onend = () => setIsListening(false);
-  };
-
-  const handleImageSearchClick = () => { fileInputRef.current?.click(); };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsSearchingImage(true);
-    try {
-        const base64 = await compressAndGetBase64(file);
-        const keywords = await identifyProductForSearch(base64);
-        navigate(`/?search=${encodeURIComponent(keywords.trim().toLowerCase())}&visual=true`);
-    } catch (err) { alert("Lỗi ảnh."); }
-    finally { setIsSearchingImage(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
 
   return (
@@ -207,19 +192,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
               >
                  <IconMic />
               </button>
-
-              <button 
-                type="button" 
-                onClick={handleImageSearchClick} 
-                disabled={isSearchingImage} 
-                className={`p-1.5 md:p-2 rounded-lg hover:bg-gray-200 transition-all ${isSearchingImage ? 'animate-pulse text-primary' : 'text-gray-400 hover:text-primary'}`}
-                title="Tìm bằng hình ảnh"
-              >
-                <IconCamera />
-              </button>
           </div>
-          
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+
 
           {showSuggestions && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-fade-in-up z-50">
@@ -241,7 +215,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
                   <div className="p-2 border-t border-gray-50 bg-gray-50/50">
                       <p className="text-[10px] font-black text-gray-400 uppercase px-3 py-2 flex items-center gap-1"><IconTrendingUp /> Xu hướng</p>
                       <div className="flex flex-wrap gap-2 px-2 pb-2">
-                          {['iPhone 15', 'Xe máy cũ', 'Laptop Gaming', 'Nhà trọ', 'Việc làm'].map(tag => (
+                          {['Quần áo', 'Sách vở', 'Đồ trẻ em', 'Dụng cụ', 'Đồ gia dụng'].map(tag => (
                               <button 
                                 key={tag}
                                 type="button"
@@ -284,7 +258,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           {/* NHÓM NÚT ĐĂNG TIN & AVATAR (Chỉ hiện trên PC) */}
           <div className="hidden md:flex items-center gap-3">
             
-            <Link to="/post" className="flex items-center gap-2 bg-primary text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primaryHover hover:-translate-y-1 transition-all active:scale-95">
+            <Link to="/cong-dong/dang-tin" className="flex items-center gap-2 bg-primary text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primaryHover hover:-translate-y-1 transition-all active:scale-95">
                 <div className="w-4 h-4"><IconPlus /></div>
                 <span>Đăng tin</span>
             </Link>
@@ -311,22 +285,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
         </div>
       </header>
 
-      {/* FILTER BAR (Giữ nguyên) */}
-      {(searchQuery || searchParams.get('visual')) && (
-        <div className="sticky top-[5rem] z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 py-3 animate-fade-in shadow-sm transition-all">
-          <div className="max-w-[1400px] mx-auto px-2 md:px-4 flex items-center gap-3">
-            <div className="flex items-center gap-2 flex-shrink-0 pr-3 border-r border-gray-100 hidden md:flex"><div className="w-1.5 h-4 bg-primary rounded-full"></div><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Bộ lọc giá</span></div>
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-              <button onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}&maxPrice=2000000`)} className="flex-shrink-0 px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-bold text-slate-600 hover:border-primary hover:text-primary transition-all shadow-sm active:scale-95">💰 Dưới 2 Triệu</button>
-              <button onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}&minPrice=2000000&maxPrice=10000000`)} className="flex-shrink-0 px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-bold text-slate-600 hover:border-primary hover:text-primary transition-all shadow-sm active:scale-95">💎 2 - 10 Triệu</button>
-              <button onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}&minPrice=10000000`)} className="flex-shrink-0 px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-bold text-slate-600 hover:border-primary hover:text-primary transition-all shadow-sm active:scale-95">🔥 Trên 10 Triệu</button>
-              <button onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}&location=${encodeURIComponent(user?.location || 'TPHCM')}`)} className="flex-shrink-0 px-4 py-2 bg-primary/5 border border-primary/20 rounded-full text-[10px] font-black text-primary uppercase tracking-tight ml-2 hover:bg-primary/10 transition-all shadow-sm">📍 Gần tôi</button>
-              {(minPriceParam || maxPriceParam || locationParam) && <button onClick={() => navigate(`/?search=${encodeURIComponent(searchQuery)}`)} className="flex-shrink-0 ml-2 px-3 py-2 text-[10px] font-black text-red-500 hover:bg-red-50 rounded-full transition-all uppercase tracking-tighter animate-fade-in">✕ Lọc</button>}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* MAIN CONTENT */}
       <main className="flex-1 w-full max-w-screen-2xl mx-auto md:px-8 py-6 md:py-10 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-10">
         {children}
@@ -340,14 +298,14 @@ const Layout: React.FC<LayoutProps> = ({ children, user }) => {
           </div>
           <span className={`text-[10px] font-bold ${location.pathname === '/' ? 'opacity-100' : 'opacity-70'}`}>Trang chủ</span>
         </Link>
-        <Link to="/manage-ads" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname === '/manage-ads' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
-          <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/manage-ads' ? 'bg-blue-50' : ''}`}>
+        <Link to="/cong-dong/yeu-cau" className={`flex-1 flex flex-col items-center justify-center gap-1 pb-2 group transition-all duration-300 ${location.pathname === '/cong-dong/yeu-cau' ? 'text-blue-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}>
+          <div className={`p-1.5 rounded-xl transition-all duration-300 ${location.pathname === '/cong-dong/yeu-cau' ? 'bg-blue-50' : ''}`}>
               <div className="w-6 h-6"><IconManage /></div>
           </div>
-          <span className={`text-[10px] font-bold ${location.pathname === '/manage-ads' ? 'opacity-100' : 'opacity-70'}`}>Quản lý</span>
+          <span className={`text-[10px] font-bold ${location.pathname === '/cong-dong/yeu-cau' ? 'opacity-100' : 'opacity-70'}`}>Yêu cầu</span>
         </Link>
         <div className="flex-1 flex flex-col items-center justify-end pb-3 relative z-10">
-           <Link to="/post" className="w-14 h-14 mb-1 bg-gradient-to-tr from-blue-600 to-cyan-400 text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(59,130,246,0.5)] border-[4px] border-white transform transition-all duration-300 active:scale-90 hover:scale-105 hover:-translate-y-2">
+           <Link to="/cong-dong/dang-tin" className="w-14 h-14 mb-1 bg-gradient-to-tr from-blue-600 to-cyan-400 text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(59,130,246,0.5)] border-[4px] border-white transform transition-all duration-300 active:scale-90 hover:scale-105 hover:-translate-y-2">
                <div className="w-7 h-7"><IconPlus /></div>
            </Link>
           <span className="text-[10px] font-black text-blue-600 tracking-tight">Đăng tin</span>

@@ -241,7 +241,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
             onConfirm: async () => {
                 if (user.walletBalance < finalPrice) {
                     alert(`Ví không đủ tiền (Thiếu ${formatPrice(finalPrice - user.walletBalance)}).`);
-                    navigate('/wallet');
+                    navigate('/');
                     return;
                 }
                 processPush(listingId, 'money', finalPrice);
@@ -411,28 +411,6 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                         </p>
                         
                         <div className="flex flex-wrap justify-center md:justify-start gap-4 pt-4">
-                            {/* THẺ HẠNG THÀNH VIÊN */}
-                            <div className={`p-6 rounded-[2rem] border-2 shadow-lg min-w-[260px] relative overflow-hidden group ${subscriptionData.effectiveTier === 'free' ? 'bg-slate-50 border-slate-100' : 'bg-gradient-to-br from-yellow-500 to-orange-600 border-yellow-400 text-white shadow-yellow-100'}`}>
-                                <div className="flex justify-between items-start relative z-10">
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase opacity-70 tracking-widest flex items-center gap-1"><IconCrown className="w-3 h-3" /> Hạng thành viên</p>
-                                        <h4 className="text-2xl font-black uppercase mt-1">{(settings?.tierConfigs as any)?.[subscriptionData.effectiveTier]?.name || 'Cơ bản'}</h4>
-                                    </div>
-                                    <IconDiamond className={`w-8 h-8 ${subscriptionData.effectiveTier === 'free' ? 'text-slate-300' : 'text-white/80'}`} />
-                                </div>
-                                <div className="mt-6 flex items-center justify-between relative z-10">
-                                    {!subscriptionData.isExpired ? <p className="text-xs font-bold opacity-80">Còn {subscriptionData.daysRemaining} ngày</p> : <p className="text-xs font-bold opacity-80">Trải nghiệm VIP ngay</p>}
-                                    <Link to="/upgrade" className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${subscriptionData.effectiveTier === 'free' ? 'bg-primary text-white shadow-lg hover:bg-primaryHover' : 'bg-white/20 border border-white/30 text-white hover:bg-white/30'}`}>Nâng cấp</Link>
-                                </div>
-                            </div>
-
-                            {/* THẺ VÍ TIỀN */}
-                            <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-xl min-w-[200px] flex flex-col justify-center group hover:border-primary/20 transition-all">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1"><IconCreditCard className="w-3 h-3" /> Số dư ví</p>
-                                <p className="text-3xl font-black text-primary tracking-tighter">{formatPrice(user.walletBalance)}</p>
-                                <Link to="/wallet" className="text-[10px] font-black text-primary/60 hover:text-primary mt-3 uppercase flex items-center gap-1 group-hover:translate-x-1 transition-transform">Nạp thêm tiền <IconChevronRight className="w-3 h-3" /></Link>
-                            </div>
-
                             {/* THẺ ĐIỂM THƯỞNG (NEW) */}
                             <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-xl min-w-[180px] flex flex-col justify-center group hover:border-yellow-400/20 transition-all">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1"><IconStar className="w-3 h-3 text-yellow-500" /> Điểm thưởng</p>
@@ -502,28 +480,10 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                                             </button>
                                         ) : (
                                             <>
-                                                {/* 1. NÚT ĐẨY TIN (ĐÃ NÂNG CẤP) */}
-                                                <button 
-                                                    onClick={() => handlePushListing(listing.id, listing.title)} 
-                                                    disabled={isPushing !== null || listing.status !== 'approved'} 
-                                                    className={`w-full py-3 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2 border shadow-sm
-                                                        ${listing.status === 'approved' ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-none shadow-orange-200 hover:scale-[1.02]' : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'}
-                                                    `}
-                                                >
-                                                    {isPushing === listing.id ? (
-                                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                    ) : (
-                                                        <>
-                                                            <IconZap className="w-4 h-4 fill-white" />
-                                                            <span>Đẩy tin {listing.status === 'approved' && `(${formatPrice(finalPush)})`}</span>
-                                                        </>
-                                                    )}
-                                                </button>
-
                                                 {/* 2. SỬA + XÓA */}
                                                 <div className="grid grid-cols-2 gap-2">
-                                                    <Link to={`/edit/${listing.id}`} className="flex items-center justify-center gap-1.5 bg-slate-50 text-slate-600 border border-slate-200 hover:bg-white hover:border-slate-300 py-3 rounded-2xl text-[10px] font-black uppercase transition-all shadow-sm">
-                                                        <IconEdit2 className="w-3.5 h-3.5" /> Sửa
+                                                    <Link to={`/cong-dong/tin/${listing.id}`} className="flex items-center justify-center gap-1.5 bg-slate-50 text-slate-600 border border-slate-200 hover:bg-white hover:border-slate-300 py-3 rounded-2xl text-[10px] font-black uppercase transition-all shadow-sm">
+                                                        <IconEdit2 className="w-3.5 h-3.5" /> Xem
                                                     </Link>
                                                     <button onClick={() => handleDelete(listing.id)} className="flex items-center justify-center gap-1.5 bg-red-50 text-red-500 border border-red-100 hover:bg-red-500 hover:text-white py-3 rounded-2xl text-[10px] font-black uppercase transition-all shadow-sm">
                                                         <IconTrash className="w-3.5 h-3.5" /> Xóa
@@ -539,7 +499,7 @@ const Profile: React.FC<{ user: User | null, onLogout: () => void, onUpdateUser:
                             <div className="col-span-full py-40 text-center bg-white rounded-[3.5rem] border border-slate-100 flex flex-col items-center justify-center gap-4 shadow-inner">
                                 <IconPackage className="w-16 h-16 text-slate-200" />
                                 <p className="text-slate-300 font-black uppercase tracking-widest text-sm">Trống trải quá, đăng tin ngay!</p>
-                                <Link to="/post" className="text-primary font-bold text-xs uppercase hover:underline">Đăng tin mới +</Link>
+                                <Link to="/cong-dong/dang-tin" className="text-primary font-bold text-xs uppercase hover:underline">Đăng tin mới +</Link>
                             </div>
                         )}
                     </div>

@@ -82,7 +82,7 @@ function Home() {
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
   const [kind,setKind]=useState<CommunityKind|'all'>('all');
-  const [search,setSearch]=useState('');
+  const [search,setSearch]=useState(()=>new URLSearchParams(window.location.search).get('search')||'');
   const [map,setMap]=useState(false);
   useEffect(()=>{let alive=true;
     community.list().then(result=>{if(alive)setItems(result)}).catch(e=>{if(alive)setError(e?.message||'Không tải được tin')}).finally(()=>{if(alive)setLoading(false)});

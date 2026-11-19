@@ -144,7 +144,7 @@ const STATIC_DATA: Record<string, PageContent> = {
         </div>
         <div className="p-8 bg-primary rounded-[2.5rem] text-white text-center shadow-xl shadow-primary/20">
           <h4 className="text-xl font-black mb-4">Sẵn sàng bán món đồ đầu tiên?</h4>
-          <Link to="/post" className="inline-block bg-white text-primary px-10 py-4 rounded-2xl font-black uppercase text-xs hover:scale-105 transition-transform active:scale-95">Đăng tin ngay</Link>
+          <Link to="/cong-dong/dang-tin" className="inline-block bg-white text-primary px-10 py-4 rounded-2xl font-black uppercase text-xs hover:scale-105 transition-transform active:scale-95">Đăng tin ngay</Link>
         </div>
       </div>
     )

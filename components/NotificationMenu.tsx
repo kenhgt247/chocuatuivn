@@ -74,8 +74,8 @@ const NotificationMenu: React.FC<{ userId: string }> = ({ userId }) => {
     if (noti.link) {
         navigate(noti.link);
     } else {
-        if (noti.type === 'wallet') navigate('/wallet');
-        else if (noti.type === 'order') navigate('/manage-ads');
+        if (noti.type === 'wallet') navigate('/profile');
+        else if (noti.type === 'order') navigate('/cong-dong/yeu-cau');
     }
   };
 

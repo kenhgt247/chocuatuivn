@@ -348,12 +348,9 @@ const Admin: React.FC<{ user: User | null }> = ({ user }) => {
             <nav className="space-y-1">
                {[
                    { id: 'stats', label: 'Bàn làm việc', icon: '📊', notify: false }, 
-                   { id: 'payments', label: 'Duyệt tiền', icon: '💰', notify: pendingPayments.length > 0 }, 
                    { id: 'listings', label: 'Duyệt tin', icon: '📦', notify: hasPendingListings }, 
-                   { id: 'categories', label: 'Danh mục', icon: '📂', notify: false }, 
                    { id: 'reports', label: 'Báo cáo', icon: '🚨', notify: activeReports.length > 0 }, 
                    { id: 'users', label: 'Thành viên', icon: '👥', notify: pendingVerifications.length > 0 }, 
-                   { id: 'ads', label: 'Quảng cáo', icon: '📢', notify: false },
                    { id: 'settings', label: 'Cấu hình', icon: '⚙️', notify: false }
                ].map(tab => (
                    <button key={tab.id} onClick={() => setActiveTab(tab.id as AdminTab)} className={`w-full flex items-center justify-between px-5 py-3.5 rounded-2xl text-[11px] font-black uppercase transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}>

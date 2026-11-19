@@ -29,8 +29,10 @@ service cloud.firestore {
 
     // --- RULES CHO TỪNG COLLECTION ---
 
+    // Bảng users có email, SĐT, địa chỉ, tọa độ: chỉ chủ tài khoản và admin đọc.
+    // Người khác xem tên/ảnh/khu vực qua publicProfiles.
     match /users/{userId} {
-      allow read: if true; 
+      allow read: if isOwner(userId) || isAdmin();
       
       // Khi tạo tài khoản mới
       allow create: if isOwner(userId) 
@@ -42,7 +44,10 @@ service cloud.firestore {
     }
 
     match /listings/{listingId} {
-      allow read: if true;
+      // Ai cũng xem được tin cộng đồng. Tin rao vặt cũ (có SĐT, địa chỉ người bán)
+      // chỉ chủ tin và admin xem.
+      allow read: if resource.data.isCommunityFree == true
+        || (isSignedIn() && (resource.data.sellerId == request.auth.uid || isAdmin()));
       
       // Chỉ nhận tin cộng đồng miễn phí, luôn ở trạng thái chờ duyệt.
       // (Rao vặt đã lưu trữ: người dùng không còn tạo được tin rao vặt/VIP
@@ -74,6 +79,19 @@ service cloud.firestore {
 
 
     // Chợ Của Tui 2.0: yêu cầu riêng tư, không có thanh toán.
+    match /publicProfiles/{uid} {
+      function validProfile() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['name','avatar','location','joinedAt','updatedAt'])
+          && d.name is string && d.name.size() <= 60
+          && (!('avatar' in d) || (d.avatar is string && d.avatar.size() <= 600))
+          && (!('location' in d) || (d.location is string && d.location.size() <= 100));
+      }
+      allow read: if true;
+      allow create, update: if (isOwner(uid) || isAdmin()) && validProfile();
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
     match /communityRequests/{requestId} {
       function isParticipant() {
         return isSignedIn() && (
@@ -169,7 +187,30 @@ service cloud.firestore {
 
     match /notifications/{notifId} {
       allow read, update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid);
-      allow create: if isSignedIn();
+      // Chống spam: người dùng chỉ được báo cho người đang có chung một yêu cầu
+      // hoặc một phòng chat với mình; nội dung ngắn, link nội bộ. Admin gửi tự do.
+      allow create: if isAdmin() || (isSignedIn() && validUserNotification());
+      function validUserNotification() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['userId','title','message','type','link','read','createdAt','requestId','chatId','image'])
+          && d.userId is string && d.userId != request.auth.uid
+          && d.title is string && d.title.size() <= 120
+          && d.message is string && d.message.size() <= 300
+          && d.read == false
+          && (!('link' in d) || (d.link is string && d.link.matches('^/[^/].*')))
+          && (
+            ('requestId' in d && sharedRequest(d.requestId, d.userId)) ||
+            ('chatId' in d && sharedChat(d.chatId, d.userId))
+          );
+      }
+      function sharedRequest(id, other) {
+        let r = get(/databases/$(database)/documents/communityRequests/$(id)).data;
+        return [r.ownerId, r.requesterId].hasAll([request.auth.uid, other]);
+      }
+      function sharedChat(id, other) {
+        let c = get(/databases/$(database)/documents/chats/$(id)).data;
+        return c.participantIds.hasAll([request.auth.uid, other]);
+      }
     }
 
     match /categories/{categoryId} {

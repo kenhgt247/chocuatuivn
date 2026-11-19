@@ -72,13 +72,15 @@ export function nextStatuses(r: CommunityRequest, uid: string): CommunityStatus[
 export const community = {
   // Dùng truy vấn mà trang rao vặt cũ đang sử dụng; không yêu cầu migration/index mới.
   async list(): Promise<CommunityListing[]> {
+    // Chỉ lọc bằng điều kiện "bằng" để không cần tạo index mới; sắp xếp mới nhất ở máy người dùng.
     const snapshot = await getDocs(query(
       collection(firestore, 'listings'),
-      where('status', '==', 'approved'), orderBy('createdAt', 'desc'), limit(250)
+      where('isCommunityFree', '==', true), where('status', '==', 'approved'), limit(300)
     ));
     return snapshot.docs
       .map(x => ({ ...x.data(), id: x.id } as CommunityListing))
-      .filter(x => checkKind(x.communityKind) && x.isCommunityFree === true && x.price === 0);
+      .filter(x => checkKind(x.communityKind) && x.price === 0)
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   },
   /** Tin cộng đồng của chính mình, mọi trạng thái (chờ duyệt, đang hiện, đã xong, đã ẩn). */
   async myListings(uid: string): Promise<CommunityListing[]> {
@@ -90,7 +92,7 @@ export const community = {
   },
   /** Tin cộng đồng đang hiện của một người (trang hồ sơ công khai). */
   async byOwner(uid: string): Promise<CommunityListing[]> {
-    const snapshot = await getDocs(query(collection(firestore, 'listings'), where('sellerId', '==', uid), where('status', '==', 'approved'), limit(100)));
+    const snapshot = await getDocs(query(collection(firestore, 'listings'), where('sellerId', '==', uid), where('isCommunityFree', '==', true), where('status', '==', 'approved'), limit(100)));
     return snapshot.docs
       .map(x => ({ ...x.data(), id: x.id } as CommunityListing))
       .filter(x => checkKind(x.communityKind) && x.isCommunityFree === true)
@@ -202,7 +204,7 @@ export const community = {
       await db.sendNotification({
         userId: item.sellerId, title: 'Có người muốn kết nối 🌱',
         message: 'Bạn vừa nhận một yêu cầu cho tin: ' + item.title,
-        type: 'info', link: '/cong-dong/yeu-cau'
+        type: 'info', link: '/cong-dong/yeu-cau', requestId: id
       });
     } catch (err) { console.warn('Yêu cầu đã lưu nhưng thông báo chưa gửi được', err); }
     return id;
@@ -244,7 +246,7 @@ export const community = {
         await db.sendNotification({
           userId: receiverId, title: 'Cập nhật yêu cầu 🌱',
           message: 'Tin ' + r.listingTitle + ': ' + statusLabels[status],
-          type: 'info', link: '/cong-dong/yeu-cau'
+          type: 'info', link: '/cong-dong/yeu-cau', requestId: r.id
         });
       } catch (err) { console.warn('Trạng thái đã lưu nhưng thông báo chưa gửi được', err); }
     }

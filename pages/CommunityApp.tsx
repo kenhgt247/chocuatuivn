@@ -292,7 +292,7 @@ function Requests({user}:{user:User|null}) {
     try{
       const listing=await community.detail(request.listingId);
       if(!listing)throw new Error('Tin đã được ẩn.');
-      const requester=request.requesterId===user!.id?user!:await db.getUserById(request.requesterId);
+      const requester=request.requesterId===user!.id?user!:(await db.getPublicProfile(request.requesterId)) as unknown as User|null;
       if(!requester)throw new Error('Không tìm thấy thành viên.');
       const room=await db.createChatRoom(listing,requester);
       nav('/chat/'+room);

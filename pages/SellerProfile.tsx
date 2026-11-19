@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { User } from '../types';
+import { User, PublicProfile } from '../types';
 import { db } from '../services/db';
 import { community, type CommunityListing } from '../services/community';
 import { Card } from './CommunityApp';
@@ -12,7 +12,7 @@ import { Card } from './CommunityApp';
 const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
   const { id = '' } = useParams();
   const nav = useNavigate();
-  const [person, setPerson] = useState<User | null>(null);
+  const [person, setPerson] = useState<PublicProfile | null>(null);
   const [items, setItems] = useState<CommunityListing[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -20,8 +20,8 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
     if (currentUser?.id && currentUser.id === id) { nav('/profile', { replace: true }); return; }
     let alive = true;
     setLoading(true);
-    Promise.all([db.getUserById(id), community.byOwner(id)])
-      .then(([u, list]) => { if (alive) { setPerson(u as User | null); setItems(list); } })
+    Promise.all([db.getPublicProfile(id), community.byOwner(id)])
+      .then(([u, list]) => { if (alive) { setPerson(u); setItems(list); } })
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, [id, currentUser?.id]);

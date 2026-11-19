@@ -500,6 +500,40 @@ function Posted() {
 }
 
 /* ---------------- Chi tiết tin ---------------- */
+/** Thanh quản trị trên trang tin: ẩn, cho hiện lại, xoá hẳn. */
+function AdminBar({ item, onChange }: { item: CommunityListing; onChange: (v: Partial<CommunityListing> | null) => void }) {
+  const [mode, setMode] = useState<'' | 'hide' | 'delete'>('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  async function run(fn: () => Promise<void>, v: Partial<CommunityListing> | null, ok: string) {
+    setBusy(true); setMsg('');
+    try { await fn(); setMode(''); setMsg(ok); onChange(v); }
+    catch (e: any) { setMsg('Chưa làm được: ' + (e?.code || e?.message || '')); }
+    finally { setBusy(false); }
+  }
+  const load = () => import('../components/AdminListings');
+  return <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-3 flex flex-col gap-2">
+    <span className="text-xs font-extrabold text-rose-800">Quản trị</span>
+    {mode === '' && <div className="flex gap-2 flex-wrap">
+      {item.status === 'approved'
+        ? <button disabled={busy} onClick={() => setMode('hide')} className="min-h-10 px-4 rounded-xl bg-rose-600 text-white text-sm font-bold">Ẩn tin</button>
+        : <button disabled={busy} onClick={() => run(async () => (await load()).adminShow(item.id), { status: 'approved' } as any, 'Đã cho hiện lại.')} className="min-h-10 px-4 rounded-xl bg-emerald-700 text-white text-sm font-bold">Cho hiện</button>}
+      <button disabled={busy} onClick={() => setMode('delete')} className="min-h-10 px-4 rounded-xl border border-rose-300 bg-white text-rose-700 text-sm font-bold">Xoá hẳn</button>
+    </div>}
+    {mode !== '' && <AdminReason danger={mode === 'delete'} busy={busy} onCancel={() => setMode('')}
+      onPick={r => mode === 'hide'
+        ? run(async () => (await load()).adminHide(item, r), { status: 'hidden' } as any, 'Đã ẩn tin và báo cho người đăng.')
+        : run(async () => (await load()).adminDelete(item, r), null, 'Đã xoá tin.')} />}
+    {msg && <p className="text-sm font-semibold">{msg}</p>}
+  </div>;
+}
+const AdminReasonLazy = React.lazy(() => import('../components/AdminListings').then(m => ({ default: m.ReasonPicker })));
+function AdminReason(p: { danger: boolean; busy: boolean; onCancel: () => void; onPick: (r: string) => void }) {
+  return <React.Suspense fallback={<p className="text-sm">Đang tải…</p>}>
+    <AdminReasonLazy label={p.danger ? 'Xoá hẳn (không khôi phục được)' : 'Ẩn tin này'} danger={p.danger} busy={p.busy} onCancel={p.onCancel} onPick={p.onPick} />
+  </React.Suspense>;
+}
+
 function Detail({ user, id }: { user: User | null; id: string }) {
   const nav = useNavigate();
   const [item, setItem] = useState<CommunityListing | null>(null);
@@ -537,10 +571,12 @@ function Detail({ user, id }: { user: User | null; id: string }) {
   }, [id]);
   if (loading) return <div className="max-w-3xl mx-auto"><div className="h-72 rounded-3xl bg-[#ECE5D4] animate-pulse" /><div className="h-8 w-2/3 rounded-xl bg-[#ECE5D4] animate-pulse mt-5" /></div>;
   if (error) return <ErrorMessage message={error} />;
-  if (!item) return <div className="bg-white p-8 rounded-2xl border border-line">Tin không tồn tại hoặc đã đóng. <Link className="underline" to="/">Về trang chủ</Link></div>;
+  const mine = !!item && user?.id === item.sellerId;
+  const isAdmin = user?.role === 'admin';
+  // Tin đã ẩn / bị từ chối / chờ duyệt: chỉ chủ tin và quản trị xem được.
+  if (!item || (!mine && !isAdmin && !['approved', 'sold'].includes(String(item.status)))) return <div className="bg-white p-8 rounded-2xl border border-line">Tin không tồn tại hoặc đã đóng. <Link className="underline" to="/">Về trang chủ</Link></div>;
   const kind = (item.communityKind || 'gift') as CommunityKind;
   const need = item.communityIntent === 'need';
-  const mine = user?.id === item.sellerId;
   const ownerName = owner?.name || item.sellerName || 'Thành viên';
   const notes = safetyNotes(item.title + ' ' + (item.description || ''));
   const images = item.images || [];
@@ -620,7 +656,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
       <div className="flex gap-2 flex-wrap">
         <IntentBadge kind={kind} intent={item.communityIntent} className="!text-xs !px-2.5 !py-1" />
         <span className="text-xs font-bold text-emerald-700 bg-white border border-emerald-700 px-2.5 py-0.5 rounded-full">Miễn phí</span>
-        {mine && item.status !== 'approved' && <span className="text-xs font-bold text-sun-dark bg-sun-light px-2.5 py-0.5 rounded-full">{item.status === 'pending' ? 'Đang chờ kiểm tra' : item.status === 'rejected' ? 'Chưa được đăng' : 'Đã ẩn'}</span>}
+        {(mine || isAdmin) && item.status !== 'approved' && <span className="text-xs font-bold text-sun-dark bg-sun-light px-2.5 py-0.5 rounded-full">{item.status === 'pending' ? 'Đang chờ kiểm tra' : item.status === 'rejected' ? 'Chưa được đăng' : 'Đã ẩn'}</span>}
       </div>
       <h1 className="text-2xl md:text-3xl font-extrabold leading-tight">{item.title}</h1>
       {item.description && <p className="text-[15px] leading-relaxed text-[#3B4A40] whitespace-pre-wrap">{item.description}</p>}
@@ -633,6 +669,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
       {ownerBox}
       {thanks.length > 0 && <ThanksList items={thanks.slice(0, 2)} title={'Lời cảm ơn gửi ' + ownerName} more={thanks.length > 2 ? '/profile/' + item.sellerId : ''} />}
       <SafetyBox notes={notes} />
+      {isAdmin && !mine && <AdminBar item={item} onChange={v => v ? setItem({ ...item, ...v }) : nav('/admin')} />}
       {!mine && <p className="text-[13px] leading-relaxed text-slate-600">{need ? 'Người đăng sẽ chọn người giúp phù hợp.' : 'Người cho sẽ chọn người nhận.'} Không chuyển khoản hay đặt cọc cho bất kỳ ai. {reported ? 'Đã gửi báo cáo, cảm ơn bạn.' : <button onClick={report} className="underline">Báo cáo tin này</button>}</p>}
       {error && <ErrorMessage message={error} />}
     </div>

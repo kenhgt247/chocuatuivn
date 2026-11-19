@@ -1,6 +1,6 @@
 /** Bảng số liệu cho quản trị: tin mới, lần trao xong theo tuần; xã/phường sôi nổi nhất. */
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
+import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
 import { firestore } from '../services/db';
 
 const WEEKS = 8;
@@ -19,9 +19,12 @@ export default function AdminStats() {
     (async () => {
       try {
         const [ls, rq] = await Promise.all([
-          getDocs(query(collection(firestore, 'listings'), where('isCommunityFree', '==', true), orderBy('createdAt', 'desc'), limit(1500))),
-          getDocs(query(collection(firestore, 'communityRequests'), where('status', '==', 'completed'), orderBy('updatedAt', 'desc'), limit(1500))),
+          // Chỉ sắp theo một trường rồi lọc tại máy → không cần tạo chỉ mục ghép.
+          getDocs(query(collection(firestore, 'listings'), orderBy('createdAt', 'desc'), limit(1500))),
+          getDocs(query(collection(firestore, 'communityRequests'), orderBy('updatedAt', 'desc'), limit(1500))),
         ]);
+        const lsDocs = ls.docs.filter(d => (d.data() as any).isCommunityFree === true);
+        const rqDocs = rq.docs.filter(d => (d.data() as any).status === 'completed');
         const now = weekStart(new Date());
         const buckets = Array.from({ length: WEEKS }, (_, i) => { const s = new Date(now); s.setDate(s.getDate() - 7 * (WEEKS - 1 - i)); return { s, posts: 0, done: 0 }; });
         const put = (d: Date | null, k: 'posts' | 'done') => {
@@ -30,17 +33,17 @@ export default function AdminStats() {
         };
         const byWard = new Map<string, number>();
         const month = Date.now() - 30 * 864e5;
-        ls.docs.forEach(d => {
+        lsDocs.forEach(d => {
           const x: any = d.data(); const t = toDate(x.createdAt); put(t, 'posts');
           if (t && t.getTime() >= month) { const w = String(x.location || '').split(',')[0].trim(); if (w) byWard.set(w, (byWard.get(w) || 0) + 1); }
         });
         const kc: Record<string, number> = {};
-        rq.docs.forEach(d => { const x: any = d.data(); put(toDate(x.updatedAt), 'done'); kc[x.kind] = (kc[x.kind] || 0) + 1; });
+        rqDocs.forEach(d => { const x: any = d.data(); put(toDate(x.updatedAt), 'done'); kc[x.kind] = (kc[x.kind] || 0) + 1; });
         setRows(buckets.map(b => ({ label: b.s.getDate() + '/' + (b.s.getMonth() + 1), posts: b.posts, done: b.done })));
         setWards([...byWard.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, n]) => ({ name, n })));
         setKinds(kc);
       } catch (e: any) {
-        setErr(e?.code === 'failed-precondition' ? 'Cần tạo chỉ mục: chạy lệnh firebase deploy --only firestore:indexes rồi chờ vài phút.' : (e?.message || 'Lỗi tải số liệu'));
+        setErr(e?.code === 'failed-precondition' ? 'Chưa tải được số liệu (thiếu chỉ mục). Thử lại sau ít phút.' : (e?.message || 'Lỗi tải số liệu'));
       } finally { setLoading(false); }
     })();
   }, []);

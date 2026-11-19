@@ -105,9 +105,11 @@ service cloud.firestore {
       allow get, list: if isParticipant();
       allow create: if isSignedIn()
         && request.resource.data.keys().hasOnly([
-          'listingId','listingTitle','kind','ownerId','requesterId',
+          'listingId','listingTitle','kind','intent','ownerId','requesterId',
           'message','status','createdAt','updatedAt'
         ])
+        && (!('intent' in request.resource.data) ||
+            request.resource.data.intent == sourceListing().get('communityIntent', 'have'))
         && request.resource.data.keys().hasAll([
           'listingId','listingTitle','kind','ownerId','requesterId',
           'message','status','createdAt','updatedAt'
@@ -128,26 +130,29 @@ service cloud.firestore {
         && sourceListing().status == 'approved'
         && sourceListing().isCommunityFree == true
         && sourceListing().price == 0;
+      // Hoàn thành phải do hai bên: người trao báo đã xong, người nhận xác nhận.
+      // Tin "Tôi có": chủ tin là người trao. Tin "Tôi cần": người gửi yêu cầu là người trao.
+      function giverId() {
+        return resource.data.get('intent', 'have') == 'need' ? resource.data.requesterId : resource.data.ownerId;
+      }
+      function receiverId() {
+        return resource.data.get('intent', 'have') == 'need' ? resource.data.ownerId : resource.data.requesterId;
+      }
+      function moving(from, to) {
+        return resource.data.status == from && request.resource.data.status == to;
+      }
       allow update: if isParticipant()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
         && request.resource.data.updatedAt == request.time
         && (
-          (resource.data.status == 'requested' &&
-            resource.data.ownerId == request.auth.uid &&
-            request.resource.data.status in ['accepted','declined']) ||
-          (resource.data.status == 'requested' &&
-            resource.data.requesterId == request.auth.uid &&
-            request.resource.data.status == 'cancelled') ||
-          (resource.data.status == 'accepted' &&
-            resource.data.ownerId == request.auth.uid &&
-            (
-              (resource.data.kind == 'borrow' && request.resource.data.status == 'handed_over') ||
-              (resource.data.kind != 'borrow' && request.resource.data.status == 'completed')
-            )) ||
-          (resource.data.status == 'handed_over' && resource.data.kind == 'borrow' &&
-            resource.data.requesterId == request.auth.uid && request.resource.data.status == 'returned') ||
-          (resource.data.status == 'returned' && resource.data.kind == 'borrow' &&
-            resource.data.ownerId == request.auth.uid && request.resource.data.status == 'completed')
+          (moving('requested', 'accepted') && request.auth.uid == resource.data.ownerId) ||
+          (moving('requested', 'declined') && request.auth.uid == resource.data.ownerId) ||
+          (moving('requested', 'cancelled') && request.auth.uid == resource.data.requesterId) ||
+          (moving('accepted', 'cancelled')) ||
+          (moving('accepted', 'handed_over') && request.auth.uid == giverId()) ||
+          (moving('handed_over', 'completed') && resource.data.kind != 'borrow' && request.auth.uid == receiverId()) ||
+          (moving('handed_over', 'returned') && resource.data.kind == 'borrow' && request.auth.uid == receiverId()) ||
+          (moving('returned', 'completed') && resource.data.kind == 'borrow' && request.auth.uid == giverId())
         );
       allow delete: if false;
     }

@@ -26,6 +26,7 @@ export interface CommunityRequest {
   ownerId: string;
   requesterId: string;
   message: string;
+  intent?: CommunityIntent; // tin 'Tôi có' hay 'Tôi cần' (yêu cầu cũ không có = 'have')
   status: CommunityStatus;
   createdAt?: any;
   updatedAt?: any;
@@ -47,7 +48,7 @@ export const kindLabels: Record<CommunityKind, string> = {
 };
 export const statusLabels: Record<CommunityStatus, string> = {
   requested: 'Đang chờ', accepted: 'Đã đồng ý', declined: 'Từ chối',
-  handed_over: 'Đã giao đồ', returned: 'Đã trả đồ', completed: 'Hoàn thành', cancelled: 'Đã hủy'
+  handed_over: 'Chờ xác nhận', returned: 'Đã báo trả đồ', completed: 'Hoàn thành', cancelled: 'Đã hủy'
 };
 function currentUid() {
   const uid = auth.currentUser?.uid;
@@ -60,13 +61,70 @@ function checkKind(kind: unknown): kind is CommunityKind {
 function safeText(value: string, max: number) {
   return value.trim().slice(0, max);
 }
+/**
+ * Vai trò trong một yêu cầu:
+ * - Tin "Tôi có": chủ tin là người trao (cho/cho mượn/giúp/sửa), người gửi yêu cầu là người nhận.
+ * - Tin "Tôi cần": ngược lại, người gửi yêu cầu là người trao.
+ * Hoàn thành luôn cần cả hai bên: người trao báo đã trao, người nhận xác nhận.
+ */
+export function roles(r: CommunityRequest) {
+  const need = r.intent === 'need';
+  return { giverId: need ? r.requesterId : r.ownerId, receiverId: need ? r.ownerId : r.requesterId };
+}
 export function nextStatuses(r: CommunityRequest, uid: string): CommunityStatus[] {
+  const { giverId, receiverId } = roles(r);
   if (r.status === 'requested' && r.ownerId === uid) return ['accepted', 'declined'];
   if (r.status === 'requested' && r.requesterId === uid) return ['cancelled'];
-  if (r.status === 'accepted' && r.ownerId === uid) return r.kind === 'borrow' ? ['handed_over'] : ['completed'];
-  if (r.status === 'handed_over' && r.kind === 'borrow' && r.requesterId === uid) return ['returned'];
-  if (r.status === 'returned' && r.kind === 'borrow' && r.ownerId === uid) return ['completed'];
+  if (r.status === 'accepted' && giverId === uid) return ['handed_over', 'cancelled'];
+  if (r.status === 'accepted' && receiverId === uid) return ['cancelled'];
+  if (r.status === 'handed_over' && receiverId === uid) return r.kind === 'borrow' ? ['returned'] : ['completed'];
+  if (r.status === 'returned' && r.kind === 'borrow' && giverId === uid) return ['completed'];
   return [];
+}
+/** Chữ trên nút, theo đúng việc người bấm đang làm. */
+export function actionLabel(r: CommunityRequest, status: CommunityStatus): string {
+  if (status === 'accepted') return 'Đồng ý';
+  if (status === 'declined') return 'Từ chối';
+  if (status === 'cancelled') return 'Hủy';
+  if (status === 'handed_over') return ({ gift: 'Tôi đã trao đồ', borrow: 'Tôi đã giao đồ cho mượn', help: 'Tôi đã giúp xong', repair: 'Tôi đã sửa xong' } as const)[r.kind];
+  if (status === 'returned') return 'Tôi đã trả đồ';
+  if (status === 'completed') {
+    if (r.kind === 'borrow') return 'Xác nhận đã nhận lại đồ';
+    return ({ gift: 'Xác nhận đã nhận đồ', borrow: '', help: 'Xác nhận đã được giúp', repair: 'Xác nhận đã sửa xong' } as const)[r.kind];
+  }
+  return statusLabels[status];
+}
+/** Dòng chữ cho biết đang chờ ai, hiện khi người xem không có nút nào để bấm. */
+export function waitingText(r: CommunityRequest, uid: string): string {
+  const { giverId } = roles(r);
+  const meGiver = uid === giverId;
+  switch (r.status) {
+    case 'requested': return uid === r.ownerId ? '' : 'Đang chờ chủ tin trả lời.';
+    case 'accepted': return meGiver ? '' : 'Đã đồng ý. Hãy nhắn tin hẹn giờ; chờ bên kia báo đã ' + (r.kind === 'help' ? 'giúp' : r.kind === 'repair' ? 'sửa' : 'trao') + ' xong.';
+    case 'handed_over': return meGiver ? 'Bạn đã báo xong. Đang chờ bên nhận xác nhận.' : '';
+    case 'returned': return meGiver ? '' : 'Bạn đã báo trả đồ. Đang chờ chủ đồ xác nhận đã nhận lại.';
+    case 'completed': return '✅ Hai bên đã xác nhận hoàn thành.';
+    case 'declined': return 'Yêu cầu đã bị từ chối.';
+    case 'cancelled': return 'Yêu cầu đã hủy.';
+  }
+  return '';
+}
+
+// --- Nhắc an toàn: chỉ hiện khi nội dung có dấu hiệu việc nhạy cảm ---
+export type SafetyNote = { level: 'block' | 'warn'; title: string; text: string };
+const SAFETY_RULES: { re: RegExp; note: SafetyNote }[] = [
+  { re: /cấp cứu|đột quỵ|bất tỉnh|khó thở|tai nạn|chở (người )?(bệnh|ốm)|đưa .{0,15}(đi viện|đi khám|vào viện|cấp cứu)|chở .{0,15}(đi viện|đi khám|vào viện)/,
+    note: { level: 'block', title: 'Việc khẩn cấp, chở người bệnh', text: 'Chợ Của Tui không nhận các việc này. Nếu nguy cấp, hãy gọi 115 ngay.' } },
+  { re: /dây điện|ổ cắm|cầu dao|aptomat|át tô mát|bình nóng lạnh|đường điện|(sửa|đấu|thay|câu) điện|bình ga|bếp ga|rò ga|khí ga|\bgas\b/,
+    note: { level: 'warn', title: 'Việc liên quan điện, ga', text: 'Có thể gây cháy nổ, điện giật. Chỉ nhờ người có tay nghề; ngắt điện/khóa ga trước khi làm. Việc lớn nên gọi thợ có chứng chỉ.' } },
+  { re: /trẻ em|trẻ nhỏ|trông trẻ|trông bé|trông con|trông cháu|đưa đón (bé|con|cháu)|dạy kèm|gia sư|em bé/,
+    note: { level: 'warn', title: 'Việc liên quan trẻ em', text: 'Chỉ cha mẹ/người giám hộ đăng. Không đăng ảnh hay thông tin riêng của trẻ. Luôn có người lớn trong gia đình khi gặp.' } },
+  { re: /(đến|tới|qua|sang|vào) nhà|tận nhà|tại nhà/,
+    note: { level: 'warn', title: 'Có đến nhà', text: 'Ưu tiên hẹn nơi công cộng. Nếu phải đến nhà, nên có người nhà ở cùng và chỉ đưa địa chỉ sau khi đã nhắn tin trao đổi.' } },
+];
+export function safetyNotes(text: string): SafetyNote[] {
+  const t = (text || '').toLowerCase();
+  return SAFETY_RULES.filter(x => x.re.test(t)).map(x => x.note);
 }
 
 export const community = {
@@ -186,6 +244,7 @@ export const community = {
       if (actual.sellerId === requesterId) throw new Error('Đây là tin của bạn.');
       tx.set(requestRef, {
         listingId: item.id, listingTitle: actual.title, kind: actual.communityKind,
+        intent: actual.communityIntent === 'need' ? 'need' : 'have',
         ownerId: actual.sellerId, requesterId,
         message: clean, status: 'requested',
         createdAt: serverTimestamp(), updatedAt: serverTimestamp()
@@ -241,15 +300,23 @@ export const community = {
       receiverId = uid === fresh.ownerId ? fresh.requesterId : fresh.ownerId;
       tx.update(ref, { status, updatedAt: serverTimestamp() });
     });
-    // Không có API thu tiền/đặt cọc.
-    if (status === 'completed' && r.kind === 'gift') {
-      try { await db.updateListingStatus(r.listingId, 'sold'); } catch (_) { /* Tin vẫn giữ trạng thái an toàn */ }
+    // Đóng tin đúng lúc (chỉ chủ tin được đổi trạng thái tin):
+    // - Tin "Tôi có" cho tặng: đồ đã trao thì tin đóng.
+    // - Tin "Tôi cần": nhu cầu đã được đáp ứng thì tin đóng.
+    // - Tin "Tôi có" cho mượn/giúp/sửa: giữ mở để giúp người khác tiếp.
+    const need = r.intent === 'need';
+    const close = uid === r.ownerId && (
+      (!need && r.kind === 'gift' && status === 'handed_over') ||
+      (need && (status === 'completed' || (r.kind === 'borrow' && status === 'returned')))
+    );
+    if (close) {
+      try { await db.updateListingStatus(r.listingId, 'sold'); } catch (_) { /* chủ tin vẫn tự đóng được ở trang Cá nhân */ }
     }
     if (receiverId) {
       try {
         await db.sendNotification({
           userId: receiverId, title: 'Cập nhật yêu cầu 🌱',
-          message: 'Tin ' + r.listingTitle + ': ' + statusLabels[status],
+          message: r.listingTitle + ': ' + (status === 'handed_over' ? 'bên kia báo đã xong, hãy vào xác nhận.' : status === 'returned' ? 'bên mượn báo đã trả đồ, hãy xác nhận đã nhận lại.' : statusLabels[status]),
           type: 'info', link: '/cong-dong/yeu-cau', requestId: r.id
         });
       } catch (err) { console.warn('Trạng thái đã lưu nhưng thông báo chưa gửi được', err); }

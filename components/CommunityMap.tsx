@@ -351,7 +351,7 @@ const CommunityMap: React.FC<Props> = ({ items, area }) => {
 
     {/* Bản đồ */}
     <div className="ccut-map relative h-[calc(100dvh-240px)] min-h-[440px] md:h-[640px] rounded-2xl overflow-hidden border border-line bg-[#F6F1E4]">
-      <div ref={box} className="absolute inset-0" aria-label="Bản đồ tin cộng đồng" />
+      <div className="absolute inset-0"><div ref={box} className="w-full h-full" aria-label="Bản đồ tin cộng đồng" /></div>
       {!ready && <div className="absolute inset-0 grid place-items-center text-slate-600 text-sm">
         <span className="flex items-center gap-2"><span className="h-4 w-4 rounded-full border-2 border-emerald-700 border-t-transparent animate-spin" />Đang mở bản đồ…</span>
       </div>}

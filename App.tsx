@@ -13,6 +13,7 @@ const Auth = React.lazy(() => import('./pages/Auth'));
 const Register = React.lazy(() => import('./pages/Register'));
 const Admin = React.lazy(() => import('./pages/Admin'));
 const StaticPage = React.lazy(() => import('./pages/StaticPage'));
+const AppDownload = React.lazy(() => import('./pages/AppDownload'));
 
 // --- Component ---
 import GoogleOneTap from './components/GoogleOneTap';
@@ -302,6 +303,8 @@ const App: React.FC = () => {
             <Route path="/login" element={wait(!user ? <Auth onLogin={handleLogin} /> : <Navigate to="/" replace />)} />
             <Route path="/register" element={wait(!user ? <Register onLogin={handleLogin} /> : <Navigate to="/" replace />)} />
             
+            <Route path="/tai-ung-dung" element={<AppDownload />} />
+            <Route path="/tai" element={<Navigate to="/tai-ung-dung" replace />} />
             <Route path="/page/:slug" element={<StaticPage />} />
             <Route path="*" element={<div className="h-[50vh] flex items-center justify-center font-bold text-gray-400">404 - Trang không tồn tại</div>} />
           </Routes>

@@ -88,7 +88,7 @@ function AreaPicker({ user }: { user: User | null }) {
 export const isEmbedded = () => { try { return window.self !== window.top; } catch (_) { return true; } };
 
 const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }> = ({ user, children }) => {
-  if (isEmbedded()) return <div className="bg-cream min-h-screen text-ink">{children}</div>;
+  if (isEmbedded()) return <div className="bg-cream min-h-screen text-ink px-4 pt-3 overflow-x-hidden">{children}</div>;
   return <ShellInner user={user}>{children}</ShellInner>;
 };
 const ShellInner: React.FC<{ user: User | null; children: React.ReactNode }> = ({ user, children }) => {

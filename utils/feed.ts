@@ -1,47 +1,67 @@
 /**
- * Danh sách tin trang chủ, lấy nhanh và rẻ:
- * 1. Có bản đã lưu trên máy → hiện ngay (lần vào sau gần như tức thì).
- * 2. Lấy bản mới từ /api/feed (CDN lưu đệm 2 phút, không cần tải Firebase).
- *    index.html đã bắt đầu tải sẵn từ trước khi mã JavaScript chạy (window.__feed).
- * 3. /api/feed lỗi → đọc thẳng Firestore như trước.
+ * Lấy tin cho trang chủ qua /api/feed (CDN lưu đệm, không cần tải Firebase).
+ * - Trang đầu của mỗi khu vực được lưu trên máy: lần sau hiện ngay rồi cập nhật.
+ * - index.html đã bắt đầu tải sẵn trang đầu (window.__feed) trước khi JavaScript chạy.
+ * - /api/feed lỗi → đọc thẳng Firestore (chỉ khi xem cả nước, trang đầu).
  */
 import type { CommunityListing } from '../services/community';
 
-const KEY = 'ccut-feed-v1';
+export type Scope = { xa?: string | null; tinh?: string | null; q?: string };
+export type Page = { items: CommunityListing[]; next: string | null };
 type Raw = { id: string; title: string; description?: string; location?: string; communityKind: string; communityIntent: string;
-  createdAt?: string | null; areaCode?: string | null; lat?: number | null; lng?: number | null; thumb?: string | null };
+  createdAt?: string | null; areaCode?: string | null; provinceCode?: string | null; lat?: number | null; lng?: number | null; thumb?: string | null };
 
+const CACHE = 'ccut-feed2-';
 function toListing(r: Raw): CommunityListing {
   return {
     id: r.id, title: r.title, description: r.description || '', location: r.location || '',
     communityKind: r.communityKind as any, communityIntent: r.communityIntent as any,
-    createdAt: r.createdAt || '', lat: r.lat ?? null, lng: r.lng ?? null, areaCode: r.areaCode || null,
+    createdAt: r.createdAt || '', lat: r.lat ?? null, lng: r.lng ?? null, areaCode: r.areaCode || null, provinceCode: r.provinceCode || null,
     images: r.thumb ? [r.thumb] : [], price: 0, isCommunityFree: true, status: 'approved',
   } as any;
 }
+export function feedUrl(s: Scope, truoc?: string | null) {
+  const p = new URLSearchParams();
+  if (s.xa) p.set('xa', s.xa); else if (s.tinh) p.set('tinh', s.tinh);
+  if (s.q && s.q.trim()) p.set('q', s.q.trim().toLowerCase());
+  if (truoc) p.set('truoc', truoc);
+  const qs = p.toString();
+  return '/api/feed' + (qs ? '?' + qs : '');
+}
+const key = (s: Scope) => CACHE + (s.xa ? 'x' + s.xa : s.tinh ? 't' + s.tinh : 'vn');
 
-/** Bản đã lưu lần trước (nếu có). */
-export function cachedFeed(): CommunityListing[] | null {
+/** Trang đầu đã lưu trên máy (không áp dụng cho tìm kiếm). */
+export function cachedPage(s: Scope): Page | null {
+  if (s.q) return null;
   try {
-    const v = JSON.parse(localStorage.getItem(KEY) || 'null');
-    return v && Array.isArray(v.items) ? v.items.map(toListing) : null;
+    const v = JSON.parse(localStorage.getItem(key(s)) || 'null');
+    return v && Array.isArray(v.items) ? { items: v.items.map(toListing), next: v.next || null } : null;
   } catch (_) { return null; }
 }
 
-/** Bản mới nhất từ máy chủ. */
-export async function freshFeed(): Promise<CommunityListing[]> {
+export async function loadPage(s: Scope, truoc?: string | null): Promise<Page> {
+  const url = feedUrl(s, truoc);
   let data: any = null;
-  const pre = (window as any).__feed as Promise<any> | undefined;
-  if (pre) { (window as any).__feed = undefined; data = await pre.catch(() => null); }
+  const pre = (window as any).__feed as { url: string; p: Promise<any> } | undefined;
+  if (pre && pre.url === url) { (window as any).__feed = undefined; data = await pre.p.catch(() => null); }
   if (!data) {
-    const r = await fetch('/api/feed').catch(() => null);
+    const r = await fetch(url).catch(() => null);
     data = r && r.ok ? await r.json().catch(() => null) : null;
   }
   if (data && data.ok !== false && Array.isArray(data.items)) {
-    try { localStorage.setItem(KEY, JSON.stringify({ t: Date.now(), items: data.items })); } catch (_) { /* đầy bộ nhớ: bỏ qua */ }
-    return data.items.map(toListing);
+    if (!truoc && !s.q) {
+      try { localStorage.setItem(key(s), JSON.stringify({ t: Date.now(), next: data.next || null, items: data.items.slice(0, 24) })); } catch (_) { /* đầy: bỏ qua */ }
+    }
+    return { items: data.items.map(toListing), next: data.next || null };
   }
-  // Dự phòng: đọc Firestore trực tiếp (tải Firebase lúc cần)
-  const { community } = await import('../services/community');
-  return community.list();
+  if (!truoc && !s.xa && !s.tinh && !s.q) {
+    const { community } = await import('../services/community');
+    return { items: await community.list(), next: null };
+  }
+  throw new Error('Chưa tải được tin. Kiểm tra mạng rồi thử lại.');
+}
+
+/** Ghi nhớ khu vực đang xem để index.html tải sẵn đúng trang đầu ở lần mở sau. */
+export function rememberScope(s: Scope) {
+  try { localStorage.setItem('ccut-feed-scope', feedUrl({ xa: s.xa, tinh: s.tinh })); } catch (_) { /* bỏ qua */ }
 }

@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import MapView from '../components/MapView';
+import CommunityMap from '../components/CommunityMap';
 import ShareModal from '../components/ShareModal';
 import { db } from '../services/db';
 import {
@@ -90,8 +90,6 @@ function Home({ user }: { user: User | null }) {
   }, [items, kind, search, area]);
   const near = area ? filtered.filter(x => sameArea(x.location, area)).length : 0;
   const mapped = filtered.map(x => ({ ...x, lat: x.lat == null ? null : Math.round(x.lat * 100) / 100, lng: x.lng == null ? null : Math.round(x.lng * 100) / 100 }));
-  const first = mapped.find(x => x.lat != null && x.lng != null);
-  const center: [number, number] = first?.lat != null && first?.lng != null ? [first.lat, first.lng] : [21.0, 105.85];
 
   return <div className="flex flex-col gap-4">
     <h1 className="text-2xl md:text-4xl font-extrabold leading-tight">Có gì chia sẻ,<br />cần gì có nhau.</h1>
@@ -131,7 +129,7 @@ function Home({ user }: { user: User | null }) {
           <p className="text-slate-600 mt-1">Hãy là người chia sẻ đầu tiên trong khu vực của bạn.</p>
           <Link className={btnPrimary + ' inline-flex items-center mt-4'} to="/cong-dong/dang-tin">Đăng tin đầu tiên</Link>
         </div>
-      : map ? <MapView listings={mapped} center={center} />
+      : map ? <CommunityMap items={mapped as CommunityListing[]} area={area} />
       : <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{filtered.map(it => <Card item={it} area={area} key={it.id} />)}</div>}
   </div>;
 }

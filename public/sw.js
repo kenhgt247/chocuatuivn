@@ -86,7 +86,7 @@ self.addEventListener('notificationclick', (event) => {
 // 4. CACHE
 // ==========================================
 // Đổi tên cache để máy người dùng bỏ icon/giao diện rao vặt cũ.
-const CACHE_NAME = 'chocuatui-v8-cong-dong';
+const CACHE_NAME = 'chocuatui-v9-ban-do';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -127,6 +127,8 @@ self.addEventListener('fetch', (event) => {
     requestUrl.pathname.endsWith('.mp4') || 
     requestUrl.href.includes('googleapis.com') || 
     requestUrl.href.includes('gstatic.com') ||
+    requestUrl.hostname.endsWith('openfreemap.org') ||
+    requestUrl.hostname === 'unpkg.com' ||
     requestUrl.href.includes('video')
   ) {
     return; 

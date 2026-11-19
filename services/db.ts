@@ -1333,8 +1333,10 @@ export const db = {
   },
   
   getChatRoom: async (id: string) => {
-    const d = await getDoc(doc(firestore, "chats", id));
-    return d.exists() ? ({...d.data(), id: d.id} as ChatRoom) : undefined;
+    try {
+      const d = await getDoc(doc(firestore, "chats", id));
+      return d.exists() ? ({...d.data(), id: d.id} as ChatRoom) : undefined;
+    } catch (_) { return undefined; } // phòng chưa có hoặc không phải của mình
   },
 
   deleteChatRoom: async (roomId: string) => {
@@ -1505,9 +1507,13 @@ export const db = {
     try {
         const roomId = `${buyer.id}_${l.id}`;
         const roomRef = doc(firestore, "chats", roomId);
-        const roomSnap = await getDoc(roomRef);
+        // Phòng chưa tồn tại thì rules trả "không có quyền" (chưa có người tham gia).
+        // Phòng có tên chứa id người hỏi nên nếu đã có, người này luôn đọc được.
+        let roomExists = false;
+        try { roomExists = (await getDoc(roomRef)).exists(); }
+        catch (e: any) { if (e?.code !== 'permission-denied') throw e; }
 
-        if (!roomSnap.exists()) {
+        if (!roomExists) {
             const sellerName = l.sellerName || "Người bán";
             const sellerAvatar = l.sellerAvatar || "https://placehold.co/100?text=Seller";
 

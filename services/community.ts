@@ -169,17 +169,21 @@ export const community = {
     const id = item.id + '_' + requesterId;
     const listingRef = doc(firestore, 'listings', item.id);
     const requestRef = doc(firestore, 'communityRequests', id);
+    // Kiểm tra đã gửi chưa. Với yêu cầu chưa tồn tại, rules trả "không có quyền"
+    // (vì chưa có người tham gia) — coi như chưa gửi.
+    let alreadySent = false;
+    try { alreadySent = (await getDoc(requestRef)).exists(); }
+    catch (e: any) { if (e?.code !== 'permission-denied') throw e; }
+    if (alreadySent) throw new Error('Bạn đã gửi yêu cầu cho tin này. Xem ở mục Yêu cầu.');
     try {
     await runTransaction(firestore, async tx => {
       const listing = await tx.get(listingRef);
-      const existing = await tx.get(requestRef);
       if (!listing.exists()) throw new Error('Tin đăng không còn tồn tại.');
       const actual = listing.data() as CommunityListing;
       if (actual.status !== 'approved' || actual.isCommunityFree !== true ||
           actual.price !== 0 || !checkKind(actual.communityKind))
         throw new Error('Tin không còn nhận yêu cầu.');
       if (actual.sellerId === requesterId) throw new Error('Đây là tin của bạn.');
-      if (existing.exists()) throw new Error('Bạn đã gửi yêu cầu cho tin này.');
       tx.set(requestRef, {
         listingId: item.id, listingTitle: actual.title, kind: actual.communityKind,
         ownerId: actual.sellerId, requesterId,

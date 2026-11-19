@@ -261,7 +261,7 @@ function Home({ user }: { user: User | null }) {
 }
 
 /* ---------------- Đăng tin nhanh ---------------- */
-function Post({ user, editId }: { user: User | null; editId?: string }) {
+function Post({ user, editId }: { user: User | null; editId?: string; key?: React.Key }) {
   const nav = useNavigate();
   const editing = !!editId;
   const [keep, setKeep] = useState<{ img: string; thumb: string }[]>([]);
@@ -580,7 +580,7 @@ function Requests({ user }: { user: User | null }) {
   const [dist, setDist] = useState<Record<string, number | undefined>>({});
   useEffect(() => {
     if (!user) return;
-    const ids = [...new Set(items.filter(x => x.ownerId === user.id).map(x => x.requesterId))].filter(id => !(id in people));
+    const ids: string[] = [...new Set<string>(items.filter(x => x.ownerId === user.id).map(x => x.requesterId as string))].filter(id => !(id in people));
     if (!ids.length) return;
     (async () => {
       const mine = await wardFromLabel(getArea(user.location || '') || user.location || '').catch(() => null);

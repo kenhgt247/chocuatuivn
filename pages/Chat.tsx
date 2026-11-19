@@ -87,7 +87,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
   // 3. Tên, ảnh người kia (hồ sơ công khai) khi phòng chưa lưu sẵn
   useEffect(() => {
     if (!user) return;
-    const ids = Array.from(new Set(rooms.map(r => r.participantIds?.find(id => id !== user.id)).filter((x): x is string => !!x && !partners[x])));
+    const ids: string[] = Array.from(new Set<string>(rooms.map(r => r.participantIds?.find(id => id !== user.id) || '').filter(x => !!x && !partners[x])));
     if (!ids.length) return;
     Promise.all(ids.map(id => db.getPublicProfile(id).then(p => [id, p] as const))).then(list => {
       const next: Record<string, Partner> = {};

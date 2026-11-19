@@ -1,24 +1,37 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
     // Chỉ nhận ảnh, tối đa 5 MB
     function isImage() {
       return request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }
 
-    // Ảnh tin đăng: ai cũng xem được, chỉ chủ thư mục được tải lên/xoá
+    // ===== Đang dùng =====
+    // Ảnh tin đăng: ai cũng xem, chỉ chủ thư mục được tải lên/xoá
     match /listings/{userId}/{allPaths=**} {
       allow read: if true;
-      allow create, update: if request.auth != null && request.auth.uid == userId && isImage();
-      allow delete: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if isOwner(userId) && isImage();
+      allow delete: if isOwner(userId);
     }
-
-    // Ảnh đại diện và ảnh gửi trong tin nhắn: users/<uid>/...
+    // Ảnh đại diện + ảnh gửi trong tin nhắn: users/<uid>/...
     match /users/{userId}/{allPaths=**} {
       allow read: if true;
-      allow create, update: if request.auth != null && request.auth.uid == userId && isImage();
-      allow delete: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if isOwner(userId) && isImage();
+      allow delete: if isOwner(userId);
     }
+
+    // ===== Thư mục cũ của trang rao vặt: chỉ xem, không ai tải thêm =====
+    match /avatars/{fileName} { allow read: if true; }
+    match /stories/{userId}/{fileName} { allow read: if true; }
+    match /videos/{userId}/{fileName} { allow read: if true; }
+    match /banners/{fileName} { allow read: if true; }
+    match /chat-images/{fileName} { allow read: if request.auth != null; }
+
+    // Ảnh căn cước (KYC) cũ: khoá hoàn toàn, chỉ xem được trong Firebase Console
+    match /kyc/{fileName} { allow read, write: if false; }
   }
 }

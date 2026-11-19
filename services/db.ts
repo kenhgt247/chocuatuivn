@@ -892,14 +892,27 @@ export const db = {
   },
 
   // Admin: tạo hồ sơ công khai cho mọi tài khoản cũ (chạy một lần).
-  backfillPublicProfiles: async (): Promise<number> => {
+  // Ghi theo lô 200 hồ sơ; báo tiến độ và lỗi rõ ràng thay vì bỏ qua.
+  backfillPublicProfiles: async (onProgress?: (done: number, total: number) => void) => {
     const snap = await getDocs(collection(firestore, "users"));
-    let n = 0;
-    for (const d of snap.docs) {
-      await db.syncPublicProfile({ ...(d.data() as User), id: d.id });
-      n++;
+    const docs = snap.docs;
+    let ok = 0, failed = 0, firstError = '';
+    onProgress?.(0, docs.length);
+    for (let i = 0; i < docs.length; i += 200) {
+      const chunk = docs.slice(i, i + 200);
+      const batch = writeBatch(firestore);
+      for (const d of chunk) {
+        const p = db.toPublicProfile({ ...(d.data() as User), id: d.id });
+        batch.set(doc(firestore, "publicProfiles", d.id), {
+          name: p.name, avatar: (p.avatar || '').slice(0, 600), location: p.location,
+          joinedAt: typeof p.joinedAt === 'string' ? p.joinedAt : '', updatedAt: new Date().toISOString()
+        });
+      }
+      try { await batch.commit(); ok += chunk.length; }
+      catch (e: any) { failed += chunk.length; if (!firstError) firstError = e?.code || e?.message || 'lỗi không rõ'; }
+      onProgress?.(i + chunk.length, docs.length);
     }
-    return n;
+    return { total: docs.length, ok, failed, firstError };
   },
 
   getUserProfile: async (userId: string): Promise<User | null> => {

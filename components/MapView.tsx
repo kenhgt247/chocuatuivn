@@ -1,3 +1,4 @@
+import { tinPath } from '../utils/format';
 import React, { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -56,7 +57,7 @@ const MapView: React.FC<MapViewProps> = ({ listings, center }) => {
                     <Marker key={listing.id} position={[listing.lat!, listing.lng!]}>
                         <Popup>
                             <div className="min-w-[200px]">
-                                <Link to={'/cong-dong/tin/' + listing.id} className="flex gap-3 items-start group">
+                                <Link to={tinPath(listing)} className="flex gap-3 items-start group">
                                     <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
                                         <img 
                                             src={listing.images?.[0] || '/icons/icon-192.png'} 

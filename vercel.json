@@ -1,8 +1,11 @@
 {
   "rewrites": [
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" },
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+      "source": "/cong-dong/tin/:p",
+      "has": [{ "type": "header", "key": "user-agent", "value": ".*(facebookexternalhit|Facebot|facebot|Zalo|zalo|Twitterbot|TelegramBot|Slackbot|Discordbot|WhatsApp|LinkedInBot|SkypeUriPreview|Googlebot|bingbot|coccocbot|Applebot).*" }],
+      "destination": "/api/og?p=:p"
+    },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

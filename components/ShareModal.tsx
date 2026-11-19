@@ -1,3 +1,8 @@
+/**
+ * Bảng chia sẻ tin: ưu tiên bảng chia sẻ của điện thoại (chọn Zalo, Messenger...),
+ * kèm Facebook, chép link và chép lời giới thiệu để dán vào nhóm Zalo khu phố.
+ * Ảnh xem trước khi dán link do /api/og trả cho Zalo/Facebook.
+ */
 import React, { useState } from 'react';
 
 interface ShareModalProps {
@@ -5,119 +10,50 @@ interface ShareModalProps {
   onClose: () => void;
   url: string;
   title: string;
+  text?: string;   // lời giới thiệu ngắn
+  image?: string;  // ảnh minh hoạ trong bảng
 }
 
-const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, url, title }) => {
-  const [copySuccess, setCopySuccess] = useState(false);
-  
-  // Đảm bảo url bắt đầu bằng origin nếu url truyền vào chỉ là path
-  const fullUrl = url.startsWith('http') ? url : window.location.origin + url;
-
+const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, url, title, text, image }) => {
+  const [notice, setNotice] = useState('');
   if (!isOpen) return null;
+  const fullUrl = url.startsWith('http') ? url : window.location.origin + url;
+  const message = (text || title) + '\n' + fullUrl;
+  const canNativeShare = typeof navigator !== 'undefined' && 'share' in navigator;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(fullUrl);
-    setCopySuccess(true);
-    setTimeout(() => setCopySuccess(false), 2000);
-  };
-
-  // Cập nhật lại Icon chuẩn Official và bỏ phần background màu
-  const shareLinks = [
-    {
-      name: 'Facebook',
-      // Icon tròn xanh chuẩn của Facebook
-      icon: 'https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg',
-      link: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fullUrl)}`,
-    },
-    {
-      name: 'X (Twitter)',
-      // Logo X màu đen chuẩn
-      icon: 'https://upload.wikimedia.org/wikipedia/commons/c/ce/X_logo_2023.svg',
-      link: `https://x.com/intent/tweet?url=${encodeURIComponent(fullUrl)}&text=${encodeURIComponent(title)}`,
-    },
-    {
-      name: 'Zalo',
-      // Icon Zalo xanh chuẩn (có chữ Zalo)
-      icon: 'https://upload.wikimedia.org/wikipedia/commons/9/91/Icon_of_Zalo.svg',
-      link: `https://sp.zalo.me/share/base?url=${encodeURIComponent(fullUrl)}`,
-    }
-  ];
-
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(fullUrl)}`;
+  async function copy(value: string, done: string) {
+    try { await navigator.clipboard.writeText(value); setNotice(done); }
+    catch (_) { window.prompt('Chép nội dung dưới đây:', value); }
+  }
+  async function nativeShare() {
+    try { await navigator.share({ title, text: text || title, url: fullUrl }); onClose(); }
+    catch (_) { /* người dùng đóng bảng chia sẻ */ }
+  }
+  const row = 'w-full flex items-center gap-3 min-h-14 px-4 rounded-2xl border border-line bg-white text-left text-[15px] font-bold hover:bg-cream';
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose}></div>
-      
-      {/* Modal Content */}
-      <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl relative animate-fade-in-up border border-borderMain">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h3 className="text-xl font-black text-textMain">Chia sẻ tin đăng</h3>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Lan tỏa sản phẩm của bạn</p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+    <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true" aria-label="Chia sẻ tin">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative w-full sm:max-w-sm bg-cream rounded-t-3xl sm:rounded-3xl p-5 pb-8 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-extrabold">Chia sẻ tin</h3>
+          <button onClick={onClose} aria-label="Đóng" className="h-10 w-10 grid place-items-center rounded-full hover:bg-white">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
         </div>
-
-        <div className="space-y-8">
-          {/* QR Code Section */}
-          <div className="flex flex-col items-center gap-4 bg-gray-50 p-6 rounded-[2.5rem] border border-gray-100">
-            <div className="w-40 h-40 bg-white p-2 rounded-2xl shadow-inner border-2 border-white">
-              <img src={qrCodeUrl} alt="QR Code" className="w-full h-full object-contain" />
-            </div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Quét mã để xem trên điện thoại</p>
-          </div>
-
-          {/* Social Links - ĐÃ SỬA GIAO DIỆN */}
-          <div className="grid grid-cols-3 gap-4">
-            {shareLinks.map((social) => (
-              <a
-                key={social.name}
-                href={social.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex flex-col items-center gap-3 group"
-              >
-                {/* Container nút: Nền xám nhạt, hover lên trắng và có bóng đổ */}
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 shadow-sm transition-all duration-300 group-hover:bg-white group-hover:scale-110 group-hover:shadow-lg group-hover:-translate-y-1">
-                  {/* Icon gốc: Không dùng filter màu nữa */}
-                  <img 
-                    src={social.icon} 
-                    alt={social.name} 
-                    className="w-10 h-10 object-contain" 
-                  />
-                </div>
-                <span className="text-[10px] font-black text-gray-500 uppercase group-hover:text-primary transition-colors">
-                  {social.name}
-                </span>
-              </a>
-            ))}
-          </div>
-
-          {/* Copy Link Section */}
-          <div className="pt-4 border-t border-gray-100">
-            <div className="flex gap-2">
-              <div className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-[10px] font-bold text-gray-400 truncate flex items-center select-all">
-                {fullUrl}
-              </div>
-              <button
-                onClick={handleCopy}
-                className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
-                  copySuccess 
-                    ? 'bg-green-500 text-white shadow-lg shadow-green-200' 
-                    : 'bg-black text-white shadow-lg hover:bg-gray-800 active:scale-95'
-                }`}
-              >
-                {copySuccess ? 'Xong ✓' : 'Sao chép'}
-              </button>
-            </div>
-          </div>
+        <div className="flex gap-3 items-center bg-white border border-line rounded-2xl p-3">
+          {image ? <img src={image} alt="" className="h-14 w-14 rounded-xl object-cover" /> : <img src="/icons/icon-192.png" alt="" className="h-14 w-14 rounded-xl" />}
+          <span className="text-sm font-semibold line-clamp-2">{title}</span>
         </div>
+        {canNativeShare && <button onClick={nativeShare} className={row + ' !bg-emerald-700 !text-white !border-emerald-700'}>
+          <span className="h-9 w-9 rounded-full bg-white/20 grid place-items-center font-extrabold">Z</span>Gửi qua Zalo, Messenger…</button>}
+        <a href={'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(fullUrl)} target="_blank" rel="noopener noreferrer" className={row}>
+          <span className="h-9 w-9 rounded-full bg-[#1877F2] text-white grid place-items-center font-extrabold">f</span>Chia sẻ lên Facebook</a>
+        <button onClick={() => copy(message, 'Đã chép lời giới thiệu và link. Dán vào nhóm Zalo khu phố nhé!')} className={row}>
+          <span className="h-9 w-9 rounded-full bg-sun-light text-sun-dark grid place-items-center font-extrabold">“</span>Chép lời giới thiệu để dán vào nhóm</button>
+        <button onClick={() => copy(fullUrl, 'Đã chép link.')} className={row}>
+          <span className="h-9 w-9 rounded-full bg-emerald-50 text-emerald-700 grid place-items-center font-extrabold">⧉</span>Chép link</button>
+        {notice && <p role="status" className="text-sm text-emerald-800 bg-emerald-50 rounded-xl p-3">{notice}</p>}
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { HelmetProvider } from 'react-helmet-async';
 
 // --- Layout & Pages ---
 import CommunityShell from './components/CommunityShell';
+import AppSkeleton from './components/AppSkeleton';
 import CommunityApp from './pages/CommunityApp';
 import Chat from './pages/Chat';
 import Profile from './pages/Profile';
@@ -232,14 +233,7 @@ const App: React.FC = () => {
     prevBalanceRef.current = u.walletBalance;
   };
 
-  if (isInitializing) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-gray-50">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-blue-600 font-black uppercase text-[10px] tracking-widest">Chợ Của Tui đang khởi động...</p>
-      </div>
-    );
-  }
+  if (isInitializing) return <AppSkeleton />;
 
   return (
     <HelmetProvider>

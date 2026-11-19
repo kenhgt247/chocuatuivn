@@ -3,7 +3,7 @@
  * Không tạo cơ sở dữ liệu/tài khoản thứ hai. Không gọi API thanh toán.
  */
 import {
-  collection, doc, getDoc, getDocs, query, where, orderBy, limit,
+  collection, doc, getDoc, getDocs, query, where, orderBy, limit, onSnapshot,
   runTransaction, serverTimestamp
 } from 'firebase/firestore';
 import { auth, db, firestore } from './db';
@@ -17,6 +17,7 @@ export interface CommunityListing extends Listing {
   communityKind?: CommunityKind;
   communityIntent?: CommunityIntent;
   isCommunityFree?: boolean;
+  meetPlace?: string;
 }
 export interface CommunityRequest {
   id: string;
@@ -39,6 +40,7 @@ export interface CommunityPostInput {
   location: string;
   photos?: File[];
   approximateCoords?: {lat:number;lng:number} | null;
+  meetPlace?: string; // chỗ hẹn trao: cổng chợ, cổng trường...
 }
 
 const kinds: CommunityKind[] = ['gift', 'borrow', 'help', 'repair'];
@@ -216,7 +218,8 @@ export const community = {
       sellerId: uid, sellerName: user.name || 'Thành viên',
       sellerAvatar: user.avatar || '', sellerPhone: '',
       images, videoUrl: null, isAuction: false, affiliateLink: null,
-      condition: 'used', status: 'pending', attributes: {}
+      condition: 'used', status: 'pending', attributes: {},
+      meetPlace: safeText(input.meetPlace || '', 60)
     });
   },
   async request(item: CommunityListing, message: string): Promise<string> {
@@ -321,6 +324,41 @@ export const community = {
         });
       } catch (err) { console.warn('Trạng thái đã lưu nhưng thông báo chưa gửi được', err); }
     }
+  },
+  /** Số lần đã chia sẻ xong (tin cộng đồng đã đóng) của một người. */
+  async doneCount(uid: string): Promise<number> {
+    try {
+      const snap = await getDocs(query(collection(firestore, 'listings'), where('sellerId', '==', uid), where('isCommunityFree', '==', true), where('status', '==', 'sold'), limit(200)));
+      return snap.size;
+    } catch (_) { return 0; }
+  },
+  /**
+   * Một chạm "Xin món này" / "Tôi giúp được": tạo yêu cầu (nếu chưa có),
+   * mở phòng chat với người đăng và gửi lời nhắn đầu tiên. Trả về id phòng chat.
+   */
+  async askAndOpenChat(item: CommunityListing, user: User, message: string): Promise<string> {
+    let isNew = true;
+    try {
+      const r = await community.request(item, message);
+      if (r.startsWith('chat:')) return r.slice(5);
+    } catch (e: any) {
+      if (String(e?.message || '').includes('đã gửi yêu cầu')) isNew = false;
+      else throw e;
+    }
+    const room = await db.createChatRoom(item, user);
+    if (isNew) {
+      try { await db.addMessage(room, { senderId: user.id, text: message, type: 'text' }); } catch (_) { /* phòng vẫn mở được */ }
+    }
+    return room;
+  },
+  /** Theo dõi trực tiếp yêu cầu gắn với một phòng chat (phòng id = <người hỏi>_<tin>). */
+  watchRequestForRoom(roomId: string, listingId: string, cb: (r: CommunityRequest | null) => void): () => void {
+    if (!roomId.endsWith('_' + listingId)) { cb(null); return () => {}; }
+    const requesterId = roomId.slice(0, roomId.length - listingId.length - 1);
+    const ref = doc(firestore, 'communityRequests', listingId + '_' + requesterId);
+    return onSnapshot(ref,
+      snap => cb(snap.exists() ? ({ ...snap.data(), id: snap.id } as CommunityRequest) : null),
+      () => cb(null));
   },
   async startChat(item: CommunityListing, user: User): Promise<string> {
     currentUid();

@@ -86,6 +86,8 @@ const App: React.FC = () => {
           
           if (currentUser) {
             setUser(currentUser);
+            // Giữ hồ sơ công khai (tên, ảnh, khu vực) luôn cập nhật; không chứa email/SĐT.
+            db.syncPublicProfile({ ...currentUser, id: firebaseUser.uid });
             prevBalanceRef.current = currentUser.walletBalance;
 
             // --- BƯỚC 2: CẤU HÌNH PUSH NOTIFICATION (AN TOÀN TUYỆT ĐỐI) ---

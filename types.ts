@@ -257,6 +257,18 @@ export interface AppNotification {
   createdAt: string;
   link?: string; 
   image?: string; 
+  // Thông báo do người dùng gửi cho nhau phải gắn với một yêu cầu hoặc phòng chat chung
+  requestId?: string;
+  chatId?: string;
+}
+
+// Hồ sơ công khai: chỉ những gì người khác được thấy (không email, SĐT, địa chỉ, tọa độ)
+export interface PublicProfile {
+  id: string;
+  name: string;
+  avatar?: string;
+  location?: string;
+  joinedAt?: string;
 }
 
 export interface Report {

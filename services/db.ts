@@ -23,7 +23,7 @@ import { getStorage, ref, uploadString, getDownloadURL, uploadBytes } from "fire
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getMessaging, getToken, onMessage } from "firebase/messaging"; // <-- THÊM DÒNG NÀY Ở ĐẦU FILE
 // Import Types
-import { Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, AppNotification, Review, VerificationStatus, Offer, Category, Bid, Message, Story } from '../types';
+import { PublicProfile, Listing, ChatRoom, User, Transaction, SubscriptionTier, Report, AppNotification, Review, VerificationStatus, Offer, Category, Bid, Message, Story } from '../types';
 
 // IMPORT LOGIC FORMAT
 import { generateKeywords } from '../utils/format';
@@ -858,6 +858,50 @@ export const db = {
     return d.exists() ? { id: d.id, ...d.data() } as User : undefined;
   },
 
+  // --- HỒ SƠ CÔNG KHAI (publicProfiles/<uid>) ---
+  // Bảng users chứa email, SĐT, địa chỉ nên chỉ chủ tài khoản và admin đọc được.
+  // Người khác chỉ thấy tên, ảnh, khu vực qua publicProfiles.
+  toPublicProfile: (u: Partial<User> & { id: string }): PublicProfile => ({
+    id: u.id,
+    name: (u.name || 'Thành viên').slice(0, 60),
+    avatar: u.avatar || '',
+    location: (u.location || '').slice(0, 100),
+    joinedAt: u.joinedAt || '',
+  }),
+
+  syncPublicProfile: async (u: Partial<User> & { id: string }) => {
+    try {
+      const p = db.toPublicProfile(u);
+      await setDoc(doc(firestore, "publicProfiles", u.id), {
+        name: p.name, avatar: p.avatar, location: p.location, joinedAt: p.joinedAt,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (e) { console.warn("Chưa đồng bộ được hồ sơ công khai", e); }
+  },
+
+  getPublicProfile: async (id: string): Promise<PublicProfile | null> => {
+    try {
+      const d = await getDoc(doc(firestore, "publicProfiles", id));
+      if (d.exists()) return { ...(d.data() as any), id } as PublicProfile;
+    } catch (_) { /* rules cũ chưa có publicProfiles */ }
+    // Tài khoản cũ chưa có hồ sơ công khai: thử đọc bảng cũ (sẽ bị chặn khi rules mới có hiệu lực).
+    try {
+      const u = await db.getUserById(id);
+      return u ? db.toPublicProfile(u) : null;
+    } catch (_) { return null; }
+  },
+
+  // Admin: tạo hồ sơ công khai cho mọi tài khoản cũ (chạy một lần).
+  backfillPublicProfiles: async (): Promise<number> => {
+    const snap = await getDocs(collection(firestore, "users"));
+    let n = 0;
+    for (const d of snap.docs) {
+      await db.syncPublicProfile({ ...(d.data() as User), id: d.id });
+      n++;
+    }
+    return n;
+  },
+
   getUserProfile: async (userId: string): Promise<User | null> => {
     try {
       const docRef = doc(firestore, "users", userId);
@@ -886,7 +930,9 @@ export const db = {
     const userRef = doc(firestore, "users", userId);
     await updateDoc(userRef, updates);
     const d = await getDoc(userRef);
-    return d.data() as User;
+    const updated = { ...(d.data() as User), id: userId };
+    if ('name' in updates || 'avatar' in updates || 'location' in updates) await db.syncPublicProfile(updated);
+    return updated;
   },
 
   updateUserVerification: async (userId: string, status: VerificationStatus) => {
@@ -1002,6 +1048,7 @@ export const db = {
       verificationStatus: 'unverified'
     };
     await setDoc(doc(firestore, "users", res.user.uid), newUser);
+    await db.syncPublicProfile(newUser);
     return newUser;
   },
 
@@ -1392,7 +1439,8 @@ export const db = {
               title: `Tin nhắn mới từ ${senderName} 💬`,
               message: previewText,
               type: 'message',
-              link: `/chat/${roomId}`
+              link: `/chat/${roomId}`,
+              chatId: roomId
             });
           }
       }

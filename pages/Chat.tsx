@@ -61,7 +61,7 @@ const Chat: React.FC<{ user: User | null }> = ({ user }) => {
     });
 
     if (idsToFetch.length > 0) {
-        Promise.all(idsToFetch.map(id => db.getUserById(id).then(u => ({ id, u }))))
+        Promise.all(idsToFetch.map(id => db.getPublicProfile(id).then(u => ({ id, u }))))
             .then(results => {
                 const newPartners: Record<string, any> = {};
                 results.forEach(({ id, u }) => {

@@ -2,7 +2,8 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
-export const APK_URL = '/apk/cho-cua-tui.apk';
+// Tệp cài đặt để trên GitHub (không để trên máy chủ web)
+export const APK_URL = 'https://github.com/kenhgt247/chocuatuivn/raw/main/phat-hanh/cho-cua-tui.apk';
 const APK_VERSION = '1.0';
 
 const isAndroid = () => /android/i.test(navigator.userAgent);
@@ -19,7 +20,7 @@ const AppDownload: React.FC = () => {
       <img src="/icons/icon-192.png" alt="" className="h-20 w-20 rounded-[22px] shadow" />
       <h1 className="text-2xl font-extrabold">Chợ Của Tui cho Android</h1>
       <p className="text-slate-600">Cho tặng, mượn đồ, giúp nhau, sửa đồ cùng hàng xóm. Miễn phí, nhẹ (khoảng 1–2 MB), tự cập nhật.</p>
-      <a href={APK_URL} download="cho-cua-tui.apk"
+      <a href={APK_URL} rel="noopener"
         className="mt-1 w-full min-h-14 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white text-lg font-extrabold flex items-center justify-center gap-2">
         <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
         Tải ứng dụng Android

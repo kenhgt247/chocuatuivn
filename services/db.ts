@@ -625,7 +625,7 @@ export const db = {
       // Lưu trong thư mục của người gửi (Storage rules chỉ cho ghi users/<uid>/)
       const path = `users/${auth.currentUser?.uid}/chat/${Date.now()}.jpg`;
       const storageRef = ref(storage, path);
-      const snapshot = await uploadBytes(storageRef, compressedBlob);
+      const snapshot = await uploadBytes(storageRef, compressedBlob, { contentType: 'image/jpeg' });
       
       // 3. Lấy URL
       return await getDownloadURL(snapshot.ref);

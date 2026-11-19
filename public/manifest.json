@@ -1,7 +1,7 @@
 {
   "name": "Chợ Của Tui – Cộng đồng chia sẻ miễn phí",
   "short_name": "Chợ Của Tui",
-  "description": "Có gì chia sẻ, cần gì có nhau. Cho tặng, mượn đồ, giúp nhau và sửa đồ gần nhà, hoàn toàn miễn phí.",
+  "description": "Có gì chia sẻ, cần gì có nhau. Cho tặng, cho mượn đồ, giúp nhau và sửa đồ cùng hàng xóm gần nhà – hoàn toàn miễn phí, không mua bán, không chuyển khoản.",
   "id": "/",
   "start_url": "/",
   "display": "standalone",
@@ -36,29 +36,19 @@
   ],
   "categories": [
     "social",
-    "lifestyle"
+    "lifestyle",
+    "shopping"
   ],
   "shortcuts": [
     {
       "name": "Đăng tin chia sẻ",
       "short_name": "Đăng tin",
+      "description": "Đăng món đồ bạn có hoặc việc bạn cần",
       "url": "/cong-dong/dang-tin",
       "icons": [
         {
-          "src": "/icons/icon-192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "Yêu cầu của tôi",
-      "short_name": "Yêu cầu",
-      "url": "/cong-dong/yeu-cau",
-      "icons": [
-        {
-          "src": "/icons/icon-192.png",
-          "sizes": "192x192",
+          "src": "/icons/shortcut-dang-tin.png",
+          "sizes": "96x96",
           "type": "image/png"
         }
       ]
@@ -69,12 +59,60 @@
       "url": "/chat",
       "icons": [
         {
-          "src": "/icons/icon-192.png",
-          "sizes": "192x192",
+          "src": "/icons/shortcut-tin-nhan.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Yêu cầu của tôi",
+      "short_name": "Yêu cầu",
+      "url": "/cong-dong/yeu-cau",
+      "icons": [
+        {
+          "src": "/icons/shortcut-yeu-cau.png",
+          "sizes": "96x96",
           "type": "image/png"
         }
       ]
     }
   ],
-  "lang": "vi"
+  "lang": "vi",
+  "scope": "/",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "launch_handler": {
+    "client_mode": [
+      "navigate-existing",
+      "auto"
+    ]
+  },
+  "screenshots": [
+    {
+      "src": "/screenshots/man-hinh-trang-chu.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Trang chủ: Tôi có, Tôi cần và tin gần bạn"
+    },
+    {
+      "src": "/screenshots/man-hinh-tin-nhan.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Nhắn tin, hẹn chỗ gặp và xác nhận trao đồ"
+    },
+    {
+      "src": "/screenshots/man-hinh-may-tinh.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Danh sách và bản đồ tin quanh bạn"
+    }
+  ]
 }

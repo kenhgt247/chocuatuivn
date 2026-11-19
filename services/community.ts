@@ -45,6 +45,7 @@ export interface CommunityPostInput {
 
 const kinds: CommunityKind[] = ['gift', 'borrow', 'help', 'repair'];
 export const MAX_PHOTOS = 4;
+export const MAX_OPEN_REQUESTS = 5;
 export const kindLabels: Record<CommunityKind, string> = {
   gift: 'Cho tặng', borrow: 'Mượn đồ', help: 'Giúp nhau', repair: 'Sửa đồ'
 };
@@ -232,6 +233,11 @@ export const community = {
     const requestRef = doc(firestore, 'communityRequests', id);
     // Kiểm tra đã gửi chưa. Với yêu cầu chưa tồn tại, rules trả "không có quyền"
     // (vì chưa có người tham gia) — coi như chưa gửi.
+    // Công bằng: mỗi người tối đa 5 việc đang dở (chưa xong, chưa hủy) cùng lúc.
+    const open = (await community.mine()).filter(r => r.requesterId === requesterId &&
+      ['requested', 'accepted', 'handed_over', 'returned'].includes(r.status));
+    if (open.length >= MAX_OPEN_REQUESTS && !open.some(r => r.listingId === item.id))
+      throw new Error('Bạn đang có ' + open.length + ' yêu cầu chưa xong. Hãy hoàn thành hoặc hủy bớt để người khác cũng có cơ hội nhé.');
     let alreadySent = false;
     try { alreadySent = (await getDoc(requestRef)).exists(); }
     catch (e: any) { if (e?.code !== 'permission-denied') throw e; }

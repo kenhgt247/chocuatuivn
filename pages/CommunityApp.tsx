@@ -13,7 +13,7 @@ import {
 } from '../services/community';
 import { KIcon, KIND_META, kindText, IntentBadge, Steps, RequestActions, SafetyBox, VoiceButton } from '../components/CommunityUI';
 import { getArea, onAreaChange, sameArea } from '../utils/area';
-import { formatTimeAgo } from '../utils/format';
+import { formatTimeAgo, tinPath } from '../utils/format';
 import type { User, PublicProfile } from '../types';
 
 const KINDS: CommunityKind[] = ['gift', 'borrow', 'help', 'repair'];
@@ -50,7 +50,7 @@ function metaLine(item: CommunityListing, area: string) {
 /* ---------------- Thẻ tin ---------------- */
 function Card({ item, area = '' }: { item: CommunityListing; area?: string; key?: React.Key }) {
   const kind = (item.communityKind || 'gift') as CommunityKind;
-  return <Link to={'/cong-dong/tin/' + item.id} className="flex flex-col bg-white rounded-2xl overflow-hidden border border-line hover:shadow-md transition-shadow">
+  return <Link to={tinPath(item)} className="flex flex-col bg-white rounded-2xl overflow-hidden border border-line hover:shadow-md transition-shadow">
     {item.images?.[0]
       ? <img src={item.images[0]} alt="" loading="lazy" className="h-[108px] sm:h-40 w-full object-cover" />
       : <div className={'h-[108px] sm:h-40 grid place-items-center text-emerald-700 ' + KIND_META[kind].tint}><KIcon name={kind} className="w-11 h-11" strokeWidth={1.6} /></div>}
@@ -272,6 +272,12 @@ function Detail({ user, id }: { user: User | null; id: string }) {
   const [sharing, setSharing] = useState(false);
   const [reported, setReported] = useState(false);
   const area = useArea(user);
+  useEffect(() => {
+    if (!item) return;
+    const prev = document.title;
+    document.title = item.title + ' – Chợ Của Tui';
+    return () => { document.title = prev; };
+  }, [item?.id]);
   useEffect(() => { if (user) community.savedIds(user.id).then(ids => setSaved(ids.includes(id))); }, [user?.id, id]);
   useEffect(() => {
     let alive = true; setLoading(true);
@@ -362,7 +368,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
             {sending ? 'Đang mở trò chuyện…' : need ? 'Tôi giúp được' : 'Xin món này'}</button>}
       {!mine && <span className="text-center text-xs text-slate-600">{user ? 'Bấm là mở trò chuyện với ' + ownerName + ' ngay' : 'Bạn sẽ được mời đăng nhập trước'}</span>}
     </div>
-    <ShareModal isOpen={sharing} onClose={() => setSharing(false)} url={window.location.origin + '/cong-dong/tin/' + item.id} title={item.title} />
+    <ShareModal isOpen={sharing} onClose={() => setSharing(false)} url={window.location.origin + tinPath(item)} title={item.title} image={images[0]} text={(need ? 'Tôi cần' : 'Tôi có') + ' · ' + kindText(kind, item.communityIntent) + ': ' + item.title + ' — miễn phí trên Chợ Của Tui'} />
   </div>;
 }
 
@@ -440,6 +446,6 @@ export default function CommunityApp({ user }: { user: User | null }) {
   if (route === '/cong-dong/yeu-cau') return <Requests user={user} />;
   if (route === '/cong-dong/da-dang') return <Posted />;
   if (route === '/cong-dong/da-luu') return <Saved user={user} />;
-  if (route.startsWith('/cong-dong/tin/')) return <Detail user={user} id={decodeURIComponent(route.split('/').pop() || '')} />;
+  if (route.startsWith('/cong-dong/tin/')) return <Detail user={user} id={(decodeURIComponent(route.split('/').pop() || '').split('-').pop()) || ''} />;
   return <Home user={user} />;
 }

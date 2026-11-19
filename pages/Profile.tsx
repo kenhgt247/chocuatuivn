@@ -2,6 +2,7 @@
  * Trang Cá nhân — cộng đồng chia sẻ miễn phí.
  * Dùng lại: hồ sơ users, ảnh đại diện trên Storage, tin trong listings, tin đã lưu (favorites).
  */
+import { tinPath } from '../utils/format';
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { User } from '../types';
@@ -138,7 +139,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout, onUpdateUser }) => {
                   <span className={'rounded-full px-2 py-1 font-semibold ' + st.cls}>{st.label}</span>
                   {item.communityKind && <span className="text-slate-500">{kindLabels[item.communityKind]}</span>}
                 </div>
-                <Link to={'/cong-dong/tin/' + item.id} className="block font-bold mt-1 truncate hover:underline">{item.title}</Link>
+                <Link to={tinPath(item)} className="block font-bold mt-1 truncate hover:underline">{item.title}</Link>
                 <div className="flex gap-2 flex-wrap mt-2">
                   {item.status === 'approved' && <>
                     <button disabled={working === item.id} onClick={() => setStatus(item, 'sold')} className={btn}>✓ Đã xong</button>

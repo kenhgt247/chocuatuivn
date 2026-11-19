@@ -238,3 +238,6 @@ exports.baoCaoTin = onDocumentCreated('reports/{id}', async (event) => {
   await ref.update({ status: 'pending', kiemDuyet: { luc: new Date().toISOString(), ketQua: 'pending', lyDo: 'Bị ' + nguoi.size + ' người báo cáo', may: true } });
   await baoNguoiDang(tin.sellerId, 'Tin tạm ẩn', 'Tin "' + String(tin.title).slice(0, 60) + '" bị nhiều người báo cáo nên tạm ẩn để xem lại.', '/profile');
 });
+
+// Máy chủ web (Firebase Hosting)
+Object.assign(exports, require("./web.js"));

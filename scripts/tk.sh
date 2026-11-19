@@ -6,12 +6,15 @@ cd "$(dirname "$0")/.."
 git pull --ff-only || true
 echo "== Cài thư viện cho chức năng máy chủ =="
 (cd functions && npm install --no-audit --no-fund)
-echo "== Đưa lên Firebase =="
-if ! npx -y firebase-tools deploy --only firestore,functions --project chocuatui-3e65c --force --non-interactive; then
+# Cloud Shell có sẵn lệnh firebase: dùng luôn cho nhanh
+FB="npx -y firebase-tools"
+command -v firebase >/dev/null 2>&1 && FB="firebase"
+echo "== Đưa lên Firebase ($FB) =="
+if ! $FB deploy --only firestore,functions --project chocuatui-3e65c --force --non-interactive; then
   echo ""
   echo "== Cần đăng nhập Firebase: mở đường link bên dưới, đăng nhập, rồi dán mã vào đây =="
-  npx -y firebase-tools login --no-localhost
-  npx -y firebase-tools deploy --only firestore,functions --project chocuatui-3e65c --force --non-interactive
+  $FB login --no-localhost
+  $FB deploy --only firestore,functions --project chocuatui-3e65c --force --non-interactive
 fi
 echo ""
 echo "XONG! Đã đưa lên Firebase."

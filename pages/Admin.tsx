@@ -154,7 +154,7 @@ const Admin: React.FC<{ user: User }> = ({ user }) => {
   </div>;
 };
 
-function PendingCard({ l, busy, onApprove, onReject }: { l: CommunityListing; busy: boolean; onApprove: () => void; onReject: (r: string) => void }) {
+function PendingCard({ l, busy, onApprove, onReject }: { l: CommunityListing; busy: boolean; onApprove: () => void; onReject: (r: string) => void; key?: React.Key }) {
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
   const kind = l.communityKind || 'gift';

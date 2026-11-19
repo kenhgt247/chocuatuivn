@@ -10,6 +10,7 @@
  * - Bấm "Để sau": chờ 1 ngày, rồi 3, 7, 30 ngày cho các lần sau.
  */
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { doc, getFirestore, updateDoc } from 'firebase/firestore';
 import { db } from '../services/db';
 import type { User } from '../types';
@@ -34,9 +35,10 @@ function countVisit(): number {
 }
 export const isStandalone = () =>
   (navigator as any).standalone === true || !!window.matchMedia?.('(display-mode: standalone)').matches;
+const isAndroid = () => /android/i.test(navigator.userAgent);
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-type Kind = 'ios-install' | 'install' | 'push' | 'push-denied';
+type Kind = 'ios-install' | 'android-app' | 'install' | 'push' | 'push-denied';
 
 const AppNudge: React.FC<{ user: User | null; hidden?: boolean }> = ({ user, hidden }) => {
   const [kind, setKind] = useState<Kind | null>(null);
@@ -72,6 +74,7 @@ const AppNudge: React.FC<{ user: User | null; hidden?: boolean }> = ({ user, hid
       let want: Kind | null = null;
       if (user && perm === 'default') want = 'push';
       else if (isIOS() && !installed && !hasPush) want = 'ios-install';     // iPhone phải cài mới nhận được thông báo
+      else if (isAndroid() && !installed) want = 'android-app';           // Android: mời tải ứng dụng
       else if (deferred && !installed) want = 'install';
       else if (user && perm === 'denied' && !hasPush) want = 'push-denied';
 
@@ -123,6 +126,7 @@ const AppNudge: React.FC<{ user: User | null; hidden?: boolean }> = ({ user, hid
     'push-denied': ['Thông báo đang bị chặn', <>Vào <b>Cài đặt</b> của điện thoại hoặc trình duyệt → Thông báo → cho phép <b>chocuatui.vn</b>.</>],
     'ios-install': ['Thêm Chợ Của Tui vào màn hình chính', <>Bấm nút <b>Chia sẻ</b> (ô vuông có mũi tên lên) ở Safari → <b>Thêm vào Màn hình chính</b>. Mở từ biểu tượng đó để nhận thông báo.</>],
     'install': ['Cài Chợ Của Tui lên máy', 'Mở nhanh như ứng dụng, không tốn dung lượng.'],
+    'android-app': ['Có ứng dụng Chợ Của Tui cho Android', 'Nhẹ khoảng 1–2 MB, mở nhanh, nhận thông báo khi có người nhắn.'],
   };
   const [title, body] = text[kind];
   return <div className="max-w-6xl mx-auto px-4 md:px-5 pt-3" role="region" aria-label="Gợi ý">
@@ -131,6 +135,10 @@ const AppNudge: React.FC<{ user: User | null; hidden?: boolean }> = ({ user, hid
       <div className="flex-1 min-w-0 text-sm">
         <p className="font-bold">{title}</p>
         {msg ? <p className="text-emerald-800 mt-0.5">{msg}</p> : <p className="text-slate-600 mt-0.5 leading-snug">{body}</p>}
+        {!msg && kind === 'android-app' && <div className="flex items-center gap-2 mt-2">
+          <Link to="/tai-ung-dung" onClick={() => ss(K.shown, '')} className="h-10 px-4 rounded-full bg-emerald-700 text-white font-bold inline-flex items-center">Tải ứng dụng</Link>
+          <button onClick={later} className="h-10 px-3 rounded-full font-semibold text-slate-600">Để sau</button>
+        </div>}
         {!msg && (kind === 'push' || kind === 'install') && <div className="flex items-center gap-2 mt-2">
           <button onClick={kind === 'push' ? enablePush : install} disabled={busy} className="h-10 px-4 rounded-full bg-emerald-700 text-white font-bold disabled:opacity-60">
             {busy ? 'Đang xử lý…' : kind === 'push' ? 'Bật thông báo' : 'Cài đặt'}

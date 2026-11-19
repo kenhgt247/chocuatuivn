@@ -129,7 +129,7 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
         </div>
       </header>
 
-      <AppNudge user={user} hidden={isChat} />
+      <AppNudge user={user} hidden={isChat || pathname === '/tai-ung-dung'} />
 
       <main className={'max-w-6xl mx-auto px-4 md:px-5 ' + (isChat ? 'py-3 md:py-6 pb-24 md:pb-6' : 'pt-5 md:pt-8 ' + (hasActionBar ? 'pb-36 md:pb-10' : 'pb-8 md:pb-10'))}>{children}</main>
 
@@ -146,7 +146,7 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
           </div>
           <nav aria-label="Thông tin" className="mt-1 md:mt-0 flex flex-wrap justify-center md:justify-end gap-x-3 md:gap-x-5 text-xs md:text-sm font-semibold text-slate-600">
             {[['/page/gioi-thieu', 'Giới thiệu'], ['/page/quy-tac', 'Quy tắc'], ['/page/an-toan', 'An toàn'],
-              ['/page/chinh-sach-bao-mat', 'Bảo mật'], ['/page/dieu-khoan', 'Điều khoản']].map(([to, label]) =>
+              ['/page/chinh-sach-bao-mat', 'Bảo mật'], ['/page/dieu-khoan', 'Điều khoản'], ['/tai-ung-dung', 'Tải ứng dụng']].map(([to, label]) =>
               <Link key={to} to={to} className="min-h-9 md:min-h-11 flex items-center hover:text-emerald-700">{label}</Link>)}
           </nav>
         </div>

@@ -4,7 +4,7 @@
  */
 import {
   collection, doc, getDoc, getDocs, query, where, orderBy, limit, onSnapshot,
-  runTransaction, serverTimestamp, updateDoc
+  runTransaction, serverTimestamp, updateDoc, setDoc, addDoc, arrayUnion, arrayRemove
 } from 'firebase/firestore';
 import { auth, db, firestore } from './db';
 import { compressAndGetBase64, makeThumbBase64 } from '../utils/imageCompression';
@@ -131,6 +131,35 @@ export function safetyNotes(text: string): SafetyNote[] {
   return SAFETY_RULES.filter(x => x.re.test(t)).map(x => x.note);
 }
 
+
+/** Nén và tải ảnh lên (ảnh lớn + ảnh nhỏ cho thẻ tin). */
+async function uploadPhotos(uid: string, photos: File[]): Promise<{ images: string[]; thumbs: string[] }> {
+  for (const photo of photos)
+    if (!photo.type.startsWith('image/') || photo.size > 8 * 1024 * 1024)
+      throw new Error('Mỗi ảnh phải là hình và dưới 8 MB.');
+  const images: string[] = [];
+  const thumbs: string[] = [];
+  for (let i = 0; i < photos.length; i++) {
+    const stamp = 'listings/' + uid + '/community-' + Date.now() + '-' + i;
+    const [compressed, small] = await Promise.all([compressAndGetBase64(photos[i]), makeThumbBase64(photos[i])]);
+    const [big, thumb] = await Promise.all([
+      db.uploadImage(compressed, stamp + '.jpg'),
+      small ? db.uploadImage(small, stamp + '-nho.jpg').catch(() => null) : Promise.resolve(null),
+    ]);
+    images.push(big);
+    thumbs.push(thumb || big);
+  }
+  return { images, thumbs };
+}
+
+/** Lời cảm ơn người nhận gửi người cho sau khi trao xong. */
+export interface ThankNote {
+  id: string; giverId: string; receiverId: string; receiverName: string; receiverAvatar?: string;
+  listingId: string; listingTitle: string; kind: CommunityKind; message: string; photo?: string | null; createdAt?: any;
+}
+export function receiverOf(r: CommunityRequest) { return (r.intent || 'have') === 'need' ? r.ownerId : r.requesterId; }
+export function giverOf(r: CommunityRequest) { return (r.intent || 'have') === 'need' ? r.requesterId : r.ownerId; }
+
 export const community = {
   // Dùng truy vấn mà trang rao vặt cũ đang sử dụng; không yêu cầu migration/index mới.
   async list(): Promise<CommunityListing[]> {
@@ -199,21 +228,7 @@ export const community = {
     if (!checkKind(input.kind) || !['have', 'need'].includes(input.intent)) throw new Error('Lựa chọn không hợp lệ.');
     // Ảnh lưu trên Firebase Storage cũ (listings/<uid>/...), nén trước khi tải.
     const photos = (input.photos || []).slice(0, MAX_PHOTOS);
-    for (const photo of photos)
-      if (!photo.type.startsWith('image/') || photo.size > 8 * 1024 * 1024)
-        throw new Error('Mỗi ảnh phải là hình và dưới 8 MB.');
-    const images: string[] = [];
-    const thumbs: string[] = [];
-    for (let i = 0; i < photos.length; i++) {
-      const stamp = 'listings/' + uid + '/community-' + Date.now() + '-' + i;
-      const [compressed, small] = await Promise.all([compressAndGetBase64(photos[i]), makeThumbBase64(photos[i])]);
-      const [big, thumb] = await Promise.all([
-        db.uploadImage(compressed, stamp + '.jpg'),
-        small ? db.uploadImage(small, stamp + '-nho.jpg').catch(() => null) : Promise.resolve(null),
-      ]);
-      images.push(big);
-      thumbs.push(thumb || big);
-    }
+    const { images, thumbs } = await uploadPhotos(uid, photos);
     // Chỉ chia sẻ vị trí đã làm mờ khi người dùng chủ động cho phép.
     const lat = input.approximateCoords?.lat;
     const lng = input.approximateCoords?.lng;
@@ -317,6 +332,71 @@ export const community = {
       const y = b.createdAt?.toMillis?.() || 0;
       return y - x;
     });
+  },
+
+  /** Sửa tin của mình: tin quay về chờ máy kiểm tra lại. */
+  async edit(id: string, input: { title: string; description: string; meetPlace: string; keepImages: string[]; keepThumbs: string[]; photos: File[] }): Promise<void> {
+    const uid = currentUid();
+    const title = safeText(input.title, 90);
+    if (title.length < 5) throw new Error('Hãy viết tên món đồ hoặc việc cần giúp (ít nhất 5 ký tự).');
+    const room = Math.max(0, MAX_PHOTOS - input.keepImages.length);
+    const up = await uploadPhotos(uid, (input.photos || []).slice(0, room));
+    const { generateKeywords } = await import('../utils/format');
+    await updateDoc(doc(firestore, 'listings', id), {
+      title, description: safeText(input.description, 900), meetPlace: safeText(input.meetPlace || '', 60),
+      images: [...input.keepImages, ...up.images].slice(0, MAX_PHOTOS),
+      thumbs: [...input.keepThumbs, ...up.thumbs].slice(0, MAX_PHOTOS),
+      keywords: generateKeywords(title),
+      status: 'pending', editedAt: serverTimestamp(),
+    });
+  },
+
+  /** Danh sách người mình đã chặn. */
+  async blockedIds(uid: string): Promise<string[]> {
+    try { const s = await getDoc(doc(firestore, 'users', uid)); return (s.data()?.blockedIds as string[]) || []; } catch (_) { return []; }
+  },
+  async setBlocked(otherId: string, on: boolean): Promise<void> {
+    const uid = currentUid();
+    if (otherId === uid) return;
+    await updateDoc(doc(firestore, 'users', uid), { blockedIds: on ? arrayUnion(otherId) : arrayRemove(otherId) });
+  },
+
+  /** Lời cảm ơn */
+  async thanksFor(giverId: string, max = 20): Promise<ThankNote[]> {
+    try {
+      const s = await getDocs(query(collection(firestore, 'thanks'), where('giverId', '==', giverId), orderBy('createdAt', 'desc'), limit(max)));
+      return s.docs.map(d => ({ id: d.id, ...d.data() } as ThankNote));
+    } catch (_) { return []; }
+  },
+  async thankFor(requestId: string): Promise<ThankNote | null> {
+    try { const s = await getDoc(doc(firestore, 'thanks', requestId)); return s.exists() ? ({ id: s.id, ...s.data() } as ThankNote) : null; } catch (_) { return null; }
+  },
+  async sendThanks(r: CommunityRequest, user: User, message: string, photo?: File | null): Promise<void> {
+    const uid = currentUid();
+    if (r.status !== 'completed' || receiverOf(r) !== uid) throw new Error('Chỉ người nhận gửi lời cảm ơn sau khi đã xong.');
+    const text = safeText(message, 300);
+    if (text.length < 2) throw new Error('Hãy viết vài chữ cảm ơn nhé.');
+    let photoUrl: string | null = null;
+    if (photo) photoUrl = (await uploadPhotos(uid, [photo])).thumbs[0] || null;
+    const giverId = giverOf(r);
+    await setDoc(doc(firestore, 'thanks', r.id), {
+      giverId, receiverId: uid, receiverName: (user.name || 'Thành viên').slice(0, 60), receiverAvatar: (user.avatar || '').slice(0, 600),
+      listingId: r.listingId, listingTitle: (r.listingTitle || '').slice(0, 120), kind: r.kind, message: text, photo: photoUrl,
+      createdAt: serverTimestamp(),
+    });
+    await addDoc(collection(firestore, 'notifications'), {
+      userId: giverId, title: (user.name || 'Một người') + ' gửi lời cảm ơn', message: text.slice(0, 200),
+      type: 'thanks', link: '/profile/' + giverId, read: false, createdAt: new Date().toISOString(), requestId: r.id,
+    }).catch(() => {});
+  },
+
+  /** Đã chọn được người nhận: từ chối nhẹ nhàng những người còn lại đang chờ. */
+  async declineOthers(listingId: string, keepId: string): Promise<number> {
+    const all = await community.mine();
+    const others = all.filter(x => x.listingId === listingId && x.id !== keepId && x.status === 'requested');
+    let n = 0;
+    for (const r of others) { try { await community.updateStatus(r, 'declined'); n++; } catch (_) { /* bỏ qua */ } }
+    return n;
   },
   async updateStatus(r: CommunityRequest, status: CommunityStatus): Promise<void> {
     const uid = currentUid();

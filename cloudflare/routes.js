@@ -2,5 +2,7 @@
 import feed from '../api/feed.js';
 import og from '../api/og.js';
 import sitemap from '../api/sitemap.js';
+import anh from '../api/anh.js';
+import xa from '../api/xa.js';
 
-export default { feed, og, sitemap };
+export default { feed, og, sitemap, anh, xa };

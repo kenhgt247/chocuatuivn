@@ -12,9 +12,10 @@ import { db, firestore } from '../services/db';
 import { safetyNotes, type CommunityListing } from '../services/community';
 import { KIcon, KIND_META, IntentBadge, SafetyBox } from '../components/CommunityUI';
 import { formatTimeAgo, tinPath } from '../utils/format';
+const AdminStats = React.lazy(() => import('../components/AdminStats'));
 import type { Report, User } from '../types';
 
-type Tab = 'duyet' | 'baocao' | 'thanhvien' | 'congcu';
+type Tab = 'duyet' | 'baocao' | 'solieu' | 'thanhvien' | 'congcu';
 const REJECT_REASONS = ['Có dấu hiệu mua bán, đòi tiền', 'Nội dung không rõ ràng', 'Ảnh không phù hợp', 'Việc nguy hiểm, không nhận qua ứng dụng', 'Tin trùng lặp'];
 const card = 'bg-white border border-line rounded-2xl';
 
@@ -99,11 +100,11 @@ const Admin: React.FC<{ user: User }> = ({ user }) => {
     finally { setBusy(''); }
   }
 
-  const tabs: [Tab, string, number][] = [['duyet', 'Duyệt tin', pending.length], ['baocao', 'Báo cáo', reports.length], ['thanhvien', 'Thành viên', 0], ['congcu', 'Công cụ', 0]];
+  const tabs: [Tab, string, number][] = [['duyet', 'Duyệt tin', pending.length], ['baocao', 'Báo cáo', reports.length], ['solieu', 'Số liệu', 0], ['thanhvien', 'Thành viên', 0], ['congcu', 'Công cụ', 0]];
   return <div className="max-w-4xl mx-auto flex flex-col gap-5">
     <div>
       <h1 className="text-2xl md:text-3xl font-extrabold">Quản trị</h1>
-      <p className="text-slate-600 mt-1">Duyệt tin, xử lý báo cáo. Mọi tin cộng đồng chỉ hiện sau khi được duyệt.</p>
+      <p className="text-slate-600 mt-1">Máy tự duyệt tin; ở đây là tin máy giữ lại, báo cáo và số liệu.</p>
     </div>
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {[['Chờ duyệt', pending.length], ['Báo cáo mới', reports.length], ['Tin đang hiện', stats.live], ['Đã chia sẻ xong', stats.done]].map(([l, v]) =>
@@ -141,6 +142,7 @@ const Admin: React.FC<{ user: User }> = ({ user }) => {
       {u.role !== 'admin' && <button disabled={busy === u.id} onClick={() => setBan(u.id, u.status !== 'banned')} className={'min-h-9 px-3 rounded-xl text-sm font-bold ' + (u.status === 'banned' ? 'border border-line' : 'border border-rose-300 text-rose-700')}>{u.status === 'banned' ? 'Mở khoá' : 'Khoá'}</button>}
     </div>)}{!users.length && <p className="p-6 text-slate-600">Đang tải…</p>}</div>}
 
+    {tab === 'solieu' && <React.Suspense fallback={<p>Đang tải…</p>}><AdminStats /></React.Suspense>}
     {tab === 'congcu' && <div className={card + ' p-5 flex flex-col gap-3'}>
       <h2 className="font-extrabold">Đồng bộ hồ sơ công khai</h2>
       <p className="text-sm text-slate-600">Tạo hồ sơ công khai (tên, ảnh, khu vực) cho tài khoản cũ để người khác thấy tên họ. Chạy một lần là đủ.</p>

@@ -1,3 +1,14 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+/* Chế độ chữ to cho người lớn tuổi: tăng cỡ gốc (chữ, nút, khoảng cách theo rem cùng to lên).
+   Các cỡ chữ ghi bằng px được đổi sang rem để to theo. */
+html.chu-to { font-size: 118.75%; }
+html.chu-to .text-\[9px\] { font-size: 0.5625rem; }
+html.chu-to .text-\[10px\] { font-size: 0.6250rem; }
+html.chu-to .text-\[11px\] { font-size: 0.6875rem; }
+html.chu-to .text-\[13px\] { font-size: 0.8125rem; }
+html.chu-to .text-\[15px\] { font-size: 0.9375rem; }
+html.chu-to .text-\[17px\] { font-size: 1.0625rem; }
+html.chu-to .text-\[22px\] { font-size: 1.3750rem; }
+html.chu-to .text-\[26px\] { font-size: 1.6250rem; }

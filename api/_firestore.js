@@ -104,3 +104,29 @@ export function origin(req) {
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'www.chocuatui.vn';
   return `https://${host}`;
 }
+
+/** Đếm tin cộng đồng theo điều kiện bằng (không tải từng tin). */
+export async function countCommunity(eq) {
+  const filters = [{ fieldFilter: { field: { fieldPath: 'isCommunityFree' }, op: 'EQUAL', value: { booleanValue: true } } },
+    ...Object.entries(eq).map(([k, v]) => ({ fieldFilter: { field: { fieldPath: k }, op: 'EQUAL', value: { stringValue: String(v) } } }))];
+  const body = { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: 'listings' }], where: { compositeFilter: { op: 'AND', filters } } }, aggregations: [{ alias: 'n', count: {} }] } };
+  const r = await fetch(`${BASE}:runAggregationQuery?key=${API_KEY}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error('firestore ' + r.status);
+  const out = await r.json();
+  return Number(out?.[0]?.result?.aggregateFields?.n?.integerValue || 0);
+}
+
+/** Tin trong một xã/phường theo trạng thái (không sắp xếp, đủ để thống kê). */
+export async function listByArea(areaCode, status, max = 300) {
+  const filters = [
+    { fieldFilter: { field: { fieldPath: 'isCommunityFree' }, op: 'EQUAL', value: { booleanValue: true } } },
+    { fieldFilter: { field: { fieldPath: 'areaCode' }, op: 'EQUAL', value: { stringValue: areaCode } } },
+    { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: status } } },
+  ];
+  const r = await fetch(`${BASE}:runQuery?key=${API_KEY}`, { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'listings' }], where: { compositeFilter: { op: 'AND', filters } },
+      select: { fields: [{ fieldPath: 'sellerId' }, { fieldPath: 'sellerName' }] }, limit: max } }) });
+  if (!r.ok) throw new Error('firestore ' + r.status);
+  const rows = await r.json();
+  return rows.filter(x => x.document).map(x => fields(x.document.fields || {}));
+}

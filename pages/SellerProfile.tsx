@@ -8,6 +8,9 @@ import { User, PublicProfile } from '../types';
 import { db } from '../services/db';
 import { community, type CommunityListing } from '../services/community';
 import { Card } from './CommunityApp';
+import { BadgeList, badgesOf } from '../components/Badges';
+import { ThanksList } from '../components/Thanks';
+import type { ThankNote } from '../services/community';
 
 const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
   const { id = '' } = useParams();
@@ -15,6 +18,8 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
   const [person, setPerson] = useState<PublicProfile | null>(null);
   const [items, setItems] = useState<CommunityListing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [thanks, setThanks] = useState<ThankNote[]>([]);
+  useEffect(() => { community.thanksFor(id, 20).then(setThanks); }, [id]);
 
   useEffect(() => {
     if (currentUser?.id && currentUser.id === id) { nav('/profile', { replace: true }); return; }
@@ -45,6 +50,10 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
           <p className="text-xs text-slate-500 mt-1">Chỉ tính những lần cả hai bên đã xác nhận.</p>
         </div>
       </section>
+      {(badgesOf(person).length > 0 || thanks.length > 0) && <section className="mt-4 bg-white rounded-3xl border border-slate-100 p-5 flex flex-col gap-4">
+        <BadgeList p={person} />
+        <ThanksList items={thanks} title={thanks.length ? 'Lời cảm ơn (' + thanks.length + ')' : ''} />
+      </section>}
       <h2 className="text-xl font-extrabold mt-8 mb-3">Đang chia sẻ</h2>
       {!items.length
         ? <p className="rounded-2xl bg-white border p-6 text-slate-500">Thành viên này chưa có tin nào đang hiện.</p>

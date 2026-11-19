@@ -77,7 +77,7 @@ export function Steps({ r }: { r: CommunityRequest }) {
 }
 
 /** Các nút chuyển bước theo vai trò, có hỏi lại trước bước xác nhận. */
-export function RequestActions({ r, uid, onDone, compact, mainOnly }: { r: CommunityRequest; uid: string; onDone?: () => void; compact?: boolean; mainOnly?: boolean }) {
+export function RequestActions({ r, uid, onDone, compact, mainOnly, onAccepted }: { r: CommunityRequest; uid: string; onDone?: () => void; compact?: boolean; mainOnly?: boolean; onAccepted?: (r: CommunityRequest) => void }) {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
   const next = nextStatuses(r, uid);
@@ -85,7 +85,7 @@ export function RequestActions({ r, uid, onDone, compact, mainOnly }: { r: Commu
     if ((status === 'completed' || status === 'handed_over' || status === 'returned') && !window.confirm(actionLabel(r, status) + '?\nChỉ bấm khi việc này đã thật sự diễn ra.')) return;
     if (status === 'cancelled' && r.status === 'accepted' && !window.confirm('Hủy việc đã được đồng ý?')) return;
     setWorking(true); setError('');
-    try { await community.updateStatus(r, status); onDone?.(); }
+    try { await community.updateStatus(r, status); if (status === 'accepted') onAccepted?.(r); onDone?.(); }
     catch (e: any) { setError(e?.message || 'Chưa cập nhật được, thử lại nhé.'); }
     finally { setWorking(false); }
   }
@@ -111,7 +111,7 @@ export function SafetyBox({ notes }: { notes: SafetyNote[] }) {
 }
 
 /** Nói thay vì gõ (Chrome/Android hỗ trợ tiếng Việt). Không hỗ trợ thì không hiện nút. */
-export function VoiceButton({ onText, className = '' }: { onText: (t: string) => void; className?: string }) {
+export function VoiceButton({ onText, className = '', label }: { onText: (t: string) => void; className?: string; label?: string }) {
   const [listening, setListening] = useState(false);
   const recRef = useRef<any>(null);
   // @ts-ignore
@@ -130,8 +130,8 @@ export function VoiceButton({ onText, className = '' }: { onText: (t: string) =>
   }
   return <button type="button" onClick={listening ? () => recRef.current?.stop() : start}
     aria-label={listening ? 'Đang nghe, bấm để dừng' : 'Nói thay vì gõ'}
-    className={'grid place-items-center rounded-full shrink-0 ' + (listening ? 'bg-rose-600 text-white animate-pulse' : 'bg-emerald-50 text-emerald-700') + ' ' + className}>
-    <KIcon name="mic" className="w-5 h-5" />
+    className={(label ? 'flex items-center justify-center font-bold ' : 'grid place-items-center ') + 'rounded-full shrink-0 ' + (listening ? 'bg-rose-600 text-white animate-pulse' : 'bg-emerald-50 text-emerald-700') + ' ' + className}>
+    <KIcon name="mic" className="w-5 h-5" />{label && <span className="ml-2">{listening ? 'Đang nghe… nói đi bạn' : label}</span>}
   </button>;
 }
 

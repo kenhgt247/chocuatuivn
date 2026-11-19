@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import NotificationMenu from './NotificationMenu';
 import AppNudge from './AppNudge';
+import ChatDock from './ChatDock';
 import { setBigText } from '../utils/textSize';
 import { db } from '../services/db';
 import { getArea, setArea, onAreaChange } from '../utils/area';
@@ -83,7 +84,14 @@ function AreaPicker({ user }: { user: User | null }) {
   );
 }
 
+// Đang chạy bên trong khung tin nhắn nổi (ChatDock): chỉ hiện nội dung, không đầu trang/chân trang
+export const isEmbedded = () => { try { return window.self !== window.top; } catch (_) { return true; } };
+
 const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }> = ({ user, children }) => {
+  if (isEmbedded()) return <div className="bg-cream min-h-screen text-ink">{children}</div>;
+  return <ShellInner user={user}>{children}</ShellInner>;
+};
+const ShellInner: React.FC<{ user: User | null; children: React.ReactNode }> = ({ user, children }) => {
   const { pathname } = useLocation();
   const unread = useUnreadChats(user);
   // Trang chat cần chiều cao cố định, ẩn chân trang cho gọn
@@ -130,6 +138,7 @@ const CommunityShell: React.FC<{ user: User | null; children: React.ReactNode }>
         </div>
       </header>
 
+      {user && !isChat && <ChatDock unread={unread} />}
       <AppNudge user={user} hidden={isChat || pathname === '/tai-ung-dung'} />
 
       <main className={'max-w-6xl mx-auto px-4 md:px-5 ' + (isChat ? 'py-3 md:py-6 pb-24 md:pb-6' : 'pt-5 md:pt-8 ' + (hasActionBar ? 'pb-36 md:pb-10' : 'pb-8 md:pb-10'))}>{children}</main>

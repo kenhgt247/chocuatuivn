@@ -275,6 +275,7 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<CommunityApp user={user} />} />
             <Route path="/cong-dong/tin/*" element={<CommunityApp user={user} />} />
+            <Route path="/xa/*" element={<CommunityApp user={user} />} />
             <Route path="/cong-dong/*" element={wait(<CommunityApp user={user} />)} />
             {/* Rao vặt đã lưu trữ: các đường dẫn cũ chuyển về cộng đồng */}
             <Route path="/rao-vat" element={<Navigate to="/" replace />} />

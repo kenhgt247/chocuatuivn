@@ -111,7 +111,7 @@ export function SafetyBox({ notes }: { notes: SafetyNote[] }) {
 }
 
 /** Nói thay vì gõ (Chrome/Android hỗ trợ tiếng Việt). Không hỗ trợ thì không hiện nút. */
-export function VoiceButton({ onText, className = '' }: { onText: (t: string) => void; className?: string }) {
+export function VoiceButton({ onText, className = '', label }: { onText: (t: string) => void; className?: string; label?: string }) {
   const [listening, setListening] = useState(false);
   const recRef = useRef<any>(null);
   // @ts-ignore
@@ -130,8 +130,8 @@ export function VoiceButton({ onText, className = '' }: { onText: (t: string) =>
   }
   return <button type="button" onClick={listening ? () => recRef.current?.stop() : start}
     aria-label={listening ? 'Đang nghe, bấm để dừng' : 'Nói thay vì gõ'}
-    className={'grid place-items-center rounded-full shrink-0 ' + (listening ? 'bg-rose-600 text-white animate-pulse' : 'bg-emerald-50 text-emerald-700') + ' ' + className}>
-    <KIcon name="mic" className="w-5 h-5" />
+    className={(label ? 'flex items-center justify-center font-bold ' : 'grid place-items-center ') + 'rounded-full shrink-0 ' + (listening ? 'bg-rose-600 text-white animate-pulse' : 'bg-emerald-50 text-emerald-700') + ' ' + className}>
+    <KIcon name="mic" className="w-5 h-5" />{label && <span className="ml-2">{listening ? 'Đang nghe… nói đi bạn' : label}</span>}
   </button>;
 }
 

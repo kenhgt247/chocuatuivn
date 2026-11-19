@@ -39,11 +39,11 @@ export function cachedPage(s: Scope): Page | null {
   } catch (_) { return null; }
 }
 
-export async function loadPage(s: Scope, truoc?: string | null): Promise<Page> {
-  const url = feedUrl(s, truoc);
+export async function loadPage(s: Scope, truoc?: string | null, fresh = false): Promise<Page> {
+  const url = feedUrl(s, truoc) + (fresh ? (feedUrl(s, truoc).includes('?') ? '&' : '?') + 'm=' + Math.floor(Date.now() / 30000) : '');
   let data: any = null;
   const pre = (window as any).__feed as { url: string; p: Promise<any> } | undefined;
-  if (pre && pre.url === url) { (window as any).__feed = undefined; data = await pre.p.catch(() => null); }
+  if (!fresh && pre && pre.url === url) { (window as any).__feed = undefined; data = await pre.p.catch(() => null); }
   if (!data) {
     const r = await fetch(url).catch(() => null);
     data = r && r.ok ? await r.json().catch(() => null) : null;

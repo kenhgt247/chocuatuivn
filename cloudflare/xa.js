@@ -66,9 +66,9 @@ ${items.length ? `<ul style="list-style:none;padding:0;margin:0">${items.map(car
 }
 
 /** Dữ liệu trang (tin, số liệu) lưu đệm 10 phút; khung index.html luôn lấy bản mới nhất để khớp tệp JS sau mỗi lần cập nhật web. */
-export async function wardPage(request, env, ctx) {
+export async function wardPage(request, env, ctx, v = 0) {
   const url = new URL(request.url);
-  const key = new Request(url.origin + '/__xa-data/' + encodeURIComponent(url.pathname.slice(4)));
+  const key = new Request(url.origin + '/__xa-data/' + encodeURIComponent(url.pathname.slice(4)) + '?v=' + v);
   const cache = caches.default;
   let data = null;
   const hit = await cache.match(key);

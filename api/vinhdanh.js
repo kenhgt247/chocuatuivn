@@ -40,7 +40,7 @@ export default async function handler(req, res) {
       })),
     };
     res.setHeader('content-type', 'application/json; charset=utf-8');
-    res.setHeader('cache-control', 'public, max-age=120, s-maxage=600, stale-while-revalidate=3600');
+    res.setHeader('cache-control', 'public, max-age=60, s-maxage=180, stale-while-revalidate=600');
     res.status(200).send(JSON.stringify(out));
   } catch (_) {
     res.setHeader('cache-control', 'public, max-age=10, s-maxage=30');

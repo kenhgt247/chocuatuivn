@@ -9,6 +9,7 @@ import {
 import { auth, db, firestore } from './db';
 import { compressAndGetBase64, makeThumbBase64 } from '../utils/imageCompression';
 import type { Listing, User } from '../types';
+import { clearFeedCache } from '../utils/feed';
 
 export type CommunityKind = 'gift' | 'borrow' | 'help' | 'repair';
 export type CommunityIntent = 'have' | 'need';
@@ -208,14 +209,14 @@ export const community = {
   },
   /** Đánh dấu đã xong hoặc ẩn tin của mình (rules chỉ cho 2 trạng thái này). */
   async setMyStatus(id: string, status: 'sold' | 'hidden'): Promise<void> {
-    await db.updateListingStatus(id, status);
+    await db.updateListingStatus(id, status); clearFeedCache();
   },
   /** Gia hạn tin đã hết hạn (sau 30 ngày): hiện lại, nội dung giữ nguyên. */
   async renew(id: string): Promise<void> {
-    await updateDoc(doc(firestore, 'listings', id), { status: 'approved', renewedAt: serverTimestamp() });
+    await updateDoc(doc(firestore, 'listings', id), { status: 'approved', renewedAt: serverTimestamp() }); clearFeedCache();
   },
   async remove(id: string): Promise<void> {
-    await db.deleteListing(id);
+    await db.deleteListing(id); clearFeedCache();
   },
   // --- Lưu tin: dùng lại bảng favorites/<uid> của bản cũ ---
   async savedIds(uid: string): Promise<string[]> {
@@ -271,6 +272,7 @@ export const community = {
       }
     } catch (_) { /* bỏ qua */ }
     // Dữ liệu được lưu ngay trong listings cũ, không làm thay đổi các tin cũ.
+    clearFeedCache();
     return db.saveListing({
       title, description, location, address: '', lat: guessPt?.lat ?? null, lng: guessPt?.lng ?? null,
       price: 0, tier: 'free', isCommunityFree: true,
@@ -383,6 +385,7 @@ export const community = {
       ...(input.extra && 'pickupNote' in input.extra ? { pickupNote: safeText(input.extra.pickupNote || '', 200) } : {}),
       ...(input.extra && 'quantity' in input.extra ? { quantity: input.extra.quantity ?? null } : {}),
     });
+    clearFeedCache();
   },
 
   /** Danh sách người mình đã chặn. */

@@ -23,7 +23,7 @@ export default function MiniMap({ lat, lng, label }: { lat: number; lng: number;
   }, [lat, lng]);
   if (failed) return null;
   return <div className="relative h-44 rounded-2xl overflow-hidden border border-line bg-[#E3ECE4]">
-    <div ref={box} className="absolute inset-0" aria-hidden="true" />
+    <div className="absolute inset-0" aria-hidden="true"><div ref={box} className="w-full h-full" /></div>
     {label && <span className="absolute left-3 bottom-3 bg-white rounded-full px-2.5 py-1 text-xs font-bold shadow-sm">{label}</span>}
   </div>;
 }

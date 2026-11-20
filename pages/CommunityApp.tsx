@@ -209,7 +209,8 @@ function Home({ user }: { user: User | null }) {
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{rows.map((r, i) => <Card item={r.x} area={area} eager={eager && i < 4} extra={kmText(r.d)} key={r.x.id} />)}</div>;
   const divider = (text: string) => <div className="flex items-center gap-3 text-[13px] font-bold text-slate-600 mt-1"><span className="flex-1 h-px bg-line" />{text}<span className="flex-1 h-px bg-line" /></div>;
   const seg = (v: IntentF, label: string) => <button key={v} onClick={() => setIntent(v)} aria-pressed={intent === v}
-    className={'min-h-10 rounded-[11px] text-sm ' + (intent === v ? 'bg-white font-extrabold text-ink shadow-sm' : 'font-bold text-slate-600')}>{label}</button>;
+    className={'min-h-9 rounded-[10px] text-[13px] ' + (intent === v ? 'bg-white font-extrabold text-ink shadow-sm' : 'font-bold text-slate-600')}>{label}</button>;
+  const honor = !q ? <React.Suspense fallback={null}><HonorStrip /></React.Suspense> : null;
   const nothing = !main.loading && !inR.length && !(farOpen && outR.length) && !otherShown.length && !main.next && !other.loading;
 
   return <PullToRefresh onRefresh={async () => { await Promise.all([main.reload(), other.reload()]); }}><div className="flex flex-col gap-4">
@@ -218,25 +219,23 @@ function Home({ user }: { user: User | null }) {
       <KIcon name="search" className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
       <input className={inputCls + ' pl-11 !rounded-2xl'} type="search" placeholder="Tìm món đồ hoặc việc cần giúp…" value={search} onChange={e => setSearch(e.target.value)} />
     </label>
-    <div className="grid grid-cols-3 p-1 bg-[#F1ECDF] rounded-[14px]" role="group" aria-label="Loại tin">{seg('all', 'Tất cả')}{seg('have', 'Đồ cho tặng')}{seg('need', 'Người đang cần')}</div>
+    <div className="grid grid-cols-3 p-1 bg-[#F1ECDF] rounded-xl" role="group" aria-label="Loại tin">{seg('all', 'Tất cả')}{seg('have', 'Đồ cho tặng')}{seg('need', 'Người đang cần')}</div>
     <div className="flex gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-0.5" role="group" aria-label="Lọc theo hoạt động">
       {KINDS.map(k => <button key={k} onClick={() => setKind(kind === k ? 'all' : k)} aria-pressed={kind === k}
-        className={'shrink-0 h-10 px-3.5 rounded-full border flex items-center gap-1.5 text-sm font-semibold ' + (kind === k ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white text-ink')}>
+        className={'shrink-0 h-9 px-3 rounded-full border flex items-center gap-1.5 text-[13px] font-semibold ' + (kind === k ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white text-ink')}>
         <KIcon name={k} className="w-[18px] h-[18px] text-emerald-700" />{kindLabels[k]}</button>)}
     </div>
 
-    {!q && mine.slice(0, 2).map(m => <Link key={m.id} to={tinPath(m)} className={'flex items-center gap-3 p-3 bg-white rounded-2xl border ' + (m.status === 'rejected' ? 'border-rose-200' : 'border-emerald-200')}>
-      {thumbOf(m) ? <img src={thumbOf(m)} alt="" className="h-14 w-14 rounded-xl object-cover shrink-0" />
-        : <span className={'h-14 w-14 rounded-xl grid place-items-center text-emerald-700 shrink-0 ' + KIND_META[(m.communityKind || 'gift') as CommunityKind].tint}><KIcon name={(m.communityKind || 'gift') as CommunityKind} className="w-7 h-7" /></span>}
-      <span className="flex-1 min-w-0 flex flex-col gap-0.5">
-        <span className="text-xs font-bold text-slate-600">Tin của bạn</span>
-        <span className="text-[15px] font-bold truncate">{m.title}</span>
-        <span className={'text-xs font-bold ' + (m.status === 'approved' ? 'text-emerald-700' : m.status === 'pending' ? 'text-sun-dark' : 'text-rose-700')}>
-          {m.status === 'approved' ? '✓ Đang hiện cho hàng xóm' + (near ? ' trong ' + radius + ' km' : '') : m.status === 'pending' ? 'Đang chờ kiểm tra, sẽ hiện sớm' : 'Chưa được đăng · bấm để xem lý do'}</span>
-      </span>
-    </Link>)}
-
-    {!q && <React.Suspense fallback={null}><HonorStrip /></React.Suspense>}
+    {!q && mine.length > 0 && <section className="bg-white border border-line rounded-2xl px-3 py-2.5 flex flex-col gap-1">
+      <div className="flex items-center justify-between"><span className="text-[13px] font-extrabold">Tin của bạn</span><Link to="/profile" className="text-xs font-semibold text-emerald-700 min-h-8 flex items-center">Quản lý ›</Link></div>
+      {mine.slice(0, 2).map(m => <Link key={m.id} to={tinPath(m)} className="flex items-center gap-2.5 min-h-12">
+        {thumbOf(m) ? <img src={thumbOf(m)} alt="" className="h-10 w-10 rounded-lg object-cover shrink-0" />
+          : <span className={'h-10 w-10 rounded-lg grid place-items-center text-emerald-700 shrink-0 ' + KIND_META[(m.communityKind || 'gift') as CommunityKind].tint}><KIcon name={(m.communityKind || 'gift') as CommunityKind} className="w-5 h-5" /></span>}
+        <span className="flex-1 min-w-0 text-sm font-bold truncate">{m.title}</span>
+        <span className={'shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ' + (m.status === 'approved' ? 'bg-emerald-50 text-emerald-800' : m.status === 'pending' ? 'bg-sun-light text-sun-dark' : 'bg-rose-50 text-rose-700')}>
+          {m.status === 'approved' ? 'Đang hiện' : m.status === 'pending' ? 'Chờ kiểm tra' : 'Chưa đăng'}</span>
+      </Link>)}
+    </section>}
 
     {!place?.provCode && !q && place && <button onClick={openAreaSheet} className="text-left p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-sm"><b className="text-emerald-800">Chọn xã/phường của bạn</b> để thấy tin gần nhất trước.</button>}
 
@@ -262,10 +261,11 @@ function Home({ user }: { user: User | null }) {
           <Link className={btnPrimary + ' inline-flex items-center mt-4'} to="/cong-dong/dang-tin">Đăng tin</Link>
         </div>
       : <>
-          {inR.length > 0 ? grid(inR, true)
+          {inR.length > 0 ? <>{grid(inR.slice(0, 6), true)}{honor}{inR.length > 6 && grid(inR.slice(6))}</>
             : near && <p className="text-sm text-slate-600 bg-white border border-line rounded-2xl p-4">Chưa có tin trong {radius} km quanh {shortArea(area)}. <Link to="/cong-dong/dang-tin" className="font-bold text-emerald-700 underline">Đăng tin đầu tiên</Link></p>}
           {near && outR.length > 0 && (farOpen ? <>{divider('Xa hơn một chút' + (place?.provName ? ' · ' + place.provName : ''))}{grid(outR)}</>
             : <button onClick={() => setShowFar(true)} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold">Xem {outR.length} tin xa hơn</button>)}
+          {inR.length === 0 && honor}
           {otherShown.length > 0 && <>{divider('Ở nơi khác')}{grid(otherShown.map(x => ({ x, d: dist(x) })))}</>}
           {main.next && <>
             <Sentinel onHit={main.loadMore} active={!main.more} />

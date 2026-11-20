@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatTimeAgo, tinPath } from '../utils/format';
-import { BadgeRow } from './Badges';
 
 type Thank = { id: string; giverId: string; giverName: string; receiverName: string; receiverAvatar: string | null; message: string;
   listingId: string | null; listingTitle: string; photo: string | null; createdAt: string | null };
@@ -21,8 +20,8 @@ export default function HonorStrip() {
       if (x && x.ok) { setD(x); try { localStorage.setItem(KEY, JSON.stringify(x)); } catch (_) { /* đầy */ } }
     }).catch(() => {});
   }, []);
-  if (!d) return null;
-  return <>
+  if (!d || (!d.thanks.length && !d.top.length)) return null;
+  return <div className="flex flex-col gap-4 my-2">
     {d.thanks.length > 0 && <section className="flex flex-col gap-2.5">
       <h2 className="text-lg font-extrabold">Lời cảm ơn mới 💚</h2>
       <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0 pb-1">
@@ -42,17 +41,18 @@ export default function HonorStrip() {
       </div>
     </section>}
     {d.top.length > 0 && <section className="flex flex-col gap-2.5">
-      <h2 className="text-lg font-extrabold">{d.mode === 'thang' ? 'Hàng xóm nổi bật tháng ' + d.month : 'Hàng xóm chia sẻ nhiều nhất'}</h2>
-      <div className={'grid gap-3 ' + (d.top.length >= 3 ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2')}>
-        {d.top.map((p, i) => <Link key={p.id} to={'/profile/' + p.id} className="relative bg-white border border-line rounded-2xl p-4 flex flex-col items-center text-center gap-1.5 hover:shadow-md">
-          {i < 3 && <span className="absolute top-2 left-2 text-lg" aria-label={'Hạng ' + (i + 1)}>{['🥇', '🥈', '🥉'][i]}</span>}
-          <Avatar src={p.avatar} name={p.name} size="h-[72px] w-[72px]" />
-          <span className="font-extrabold text-[15px] leading-tight line-clamp-2 mt-1">{p.name}</span>
-          <span className="text-xs text-emerald-800 font-bold">{d.mode === 'thang' ? p.n + ' lời cảm ơn tháng này' : 'Đã chia sẻ ' + p.n + ' lần'}</span>
+      <h2 className="text-lg font-extrabold">{d.mode === 'thang' ? 'Hàng xóm nổi bật tháng ' + d.month : 'Hàng xóm chia sẻ nhiều nhất'} 🏅</h2>
+      <div className="flex gap-2.5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-1">
+        {d.top.map((p, i) => <Link key={p.id} to={'/profile/' + p.id} className="shrink-0 w-[148px] bg-white border border-line rounded-2xl p-3 flex flex-col items-center text-center gap-1 hover:shadow-md">
+          <span className="relative">
+            <Avatar src={p.avatar} name={p.name} size="h-14 w-14" />
+            {i < 3 && <span className="absolute -bottom-1 -right-1 text-base leading-none" aria-label={'Hạng ' + (i + 1)}>{['🥇', '🥈', '🥉'][i]}</span>}
+          </span>
+          <span className="font-extrabold text-sm leading-tight truncate max-w-full mt-1">{p.name}</span>
+          <span className="text-[11px] text-emerald-800 font-bold">{d.mode === 'thang' ? p.n + ' lời cảm ơn' : 'Chia sẻ ' + p.n + ' lần'}</span>
           {p.location && <span className="text-[11px] text-slate-500 truncate max-w-full">{p.location}</span>}
-          <BadgeRow p={{ id: p.id, name: p.name, sharedCount: p.sharedCount, sharedByKind: p.sharedByKind } as any} />
         </Link>)}
       </div>
     </section>}
-  </>;
+  </div>;
 }

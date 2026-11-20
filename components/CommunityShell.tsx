@@ -4,6 +4,7 @@
  * Tận dụng lại: phòng chat cũ (đếm tin chưa đọc), menu thông báo cũ, lời mời cài app.
  */
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import NotificationMenu from './NotificationMenu';
 import AppNudge from './AppNudge';
@@ -75,7 +76,7 @@ function AreaPicker({ user }: { user: User | null }) {
         <span className="truncate max-w-[52vw] md:max-w-[260px]">{area ? shortArea(area) + ' · ' + radiusText(radius) : 'Chọn khu vực'}</span>
         <Svg name="down" className="w-4 h-4 shrink-0" />
       </button>
-      {open && <div className="fixed inset-0 z-[60] bg-ink/45 flex items-end md:items-center justify-center" onClick={() => setOpen(false)}>
+      {open && createPortal(<div className="fixed inset-0 z-[60] bg-ink/45 flex items-end md:items-center justify-center" onClick={() => setOpen(false)}>
         <div role="dialog" aria-modal="true" aria-label="Chọn khu vực xem tin" onClick={e => e.stopPropagation()}
           className="w-full md:max-w-md bg-white rounded-t-3xl md:rounded-3xl px-4 pt-2.5 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col gap-4 max-h-[92vh] overflow-y-auto">
           <span className="self-center w-10 h-1.5 rounded-full bg-line md:hidden" aria-hidden="true" />
@@ -100,7 +101,7 @@ function AreaPicker({ user }: { user: User | null }) {
           </div>
           <button onClick={() => setOpen(false)} className="min-h-[52px] rounded-2xl bg-emerald-700 text-white text-base font-extrabold">{radius ? 'Xem tin trong ' + radius + ' km' : 'Xem tin cả nước'}</button>
         </div>
-      </div>}
+      </div>, document.body)}
     </>
   );
 }

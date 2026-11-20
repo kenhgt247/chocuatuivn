@@ -6,10 +6,30 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
       - run: |
-          for u in "https://chocuatui.vn/api/feed" "https://chocuatui.vn/api/feed?tinh=31&nhieu=1" "https://chocuatui.vn/api/feed?tinh=31&xong=1"; do
-            echo "=== $u"; curl -s -D h.txt "$u" -o b.json; grep -i -E "^HTTP|cache-control|age:" h.txt; python3 -c "
-          import json;d=json.load(open('b.json'));print('ok',d.get('ok'),'n',len(d.get('items',[])),'next',d.get('next'))
-          for i in d.get('items',[])[:15]: print(' ',i['id'],i.get('createdAt'),i.get('areaCode'),i.get('provinceCode'),i.get('lat'),i.get('lng'),i['communityKind'],i['communityIntent'],i['title'][:30])"
-          done
-          curl -s "https://chocuatui.vn/" | grep -o '__feed[^;]*;' | head -3
+          mkdir t && cd t && npm init -y >/dev/null && npm i playwright@1.48.2 >/dev/null 2>&1 && npx playwright install chromium >/dev/null 2>&1
+          cat > t.mjs <<'JS'
+          import { chromium } from 'playwright';
+          const b = await chromium.launch();
+          const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } });
+          const p = await ctx.newPage();
+          p.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') console.log('CONSOLE', m.type(), m.text().slice(0, 200)); });
+          p.on('pageerror', e => console.log('PAGEERROR', e.message.slice(0, 300)));
+          p.on('response', r => { if (r.url().includes('/api/')) console.log('RESP', r.status(), r.url()); });
+          for (const setup of ['guest', 'area']) {
+            if (setup === 'area') await p.evaluate(() => { localStorage.setItem('ccut-area', 'Phường Tân Hưng, Thành phố Hải Phòng'); localStorage.setItem('ccut-area-r', '2'); });
+            for (let i = 0; i < 2; i++) {
+              await p.goto('https://chocuatui.vn/', { waitUntil: 'networkidle' });
+              await p.waitForTimeout(4000);
+              const h = await p.$$eval('h2', els => els.map(e => e.textContent.trim()).slice(0, 8));
+              const cards = await p.$$eval('a[href^="/cong-dong/tin/"]', els => els.map(e => (e.querySelector('span.font-bold, .font-bold')?.textContent || e.textContent).trim().slice(0, 40)));
+              console.log('RUN', setup, i, 'H2', JSON.stringify(h));
+              console.log('CARDS', JSON.stringify(cards));
+              console.log('LS', await p.evaluate(() => Object.keys(localStorage).join(',')));
+            }
+          }
+          await b.close();
+          JS
+          node t.mjs

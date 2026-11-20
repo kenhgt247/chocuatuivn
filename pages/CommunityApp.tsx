@@ -294,6 +294,14 @@ function Home({ user }: { user: User | null }) {
     {nearNeed > 0 && nearRow('hand', 'text-orange-700', nearNeed, 'yêu cầu đang cần giúp', 'need')}
     <p className="text-xs text-slate-500 pt-1.5">Trong {radius} km quanh {shortArea(area)}</p>
   </section>;
+  // Điện thoại: khung gọn 2 ô bấm được
+  const nearCell = (icon: string, color: string, n: number, text: string, f: IntentF) => <button onClick={() => { setIntent(f); setMap(false); }}
+    className="flex-1 min-w-0 flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-cream text-left">
+    <KIcon name={icon} className={'w-6 h-6 shrink-0 ' + color} /><span className="flex flex-col leading-tight"><b className="text-lg">{n}</b><span className="text-xs text-slate-600">{text}</span></span></button>;
+  const nearMobile = near && !q && (nearHave + nearNeed) > 0 && <section className="lg:hidden bg-white border border-line rounded-2xl p-3 flex flex-col gap-2">
+    <h2 className="font-extrabold text-[15px] flex items-center gap-1.5"><KIcon name="pin" className="w-[18px] h-[18px] text-emerald-700" />Hoạt động gần bạn<span className="ml-auto text-xs font-semibold text-slate-500">{radius} km quanh {shortArea(area)}</span></h2>
+    <div className="flex gap-2">{nearCell('gift', 'text-emerald-700', nearHave, 'món đang chia sẻ', 'have')}{nearCell('hand', 'text-orange-700', nearNeed, 'yêu cầu cần giúp', 'need')}</div>
+  </section>;
   const tab = (f: IntentF, label: string, icon?: string, iconCls = '') => <button onClick={() => setIntent(f)} aria-pressed={intent === f}
     className={'shrink-0 h-9 lg:h-10 px-3 lg:px-4 rounded-xl text-[13px] lg:text-sm font-bold flex items-center gap-1.5 lg:gap-2 border ' + (intent === f ? 'bg-emerald-700 border-emerald-700 text-white' : 'bg-white border-line text-ink')}>
     {icon && <KIcon name={icon} className={'w-4 h-4 lg:w-[18px] lg:h-[18px] ' + (intent === f ? '' : iconCls)} />}{label}</button>;
@@ -331,6 +339,7 @@ function Home({ user }: { user: User | null }) {
         {postBtns}{tiles}
       </div>
       {!q && mineLine}
+      {nearMobile}
       {!place?.provCode && !q && place && <button onClick={openAreaSheet} className="text-left p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-sm"><b className="text-emerald-800">Chọn xã/phường của bạn</b> để thấy tin gần nhất trước.</button>}
 
       <section className="flex flex-col gap-3">

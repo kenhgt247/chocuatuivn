@@ -10,6 +10,7 @@ import NotificationMenu from './NotificationMenu';
 import AppNudge from './AppNudge';
 import ChatDock from './ChatDock';
 import { ThanksPrompt } from './Thanks';
+import { FacebookPill } from './FacebookCard';
 import { setBigText } from '../utils/textSize';
 import { db } from '../services/db';
 import { getArea, setArea, onAreaChange, getRadius, setRadius, RADII, radiusText, shortArea } from '../utils/area';
@@ -184,6 +185,7 @@ const ShellInner: React.FC<{ user: User | null; children: React.ReactNode }> = (
               <Link key={to} to={to} className="min-h-9 md:min-h-11 flex items-center hover:text-emerald-700">{label}</Link>)}
             <button onClick={() => { const on = !document.documentElement.classList.contains('chu-to'); setBigText(on); }} className="min-h-9 md:min-h-11 flex items-center hover:text-emerald-700" aria-label="Bật/tắt chữ to">Aa Chữ to</button>
           </nav>
+          <div className="mt-2 md:mt-0 flex items-center justify-center gap-2 shrink-0"><span className="text-xs md:text-sm text-slate-600">Theo dõi:</span><FacebookPill small /></div>
         </div>
       </footer>}
 

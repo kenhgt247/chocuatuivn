@@ -15,6 +15,7 @@ import { KIcon, KIND_META, IntentBadge, SafetyBox } from '../components/Communit
 import { formatTimeAgo, tinPath } from '../utils/format';
 const AdminStats = lazyRetry(() => import('../components/AdminStats'));
 const AdminListings = lazyRetry(() => import('../components/AdminListings'));
+const FbPost = lazyRetry(() => import('../components/FbPost'));
 import type { Report, User } from '../types';
 
 type Tab = 'duyet' | 'tatca' | 'baocao' | 'solieu' | 'thanhvien' | 'congcu';
@@ -147,6 +148,9 @@ const Admin: React.FC<{ user: User }> = ({ user }) => {
     {tab === 'tatca' && <React.Suspense fallback={<p>Đang tải…</p>}><AdminListings /></React.Suspense>}
     {tab === 'solieu' && <React.Suspense fallback={<p>Đang tải…</p>}><AdminStats /></React.Suspense>}
     {tab === 'congcu' && <div className={card + ' p-5 flex flex-col gap-3'}>
+      <h2 className="font-extrabold">Soạn bài Facebook hôm nay</h2>
+      <React.Suspense fallback={<p>Đang tải…</p>}><FbPost /></React.Suspense>
+      <hr className="border-line my-2" />
       <h2 className="font-extrabold">Xem trang chủ với dữ liệu mẫu</h2>
       <p className="text-sm text-slate-600">Chỉ máy của bạn thấy, có nhãn "MẪU", không ghi gì vào cơ sở dữ liệu nên không cần xoá. Người dùng khác vẫn thấy dữ liệu thật.</p>
       <div className="flex gap-2">

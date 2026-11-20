@@ -27,6 +27,7 @@ import type { User, PublicProfile } from '../types';
 const CommunityMap = lazyRetry(() => import('../components/CommunityMap'));
 const MiniMap = lazyRetry(() => import('../components/MiniMap'));
 import { useHonor, ThanksTicker, NeighborsRow, NeighborsList } from '../components/HonorStrip';
+import { FacebookCard } from '../components/FacebookCard';
 async function findBannedWord(text: string): Promise<string | null> {
   try {
     const { default: list } = await import('../functions/tu-cam.json');
@@ -336,6 +337,7 @@ function Home({ user }: { user: User | null }) {
         </section>}
         {!map && !nothing && !main.loading && <button onClick={() => setMap(true)} className="min-h-12 rounded-2xl border border-line bg-white text-[15px] font-bold text-emerald-700 flex items-center justify-center gap-2"><KIcon name="map" className="w-[18px] h-[18px]" />Xem trên bản đồ</button>}
         {ward && !q && <Link to={wardPath(ward)} className="self-center text-sm font-semibold text-emerald-700 underline min-h-10 flex items-center">Góc chia sẻ {ward.name} ›</Link>}
+        {!q && <div className="lg:hidden"><FacebookCard /></div>}
       </section>
     </div>
     {/* Cột phải (máy tính) */}
@@ -343,6 +345,7 @@ function Home({ user }: { user: User | null }) {
       {postBtns(true)}
       {mineBox}
       <NeighborsList d={honor} />
+      <FacebookCard />
       {invite}
     </aside>
     </div>

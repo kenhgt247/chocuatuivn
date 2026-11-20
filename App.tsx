@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { lazyRetry } from './utils/lazy';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 
@@ -6,14 +7,14 @@ import { HelmetProvider } from 'react-helmet-async';
 import CommunityShell from './components/CommunityShell';
 import CommunityApp from './pages/CommunityApp';
 // Các trang ít dùng ngay lúc đầu: tải khi mở tới (trang chủ nhẹ hơn)
-const Chat = React.lazy(() => import('./pages/Chat'));
-const Profile = React.lazy(() => import('./pages/Profile'));
-const SellerProfile = React.lazy(() => import('./pages/SellerProfile'));
-const Auth = React.lazy(() => import('./pages/Auth'));
-const Register = React.lazy(() => import('./pages/Register'));
-const Admin = React.lazy(() => import('./pages/Admin'));
-const StaticPage = React.lazy(() => import('./pages/StaticPage'));
-const AppDownload = React.lazy(() => import('./pages/AppDownload'));
+const Chat = lazyRetry(() => import('./pages/Chat'));
+const Profile = lazyRetry(() => import('./pages/Profile'));
+const SellerProfile = lazyRetry(() => import('./pages/SellerProfile'));
+const Auth = lazyRetry(() => import('./pages/Auth'));
+const Register = lazyRetry(() => import('./pages/Register'));
+const Admin = lazyRetry(() => import('./pages/Admin'));
+const StaticPage = lazyRetry(() => import('./pages/StaticPage'));
+const AppDownload = lazyRetry(() => import('./pages/AppDownload'));
 
 // --- Component ---
 import GoogleOneTap from './components/GoogleOneTap';

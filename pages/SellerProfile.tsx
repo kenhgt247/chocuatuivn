@@ -19,7 +19,7 @@ const SellerProfile: React.FC<{ currentUser: User | null }> = ({ currentUser }) 
   const [items, setItems] = useState<CommunityListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [thanks, setThanks] = useState<ThankNote[]>([]);
-  useEffect(() => { community.thanksFor(id, 20).then(setThanks); }, [id]);
+  useEffect(() => { community.thanksFor(id, 20).then(setThanks).catch(() => setThanks([])); }, [id]);
 
   useEffect(() => {
     if (currentUser?.id && currentUser.id === id) { nav('/profile', { replace: true }); return; }

@@ -3,6 +3,7 @@
  * Thiết kế: nền kem, xanh lá đậm, vàng nắng; hai nút chính "Tôi có" / "Tôi cần".
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { lazyRetry } from '../utils/lazy';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cachedPage, loadPage, rememberScope, clearFeedCache, type Scope } from '../utils/feed';
 import { isSampleOn, setSample, sampleListings, sampleHonor } from '../utils/sample';
@@ -23,8 +24,8 @@ import { AreaInput } from '../components/AreaInput';
 import { wardFromLabel, provinceFromLabel, distanceKm, type Ward } from '../utils/dvhc';
 import { formatTimeAgo, tinPath, thumbOf, slugify } from '../utils/format';
 import type { User, PublicProfile } from '../types';
-const CommunityMap = React.lazy(() => import('../components/CommunityMap'));
-const MiniMap = React.lazy(() => import('../components/MiniMap'));
+const CommunityMap = lazyRetry(() => import('../components/CommunityMap'));
+const MiniMap = lazyRetry(() => import('../components/MiniMap'));
 import { useHonor, ThanksTicker, NeighborsRow, NeighborsList } from '../components/HonorStrip';
 async function findBannedWord(text: string): Promise<string | null> {
   try {
@@ -673,7 +674,7 @@ function AdminBar({ item, onChange }: { item: CommunityListing; onChange: (v: Pa
     {msg && <p className="text-sm font-semibold">{msg}</p>}
   </div>;
 }
-const AdminReasonLazy = React.lazy(() => import('../components/AdminListings').then(m => ({ default: m.ReasonPicker })));
+const AdminReasonLazy = lazyRetry(() => import('../components/AdminListings').then(m => ({ default: m.ReasonPicker })));
 function AdminReason(p: { danger: boolean; busy: boolean; onCancel: () => void; onPick: (r: string) => void }) {
   return <React.Suspense fallback={<p className="text-sm">Đang tải…</p>}>
     <AdminReasonLazy label={p.danger ? 'Xoá hẳn (không khôi phục được)' : 'Ẩn tin này'} danger={p.danger} busy={p.busy} onCancel={p.onCancel} onPick={p.onPick} />

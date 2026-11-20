@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     res.setHeader('cache-control', 'public, max-age=120, s-maxage=600, stale-while-revalidate=3600');
     res.status(200).json({ ok: true, active, done, top });
   } catch (_) {
-    res.setHeader('cache-control', 'public, max-age=10, s-maxage=30');
-    res.status(200).json({ ok: false });
+    res.setHeader('cache-control', 'no-store');
+    res.status(503).json({ ok: false });
   }
 }

@@ -13,8 +13,10 @@ const Avatar = ({ src, name, size }: { src: string | null; name: string; size: s
   ? <img src={src} alt="" loading="lazy" className={size + ' rounded-full object-cover bg-emerald-50 shrink-0'} />
   : <span className={size + ' rounded-full bg-emerald-700 text-white font-extrabold grid place-items-center shrink-0'}>{(name || '?').charAt(0).toUpperCase()}</span>;
 
-export default function HonorStrip() {
-  const [d, setD] = useState<Data | null>(() => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (_) { return null; } });
+export type HonorData = Data;
+export default function HonorStrip({ sample }: { sample?: Data | null }) {
+  const [real, setD] = useState<Data | null>(() => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (_) { return null; } });
+  const d = sample || real;
   useEffect(() => {
     fetch('/api/vinhdanh').then(r => r.ok ? r.json() : null).then((x: Data | null) => {
       if (x && x.ok) { setD(x); try { localStorage.setItem(KEY, JSON.stringify(x)); } catch (_) { /* đầy */ } }
@@ -23,12 +25,12 @@ export default function HonorStrip() {
   if (!d || (!d.thanks.length && !d.top.length)) return null;
   return <div className="flex flex-col gap-4 my-2">
     {d.thanks.length > 0 && <section className="flex flex-col gap-2.5">
-      <h2 className="text-lg font-extrabold">Lời cảm ơn mới 💚</h2>
+      <h2 className="text-lg font-extrabold">Lời cảm ơn mới 💚{sample && <span className="ml-2 align-middle text-[10px] font-extrabold bg-sun text-[#2E1F00] px-1.5 py-0.5 rounded">MẪU</span>}</h2>
       <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0 pb-1">
         {d.thanks.map(t => <article key={t.id} className="snap-start shrink-0 w-[min(300px,82vw)] bg-white border-2 border-emerald-200 rounded-2xl p-3.5 flex flex-col gap-2">
           <div className="flex items-center gap-2.5">
             <Avatar src={t.receiverAvatar} name={t.receiverName} size="h-9 w-9" />
-            <p className="text-[13px] leading-snug min-w-0"><b>{t.receiverName}</b> cảm ơn <Link to={'/profile/' + t.giverId} className="font-bold text-emerald-800">{t.giverName}</Link>
+            <p className="text-[13px] leading-snug min-w-0"><b>{t.receiverName}</b> cảm ơn {sample ? <b className="text-emerald-800">{t.giverName}</b> : <Link to={'/profile/' + t.giverId} className="font-bold text-emerald-800">{t.giverName}</Link>}
               {t.createdAt && <span className="block text-[11px] text-slate-500">{formatTimeAgo(t.createdAt)}</span>}</p>
           </div>
           <div className="h-px bg-emerald-100" />
@@ -41,9 +43,9 @@ export default function HonorStrip() {
       </div>
     </section>}
     {d.top.length > 0 && <section className="flex flex-col gap-2.5">
-      <h2 className="text-lg font-extrabold">{d.mode === 'thang' ? 'Hàng xóm nổi bật tháng ' + d.month : 'Hàng xóm chia sẻ nhiều nhất'} 🏅</h2>
+      <h2 className="text-lg font-extrabold">{d.mode === 'thang' ? 'Hàng xóm nổi bật tháng ' + d.month : 'Hàng xóm chia sẻ nhiều nhất'} 🏅{sample && <span className="ml-2 align-middle text-[10px] font-extrabold bg-sun text-[#2E1F00] px-1.5 py-0.5 rounded">MẪU</span>}</h2>
       <div className="flex gap-2.5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-1">
-        {d.top.map((p, i) => <Link key={p.id} to={'/profile/' + p.id} className="shrink-0 w-[148px] bg-white border border-line rounded-2xl p-3 flex flex-col items-center text-center gap-1 hover:shadow-md">
+        {d.top.map((p, i) => <Link key={p.id} to={sample ? '#' : '/profile/' + p.id} className="shrink-0 w-[148px] bg-white border border-line rounded-2xl p-3 flex flex-col items-center text-center gap-1 hover:shadow-md">
           <span className="relative">
             <Avatar src={p.avatar} name={p.name} size="h-14 w-14" />
             {i < 3 && <span className="absolute -bottom-1 -right-1 text-base leading-none" aria-label={'Hạng ' + (i + 1)}>{['🥇', '🥈', '🥉'][i]}</span>}

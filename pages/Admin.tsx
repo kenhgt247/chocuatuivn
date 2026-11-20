@@ -146,6 +146,13 @@ const Admin: React.FC<{ user: User }> = ({ user }) => {
     {tab === 'tatca' && <React.Suspense fallback={<p>Đang tải…</p>}><AdminListings /></React.Suspense>}
     {tab === 'solieu' && <React.Suspense fallback={<p>Đang tải…</p>}><AdminStats /></React.Suspense>}
     {tab === 'congcu' && <div className={card + ' p-5 flex flex-col gap-3'}>
+      <h2 className="font-extrabold">Xem trang chủ với dữ liệu mẫu</h2>
+      <p className="text-sm text-slate-600">Chỉ máy của bạn thấy, có nhãn "MẪU", không ghi gì vào cơ sở dữ liệu nên không cần xoá. Người dùng khác vẫn thấy dữ liệu thật.</p>
+      <div className="flex gap-2">
+        <button onClick={async () => { const m = await import('../utils/sample'); m.setSample(true); nav('/'); }} className="min-h-11 px-5 rounded-xl bg-sun text-[#2E1F00] font-bold">Bật và xem trang chủ</button>
+        <button onClick={async () => { const m = await import('../utils/sample'); m.setSample(false); setNote('Đã tắt dữ liệu mẫu.'); }} className="min-h-11 px-5 rounded-xl border border-line font-bold">Tắt</button>
+      </div>
+      <hr className="border-line my-2" />
       <h2 className="font-extrabold">Đồng bộ hồ sơ công khai</h2>
       <p className="text-sm text-slate-600">Tạo hồ sơ công khai (tên, ảnh, khu vực) cho tài khoản cũ để người khác thấy tên họ. Chạy một lần là đủ.</p>
       <button onClick={async () => {

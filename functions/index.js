@@ -189,6 +189,12 @@ async function kiemDuyet(ref, tin, id, daSua) {
     logger.info('Kiểm duyệt', { id, status, ly });
   };
 
+  // 0. Tin của quản trị viên: cho hiện ngay
+  try {
+    const nguoi = (await db.collection('users').doc(tin.sellerId).get()).data() || {};
+    if (nguoi.role === 'admin') { await datKetQua('approved', null, { approvedAt: new Date().toISOString() }); return; }
+  } catch (_) { /* bỏ qua, kiểm tra như thường */ }
+
   // 1. Từ cấm -> từ chối luôn
   const cam = timTu(chu, TU_CAM.cam);
   if (cam) {

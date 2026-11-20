@@ -24,7 +24,8 @@ import { wardFromLabel, provinceFromLabel, distanceKm, type Ward } from '../util
 import { formatTimeAgo, tinPath, thumbOf, slugify } from '../utils/format';
 import type { User, PublicProfile } from '../types';
 const CommunityMap = React.lazy(() => import('../components/CommunityMap'));
-const HonorStrip = React.lazy(() => import('../components/HonorStrip'));
+const MiniMap = React.lazy(() => import('../components/MiniMap'));
+import { useHonor, ThanksTicker, NeighborsRow, NeighborsList } from '../components/HonorStrip';
 async function findBannedWord(text: string): Promise<string | null> {
   try {
     const { default: list } = await import('../functions/tu-cam.json');
@@ -36,6 +37,8 @@ async function findBannedWord(text: string): Promise<string | null> {
 
 const KINDS: CommunityKind[] = ['gift', 'borrow', 'help', 'repair'];
 const MEET_PLACES = ['Cổng chợ', 'Cổng trường', 'Nhà văn hoá', 'UBND phường/xã', 'Gửi tiệm tạp hoá', 'Tại nhà'];
+const TIMES = ['Buổi sáng', 'Buổi trưa', 'Buổi tối', 'Cuối tuần', 'Giờ hành chính', 'Lúc nào cũng được'];
+const qtyText = (n?: number | null) => n == null ? '' : n === 0 ? 'Nhiều' : n + ' cái';
 
 const btnPrimary = 'min-h-12 rounded-2xl px-5 font-bold bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-60';
 const btnLight = 'min-h-12 rounded-2xl px-5 font-bold bg-white border border-line text-ink hover:bg-cream';
@@ -159,6 +162,7 @@ function Home({ user }: { user: User | null }) {
   const [q, setQ] = useState(search.trim());
   const [map, setMap] = useState(false);
   const [mine, setMine] = useState<CommunityListing[]>([]);
+  const [inviting, setInviting] = useState(false);
   const [sample, setSampleState] = useState(() => isSampleOn(user?.role));
   useEffect(() => onAreaChange(() => setSampleState(isSampleOn(user?.role))), [user?.role]);
   useEffect(() => { setSampleState(isSampleOn(user?.role)); }, [user?.role]);
@@ -181,6 +185,7 @@ function Home({ user }: { user: User | null }) {
   useEffect(() => { if (mainScope && !q) rememberScope(mainScope); }, [JSON.stringify(mainScope)]);
   const main = usePaged(mainScope);
 
+  const honor = useHonor(sample ? sampleHonor() as any : null);
   const ok = (x: CommunityListing) => (kind === 'all' || x.communityKind === kind) && (intent === 'all' || x.communityIntent === intent);
   const dist = (x: CommunityListing) => place?.pt && x.lat != null && x.lng != null ? distanceKm(place.pt.lat, place.pt.lng, x.lat as number, x.lng as number) : null;
   const { inR, outR } = useMemo(() => {
@@ -211,94 +216,125 @@ function Home({ user }: { user: User | null }) {
   const ward = place?.ward || null;
   const title = q ? 'Kết quả cho "' + q + '"' : near ? 'Gần bạn' : place?.pt ? 'Cả nước' : 'Mới nhất cả nước';
   const grid = (rows: { x: CommunityListing; d: number | null }[], eager = false) =>
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{rows.map((r, i) => <Card item={r.x} area={area} eager={eager && i < 4} extra={kmText(r.d)} key={r.x.id} />)}</div>;
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">{rows.map((r, i) => <Card item={r.x} area={area} eager={eager && i < 4} extra={kmText(r.d)} key={r.x.id} />)}</div>;
   const divider = (text: string) => <div className="flex items-center gap-3 text-[13px] font-bold text-slate-600 mt-1"><span className="flex-1 h-px bg-line" />{text}<span className="flex-1 h-px bg-line" /></div>;
-  const honor = !q ? <React.Suspense fallback={null}><HonorStrip sample={sample ? sampleHonor() : null} /></React.Suspense> : null;
   const nothing = !sample && !main.loading && !inR.length && !(farOpen && outR.length) && !otherShown.length && !main.next && !other.loading;
+  const postBtns = (small: boolean) => <div className="grid grid-cols-2 gap-3">
+    <Link to="/cong-dong/dang-tin?y=co" className={'flex flex-col gap-1 rounded-[20px] bg-emerald-700 hover:bg-emerald-800 text-white ' + (small ? 'p-3.5' : 'p-4')}>
+      <span className={(small ? 'text-xl' : 'text-[22px]') + ' font-extrabold'}>Tôi có</span>
+      <span className="text-[13px] leading-snug text-emerald-100">Cho, cho mượn, giúp một tay</span>
+    </Link>
+    <Link to="/cong-dong/dang-tin?y=can" className={'flex flex-col gap-1 rounded-[20px] bg-sun hover:brightness-95 text-[#2E1F00] ' + (small ? 'p-3.5' : 'p-4')}>
+      <span className={(small ? 'text-xl' : 'text-[22px]') + ' font-extrabold'}>Tôi cần</span>
+      <span className="text-[13px] leading-snug text-[#4A3200]">Xin, mượn, nhờ giúp đỡ</span>
+    </Link>
+  </div>;
+  const tiles = <div className="grid grid-cols-4 gap-2" role="group" aria-label="Lọc theo hoạt động">
+    {KINDS.map(k => <button key={k} onClick={() => setKind(kind === k ? 'all' : k)} aria-pressed={kind === k}
+      className={'flex flex-col items-center gap-1.5 py-2.5 lg:py-3.5 px-1 rounded-[14px] border text-xs lg:text-[13px] font-bold ' + (kind === k ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white text-ink')}>
+      <KIcon name={k} className="w-6 h-6 text-emerald-700" />{kindLabels[k]}
+    </button>)}
+  </div>;
+  const searchBox = <label className="relative block">
+    <span className="sr-only">Tìm kiếm</span>
+    <KIcon name="search" className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+    <input className={inputCls + ' pl-11 !rounded-2xl'} type="search" placeholder="Tìm món đồ hoặc việc cần giúp…" value={search} onChange={e => setSearch(e.target.value)} />
+  </label>;
+  const statusPill = (m: CommunityListing) => <span className={'shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ' + (m.status === 'approved' ? 'bg-emerald-50 text-emerald-800' : m.status === 'pending' ? 'bg-sun-light text-sun-dark' : 'bg-rose-50 text-rose-700')}>
+    {m.status === 'approved' ? 'Đang hiện' : m.status === 'pending' ? 'Chờ kiểm tra' : 'Chưa đăng'}</span>;
+  const mineThumb = (m: CommunityListing) => thumbOf(m) ? <img src={thumbOf(m)} alt="" className="h-10 w-10 rounded-lg object-cover shrink-0" />
+    : <span className={'h-10 w-10 rounded-lg grid place-items-center text-emerald-700 shrink-0 ' + KIND_META[(m.communityKind || 'gift') as CommunityKind].tint}><KIcon name={(m.communityKind || 'gift') as CommunityKind} className="w-5 h-5" /></span>;
+  // Điện thoại: một dòng gọn
+  const mineLine = mine.length > 0 && <Link to={mine.length > 1 ? '/profile' : tinPath(mine[0])} className="lg:hidden flex items-center gap-2.5 px-3 py-2.5 bg-white border border-line rounded-2xl">
+    {mineThumb(mine[0])}
+    <span className="flex-1 min-w-0 flex flex-col"><span className="text-[11px] font-bold text-slate-600">Tin của bạn{mine.length > 1 ? ' (' + mine.length + ')' : ''}</span><span className="text-sm font-bold truncate">{mine[0].title}</span></span>
+    {statusPill(mine[0])}
+  </Link>;
+  // Máy tính: khung ở cột phải
+  const mineBox = mine.length > 0 && <section className="bg-white border border-line rounded-2xl px-4 py-3.5 flex flex-col gap-1">
+    <div className="flex items-center justify-between"><span className="font-extrabold">Tin của bạn</span><Link to="/profile" className="text-[13px] font-semibold text-emerald-700 min-h-8 flex items-center">Quản lý ›</Link></div>
+    {mine.slice(0, 3).map(m => <Link key={m.id} to={tinPath(m)} className="flex items-center gap-2.5 min-h-12">{mineThumb(m)}<span className="flex-1 min-w-0 text-sm font-bold truncate">{m.title}</span>{statusPill(m)}</Link>)}
+  </section>;
+  const invite = <section className="bg-emerald-50 rounded-2xl p-4 flex flex-col gap-2">
+    <span className="font-extrabold">Mời hàng xóm cùng chia sẻ</span>
+    <span className="text-[13px] text-[#3B4A40]">Càng nhiều người {ward ? 'ở ' + shortArea(ward.name) + ' ' : ''}tham gia, càng dễ tìm được đồ gần nhà.</span>
+    <button onClick={() => setInviting(true)} className="self-start min-h-10 px-4 rounded-xl bg-white font-bold text-sm">Gửi link mời</button>
+  </section>;
 
-  return <PullToRefresh onRefresh={async () => { await Promise.all([main.reload(), other.reload()]); }}><div className="flex flex-col gap-4">
-    {sample && <div role="status" className="flex items-center gap-2 rounded-2xl bg-sun text-[#2E1F00] px-4 py-2.5 text-sm font-bold shadow">
+  return <PullToRefresh onRefresh={async () => { await Promise.all([main.reload(), other.reload()]); }}>
+    {sample && <div role="status" className="mb-4 flex items-center gap-2 rounded-2xl bg-sun text-[#2E1F00] px-4 py-2.5 text-sm font-bold shadow">
       <span className="flex-1">Đang xem DỮ LIỆU MẪU · chỉ máy bạn thấy</span>
       <button onClick={() => setSample(false)} className="min-h-9 px-3 rounded-xl bg-white/80 font-extrabold">Tắt</button>
     </div>}
-    <h1 className="text-2xl md:text-4xl font-extrabold leading-tight">Có gì chia sẻ,<br />cần gì có nhau.</h1>
-    <div className="grid grid-cols-2 gap-3">
-      <Link to="/cong-dong/dang-tin?y=co" className="flex flex-col gap-1 p-4 md:p-6 rounded-[20px] bg-emerald-700 hover:bg-emerald-800 text-white">
-        <span className="text-[22px] md:text-3xl font-extrabold">Tôi có</span>
-        <span className="text-[13px] md:text-base leading-snug text-emerald-100">Cho, cho mượn, giúp một tay</span>
-      </Link>
-      <Link to="/cong-dong/dang-tin?y=can" className="flex flex-col gap-1 p-4 md:p-6 rounded-[20px] bg-sun hover:brightness-95 text-[#2E1F00]">
-        <span className="text-[22px] md:text-3xl font-extrabold">Tôi cần</span>
-        <span className="text-[13px] md:text-base leading-snug text-[#4A3200]">Xin, mượn, nhờ giúp đỡ</span>
-      </Link>
-    </div>
-    <div className="grid grid-cols-4 gap-2" role="group" aria-label="Lọc theo hoạt động">
-      {KINDS.map(k => <button key={k} onClick={() => setKind(kind === k ? 'all' : k)} aria-pressed={kind === k}
-        className={'flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-[14px] border text-xs font-bold ' + (kind === k ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white text-ink')}>
-        <KIcon name={k} className="w-6 h-6 text-emerald-700" />{kindLabels[k]}
-      </button>)}
-    </div>
-    <label className="relative block">
-      <span className="sr-only">Tìm kiếm</span>
-      <KIcon name="search" className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-      <input className={inputCls + ' pl-11 !rounded-2xl'} type="search" placeholder="Tìm món đồ hoặc việc cần giúp…" value={search} onChange={e => setSearch(e.target.value)} />
-    </label>
-
-    {!q && mine.length > 0 && <section className="bg-white border border-line rounded-2xl px-3 py-2.5 flex flex-col gap-1">
-      <div className="flex items-center justify-between"><span className="text-[13px] font-extrabold">Tin của bạn</span><Link to="/profile" className="text-xs font-semibold text-emerald-700 min-h-8 flex items-center">Quản lý ›</Link></div>
-      {mine.slice(0, 2).map(m => <Link key={m.id} to={tinPath(m)} className="flex items-center gap-2.5 min-h-12">
-        {thumbOf(m) ? <img src={thumbOf(m)} alt="" className="h-10 w-10 rounded-lg object-cover shrink-0" />
-          : <span className={'h-10 w-10 rounded-lg grid place-items-center text-emerald-700 shrink-0 ' + KIND_META[(m.communityKind || 'gift') as CommunityKind].tint}><KIcon name={(m.communityKind || 'gift') as CommunityKind} className="w-5 h-5" /></span>}
-        <span className="flex-1 min-w-0 text-sm font-bold truncate">{m.title}</span>
-        <span className={'shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ' + (m.status === 'approved' ? 'bg-emerald-50 text-emerald-800' : m.status === 'pending' ? 'bg-sun-light text-sun-dark' : 'bg-rose-50 text-rose-700')}>
-          {m.status === 'approved' ? 'Đang hiện' : m.status === 'pending' ? 'Chờ kiểm tra' : 'Chưa đăng'}</span>
-      </Link>)}
-    </section>}
-
-    {!place?.provCode && !q && place && <button onClick={openAreaSheet} className="text-left p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-sm"><b className="text-emerald-800">Chọn xã/phường của bạn</b> để thấy tin gần nhất trước.</button>}
-
-    <section className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-xl font-extrabold truncate">{title}</h2>
-        <div className="flex items-center gap-2 shrink-0">
-          {!map && <button onClick={() => setIntent(intent === 'all' ? 'have' : intent === 'have' ? 'need' : 'all')} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold">{intent === 'all' ? 'Tất cả' : intent === 'have' ? 'Đồ cho' : 'Đang cần'}</button>}
-          {place?.pt && !map && <button onClick={() => setSort(sort === 'gan' ? 'moi' : 'gan')} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold flex items-center gap-1.5">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></svg>
-            {sort === 'gan' ? 'Gần nhất' : 'Mới nhất'}</button>}
-          {map && <button onClick={() => setMap(false)} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold flex items-center gap-1.5"><KIcon name="list" className="w-4 h-4" />Danh sách</button>}
-        </div>
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-7 lg:items-start">
+    <div className="flex flex-col gap-4 min-w-0">
+      {/* Điện thoại: tiêu đề, Tôi có/Tôi cần, 4 ô, tìm kiếm */}
+      <div className="lg:hidden flex flex-col gap-4">
+        <h1 className="text-2xl md:text-4xl font-extrabold leading-tight">Có gì chia sẻ,<br />cần gì có nhau.</h1>
+        {postBtns(false)}{tiles}{searchBox}
       </div>
-      {map ? <React.Suspense fallback={<div className="h-[440px] md:h-[640px] rounded-2xl bg-[#ECE5D4] animate-pulse" />}>
-          <CommunityMap items={mapped as CommunityListing[]} area={area} />
-        </React.Suspense>
-      : (main.loading && !sample) || !place ? <SkGrid />
-      : main.error ? <ErrorMessage message={main.error} />
-      : nothing ? <div className="bg-white border border-line rounded-2xl p-8 text-center">
-          <img src="/icons/icon-192.png" alt="" className="h-12 w-12 rounded-xl mx-auto" />
-          <h3 className="text-lg font-bold mt-3">{q ? 'Không thấy tin phù hợp' : 'Chưa có tin ở đây'}</h3>
-          <p className="text-slate-600 mt-1">{q ? 'Thử từ khác nhé.' : 'Hãy là người chia sẻ đầu tiên quanh bạn.'}</p>
-          <Link className={btnPrimary + ' inline-flex items-center mt-4'} to="/cong-dong/dang-tin">Đăng tin</Link>
+      {/* Máy tính: tiêu đề + tìm kiếm bên trái, 4 ô bên phải */}
+      <div className="hidden lg:grid grid-cols-[1.1fr_1fr] gap-5 items-end">
+        <div className="flex flex-col gap-3.5"><h1 className="text-4xl font-extrabold leading-tight">Có gì chia sẻ,<br />cần gì có nhau.</h1>{searchBox}</div>
+        {tiles}
+      </div>
+      {!q && mineLine}
+      {!q && <ThanksTicker d={honor} />}
+      {!q && <div className="lg:hidden"><NeighborsRow d={honor} /></div>}
+      {!place?.provCode && !q && place && <button onClick={openAreaSheet} className="text-left p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-sm"><b className="text-emerald-800">Chọn xã/phường của bạn</b> để thấy tin gần nhất trước.</button>}
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-xl font-extrabold truncate">{title}</h2>
+          <div className="flex items-center gap-2 shrink-0">
+            {!map && <button onClick={() => setIntent(intent === 'all' ? 'have' : intent === 'have' ? 'need' : 'all')} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold">{intent === 'all' ? 'Tất cả' : intent === 'have' ? 'Đồ cho' : 'Đang cần'}</button>}
+            {place?.pt && !map && <button onClick={() => setSort(sort === 'gan' ? 'moi' : 'gan')} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold flex items-center gap-1.5">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></svg>
+              {sort === 'gan' ? 'Gần nhất' : 'Mới nhất'}</button>}
+            {map && <button onClick={() => setMap(false)} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold flex items-center gap-1.5"><KIcon name="list" className="w-4 h-4" />Danh sách</button>}
+          </div>
         </div>
-      : <>
-          {inR.length > 0 ? <>{grid(inR.slice(0, 6), true)}{honor}{inR.length > 6 && grid(inR.slice(6))}</>
-            : near && <p className="text-sm text-slate-600 bg-white border border-line rounded-2xl p-4">Chưa có tin trong {radius} km quanh {shortArea(area)}. <Link to="/cong-dong/dang-tin" className="font-bold text-emerald-700 underline">Đăng tin đầu tiên</Link></p>}
-          {near && outR.length > 0 && (farOpen ? <>{divider('Xa hơn một chút' + (place?.provName ? ' · ' + place.provName : ''))}{grid(outR)}</>
-            : <button onClick={() => setShowFar(true)} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold">Xem {outR.length} tin xa hơn</button>)}
-          {inR.length === 0 && honor}
-          {otherShown.length > 0 && <>{divider('Ở nơi khác')}{grid(otherShown.map(x => ({ x, d: dist(x) })))}</>}
-          {main.next && <>
-            <Sentinel onHit={main.loadMore} active={!main.more} />
-            <button onClick={main.loadMore} disabled={main.more} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold disabled:opacity-60">{main.more ? 'Đang tải thêm…' : 'Xem thêm tin'}</button>
+        {map ? <React.Suspense fallback={<div className="h-[440px] md:h-[640px] rounded-2xl bg-[#ECE5D4] animate-pulse" />}>
+            <CommunityMap items={mapped as CommunityListing[]} area={area} />
+          </React.Suspense>
+        : (main.loading && !sample) || !place ? <SkGrid />
+        : main.error ? <ErrorMessage message={main.error} />
+        : nothing ? <div className="bg-white border border-line rounded-2xl p-8 text-center">
+            <img src="/icons/icon-192.png" alt="" className="h-12 w-12 rounded-xl mx-auto" />
+            <h3 className="text-lg font-bold mt-3">{q ? 'Không thấy tin phù hợp' : 'Chưa có tin ở đây'}</h3>
+            <p className="text-slate-600 mt-1">{q ? 'Thử từ khác nhé.' : 'Hãy là người chia sẻ đầu tiên quanh bạn.'}</p>
+            <Link className={btnPrimary + ' inline-flex items-center mt-4'} to="/cong-dong/dang-tin">Đăng tin</Link>
+          </div>
+        : <>
+            {inR.length > 0 ? grid(inR, true)
+              : near && <p className="text-sm text-slate-600 bg-white border border-line rounded-2xl p-4">Chưa có tin trong {radius} km quanh {shortArea(area)}. <Link to="/cong-dong/dang-tin" className="font-bold text-emerald-700 underline">Đăng tin đầu tiên</Link></p>}
+            {near && outR.length > 0 && (farOpen ? <>{divider('Xa hơn một chút' + (place?.provName ? ' · ' + place.provName : ''))}{grid(outR)}</>
+              : <button onClick={() => setShowFar(true)} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold">Xem {outR.length} tin xa hơn</button>)}
+            {otherShown.length > 0 && <>{divider('Ở nơi khác')}{grid(otherShown.map(x => ({ x, d: dist(x) })))}</>}
+            {main.next && <>
+              <Sentinel onHit={main.loadMore} active={!main.more} />
+              <button onClick={main.loadMore} disabled={main.more} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold disabled:opacity-60">{main.more ? 'Đang tải thêm…' : 'Xem thêm tin'}</button>
+            </>}
+            {!main.next && other.next && <>
+              <Sentinel onHit={other.loadMore} active={!other.more} />
+              <button onClick={other.loadMore} disabled={other.more} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold disabled:opacity-60">{other.more ? 'Đang tải thêm…' : 'Xem thêm tin'}</button>
+            </>}
           </>}
-          {!main.next && other.next && <>
-            <Sentinel onHit={other.loadMore} active={!other.more} />
-            <button onClick={other.loadMore} disabled={other.more} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold disabled:opacity-60">{other.more ? 'Đang tải thêm…' : 'Xem thêm tin'}</button>
-          </>}
-        </>}
-      {!map && !nothing && !main.loading && <button onClick={() => setMap(true)} className="min-h-12 rounded-2xl border border-line bg-white text-[15px] font-bold text-emerald-700 flex items-center justify-center gap-2"><KIcon name="map" className="w-[18px] h-[18px]" />Xem trên bản đồ</button>}
-      {ward && !q && <Link to={wardPath(ward)} className="self-center text-sm font-semibold text-emerald-700 underline min-h-10 flex items-center">Góc chia sẻ {ward.name} ›</Link>}
-    </section>
-  </div></PullToRefresh>;
+        {!map && !nothing && !main.loading && <button onClick={() => setMap(true)} className="min-h-12 rounded-2xl border border-line bg-white text-[15px] font-bold text-emerald-700 flex items-center justify-center gap-2"><KIcon name="map" className="w-[18px] h-[18px]" />Xem trên bản đồ</button>}
+        {ward && !q && <Link to={wardPath(ward)} className="self-center text-sm font-semibold text-emerald-700 underline min-h-10 flex items-center">Góc chia sẻ {ward.name} ›</Link>}
+      </section>
+    </div>
+    {/* Cột phải (máy tính) */}
+    <aside className="hidden lg:flex flex-col gap-4 sticky top-24">
+      {postBtns(true)}
+      {mineBox}
+      <NeighborsList d={honor} />
+      {invite}
+    </aside>
+    </div>
+    <ShareModal isOpen={inviting} onClose={() => setInviting(false)} url={window.location.origin + (ward ? wardPath(ward) : '/')} title="Chợ Của Tui"
+      text={'Hàng xóm ơi! Mình đang cho tặng, cho mượn đồ và giúp nhau miễn phí trên Chợ Của Tui. Vào xem và cùng chia sẻ nhé:'} />
+  </PullToRefresh>;
 }
 
 /* ---------------- Trang xã/phường ---------------- */
@@ -365,6 +401,8 @@ function Post({ user, editId }: { user: User | null; editId?: string; key?: Reac
       setIntent((x.communityIntent || 'have') as CommunityIntent); setKind((x.communityKind || 'gift') as CommunityKind);
       setTitle(x.title || ''); setDescription(x.description || ''); setShowDesc(!!x.description);
       setMeetPlace((x as any).meetPlace || ''); setLocation(x.location || ''); setEditLoc(false);
+      setTimesText(x.pickupTimes || ''); setPickupNote(x.pickupNote || ''); setShowNote(!!x.pickupNote); setQty(x.quantity ?? null);
+      orig.current = { pickupTimes: x.pickupTimes || '', pickupNote: x.pickupNote || '', quantity: x.quantity ?? null };
       const imgs = x.images || []; const th = ((x as any).thumbs as string[]) || [];
       setKeep(imgs.map((u, i) => ({ img: u, thumb: th[i] || u })));
     }).catch(() => setError('Không tải được tin.')).finally(() => setLoadingEdit(false));
@@ -377,6 +415,13 @@ function Post({ user, editId }: { user: User | null; editId?: string; key?: Reac
   const [location, setLocation] = useState(() => getArea(user?.location || '') || user?.location || '');
   const [editLoc, setEditLoc] = useState(!location);
   const [meetPlace, setMeetPlace] = useState('');
+  const [timesText, setTimesText] = useState('');
+  const [pickupNote, setPickupNote] = useState('');
+  const [showNote, setShowNote] = useState(false);
+  const [qty, setQty] = useState<number | null>(null);
+  const orig = useRef<{ pickupTimes: string; pickupNote: string; quantity: number | null }>({ pickupTimes: '', pickupNote: '', quantity: null });
+  const timeOn = (t: string) => timesText.split(',').map(x => x.trim()).includes(t);
+  const toggleTime = (t: string) => setTimesText(v => { const a = v.split(',').map(x => x.trim()).filter(Boolean); return (a.includes(t) ? a.filter(x => x !== t) : [...a, t]).join(', '); });
   const [wardPoint, setWardPoint] = useState<{ lat: number; lng: number; code?: string } | null>(() => getAreaPoint());
   // Khu vực lấy từ hồ sơ: tìm tâm xã/phường tương ứng để đặt tin lên bản đồ
   useEffect(() => { if (location && !wardPoint) wardFromLabel(location).then(w => w && setWardPoint({ lat: w.lat, lng: w.lng, code: w.code })); }, []);
@@ -413,15 +458,20 @@ function Post({ user, editId }: { user: User | null; editId?: string; key?: Reac
     if (blocked) { setError('Việc này không đăng được trên Chợ Của Tui. Nếu nguy cấp, hãy gọi 115.'); return; }
     if (needAck && !safetyAck) { setError('Hãy đọc và đánh dấu đã hiểu lưu ý an toàn.'); return; }
     // Kiểm tra từ cấm ngay trên máy (máy chủ cũng kiểm tra lại)
-    const bad = await findBannedWord([title, description, meetPlace].join(' '));
+    const bad = await findBannedWord([title, description, meetPlace, pickupNote, timesText].join(' '));
     if (bad) { setError('Tin có nội dung không được phép (' + bad.toLowerCase() + '). Xem Quy tắc cộng đồng.'); return; }
     setError(''); setSaving(true);
     try {
       if (editId) {
-        await community.edit(editId, { title, description, meetPlace, keepImages: keep.map(k => k.img), keepThumbs: keep.map(k => k.thumb), photos });
+        const extra: any = {};
+        if (timesText.trim() !== orig.current.pickupTimes) extra.pickupTimes = timesText.trim();
+        if (pickupNote.trim() !== orig.current.pickupNote) extra.pickupNote = pickupNote.trim();
+        if (qty !== orig.current.quantity) extra.quantity = qty;
+        await community.edit(editId, { title, description, meetPlace, keepImages: keep.map(k => k.img), keepThumbs: keep.map(k => k.thumb), photos, extra });
         nav('/cong-dong/da-dang?sua=1');
       } else {
-        await community.create(user, { title, description, location, photos, kind, intent, approximateCoords, meetPlace, wardPoint });
+        await community.create(user, { title, description, location, photos, kind, intent, approximateCoords, meetPlace, wardPoint,
+          areaHint: getArea(user.location || '') || user.location || '', pickupTimes: timesText.trim(), pickupNote: pickupNote.trim(), quantity: qty });
         nav('/cong-dong/da-dang');
       }
     } catch (err: any) { setError(err?.message || 'Chưa đăng được tin. Thử lại nhé.'); }
@@ -500,6 +550,22 @@ function Post({ user, editId }: { user: User | null; editId?: string; key?: Reac
       <span className="text-[15px] font-bold">Hẹn {intent === 'have' && (kind === 'gift' || kind === 'borrow') ? 'trao' : 'gặp'} ở đâu?</span>
       <div className="flex gap-2 flex-wrap">{MEET_PLACES.map(p => <button type="button" key={p} onClick={() => setMeetPlace(meetPlace === p ? '' : p)} aria-pressed={meetPlace === p}
         className={'min-h-9 px-3 rounded-full border text-[13px] font-semibold ' + (meetPlace === p ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white')}>{p}</button>)}</div>
+    </div>
+
+    <div className="flex flex-col gap-2">
+      <span className="text-[15px] font-bold">{intent === 'have' ? 'Lấy được lúc nào?' : 'Lúc nào bạn tiện?'} <span className="font-normal text-slate-500 text-[13px]">(không bắt buộc)</span></span>
+      <div className="flex gap-2 flex-wrap">{TIMES.map(t => <button type="button" key={t} onClick={() => toggleTime(t)} aria-pressed={timeOn(t)}
+        className={'min-h-9 px-3 rounded-full border text-[13px] font-semibold ' + (timeOn(t) ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white')}>{t}</button>)}</div>
+      <input value={timesText} onChange={e => setTimesText(e.target.value)} maxLength={80} className={inputCls} placeholder="Hoặc ghi cụ thể, ví dụ: Tối 18–21h" aria-label="Thời gian lấy đồ" />
+      {intent === 'have' && kind !== 'help' && <div className="flex items-center gap-2 flex-wrap"><span className="text-[13px] font-semibold text-slate-600">Số lượng:</span>
+        {[1, 2, 3, 4, 5, 0].map(n => <button type="button" key={n} onClick={() => setQty(qty === n ? null : n)} aria-pressed={qty === n}
+          className={'min-h-9 min-w-9 px-3 rounded-full border text-[13px] font-semibold ' + (qty === n ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white')}>{n === 0 ? 'Nhiều' : n}</button>)}</div>}
+      {!showNote ? <button type="button" onClick={() => setShowNote(true)} className="self-start text-sm font-semibold text-emerald-700 underline min-h-9">+ Thêm ghi chú khi lấy</button>
+        : <textarea maxLength={200} rows={2} className={inputCls} placeholder="Ví dụ: Nhắn tôi trước 30 phút khi tới" value={pickupNote} onChange={e => setPickupNote(e.target.value)} aria-label="Ghi chú khi lấy" />}
+    </div>
+
+    <div className="flex flex-col gap-2">
+      <span className="text-[15px] font-bold">Khu vực</span>
       {editing ? <span className="flex items-center gap-1.5 text-[13px] text-slate-600"><KIcon name="pin" className="w-4 h-4 text-emerald-700" />{location}</span>
       : editLoc
         ? <div><label htmlFor="post-area" className="sr-only">Xã/phường</label>
@@ -584,6 +650,9 @@ function Detail({ user, id }: { user: User | null; id: string }) {
   const [thanks, setThanks] = useState<ThankNote[]>([]);
   const [iBlocked, setIBlocked] = useState(false);
   const area = useArea(user);
+  const [myPt, setMyPt] = useState<{ lat: number; lng: number } | null>(() => getAreaPoint());
+  useEffect(() => { if (!myPt && area) wardFromLabel(area).then(w => w && setMyPt({ lat: w.lat, lng: w.lng })).catch(() => {}); }, [area]);
+  const [similar, setSimilar] = useState<CommunityListing[]>([]);
   useEffect(() => {
     if (!item) return;
     const prev = document.title;
@@ -599,6 +668,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
       if (x) {
         db.getPublicProfile(x.sellerId).then(p => alive && setOwner(p)); community.doneCount(x.sellerId).then(n => alive && setDone(n));
         community.thanksFor(x.sellerId, 10).then(t => alive && setThanks(t));
+        loadPage(x.provinceCode ? { tinh: x.provinceCode } : {}).then(p => alive && setSimilar(p.items.filter(y => y.id !== x.id))).catch(() => {});
       }
     }).catch(e => alive && setError(e?.message || 'Không tải được tin')).finally(() => alive && setLoading(false));
     return () => { alive = false; };
@@ -642,6 +712,13 @@ function Detail({ user, id }: { user: User | null; id: string }) {
     try { await community.setBlocked(item.sellerId, false); setIBlocked(false); } catch (_) { setError('Chưa bỏ chặn được.'); }
   }
   const roundBtn = 'h-11 w-11 rounded-full bg-white/95 grid place-items-center text-ink shadow-sm';
+  const kmAway = myPt && item.lat != null && item.lng != null && !mine ? kmText(distanceKm(myPt.lat, myPt.lng, item.lat as number, item.lng as number)).replace('Dưới', 'dưới') : '';
+  const infoRow = (icon: any, label: string, value: string, sub = '') => <div className="flex gap-3 items-start">
+    <span className="h-9 w-9 rounded-[10px] bg-emerald-50 text-emerald-700 grid place-items-center shrink-0"><KIcon name={icon} className="w-[18px] h-[18px]" /></span>
+    <span className="flex flex-col min-w-0"><span className="text-xs font-semibold text-slate-500">{label}</span><span className="text-[15px] font-bold leading-snug">{value}</span>{sub && <span className="text-xs text-slate-600">{sub}</span>}</span>
+  </div>;
+  const miniMap = item.lat != null && item.lng != null ? <React.Suspense fallback={<div className="h-44 rounded-2xl bg-[#E3ECE4]" />}>
+    <MiniMap lat={item.lat as number} lng={item.lng as number} label={'Vị trí gần đúng' + (kmAway ? ' · cách bạn ' + kmAway : '')} /></React.Suspense> : null;
 
   const ownerBox = <Link to={'/profile/' + item.sellerId} className="flex items-center gap-3 p-3 bg-white border border-line rounded-2xl">
     {owner?.avatar ? <img src={owner.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
@@ -684,6 +761,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
       </div>
       {images.length > 1 && <div className="hidden lg:flex gap-2 mt-3">{images.map((u, i) =>
         <button key={u} onClick={() => setPhotoIndex(i)} aria-label={'Ảnh ' + (i + 1)} className={'h-20 w-20 rounded-xl overflow-hidden border-2 ' + (i === photoIndex ? 'border-emerald-700' : 'border-transparent opacity-70 hover:opacity-100')}><img src={u} alt="" className="h-full w-full object-cover" /></button>)}</div>}
+      {miniMap && <div className="hidden lg:block mt-3">{miniMap}</div>}
     </div>
 
     <div className="pt-5 lg:pt-0 flex flex-col gap-3.5">
@@ -693,20 +771,28 @@ function Detail({ user, id }: { user: User | null; id: string }) {
         {(mine || isAdmin) && item.status !== 'approved' && <span className="text-xs font-bold text-sun-dark bg-sun-light px-2.5 py-0.5 rounded-full">{item.status === 'pending' ? 'Đang chờ kiểm tra' : item.status === 'rejected' ? 'Chưa được đăng' : 'Đã ẩn'}</span>}
       </div>
       <h1 className="text-2xl md:text-3xl font-extrabold leading-tight">{item.title}</h1>
+      {item.createdAt && <span className="-mt-2 text-[13px] text-slate-500">Đăng {formatTimeAgo(String(item.createdAt))}</span>}
       {item.description && <p className="text-[15px] leading-relaxed text-[#3B4A40] whitespace-pre-wrap">{item.description}</p>}
-      <div className="flex flex-col gap-2.5 text-sm text-slate-600">
-        <span className="flex items-center gap-2"><KIcon name="pin" className="w-[18px] h-[18px] text-emerald-700" />{item.location || 'Chưa có khu vực'}{sameArea(item.location, area) ? ' · cùng khu vực với bạn' : ''}</span>
-        {item.meetPlace && <span className="flex items-center gap-2"><KIcon name="map" className="w-[18px] h-[18px] text-emerald-700" />Hẹn {need ? 'gặp' : 'trao'} ở: {item.meetPlace}</span>}
-        {item.createdAt && <span className="flex items-center gap-2"><KIcon name="clock" className="w-[18px] h-[18px] text-emerald-700" />Đăng {formatTimeAgo(String(item.createdAt))}</span>}
+      <div className="grid sm:grid-cols-2 gap-3 p-3.5 sm:p-0 bg-white sm:bg-transparent border sm:border-0 border-line rounded-2xl">
+        {infoRow('pin', 'Khu vực', (item.location || 'Chưa có khu vực').split(',')[0], kmAway ? 'cách bạn ' + kmAway : sameArea(item.location, area) ? 'cùng khu vực với bạn' : '')}
+        {item.pickupTimes && infoRow('clock', need ? 'Lúc nào tiện' : 'Lấy được lúc nào', item.pickupTimes)}
+        {item.meetPlace && infoRow('map', 'Hẹn ' + (need ? 'gặp' : 'trao') + ' ở', item.meetPlace)}
+        {item.quantity != null && infoRow('gift', 'Số lượng', qtyText(item.quantity))}
       </div>
+      {item.pickupNote && <p className="flex gap-2.5 rounded-2xl bg-sun-light text-[#4A3200] px-4 py-3 text-sm"><b className="shrink-0">Ghi chú khi lấy:</b><span className="whitespace-pre-wrap">{item.pickupNote}</span></p>}
       <div className="hidden md:block">{actionBox}</div>
       {ownerBox}
       {thanks.length > 0 && <ThanksList items={thanks.slice(0, 2)} title={'Lời cảm ơn gửi ' + ownerName} more={thanks.length > 2 ? '/profile/' + item.sellerId : ''} />}
+      {miniMap && <div className="lg:hidden">{miniMap}</div>}
       <SafetyBox notes={notes} />
       {isAdmin && !mine && <AdminBar item={item} onChange={v => v ? setItem({ ...item, ...v }) : nav('/admin')} />}
-      {!mine && <p className="text-[13px] leading-relaxed text-slate-600">{need ? 'Người đăng sẽ chọn người giúp phù hợp.' : 'Người cho sẽ chọn người nhận.'} Không chuyển khoản hay đặt cọc cho bất kỳ ai. {reported ? 'Đã gửi báo cáo, cảm ơn bạn.' : <button onClick={report} className="underline">Báo cáo tin này</button>}</p>}
+      {!mine && <p className="text-[13px] leading-relaxed text-slate-600">{need ? 'Người đăng sẽ chọn người giúp phù hợp.' : 'Người cho sẽ chọn một người nhận.'} Chỉ đi {need ? 'gặp' : 'lấy'} khi người đăng đã <b>xác nhận giờ và chỗ</b>. Không chuyển khoản hay đặt cọc cho bất kỳ ai. {reported ? 'Đã gửi báo cáo, cảm ơn bạn.' : <button onClick={report} className="underline">Báo cáo tin này</button>}</p>}
       {error && <ErrorMessage message={error} />}
     </div>
+    {similar.length > 0 && <section className="lg:col-span-2 flex flex-col gap-3 mt-6 lg:mt-10">
+      <h2 className="text-lg md:text-xl font-extrabold">Tin khác {item.provinceCode ? 'gần đây' : 'mới đăng'}</h2>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{similar.slice(0, 4).map(x => <Card item={x} area={area} key={x.id} />)}</div>
+    </section>}
     <div className="md:hidden">{actionBox}</div>
     {viewer && images.length > 0 && <PhotoViewer images={images} start={photoIndex} title={item.title} onClose={() => setViewer(false)} />}
     <ShareModal isOpen={sharing} onClose={() => setSharing(false)} url={window.location.origin + tinPath(item)} title={item.title} image={images[0]}

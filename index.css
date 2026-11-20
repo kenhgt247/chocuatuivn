@@ -12,3 +12,12 @@ html.chu-to .text-\[15px\] { font-size: 0.9375rem; }
 html.chu-to .text-\[17px\] { font-size: 1.0625rem; }
 html.chu-to .text-\[22px\] { font-size: 1.3750rem; }
 html.chu-to .text-\[26px\] { font-size: 1.6250rem; }
+
+/* Dòng chữ chạy ngang (lời cảm ơn). Dừng khi rê chuột/chạm; tắt khi máy bật giảm chuyển động. */
+@keyframes ccut-chay { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.ccut-chay { display: flex; width: max-content; animation: ccut-chay var(--ccut-time, 40s) linear infinite; }
+.ccut-chay-khung:hover .ccut-chay, .ccut-chay-khung:active .ccut-chay, .ccut-chay-khung:focus-within .ccut-chay { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .ccut-chay { animation: none; }
+  .ccut-chay-khung { overflow-x: auto !important; }
+}

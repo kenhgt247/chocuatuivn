@@ -88,7 +88,7 @@ service cloud.firestore {
           (resource.data.status in ['approved','pending','rejected']
             && resource.data.isCommunityFree == true
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['title','description','meetPlace','images','thumbs','keywords','status','editedAt'])
+                 .hasOnly(['title','description','meetPlace','images','thumbs','keywords','status','editedAt','pickupTimes','pickupNote','quantity'])
             && request.resource.data.status == 'pending'
             && request.resource.data.editedAt == request.time
             && request.resource.data.title is string && request.resource.data.title.size() <= 90

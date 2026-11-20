@@ -18,6 +18,9 @@ export interface CommunityListing extends Listing {
   communityIntent?: CommunityIntent;
   isCommunityFree?: boolean;
   meetPlace?: string;
+  pickupTimes?: string;
+  pickupNote?: string;
+  quantity?: number | null;
 }
 export interface CommunityRequest {
   id: string;
@@ -42,6 +45,10 @@ export interface CommunityPostInput {
   approximateCoords?: {lat:number;lng:number} | null;
   meetPlace?: string; // chỗ hẹn trao: cổng chợ, cổng trường...
   wardPoint?: { lat: number; lng: number; code?: string } | null; // tâm xã/phường đã chọn
+  areaHint?: string;      // khu vực đang chọn (giúp đoán xã/phường khi chỉ gõ tên)
+  pickupTimes?: string;   // lấy được lúc nào: "Buổi tối, Cuối tuần"
+  pickupNote?: string;    // ghi chú khi lấy
+  quantity?: number | null; // số lượng (0 = nhiều)
 }
 
 const kinds: CommunityKind[] = ['gift', 'borrow', 'help', 'repair'];
@@ -256,7 +263,7 @@ export const community = {
       const { loadDvhc, wardFromLabel, provinceFromLabel } = await import('../utils/dvhc');
       if (areaCode) provinceCode = (await loadDvhc()).wards.find(w => w.code === areaCode)?.provinceCode || null;
       if (!provinceCode) {
-        const w = await wardFromLabel(location);
+        const w = await wardFromLabel(location, input.areaHint);
         if (w) { areaCode = areaCode || w.code; provinceCode = w.provinceCode; if (guessPt === null) guessPt = { lat: Math.round(w.lat * 1e4) / 1e4, lng: Math.round(w.lng * 1e4) / 1e4 }; }
         else provinceCode = (await provinceFromLabel(location))?.code || null;
       }
@@ -274,6 +281,9 @@ export const community = {
       meetPlace: safeText(input.meetPlace || '', 60),
       areaCode,
       provinceCode,
+      ...(input.pickupTimes ? { pickupTimes: safeText(input.pickupTimes, 80) } : {}),
+      ...(input.pickupNote ? { pickupNote: safeText(input.pickupNote, 200) } : {}),
+      ...(input.quantity != null ? { quantity: Math.max(0, Math.min(99, Math.round(input.quantity))) } : {}),
     });
   },
   async request(item: CommunityListing, message: string): Promise<string> {
@@ -352,7 +362,8 @@ export const community = {
   },
 
   /** Sửa tin của mình: tin quay về chờ máy kiểm tra lại. */
-  async edit(id: string, input: { title: string; description: string; meetPlace: string; keepImages: string[]; keepThumbs: string[]; photos: File[] }): Promise<void> {
+  async edit(id: string, input: { title: string; description: string; meetPlace: string; keepImages: string[]; keepThumbs: string[]; photos: File[];
+    extra?: { pickupTimes?: string; pickupNote?: string; quantity?: number | null } }): Promise<void> {
     const uid = currentUid();
     const title = safeText(input.title, 90);
     if (title.length < 5) throw new Error('Hãy viết tên món đồ hoặc việc cần giúp (ít nhất 5 ký tự).');
@@ -365,6 +376,10 @@ export const community = {
       thumbs: [...input.keepThumbs, ...up.thumbs].slice(0, MAX_PHOTOS),
       keywords: generateKeywords(title),
       status: 'pending', editedAt: serverTimestamp(),
+      // Chỉ gửi trường mới khi có thay đổi (quy tắc cũ chưa có các trường này vẫn sửa được tin)
+      ...(input.extra && 'pickupTimes' in input.extra ? { pickupTimes: safeText(input.extra.pickupTimes || '', 80) } : {}),
+      ...(input.extra && 'pickupNote' in input.extra ? { pickupNote: safeText(input.extra.pickupNote || '', 200) } : {}),
+      ...(input.extra && 'quantity' in input.extra ? { quantity: input.extra.quantity ?? null } : {}),
     });
   },
 

@@ -241,15 +241,15 @@ function Home({ user }: { user: User | null }) {
   const nothing = !sample && !main.loading && !inR.length && !(farOpen && outR.length) && !otherShown.length && !main.next && !other.loading;
   const arrow = <KIcon name="next" className="w-5 h-5" strokeWidth={2.6} />;
   const postBtns = <div className="grid grid-cols-2 gap-3 lg:gap-4">
-    <Link to="/cong-dong/dang-tin?y=co" className="relative flex flex-col lg:flex-row lg:items-center gap-1.5 lg:gap-4 rounded-[20px] bg-emerald-700 hover:bg-emerald-800 text-white p-4 lg:px-5 lg:py-[18px] min-h-[140px] lg:min-h-0">
-      <KIcon name="gift" className="w-9 h-9 lg:w-11 lg:h-11 shrink-0" />
+    <Link to="/cong-dong/dang-tin?y=co" className="relative flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-4 rounded-[20px] bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-3 lg:px-5 lg:py-[18px] min-h-[112px] lg:min-h-0">
+      <KIcon name="gift" className="w-7 h-7 lg:w-11 lg:h-11 shrink-0" />
       <span className="flex-1 flex flex-col gap-0.5 pr-7 lg:pr-0"><span className="text-lg lg:text-[22px] font-extrabold leading-tight">Tôi muốn chia sẻ</span><span className="text-xs lg:text-[13px] leading-snug text-emerald-100">Cho tặng, cho mượn, giúp một tay</span></span>
-      <span className="absolute right-3 bottom-3 lg:static h-7 w-7 lg:h-auto lg:w-auto rounded-full bg-white/15 lg:bg-transparent grid place-items-center">{arrow}</span>
+      <span className="absolute right-2.5 bottom-2.5 lg:static h-7 w-7 lg:h-auto lg:w-auto rounded-full bg-white/15 lg:bg-transparent grid place-items-center">{arrow}</span>
     </Link>
-    <Link to="/cong-dong/dang-tin?y=can" className="relative flex flex-col lg:flex-row lg:items-center gap-1.5 lg:gap-4 rounded-[20px] bg-sun hover:brightness-95 text-[#2E1F00] p-4 lg:px-5 lg:py-[18px] min-h-[140px] lg:min-h-0">
-      <KIcon name="hand" className="w-9 h-9 lg:w-11 lg:h-11 shrink-0" />
+    <Link to="/cong-dong/dang-tin?y=can" className="relative flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-4 rounded-[20px] bg-sun hover:brightness-95 text-[#2E1F00] px-3.5 py-3 lg:px-5 lg:py-[18px] min-h-[112px] lg:min-h-0">
+      <KIcon name="hand" className="w-7 h-7 lg:w-11 lg:h-11 shrink-0" />
       <span className="flex-1 flex flex-col gap-0.5 pr-7 lg:pr-0"><span className="text-lg lg:text-[22px] font-extrabold leading-tight">Tôi đang cần</span><span className="text-xs lg:text-[13px] leading-snug text-[#4A3200]">Xin đồ, mượn đồ, nhờ giúp đỡ</span></span>
-      <span className="absolute right-3 bottom-3 lg:static h-7 w-7 lg:h-auto lg:w-auto rounded-full bg-white/40 lg:bg-transparent grid place-items-center">{arrow}</span>
+      <span className="absolute right-2.5 bottom-2.5 lg:static h-7 w-7 lg:h-auto lg:w-auto rounded-full bg-white/40 lg:bg-transparent grid place-items-center">{arrow}</span>
     </Link>
   </div>;
   const tiles = <div className="grid grid-cols-4 gap-2 lg:gap-2.5" role="group" aria-label="Lọc theo hoạt động">
@@ -284,8 +284,15 @@ function Home({ user }: { user: User | null }) {
     <button onClick={() => setInviting(true)} className="self-start min-h-10 px-4 rounded-xl bg-emerald-50 text-emerald-800 font-extrabold text-sm">Gửi link mời</button>
   </section>;
   // Hoạt động gần bạn: đếm từ chính các tin trong bán kính (số thật)
-  const nearHave = near ? inR.filter(r => r.x.communityIntent !== 'need').length : 0;
-  const nearNeed = near ? inR.filter(r => r.x.communityIntent === 'need').length : 0;
+  // Đếm trên toàn bộ tin trong bán kính, không phụ thuộc bộ lọc đang chọn
+  const { nearHave, nearNeed } = useMemo(() => {
+    if (!near || !place?.pt) return { nearHave: 0, nearNeed: 0 };
+    const src = sample ? sampleListings(place.pt) : main.items;
+    let h = 0, n = 0;
+    for (const x of src) { const d = dist(x); if (d != null && d <= radius) x.communityIntent === 'need' ? n++ : h++; }
+    return { nearHave: h, nearNeed: n };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [main.items, near, place, radius, sample]);
   const nearRow = (icon: string, color: string, n: number, text: string, f: IntentF) => <button onClick={() => { setIntent(f); setMap(false); }} className="w-full flex items-center gap-3 py-2.5 border-t border-[#F1ECDF] text-left hover:bg-cream rounded-lg">
     <KIcon name={icon} className={'w-[22px] h-[22px] ' + color} /><span className="flex-1 text-sm"><b>{n}</b> {text}</span><KIcon name="next" className="w-4 h-4 text-slate-400" /></button>;
   const nearBox = near && !q && (nearHave + nearNeed) > 0 && <section className="bg-white border border-line rounded-2xl px-4 py-3.5">
@@ -328,10 +335,10 @@ function Home({ user }: { user: User | null }) {
       </div>
       {/* Máy tính: khung đầu trang có hình xóm nhỏ, rồi 2 nút lớn, 4 ô */}
       <div className="hidden lg:flex flex-col gap-4">
-        <section className="relative h-[240px] rounded-3xl overflow-hidden bg-gradient-to-r from-[#FBF3E4] to-[#F2EBD9]">
+        <section className="relative min-h-[200px] rounded-3xl overflow-hidden bg-gradient-to-r from-[#FBF3E4] to-[#F2EBD9]">
           <HeroScene className="absolute inset-0 w-full h-full" />
-          <div className="relative px-8 py-7 max-w-[470px] flex flex-col gap-3">
-            <h1 className="text-[36px] font-extrabold leading-[1.15] text-[#123524]">Có gì chia sẻ,<br />cần gì có nhau.</h1>
+          <div className="relative px-8 py-5 max-w-[470px] flex flex-col gap-2.5">
+            <h1 className="text-[30px] font-extrabold leading-[1.15] text-[#123524]">Có gì chia sẻ,<br />cần gì có nhau.</h1>
             <p className="text-[15px] text-[#3B4A40]">Nơi hàng xóm cùng cho tặng, cho mượn và giúp đỡ nhau. Hoàn toàn miễn phí.</p>
             {searchBox}
           </div>

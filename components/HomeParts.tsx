@@ -45,8 +45,10 @@ export function FeedCard({ item, km, eager, saved, onSave }: { item: CommunityLi
   const who = (item as any).sellerName || '';
   const avatar = (item as any).sellerAvatar || '';
   const to = tinPath(item);
-  const heart = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); onSave(item.id); };
-  return <Link to={to} className="group flex flex-col bg-white rounded-2xl overflow-hidden border border-line hover:shadow-md transition-shadow">
+  const heartIcon = (cls: string) => <svg className={cls + ' ' + (saved ? 'text-rose-500' : 'text-ink')} viewBox="0 0 24 24" fill={saved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7Z" /></svg>;
+  // Thẻ là khung; liên kết mở tin và nút lưu tin là hai phần tách riêng (không lồng nút trong liên kết)
+  return <article className="group relative flex flex-col bg-white rounded-2xl overflow-hidden border border-line hover:shadow-md transition-shadow">
+    <Link to={to} className="flex flex-col flex-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700 rounded-2xl">
     <span className="relative block">
       {img
         ? <img src={img} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" {...(eager ? { fetchpriority: 'high' } as any : {})} width={480} height={360} className="h-[124px] lg:h-[150px] w-full object-cover bg-[#ECE5D4]" />
@@ -56,21 +58,12 @@ export function FeedCard({ item, km, eager, saved, onSave }: { item: CommunityLi
         <KIcon name={need ? 'hand' : kind} className="w-3.5 h-3.5 lg:hidden" />{badgeText(kind, item.communityIntent)}
       </span>
       {(item as any)._mau && <span className="absolute top-2 left-2 lg:top-auto lg:bottom-2.5 text-[10px] font-extrabold bg-sun text-[#2E1F00] px-1.5 py-0.5 rounded">MẪU</span>}
-      <button type="button" onClick={heart} aria-label={saved ? 'Bỏ lưu tin' : 'Lưu tin'} aria-pressed={saved}
-        className="hidden lg:grid absolute top-2 right-2 h-9 w-9 rounded-full bg-white/95 place-items-center shadow-sm hover:scale-105">
-        <svg className={'w-5 h-5 ' + (saved ? 'text-rose-500' : 'text-ink')} viewBox="0 0 24 24" fill={saved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7Z" /></svg>
-      </button>
     </span>
     <span className="p-3 lg:px-3.5 lg:pb-3.5 flex flex-col gap-1.5 flex-1">
       <span className="text-[15px] lg:text-base font-bold leading-snug line-clamp-2">{item.title}</span>
       {item.description && <span className="hidden lg:block text-[13px] text-[#3B4A40] leading-snug line-clamp-2">{item.description}</span>}
       <span className="text-xs text-slate-600 flex items-center gap-1 min-w-0"><KIcon name="pin" className="w-3.5 h-3.5 shrink-0" /><span className="truncate">{km && <b className="text-emerald-700">{km} · </b>}{place}</span></span>
-      <span className="text-xs text-slate-600 flex items-center justify-between gap-1">
-        <span className="flex items-center gap-1"><KIcon name="clock" className="w-3.5 h-3.5" />{item.createdAt ? formatTimeAgo(String(item.createdAt)) : ''}</span>
-        <button type="button" onClick={heart} aria-label={saved ? 'Bỏ lưu tin' : 'Lưu tin'} aria-pressed={saved} className="lg:hidden -m-2 p-2">
-          <svg className={'w-[18px] h-[18px] ' + (saved ? 'text-rose-500' : 'text-ink')} viewBox="0 0 24 24" fill={saved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7Z" /></svg>
-        </button>
-      </span>
+      <span className="text-xs text-slate-600 flex items-center gap-1 pr-8 lg:pr-0"><KIcon name="clock" className="w-3.5 h-3.5" />{item.createdAt ? formatTimeAgo(String(item.createdAt)) : ''}</span>
       <span className="hidden lg:flex items-center justify-between gap-2 mt-auto pt-1.5">
         <span className="flex items-center gap-2 min-w-0 text-[13px] font-bold">
           {avatar ? <img src={avatar} alt="" loading="lazy" className="h-7 w-7 rounded-full object-cover shrink-0" />
@@ -82,5 +75,11 @@ export function FeedCard({ item, km, eager, saved, onSave }: { item: CommunityLi
           <KIcon name="chat" className="w-3.5 h-3.5" />Liên hệ</span>
       </span>
     </span>
-  </Link>;
+    </Link>
+    {/* Nút lưu tin: điện thoại ở góc dưới phải thẻ, máy tính ở góc trên phải ảnh */}
+    <button type="button" onClick={() => onSave(item.id)} aria-label={(saved ? 'Bỏ lưu tin: ' : 'Lưu tin: ') + item.title} aria-pressed={saved}
+      className="absolute right-1 bottom-1 h-10 w-10 grid place-items-center rounded-full lg:right-2 lg:top-2 lg:bottom-auto lg:h-9 lg:w-9 lg:bg-white/95 lg:shadow-sm lg:hover:scale-105">
+      {heartIcon('w-[18px] h-[18px] lg:w-5 lg:h-5')}
+    </button>
+  </article>;
 }

@@ -5,6 +5,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cachedPage, loadPage, rememberScope, type Scope } from '../utils/feed';
+import { isSampleOn, setSample, sampleListings, sampleHonor } from '../utils/sample';
 import ShareModal from '../components/ShareModal';
 import PhotoViewer from '../components/PhotoViewer';
 import PullToRefresh from '../components/PullToRefresh';
@@ -73,7 +74,7 @@ function Card({ item, area = '', eager = false, extra = '' }: { item: CommunityL
       ? <img src={img} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" {...(eager ? { fetchpriority: 'high' } as any : {})} width={480} height={360} className="h-[108px] sm:h-40 w-full object-cover bg-[#ECE5D4]" />
       : <div className={'h-[108px] sm:h-40 grid place-items-center text-emerald-700 ' + KIND_META[kind].tint}><KIcon name={kind} className="w-11 h-11" strokeWidth={1.6} /></div>}
     <div className="p-3 flex flex-col gap-1.5">
-      <IntentBadge kind={kind} intent={item.communityIntent} className="self-start" />
+      <span className="flex items-center gap-1.5"><IntentBadge kind={kind} intent={item.communityIntent} className="self-start" />{(item as any)._mau && <span className="text-[10px] font-extrabold bg-sun text-[#2E1F00] px-1.5 py-0.5 rounded">MẪU</span>}</span>
       <span className="text-[15px] font-bold leading-snug line-clamp-2">{item.title}</span>
       <span className="text-xs text-slate-600 truncate">{extra && <b className="text-emerald-700">{extra} · </b>}{metaLine(item, area)}</span>
     </div>
@@ -158,6 +159,9 @@ function Home({ user }: { user: User | null }) {
   const [q, setQ] = useState(search.trim());
   const [map, setMap] = useState(false);
   const [mine, setMine] = useState<CommunityListing[]>([]);
+  const [sample, setSampleState] = useState(() => isSampleOn(user?.role));
+  useEffect(() => onAreaChange(() => setSampleState(isSampleOn(user?.role))), [user?.role]);
+  useEffect(() => { setSampleState(isSampleOn(user?.role)); }, [user?.role]);
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -180,7 +184,8 @@ function Home({ user }: { user: User | null }) {
   const ok = (x: CommunityListing) => (kind === 'all' || x.communityKind === kind) && (intent === 'all' || x.communityIntent === intent);
   const dist = (x: CommunityListing) => place?.pt && x.lat != null && x.lng != null ? distanceKm(place.pt.lat, place.pt.lng, x.lat as number, x.lng as number) : null;
   const { inR, outR } = useMemo(() => {
-    const rows = main.items.filter(ok).map(x => ({ x, d: dist(x) }));
+    const src = sample ? sampleListings(place?.pt || null) : main.items;
+    const rows = src.filter(ok).map(x => ({ x, d: dist(x) }));
     if (!near) {
       const list = sort === 'gan' && place?.pt ? [...rows].sort((a, b) => (a.d ?? 1e9) - (b.d ?? 1e9)) : rows;
       return { inR: list, outR: [] as typeof rows };
@@ -190,10 +195,10 @@ function Home({ user }: { user: User | null }) {
     const outside = rows.filter(r => !(r.d != null && r.d <= radius)).sort((a, b) => (a.d ?? 1e9) - (b.d ?? 1e9) || byNew(a.x, b.x));
     return { inR: inside, outR: outside };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [main.items, kind, intent, sort, radius, near, place]);
+  }, [main.items, kind, intent, sort, radius, near, place, sample]);
   const farOpen = near && (showFar || inR.length < 6);
   // Trong tỉnh/thành còn ít tin: thêm tin ở nơi khác cho trang không bao giờ trống
-  const needOther = near && !main.loading && !main.next && inR.length + outR.length < 8;
+  const needOther = !sample && near && !main.loading && !main.next && inR.length + outR.length < 8;
   const other = usePaged(needOther ? { q } : null);
   const otherShown = useMemo(() => {
     const seen = new Set(main.items.map(x => x.id));
@@ -208,10 +213,14 @@ function Home({ user }: { user: User | null }) {
   const grid = (rows: { x: CommunityListing; d: number | null }[], eager = false) =>
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{rows.map((r, i) => <Card item={r.x} area={area} eager={eager && i < 4} extra={kmText(r.d)} key={r.x.id} />)}</div>;
   const divider = (text: string) => <div className="flex items-center gap-3 text-[13px] font-bold text-slate-600 mt-1"><span className="flex-1 h-px bg-line" />{text}<span className="flex-1 h-px bg-line" /></div>;
-  const honor = !q ? <React.Suspense fallback={null}><HonorStrip /></React.Suspense> : null;
-  const nothing = !main.loading && !inR.length && !(farOpen && outR.length) && !otherShown.length && !main.next && !other.loading;
+  const honor = !q ? <React.Suspense fallback={null}><HonorStrip sample={sample ? sampleHonor() : null} /></React.Suspense> : null;
+  const nothing = !sample && !main.loading && !inR.length && !(farOpen && outR.length) && !otherShown.length && !main.next && !other.loading;
 
   return <PullToRefresh onRefresh={async () => { await Promise.all([main.reload(), other.reload()]); }}><div className="flex flex-col gap-4">
+    {sample && <div role="status" className="flex items-center gap-2 rounded-2xl bg-sun text-[#2E1F00] px-4 py-2.5 text-sm font-bold shadow">
+      <span className="flex-1">Đang xem DỮ LIỆU MẪU · chỉ máy bạn thấy</span>
+      <button onClick={() => setSample(false)} className="min-h-9 px-3 rounded-xl bg-white/80 font-extrabold">Tắt</button>
+    </div>}
     <h1 className="text-2xl md:text-4xl font-extrabold leading-tight">Có gì chia sẻ,<br />cần gì có nhau.</h1>
     <div className="grid grid-cols-2 gap-3">
       <Link to="/cong-dong/dang-tin?y=co" className="flex flex-col gap-1 p-4 md:p-6 rounded-[20px] bg-emerald-700 hover:bg-emerald-800 text-white">
@@ -262,7 +271,7 @@ function Home({ user }: { user: User | null }) {
       {map ? <React.Suspense fallback={<div className="h-[440px] md:h-[640px] rounded-2xl bg-[#ECE5D4] animate-pulse" />}>
           <CommunityMap items={mapped as CommunityListing[]} area={area} />
         </React.Suspense>
-      : main.loading || !place ? <SkGrid />
+      : (main.loading && !sample) || !place ? <SkGrid />
       : main.error ? <ErrorMessage message={main.error} />
       : nothing ? <div className="bg-white border border-line rounded-2xl p-8 text-center">
           <img src="/icons/icon-192.png" alt="" className="h-12 w-12 rounded-xl mx-auto" />

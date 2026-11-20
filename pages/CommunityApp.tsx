@@ -653,6 +653,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
   const [myPt, setMyPt] = useState<{ lat: number; lng: number } | null>(() => getAreaPoint());
   useEffect(() => { if (!myPt && area) wardFromLabel(area).then(w => w && setMyPt({ lat: w.lat, lng: w.lng })).catch(() => {}); }, [area]);
   const [similar, setSimilar] = useState<CommunityListing[]>([]);
+  const [guessPt, setGuessPt] = useState<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
     if (!item) return;
     const prev = document.title;
@@ -668,7 +669,19 @@ function Detail({ user, id }: { user: User | null; id: string }) {
       if (x) {
         db.getPublicProfile(x.sellerId).then(p => alive && setOwner(p)); community.doneCount(x.sellerId).then(n => alive && setDone(n));
         community.thanksFor(x.sellerId, 10).then(t => alive && setThanks(t));
-        loadPage(x.provinceCode ? { tinh: x.provinceCode } : {}).then(p => alive && setSimilar(p.items.filter(y => y.id !== x.id))).catch(() => {});
+        // Tin khác: ưu tiên cùng tỉnh/thành; ít quá thì thêm tin mới cả nước
+        (async () => {
+          const near = x.provinceCode ? (await loadPage({ tinh: x.provinceCode }).catch(() => ({ items: [] as CommunityListing[] }))).items : [];
+          let list = near.filter(y => y.id !== x.id);
+          if (list.length < 4) {
+            const all = (await loadPage({}).catch(() => ({ items: [] as CommunityListing[] }))).items;
+            const seen = new Set(list.map(y => y.id));
+            list = [...list, ...all.filter(y => y.id !== x.id && !seen.has(y.id))];
+          }
+          if (alive) setSimilar(list);
+        })();
+        // Tin chưa có toạ độ nhưng ghi rõ xã/phường: đặt bản đồ ở tâm xã/phường đó
+        if (x.lat == null && x.location) wardFromLabel(x.location).then(w => alive && w && setGuessPt({ lat: w.lat, lng: w.lng })).catch(() => {});
       }
     }).catch(e => alive && setError(e?.message || 'Không tải được tin')).finally(() => alive && setLoading(false));
     return () => { alive = false; };
@@ -712,13 +725,14 @@ function Detail({ user, id }: { user: User | null; id: string }) {
     try { await community.setBlocked(item.sellerId, false); setIBlocked(false); } catch (_) { setError('Chưa bỏ chặn được.'); }
   }
   const roundBtn = 'h-11 w-11 rounded-full bg-white/95 grid place-items-center text-ink shadow-sm';
-  const kmAway = myPt && item.lat != null && item.lng != null && !mine ? kmText(distanceKm(myPt.lat, myPt.lng, item.lat as number, item.lng as number)).replace('Dưới', 'dưới') : '';
+  const pt = item.lat != null && item.lng != null ? { lat: item.lat as number, lng: item.lng as number } : guessPt;
+  const kmAway = myPt && pt && !mine ? kmText(distanceKm(myPt.lat, myPt.lng, pt.lat, pt.lng)).replace('Dưới', 'dưới') : '';
   const infoRow = (icon: any, label: string, value: string, sub = '') => <div className="flex gap-3 items-start">
     <span className="h-9 w-9 rounded-[10px] bg-emerald-50 text-emerald-700 grid place-items-center shrink-0"><KIcon name={icon} className="w-[18px] h-[18px]" /></span>
     <span className="flex flex-col min-w-0"><span className="text-xs font-semibold text-slate-500">{label}</span><span className="text-[15px] font-bold leading-snug">{value}</span>{sub && <span className="text-xs text-slate-600">{sub}</span>}</span>
   </div>;
-  const miniMap = item.lat != null && item.lng != null ? <React.Suspense fallback={<div className="h-44 rounded-2xl bg-[#E3ECE4]" />}>
-    <MiniMap lat={item.lat as number} lng={item.lng as number} label={'Vị trí gần đúng' + (kmAway ? ' · cách bạn ' + kmAway : '')} /></React.Suspense> : null;
+  const miniMap = pt ? <React.Suspense fallback={<div className="h-44 rounded-2xl bg-[#E3ECE4]" />}>
+    <MiniMap lat={pt.lat} lng={pt.lng} label={'Vị trí gần đúng' + (kmAway ? ' · cách bạn ' + kmAway : '')} /></React.Suspense> : null;
 
   const ownerBox = <Link to={'/profile/' + item.sellerId} className="flex items-center gap-3 p-3 bg-white border border-line rounded-2xl">
     {owner?.avatar ? <img src={owner.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
@@ -792,7 +806,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
     </div>
   </div>
     {similar.length > 0 && <section className="flex flex-col gap-3 mt-6 lg:mt-10">
-      <h2 className="text-lg md:text-xl font-extrabold">Tin khác {item.provinceCode ? 'gần đây' : 'mới đăng'}</h2>
+      <h2 className="text-lg md:text-xl font-extrabold">Tin khác mới đăng</h2>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{similar.slice(0, 4).map(x => <Card item={x} area={area} key={x.id} />)}</div>
     </section>}
     <div className="md:hidden">{actionBox}</div>

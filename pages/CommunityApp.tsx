@@ -26,7 +26,8 @@ import { formatTimeAgo, tinPath, thumbOf, slugify } from '../utils/format';
 import type { User, PublicProfile } from '../types';
 const CommunityMap = lazyRetry(() => import('../components/CommunityMap'));
 const MiniMap = lazyRetry(() => import('../components/MiniMap'));
-import { useHonor, ThanksTicker, NeighborsRow, NeighborsList } from '../components/HonorStrip';
+import { useHonor, HonorCircles, ThanksBox, StatsBox } from '../components/HonorStrip';
+import { FeedCard, HeroScene, CommunityBanner } from '../components/HomeParts';
 async function findBannedWord(text: string): Promise<string | null> {
   try {
     const { default: list } = await import('../functions/tu-cam.json');
@@ -172,6 +173,15 @@ function Home({ user }: { user: User | null }) {
   const [map, setMap] = useState(false);
   const [mine, setMine] = useState<CommunityListing[]>([]);
   const [inviting, setInviting] = useState(false);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const nav = useNavigate();
+  useEffect(() => { if (user) community.savedIds(user.id).then(ids => setSavedIds(new Set(ids))).catch(() => {}); else setSavedIds(new Set()); }, [user?.id]);
+  const toggleSave = (id: string) => {
+    if (!user) { nav('/login'); return; }
+    if (id.startsWith('mau-')) return;
+    setSavedIds(old => { const n = new Set(old); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    community.toggleSave(user.id, id).catch(() => setSavedIds(old => { const n = new Set(old); n.has(id) ? n.delete(id) : n.add(id); return n; }));
+  };
   const [sample, setSampleState] = useState(() => isSampleOn(user?.role));
   useEffect(() => onAreaChange(() => setSampleState(isSampleOn(user?.role))), [user?.role]);
   useEffect(() => { setSampleState(isSampleOn(user?.role)); }, [user?.role]);
@@ -226,29 +236,32 @@ function Home({ user }: { user: User | null }) {
   const ward = place?.ward || null;
   const title = q ? 'Kết quả cho "' + q + '"' : near ? 'Gần bạn' : place?.pt ? 'Cả nước' : 'Mới nhất cả nước';
   const grid = (rows: { x: CommunityListing; d: number | null }[], eager = false) =>
-    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">{rows.map((r, i) => <Card item={r.x} area={area} eager={eager && i < 4} extra={kmText(r.d)} key={r.x.id} />)}</div>;
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4">{rows.map((r, i) => <FeedCard item={r.x} km={kmText(r.d)} eager={eager && i < 4} saved={savedIds.has(r.x.id)} onSave={toggleSave} key={r.x.id} />)}</div>;
   const divider = (text: string) => <div className="flex items-center gap-3 text-[13px] font-bold text-slate-600 mt-1"><span className="flex-1 h-px bg-line" />{text}<span className="flex-1 h-px bg-line" /></div>;
   const nothing = !sample && !main.loading && !inR.length && !(farOpen && outR.length) && !otherShown.length && !main.next && !other.loading;
-  const postBtns = (small: boolean) => <div className="grid grid-cols-2 gap-3">
-    <Link to="/cong-dong/dang-tin?y=co" className={'flex flex-col gap-1 rounded-[20px] bg-emerald-700 hover:bg-emerald-800 text-white ' + (small ? 'p-3.5' : 'p-4')}>
-      <span className={(small ? 'text-xl' : 'text-[22px]') + ' font-extrabold'}>Tôi có</span>
-      <span className="text-[13px] leading-snug text-emerald-100">Cho, cho mượn, giúp một tay</span>
+  const arrow = <KIcon name="next" className="w-5 h-5" strokeWidth={2.6} />;
+  const postBtns = <div className="grid grid-cols-2 gap-3 lg:gap-4">
+    <Link to="/cong-dong/dang-tin?y=co" className="relative flex flex-col lg:flex-row lg:items-center gap-1.5 lg:gap-4 rounded-[20px] bg-emerald-700 hover:bg-emerald-800 text-white p-4 lg:px-5 lg:py-[18px] min-h-[140px] lg:min-h-0">
+      <KIcon name="gift" className="w-9 h-9 lg:w-11 lg:h-11 shrink-0" />
+      <span className="flex-1 flex flex-col gap-0.5 pr-7 lg:pr-0"><span className="text-lg lg:text-[22px] font-extrabold leading-tight">Tôi muốn chia sẻ</span><span className="text-xs lg:text-[13px] leading-snug text-emerald-100">Cho tặng, cho mượn, giúp một tay</span></span>
+      <span className="absolute right-3 bottom-3 lg:static h-7 w-7 lg:h-auto lg:w-auto rounded-full bg-white/15 lg:bg-transparent grid place-items-center">{arrow}</span>
     </Link>
-    <Link to="/cong-dong/dang-tin?y=can" className={'flex flex-col gap-1 rounded-[20px] bg-sun hover:brightness-95 text-[#2E1F00] ' + (small ? 'p-3.5' : 'p-4')}>
-      <span className={(small ? 'text-xl' : 'text-[22px]') + ' font-extrabold'}>Tôi cần</span>
-      <span className="text-[13px] leading-snug text-[#4A3200]">Xin, mượn, nhờ giúp đỡ</span>
+    <Link to="/cong-dong/dang-tin?y=can" className="relative flex flex-col lg:flex-row lg:items-center gap-1.5 lg:gap-4 rounded-[20px] bg-sun hover:brightness-95 text-[#2E1F00] p-4 lg:px-5 lg:py-[18px] min-h-[140px] lg:min-h-0">
+      <KIcon name="hand" className="w-9 h-9 lg:w-11 lg:h-11 shrink-0" />
+      <span className="flex-1 flex flex-col gap-0.5 pr-7 lg:pr-0"><span className="text-lg lg:text-[22px] font-extrabold leading-tight">Tôi đang cần</span><span className="text-xs lg:text-[13px] leading-snug text-[#4A3200]">Xin đồ, mượn đồ, nhờ giúp đỡ</span></span>
+      <span className="absolute right-3 bottom-3 lg:static h-7 w-7 lg:h-auto lg:w-auto rounded-full bg-white/40 lg:bg-transparent grid place-items-center">{arrow}</span>
     </Link>
   </div>;
-  const tiles = <div className="grid grid-cols-4 gap-2" role="group" aria-label="Lọc theo hoạt động">
+  const tiles = <div className="grid grid-cols-4 gap-2 lg:gap-2.5" role="group" aria-label="Lọc theo hoạt động">
     {KINDS.map(k => <button key={k} onClick={() => setKind(kind === k ? 'all' : k)} aria-pressed={kind === k}
-      className={'flex flex-col items-center gap-1.5 py-2.5 lg:py-3.5 px-1 rounded-[14px] border text-xs lg:text-[13px] font-bold ' + (kind === k ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white text-ink')}>
-      <KIcon name={k} className="w-6 h-6 text-emerald-700" />{kindLabels[k]}
+      className={'flex flex-col lg:flex-row items-center justify-center gap-1.5 lg:gap-2 py-2.5 lg:py-0 lg:h-12 px-1 rounded-[14px] border text-xs lg:text-sm font-bold ' + (kind === k ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white text-ink')}>
+      <KIcon name={k} className="w-6 h-6 lg:w-5 lg:h-5 text-emerald-700" />{kindLabels[k]}
     </button>)}
   </div>;
   const searchBox = <label className="relative block">
     <span className="sr-only">Tìm kiếm</span>
     <KIcon name="search" className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-    <input className={inputCls + ' pl-11 !rounded-2xl'} type="search" placeholder="Tìm món đồ hoặc việc cần giúp…" value={search} onChange={e => setSearch(e.target.value)} />
+    <input className={inputCls + ' pl-11 !rounded-2xl'} type="search" placeholder="Tìm đồ dùng hoặc việc cần giúp…" value={search} onChange={e => setSearch(e.target.value)} />
   </label>;
   const statusPill = (m: CommunityListing) => <span className={'shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ' + (m.status === 'approved' ? 'bg-emerald-50 text-emerald-800' : m.status === 'pending' ? 'bg-sun-light text-sun-dark' : 'bg-rose-50 text-rose-700')}>
     {m.status === 'approved' ? 'Đang hiện' : m.status === 'pending' ? 'Chờ kiểm tra' : 'Chưa đăng'}</span>;
@@ -265,44 +278,71 @@ function Home({ user }: { user: User | null }) {
     <div className="flex items-center justify-between"><span className="font-extrabold">Tin của bạn</span><Link to="/profile" className="text-[13px] font-semibold text-emerald-700 min-h-8 flex items-center">Quản lý ›</Link></div>
     {mine.slice(0, 3).map(m => <Link key={m.id} to={tinPath(m)} className="flex items-center gap-2.5 min-h-12">{mineThumb(m)}<span className="flex-1 min-w-0 text-sm font-bold truncate">{m.title}</span>{statusPill(m)}</Link>)}
   </section>;
-  const invite = <section className="bg-emerald-50 rounded-2xl p-4 flex flex-col gap-2">
-    <span className="font-extrabold">Mời hàng xóm cùng chia sẻ</span>
+  const invite = <section className="bg-white border border-line rounded-2xl p-4 flex flex-col gap-2">
+    <span className="font-extrabold text-[17px]">Mời hàng xóm cùng chia sẻ</span>
     <span className="text-[13px] text-[#3B4A40]">Càng nhiều người {ward ? 'ở ' + shortArea(ward.name) + ' ' : ''}tham gia, càng dễ tìm được đồ gần nhà.</span>
-    <button onClick={() => setInviting(true)} className="self-start min-h-10 px-4 rounded-xl bg-white font-bold text-sm">Gửi link mời</button>
+    <button onClick={() => setInviting(true)} className="self-start min-h-10 px-4 rounded-xl bg-emerald-50 text-emerald-800 font-extrabold text-sm">Gửi link mời</button>
   </section>;
+  // Hoạt động gần bạn: đếm từ chính các tin trong bán kính (số thật)
+  const nearHave = near ? inR.filter(r => r.x.communityIntent !== 'need').length : 0;
+  const nearNeed = near ? inR.filter(r => r.x.communityIntent === 'need').length : 0;
+  const nearRow = (icon: string, color: string, n: number, text: string, f: IntentF) => <button onClick={() => { setIntent(f); setMap(false); }} className="w-full flex items-center gap-3 py-2.5 border-t border-[#F1ECDF] text-left hover:bg-cream rounded-lg">
+    <KIcon name={icon} className={'w-[22px] h-[22px] ' + color} /><span className="flex-1 text-sm"><b>{n}</b> {text}</span><KIcon name="next" className="w-4 h-4 text-slate-400" /></button>;
+  const nearBox = near && !q && (nearHave + nearNeed) > 0 && <section className="bg-white border border-line rounded-2xl px-4 py-3.5">
+    <h2 className="font-extrabold text-[17px] flex items-center gap-2 mb-1"><KIcon name="pin" className="w-5 h-5 text-emerald-700" />Hoạt động gần bạn</h2>
+    {nearHave > 0 && nearRow('gift', 'text-emerald-700', nearHave, 'món đang được chia sẻ', 'have')}
+    {nearNeed > 0 && nearRow('hand', 'text-orange-700', nearNeed, 'yêu cầu đang cần giúp', 'need')}
+    <p className="text-xs text-slate-500 pt-1.5">Trong {radius} km quanh {shortArea(area)}</p>
+  </section>;
+  const tab = (f: IntentF, label: string, icon?: string, iconCls = '') => <button onClick={() => setIntent(f)} aria-pressed={intent === f}
+    className={'shrink-0 h-9 lg:h-10 px-3 lg:px-4 rounded-xl text-[13px] lg:text-sm font-bold flex items-center gap-1.5 lg:gap-2 border ' + (intent === f ? 'bg-emerald-700 border-emerald-700 text-white' : 'bg-white border-line text-ink')}>
+    {icon && <KIcon name={icon} className={'w-4 h-4 lg:w-[18px] lg:h-[18px] ' + (intent === f ? '' : iconCls)} />}{label}</button>;
+  const viewToggle = <div className="shrink-0 flex h-9 lg:h-10 rounded-xl border border-line bg-white overflow-hidden text-xs lg:text-sm font-bold" role="group" aria-label="Cách xem tin">
+    <button onClick={() => setMap(false)} aria-pressed={!map} className={'px-2.5 lg:px-3.5 flex items-center gap-1.5 ' + (!map ? 'bg-emerald-50 text-emerald-800' : '')}><KIcon name="list" className="w-4 h-4" />Danh sách</button>
+    <button onClick={() => setMap(true)} aria-pressed={map} className={'px-2.5 lg:px-3.5 flex items-center gap-1.5 border-l border-line ' + (map ? 'bg-emerald-50 text-emerald-800' : '')}><KIcon name="map" className="w-4 h-4" />Bản đồ</button>
+  </div>;
+  const sortBtn = place?.pt && !map && <button onClick={() => setSort(sort === 'gan' ? 'moi' : 'gan')} className="shrink-0 h-9 lg:h-10 px-3 rounded-xl border border-line bg-white text-[13px] lg:text-sm flex items-center gap-1.5">
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></svg>
+    <span className="hidden lg:inline">Sắp xếp:</span><b>{sort === 'gan' ? 'Gần nhất' : 'Mới nhất'}</b></button>;
 
   return <PullToRefresh onRefresh={async () => { await Promise.all([main.reload(), other.reload(), doneList.reload()]); }}>
     {sample && <div role="status" className="mb-4 flex items-center gap-2 rounded-2xl bg-sun text-[#2E1F00] px-4 py-2.5 text-sm font-bold shadow">
       <span className="flex-1">Đang xem DỮ LIỆU MẪU · chỉ máy bạn thấy</span>
       <button onClick={() => setSample(false)} className="min-h-9 px-3 rounded-xl bg-white/80 font-extrabold">Tắt</button>
     </div>}
-    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-7 lg:items-start">
-    <div className="flex flex-col gap-4 min-w-0">
-      {/* Điện thoại: tiêu đề, Tôi có/Tôi cần, 4 ô, tìm kiếm */}
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-7 lg:items-start">
+    <div className="flex flex-col gap-4 lg:gap-5 min-w-0">
+      {/* Điện thoại: tìm kiếm, tiêu đề, 2 nút lớn, 4 ô */}
       <div className="lg:hidden flex flex-col gap-4">
-        <h1 className="text-2xl md:text-4xl font-extrabold leading-tight">Có gì chia sẻ,<br />cần gì có nhau.</h1>
-        {postBtns(false)}{tiles}{searchBox}
+        {searchBox}
+        <h1 className="text-[26px] font-extrabold leading-tight text-[#123524]">Có gì chia sẻ, cần gì có nhau.</h1>
+        {postBtns}{tiles}
       </div>
-      {/* Máy tính: tiêu đề + tìm kiếm bên trái, 4 ô bên phải */}
-      <div className="hidden lg:grid grid-cols-[1.1fr_1fr] gap-5 items-end">
-        <div className="flex flex-col gap-3.5"><h1 className="text-4xl font-extrabold leading-tight">Có gì chia sẻ,<br />cần gì có nhau.</h1>{searchBox}</div>
-        {tiles}
+      {/* Máy tính: khung đầu trang có hình xóm nhỏ, rồi 2 nút lớn, 4 ô */}
+      <div className="hidden lg:flex flex-col gap-4">
+        <section className="relative h-[240px] rounded-3xl overflow-hidden bg-gradient-to-r from-[#FBF3E4] to-[#F2EBD9]">
+          <HeroScene className="absolute inset-0 w-full h-full" />
+          <div className="relative px-8 py-7 max-w-[470px] flex flex-col gap-3">
+            <h1 className="text-[36px] font-extrabold leading-[1.15] text-[#123524]">Có gì chia sẻ,<br />cần gì có nhau.</h1>
+            <p className="text-[15px] text-[#3B4A40]">Nơi hàng xóm cùng cho tặng, cho mượn và giúp đỡ nhau. Hoàn toàn miễn phí.</p>
+            {searchBox}
+          </div>
+        </section>
+        {postBtns}{tiles}
       </div>
       {!q && mineLine}
-      {!q && <ThanksTicker d={honor} />}
-      {!q && <div className="lg:hidden"><NeighborsRow d={honor} /></div>}
       {!place?.provCode && !q && place && <button onClick={openAreaSheet} className="text-left p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-sm"><b className="text-emerald-800">Chọn xã/phường của bạn</b> để thấy tin gần nhất trước.</button>}
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-xl font-extrabold truncate">{title}</h2>
-          <div className="flex items-center gap-2 shrink-0">
-            {!map && <button onClick={() => setIntent(intent === 'all' ? 'have' : intent === 'have' ? 'need' : 'all')} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold">{intent === 'all' ? 'Tất cả' : intent === 'have' ? 'Đồ cho' : 'Đang cần'}</button>}
-            {place?.pt && !map && <button onClick={() => setSort(sort === 'gan' ? 'moi' : 'gan')} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold flex items-center gap-1.5">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></svg>
-              {sort === 'gan' ? 'Gần nhất' : 'Mới nhất'}</button>}
-            {map && <button onClick={() => setMap(false)} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold flex items-center gap-1.5"><KIcon name="list" className="w-4 h-4" />Danh sách</button>}
-          </div>
+          <h2 className="text-xl font-extrabold truncate">{q ? title : near ? 'Mới chia sẻ gần bạn' : title}</h2>
+          <div className="lg:hidden">{viewToggle}</div>
+        </div>
+        <div className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0 pb-0.5">
+          {tab('all', 'Tất cả')}{tab('have', 'Cho chia sẻ', 'gift', 'text-emerald-700')}{tab('need', 'Đang cần', 'hand', 'text-orange-700')}
+          <span className="flex-1" />
+          {sortBtn}
+          <div className="hidden lg:block">{viewToggle}</div>
         </div>
         {map ? <React.Suspense fallback={<div className="h-[440px] md:h-[640px] rounded-2xl bg-[#ECE5D4] animate-pulse" />}>
             <CommunityMap items={mapped as CommunityListing[]} area={area} />
@@ -334,16 +374,22 @@ function Home({ user }: { user: User | null }) {
           <div className="flex items-baseline justify-between gap-2"><h2 className="text-lg font-extrabold">✓ Vừa trao xong {place?.provName ? 'ở ' + place.provName : ''}</h2><span className="text-xs text-slate-600 shrink-0">7 ngày qua</span></div>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">{doneList.items.filter(ok).slice(0, 6).map(x => <Card item={x} area={area} key={'d' + x.id} />)}</div>
         </section>}
-        {!map && !nothing && !main.loading && <button onClick={() => setMap(true)} className="min-h-12 rounded-2xl border border-line bg-white text-[15px] font-bold text-emerald-700 flex items-center justify-center gap-2"><KIcon name="map" className="w-[18px] h-[18px]" />Xem trên bản đồ</button>}
         {ward && !q && <Link to={wardPath(ward)} className="self-center text-sm font-semibold text-emerald-700 underline min-h-10 flex items-center">Góc chia sẻ {ward.name} ›</Link>}
       </section>
+      {/* Cuối trang: vinh danh người cho đi; điện thoại thêm lời cảm ơn và băng rôn */}
+      {!q && <HonorCircles d={honor} />}
+      {!q && <div className="lg:hidden flex flex-col gap-4"><ThanksBox d={honor} /><CommunityBanner /></div>}
     </div>
     {/* Cột phải (máy tính) */}
-    <aside className="hidden lg:flex flex-col gap-4 sticky top-24">
-      {postBtns(true)}
+    <aside className="hidden lg:flex flex-col gap-4">
+      <Link to="/cong-dong/dang-tin" className="h-[60px] rounded-[20px] bg-emerald-700 hover:bg-emerald-800 text-white text-xl font-extrabold flex items-center justify-center gap-3">
+        <span className="h-9 w-9 rounded-full bg-white text-emerald-700 grid place-items-center"><KIcon name="plus" className="w-5 h-5" strokeWidth={2.6} /></span>Đăng tin</Link>
       {mineBox}
-      <NeighborsList d={honor} />
+      {nearBox}
+      <StatsBox d={honor} />
       {invite}
+      <ThanksBox d={honor} />
+      <CommunityBanner tall />
     </aside>
     </div>
     <ShareModal isOpen={inviting} onClose={() => setInviting(false)} url={window.location.origin + (ward ? wardPath(ward) : '/')} title="Chợ Của Tui"

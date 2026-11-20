@@ -116,6 +116,15 @@ export async function countCommunity(eq) {
   return Number(out?.[0]?.result?.aggregateFields?.n?.integerValue || 0);
 }
 
+/** Đếm số tài liệu trong một bảng công khai (vd: publicProfiles). */
+export async function countCollection(collectionId) {
+  const body = { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId }] }, aggregations: [{ alias: 'n', count: {} }] } };
+  const r = await fetch(`${BASE}:runAggregationQuery?key=${API_KEY}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error('firestore ' + r.status);
+  const out = await r.json();
+  return Number(out?.[0]?.result?.aggregateFields?.n?.integerValue || 0);
+}
+
 /** Tin trong một xã/phường theo trạng thái (không sắp xếp, đủ để thống kê). */
 export async function listByArea(areaCode, status, max = 300) {
   const filters = [

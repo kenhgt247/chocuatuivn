@@ -36,6 +36,7 @@ const FAR: [string, string, 'have' | 'need', string][] = [
   ['Sửa điện thoại, thay pin miễn phí', 'repair', 'have', 'TP Hồ Chí Minh'],
 ];
 
+const NAMES = ['Chị Hoa', 'Anh Tuấn', 'Cô Lan', 'Anh Đức', 'Chị Mai', 'Anh Khoa'];
 export function sampleListings(pt: { lat: number; lng: number } | null): CommunityListing[] {
   const now = Date.now();
   const base = pt || { lat: 20.84, lng: 106.69 };
@@ -43,6 +44,7 @@ export function sampleListings(pt: { lat: number; lng: number } | null): Communi
     id: 'mau-' + i, title, communityKind: kind, communityIntent: intent, location: place,
     lat: base.lat + n / 111, lng: base.lng + e / (111 * Math.cos(base.lat * Math.PI / 180)),
     createdAt: new Date(now - h * 3600e3).toISOString(), images: [], price: 0, isCommunityFree: true, status: 'approved', _mau: true,
+    sellerName: NAMES[i % NAMES.length], description: 'Đồ còn dùng tốt, ai cần nhắn mình nhé. Hẹn trao gần nhà.',
   }));
   const far = FAR.map(([title, kind, intent, place], i) => ({
     id: 'mau-xa-' + i, title, communityKind: kind, communityIntent: intent, location: place, lat: null, lng: null,
@@ -69,6 +71,10 @@ export function sampleHonor() {
       { id: 'g2', n: 4, name: 'Anh Tuấn', avatar: null, location: 'Đồ Sơn', sharedCount: 9, sharedByKind: {} },
       { id: 'g3', n: 3, name: 'Cô Lan', avatar: null, location: 'Hưng Đạo', sharedCount: 7, sharedByKind: {} },
       { id: 'g4', n: 2, name: 'Anh Đức', avatar: null, location: 'Hải An', sharedCount: 5, sharedByKind: {} },
+      { id: 'g5', n: 2, name: 'Chị Mai', avatar: null, location: 'Kiến An', sharedCount: 4, sharedByKind: {} },
+      { id: 'g6', n: 1, name: 'Anh Khoa', avatar: null, location: 'Lê Chân', sharedCount: 3, sharedByKind: {} },
+      { id: 'g7', n: 1, name: 'Chú Phúc', avatar: null, location: 'Dương Kinh', sharedCount: 2, sharedByKind: {} },
     ],
+    stats: { dang: 312, xong: 184, thanhVien: 520, camOn: 96 },
   };
 }

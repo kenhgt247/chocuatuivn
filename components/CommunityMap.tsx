@@ -15,13 +15,13 @@ import { tinPath, thumbOf } from '../utils/format';
 import { wardFromLabel, distanceKm, type Ward } from '../utils/dvhc';
 import { wardShape } from '../utils/ranhgioi';
 
-const MAP_STYLE: string = (import.meta as any).env?.VITE_MAP_STYLE || 'https://tiles.openfreemap.org/styles/positron';
+export const MAP_STYLE: string = (import.meta as any).env?.VITE_MAP_STYLE || 'https://tiles.openfreemap.org/styles/positron';
 const LIB = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl';
 const GREEN = '#1F6F43';
 const AMBER = '#D9932A';
 
 let libPromise: Promise<any> | null = null;
-function loadMapLibre(): Promise<any> {
+export function loadMapLibre(): Promise<any> {
   const w = window as any;
   if (w.maplibregl) return Promise.resolve(w.maplibregl);
   if (!libPromise) {
@@ -61,7 +61,7 @@ const VN_VIEW = { center: [106.4, 15.9] as [number, number], zoom: 4.4 };
 const EMPTY = { type: 'FeatureCollection', features: [] as any[] };
 
 /** Chỉnh nền bản đồ: màu kem–xanh, tên tiếng Việt, bỏ ranh giới tranh chấp/trên biển. */
-function patchBaseStyle(map: any) {
+export function patchBaseStyle(map: any) {
   const layers: any[] = map.getStyle()?.layers || [];
   const name = ['coalesce', ['get', 'name:vi'], ['get', 'name:latin'], ['get', 'name']];
   const outside = ['!', ['within', SEA_MASK]];

@@ -72,11 +72,20 @@ export async function wardAt(lat: number, lng: number): Promise<Ward | null> {
   return best;
 }
 /** Tìm xã/phường khớp một chuỗi khu vực đã lưu (vd "Phường Chí Linh, Thành phố Hải Phòng"). */
-export async function wardFromLabel(label?: string): Promise<Ward | null> {
+export async function wardFromLabel(label?: string, hint?: string): Promise<Ward | null> {
   if (!label) return null;
   const { wards } = await loadDvhc();
   const k = plain(label);
-  return wards.find(w => w.key === k) || wards.find(w => k.startsWith(plain(w.name) + ',') && k.includes(plain(w.provinceName))) || null;
+  const exact = wards.find(w => w.key === k) || wards.find(w => k.startsWith(plain(w.name) + ',') && k.includes(plain(w.provinceName)));
+  if (exact) return exact;
+  // Chỉ ghi tên xã/phường ("Phường Tân Hưng", "Tân Hưng"): khớp theo tên; trùng tên thì chọn theo tỉnh trong chữ hoặc gợi ý
+  const core = (n: string) => plain(n).replace(/^(phuong|xa|dac khu|thi tran)\s+/, '');
+  const head = core(k.split(',')[0]);
+  if (!head) return null;
+  const same = wards.filter(w => core(w.name) === head && (!/^(phuong|xa|dac khu|thi tran)\s/.test(k) || plain(w.name) === k.split(',')[0].trim()));
+  if (same.length === 1) return same[0];
+  const ctx = k + ' ' + plain(hint || '');
+  return same.find(w => ctx.includes(plain(w.provinceName).replace(/^(thanh pho|tinh)\s+/, ''))) || null;
 }
 
 /** Tìm tỉnh/thành trong chữ địa chỉ ("Hải Phòng", "TP Hải Phòng", "Phường X, Thành phố Hải Phòng"). */

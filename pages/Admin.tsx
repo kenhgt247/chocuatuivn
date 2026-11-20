@@ -174,7 +174,7 @@ const Admin: React.FC<{ user: User }> = ({ user }) => {
           for (const d of snap.docs) {
             const x: any = d.data();
             if (x.provinceCode) continue;
-            const w = (x.areaCode && wards.find(v => v.code === x.areaCode)) || await wardFromLabel(x.location);
+            const w = (x.areaCode && wards.find(v => v.code === x.areaCode)) || await wardFromLabel(x.location, x.sellerLocation || '');
             if (!w) {
               const p = await provinceFromLabel(x.location);
               if (!p) { skip++; continue; }

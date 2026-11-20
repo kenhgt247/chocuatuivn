@@ -85,7 +85,11 @@ export function RequestActions({ r, uid, onDone, compact, mainOnly, onAccepted }
     if ((status === 'completed' || status === 'handed_over' || status === 'returned') && !window.confirm(actionLabel(r, status) + '?\nChỉ bấm khi việc này đã thật sự diễn ra.')) return;
     if (status === 'cancelled' && r.status === 'accepted' && !window.confirm('Hủy việc đã được đồng ý?')) return;
     setWorking(true); setError('');
-    try { await community.updateStatus(r, status); if (status === 'accepted') onAccepted?.(r); onDone?.(); }
+    try {
+      await community.updateStatus(r, status); if (status === 'accepted') onAccepted?.(r); onDone?.();
+      // Người nhận vừa xác nhận xong: mời gửi lời cảm ơn ngay
+      if (status === 'completed') window.dispatchEvent(new CustomEvent('ccut-cam-on', { detail: { ...r, status: 'completed' } }));
+    }
     catch (e: any) { setError(e?.message || 'Chưa cập nhật được, thử lại nhé.'); }
     finally { setWorking(false); }
   }

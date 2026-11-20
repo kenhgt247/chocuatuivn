@@ -848,6 +848,14 @@ function Requests({ user }: { user: User | null }) {
     finally { setLoading(false); }
   }
   useEffect(() => { if (user) void refresh(); else setLoading(false); }, [user?.id]);
+  // Mở từ thông báo "Gửi lời cảm ơn nhé": bật hộp cảm ơn cho đúng yêu cầu
+  const askedRef = useRef(false);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('cam-on');
+    if (!id || askedRef.current || !items.length) return;
+    const r = items.find(x => x.id === id);
+    if (r) { askedRef.current = true; window.dispatchEvent(new CustomEvent('ccut-cam-on', { detail: r })); }
+  }, [items]);
   if (!user) return <AuthRequired />;
   const visible = items.filter(x => tab === 'received' ? x.ownerId === user.id : x.requesterId === user.id);
   async function chat(request: CommunityRequest) {

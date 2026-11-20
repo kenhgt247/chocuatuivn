@@ -467,6 +467,16 @@ export const community = {
     if (close) {
       try { await db.updateListingStatus(r.listingId, 'sold'); } catch (_) { /* chủ tin vẫn tự đóng được ở trang Cá nhân */ }
     }
+    // Cho mượn: người cho xác nhận đã nhận lại đồ → nhắc người mượn gửi lời cảm ơn
+    if (status === 'completed' && receiverOf(r) !== uid) {
+      try {
+        await db.sendNotification({
+          userId: receiverOf(r), title: 'Hoàn thành 🎉 Gửi lời cảm ơn nhé',
+          message: r.listingTitle + ': đã xong. Để lại một lời cảm ơn, nó sẽ hiện trên trang chủ.',
+          type: 'success', link: '/cong-dong/yeu-cau?cam-on=' + r.id, requestId: r.id,
+        });
+      } catch (_) { /* bỏ qua */ }
+    }
     if (receiverId && !posted) {
       try {
         await db.sendNotification({

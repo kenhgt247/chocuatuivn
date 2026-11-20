@@ -50,13 +50,15 @@ export async function loadPage(s: Scope, truoc?: string | null, fresh = false): 
     const r = await fetch(url).catch(() => null);
     data = r && r.ok ? await r.json().catch(() => null) : null;
   }
-  if (data && data.ok !== false && Array.isArray(data.items)) {
+  const vnFirst = !truoc && !s.xa && !s.tinh && !s.q && !s.xong;
+  if (data && data.ok !== false && Array.isArray(data.items) && !(vnFirst && !data.items.length)) {
     if (!truoc && !s.q) {
       try { localStorage.setItem(key(s), JSON.stringify({ t: Date.now(), next: data.next || null, items: data.items.slice(0, s.nhieu ? 60 : 24) })); } catch (_) { /* đầy: bỏ qua */ }
     }
     return { items: data.items.map(toListing), next: data.next || null };
   }
-  if (!truoc && !s.xa && !s.tinh && !s.q) {
+  if (vnFirst) {
+    // Máy chủ lỗi hoặc trả rỗng bất thường: đọc thẳng Firestore
     const { community } = await import('../services/community');
     return { items: await community.list(), next: null };
   }

@@ -58,5 +58,6 @@ export default async function handler(req, res) {
     : words.length ? 'public, max-age=60, s-maxage=120, stale-while-revalidate=600'
     : truoc ? 'public, max-age=120, s-maxage=600, stale-while-revalidate=3600'
     : 'public, max-age=30, s-maxage=120, stale-while-revalidate=600');
-  res.status(200).send(JSON.stringify({ ok, t: Date.now(), next, items }));
+  // Lỗi đọc Firestore: trả 503 để không bị lưu đệm (trình duyệt sẽ tự đọc thẳng Firestore)
+  res.status(ok ? 200 : 503).send(JSON.stringify({ ok, t: Date.now(), next, items }));
 }

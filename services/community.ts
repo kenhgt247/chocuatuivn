@@ -168,6 +168,8 @@ export interface ThankNote {
   id: string; giverId: string; receiverId: string; receiverName: string; receiverAvatar?: string;
   listingId: string; listingTitle: string; kind: CommunityKind; message: string; photo?: string | null; createdAt?: any;
 }
+/** Báo cho các nút "Gửi lời cảm ơn" khác trên trang biết yêu cầu này đã được cảm ơn. */
+export function announceThanks(requestId: string) { try { window.dispatchEvent(new CustomEvent('ccut-da-cam-on', { detail: requestId })); } catch (_) { /* bỏ qua */ } }
 export function receiverOf(r: CommunityRequest) { return (r.intent || 'have') === 'need' ? r.ownerId : r.requesterId; }
 export function giverOf(r: CommunityRequest) { return (r.intent || 'have') === 'need' ? r.requesterId : r.ownerId; }
 
@@ -421,6 +423,8 @@ export const community = {
     if (r.status !== 'completed' || receiverOf(r) !== uid) throw new Error('Chỉ người nhận gửi lời cảm ơn sau khi đã xong.');
     const text = safeText(message, 300);
     if (text.length < 2) throw new Error('Hãy viết vài chữ cảm ơn nhé.');
+    // Mỗi lần trao chỉ một lời cảm ơn (lời đã gửi không sửa được)
+    if (await community.thankFor(r.id)) { announceThanks(r.id); throw new Error('Bạn đã gửi lời cảm ơn cho lần này rồi 💚'); }
     let photoUrl: string | null = null;
     if (photo) photoUrl = (await uploadPhotos(uid, [photo])).thumbs[0] || null;
     const giverId = giverOf(r);
@@ -429,6 +433,7 @@ export const community = {
       listingId: r.listingId, listingTitle: (r.listingTitle || '').slice(0, 120), kind: r.kind, message: text, photo: photoUrl,
       createdAt: serverTimestamp(),
     });
+    announceThanks(r.id);
     await addDoc(collection(firestore, 'notifications'), {
       userId: giverId, title: (user.name || 'Một người') + ' gửi lời cảm ơn', message: text.slice(0, 200),
       type: 'thanks', link: '/profile/' + giverId, read: false, createdAt: new Date().toISOString(), requestId: r.id,

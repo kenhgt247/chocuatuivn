@@ -37,12 +37,17 @@ export function ThankButton({ r, user, onSent }: { r: CommunityRequest; user: Us
   const [err, setErr] = useState('');
   const file = useRef<HTMLInputElement>(null);
   React.useEffect(() => { if (r.status === 'completed' && receiverOf(r) === user.id) community.thankFor(r.id).then(t => setSent(!!t)); }, [r.id, r.status]);
+  // Đã gửi ở chỗ khác (hộp cảm ơn bật lên, khung chat…): đổi ngay thành "đã gửi"
+  React.useEffect(() => {
+    const on = (e: Event) => { if ((e as CustomEvent).detail === r.id) { setSent(true); setOpen(false); } };
+    window.addEventListener('ccut-da-cam-on', on); return () => window.removeEventListener('ccut-da-cam-on', on);
+  }, [r.id]);
   if (r.status !== 'completed' || receiverOf(r) !== user.id || sent === null) return null;
   if (sent) return <p className="text-sm text-emerald-800 font-semibold">💚 Bạn đã gửi lời cảm ơn.</p>;
   async function send() {
     setBusy(true); setErr('');
     try { await community.sendThanks(r, user, text, photo); setSent(true); setOpen(false); onSent?.(); }
-    catch (e: any) { setErr(e?.message || 'Chưa gửi được, thử lại nhé.'); }
+    catch (e: any) { if (await community.thankFor(r.id)) { setSent(true); setOpen(false); } else setErr(e?.message || 'Chưa gửi được, thử lại nhé.'); }
     finally { setBusy(false); }
   }
   if (!open) return <button onClick={() => setOpen(true)} className="w-full min-h-12 rounded-[14px] bg-sun text-[#2E1F00] font-extrabold">💛 Gửi lời cảm ơn</button>;
@@ -93,7 +98,7 @@ export function ThanksPrompt({ user }: { user: User | null }) {
     if (!r || !user) return;
     setBusy(true); setErr('');
     try { await community.sendThanks(r, user, text, photo); setDone(true); }
-    catch (e: any) { setErr(e?.message || 'Chưa gửi được, thử lại nhé.'); }
+    catch (e: any) { if (await community.thankFor(r.id)) setDone(true); else setErr(e?.message || 'Chưa gửi được, thử lại nhé.'); }
     finally { setBusy(false); }
   }
   const quick = r.kind === 'help' ? ['Cảm ơn bạn đã giúp mình!', 'Bạn thật tốt bụng!', 'Nhờ bạn mà xong việc rồi 💚']

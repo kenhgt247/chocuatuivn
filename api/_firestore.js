@@ -130,3 +130,18 @@ export async function listByArea(areaCode, status, max = 300) {
   const rows = await r.json();
   return rows.filter(x => x.document).map(x => fields(x.document.fields || {}));
 }
+
+/** Truy vấn tự do (chỉ đọc dữ liệu công khai theo quy tắc bảo mật). */
+export async function queryDocs(structuredQuery) {
+  return runQuery(structuredQuery);
+}
+/** Đọc nhiều tài liệu một lượt: paths dạng "publicProfiles/<uid>". */
+export async function getMany(paths) {
+  if (!paths.length) return {};
+  const r = await fetch(`${BASE}:batchGet?key=${API_KEY}`, { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ documents: paths.map(p => `projects/${PROJECT}/databases/(default)/documents/${p}`) }) });
+  if (!r.ok) return {};
+  const out = {};
+  for (const x of await r.json()) if (x.found) out[x.found.name.split('/').slice(-2).join('/')] = fields(x.found.fields);
+  return out;
+}

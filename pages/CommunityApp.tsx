@@ -23,6 +23,7 @@ import { wardFromLabel, provinceFromLabel, distanceKm, type Ward } from '../util
 import { formatTimeAgo, tinPath, thumbOf, slugify } from '../utils/format';
 import type { User, PublicProfile } from '../types';
 const CommunityMap = React.lazy(() => import('../components/CommunityMap'));
+const HonorStrip = React.lazy(() => import('../components/HonorStrip'));
 async function findBannedWord(text: string): Promise<string | null> {
   try {
     const { default: list } = await import('../functions/tu-cam.json');
@@ -175,7 +176,6 @@ function Home({ user }: { user: User | null }) {
   const mainScope: Scope | null = place ? (near ? { tinh: place.provCode, nhieu: true, q } : { q }) : null;
   useEffect(() => { if (mainScope && !q) rememberScope(mainScope); }, [JSON.stringify(mainScope)]);
   const main = usePaged(mainScope);
-  const done = usePaged(place && !q ? (place.provCode ? { tinh: place.provCode, xong: true } : { xong: true }) : null);
 
   const ok = (x: CommunityListing) => (kind === 'all' || x.communityKind === kind) && (intent === 'all' || x.communityIntent === intent);
   const dist = (x: CommunityListing) => place?.pt && x.lat != null && x.lng != null ? distanceKm(place.pt.lat, place.pt.lng, x.lat as number, x.lng as number) : null;
@@ -212,7 +212,7 @@ function Home({ user }: { user: User | null }) {
     className={'min-h-10 rounded-[11px] text-sm ' + (intent === v ? 'bg-white font-extrabold text-ink shadow-sm' : 'font-bold text-slate-600')}>{label}</button>;
   const nothing = !main.loading && !inR.length && !(farOpen && outR.length) && !otherShown.length && !main.next && !other.loading;
 
-  return <PullToRefresh onRefresh={async () => { await Promise.all([main.reload(), done.reload(), other.reload()]); }}><div className="flex flex-col gap-4">
+  return <PullToRefresh onRefresh={async () => { await Promise.all([main.reload(), other.reload()]); }}><div className="flex flex-col gap-4">
     <label className="relative block">
       <span className="sr-only">Tìm kiếm</span>
       <KIcon name="search" className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -236,19 +236,7 @@ function Home({ user }: { user: User | null }) {
       </span>
     </Link>)}
 
-    {!q && done.items.length > 0 && <section className="flex flex-col gap-2.5">
-      <div className="flex items-baseline justify-between"><h2 className="text-lg font-extrabold">Vừa trao xong</h2><span className="text-xs text-slate-600">{place?.provName ? 'ở ' + place.provName : 'trên Chợ Của Tui'}</span></div>
-      <div className="flex gap-2.5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-1">{done.items.slice(0, 10).map(x => {
-        const k = (x.communityKind || 'gift') as CommunityKind; const img = thumbOf(x);
-        return <Link key={x.id} to={tinPath(x)} className="shrink-0 w-[132px] bg-white border border-line rounded-2xl overflow-hidden">
-          <span className={'relative h-[76px] grid place-items-center text-emerald-700 ' + KIND_META[k].tint}>
-            {img ? <img src={img} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" /> : <KIcon name={k} className="w-8 h-8" />}
-            <span className="absolute top-1.5 left-1.5 text-[10px] font-bold bg-emerald-700 text-white px-2 py-0.5 rounded-full">Đã trao</span>
-          </span>
-          <span className="block px-2.5 py-2"><span className="block text-[13px] font-bold leading-snug line-clamp-2">{x.title}</span><span className="block text-[11px] text-slate-600 truncate mt-0.5">{(x.location || '').split(',')[0]}</span></span>
-        </Link>;
-      })}</div>
-    </section>}
+    {!q && <React.Suspense fallback={null}><HonorStrip /></React.Suspense>}
 
     {!place?.provCode && !q && place && <button onClick={openAreaSheet} className="text-left p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-sm"><b className="text-emerald-800">Chọn xã/phường của bạn</b> để thấy tin gần nhất trước.</button>}
 

@@ -1,7 +1,7 @@
 // Trang chủ: "Lời cảm ơn mới" và "Hàng xóm nổi bật tháng" (vinh danh người cho).
 // Chỉ dùng dữ liệu công khai: lời cảm ơn (thanks) và hồ sơ công khai (tên, ảnh, số lần chia sẻ).
 // Lưu đệm CDN 10 phút.
-import { queryDocs, getMany } from './_firestore.js';
+import { queryDocs, getMany, countCommunity, countCollection } from './_firestore.js';
 
 const clip = (s, n) => String(s || '').slice(0, n);
 const vnMonth = () => { const d = new Date(Date.now() + 7 * 3600e3); return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, start: new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) - 7 * 3600e3).toISOString() }; };
@@ -14,19 +14,26 @@ export default async function handler(req, res) {
     const tally = new Map();
     for (const t of thanks) if (t.giverId && String(t.createdAt || '') >= start) tally.set(t.giverId, (tally.get(t.giverId) || 0) + 1);
     let mode = 'thang';
-    let top = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([id, n]) => ({ id, n }));
+    let top = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 7).map(([id, n]) => ({ id, n }));
     if (top.length < 2) {
       // Tháng này còn ít: lấy những người đã chia sẻ nhiều nhất từ trước tới nay
       mode = 'tatca';
-      const ps = await queryDocs({ from: [{ collectionId: 'publicProfiles' }], orderBy: [{ field: { fieldPath: 'sharedCount' }, direction: 'DESCENDING' }], limit: 4 }).catch(() => []);
+      const ps = await queryDocs({ from: [{ collectionId: 'publicProfiles' }], orderBy: [{ field: { fieldPath: 'sharedCount' }, direction: 'DESCENDING' }], limit: 7 }).catch(() => []);
       top = ps.filter(p => (p.sharedCount || 0) > 0).map(p => ({ id: p.id, n: p.sharedCount || 0 }));
     }
     const recent = thanks.slice(0, 12);
+    // Số liệu cộng đồng (số thật; lỗi thì bỏ qua, giao diện sẽ ẩn)
+    const [dang, xong, thanhVien] = await Promise.all([
+      countCommunity({ status: 'approved' }).catch(() => 0),
+      countCommunity({ status: 'sold' }).catch(() => 0),
+      countCollection('publicProfiles').catch(() => 0),
+    ]);
     const ids = [...new Set([...top.map(x => x.id), ...recent.map(t => t.giverId).filter(Boolean)])];
     const prof = await getMany(ids.map(id => 'publicProfiles/' + id));
     const p = id => prof['publicProfiles/' + id] || {};
     const out = {
       ok: true, month: m, mode,
+      stats: { dang, xong, thanhVien, camOn: thanks.length >= 200 ? 0 : thanks.length },
       thanks: recent.map(t => ({
         id: t.id, giverId: t.giverId, giverName: clip(p(t.giverId).name || 'Thành viên', 40),
         receiverName: clip(t.receiverName || 'Thành viên', 40), receiverAvatar: clip(t.receiverAvatar, 600) || null,

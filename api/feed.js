@@ -54,6 +54,9 @@ export default async function handler(req, res) {
       areaCode: l.areaCode || null,
       provinceCode: l.provinceCode || null,
       lat: round2(l.lat), lng: round2(l.lng),
+      sellerId: l.sellerId || null,
+      sellerName: String(l.sellerName || '').slice(0, 40),
+      sellerAvatar: String(l.sellerAvatar || '').slice(0, 600) || null,
       thumb: (Array.isArray(l.thumbs) && l.thumbs[0]) || (Array.isArray(l.images) && l.images[0]) || null,
       ...(xong ? { doneAt: l.doneAt || null } : {}),
     }));

@@ -70,15 +70,14 @@ export function Steps({ r }: { r: CommunityRequest }) {
   const order = r.kind === 'borrow' ? ['requested', 'accepted', 'handed_over', 'returned', 'completed'] : ['requested', 'accepted', 'handed_over', 'completed'];
   const at = order.indexOf(r.status);
   const names = STEP_NAMES[r.kind];
-  return <ol className="flex items-center gap-1.5" aria-label="Tiến trình">{names.map((name, i) => (
-    <li key={name} className={'flex items-center gap-1.5 ' + (i < names.length - 1 ? 'flex-1' : '')}>
-      <span className={'flex items-center gap-1 text-xs font-bold whitespace-nowrap ' + (i <= at ? 'text-emerald-700' : 'text-slate-500')}>
-        {i <= at
-          ? <span className="h-[18px] w-[18px] rounded-full bg-emerald-700 grid place-items-center text-white"><KIcon name="check" className="w-3 h-3" strokeWidth={3} /></span>
-          : <span className="h-4 w-4 rounded-full border-2 border-sun" />}
-        {name}
-      </span>
-      {i < names.length - 1 && <span className={'flex-1 h-0.5 min-w-2 ' + (i < at ? 'bg-emerald-700' : 'bg-line')} />}
+  // Mỗi bước một cột: dấu tròn ở trên, chữ ở dưới (tự xuống dòng) → không tràn trên điện thoại nhỏ / chữ to
+  return <ol className="grid w-full" style={{ gridTemplateColumns: `repeat(${names.length}, minmax(0, 1fr))` }} aria-label="Tiến trình">{names.map((name, i) => (
+    <li key={name} className="relative flex flex-col items-center gap-1 text-center min-w-0">
+      {i > 0 && <span className={'absolute top-[9px] right-1/2 w-full h-0.5 ' + (i <= at ? 'bg-emerald-700' : 'bg-line')} aria-hidden="true" />}
+      {i <= at
+        ? <span className="relative h-[18px] w-[18px] rounded-full bg-emerald-700 grid place-items-center text-white"><KIcon name="check" className="w-3 h-3" strokeWidth={3} /></span>
+        : <span className="relative h-[18px] w-[18px] rounded-full border-2 border-sun bg-white" />}
+      <span className={'text-xs font-bold leading-tight break-words px-0.5 ' + (i <= at ? 'text-emerald-700' : 'text-slate-500')}>{name}</span>
     </li>))}</ol>;
 }
 

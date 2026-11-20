@@ -9,7 +9,7 @@ import type { CommunityListing } from '../services/community';
 export type Scope = { xa?: string | null; tinh?: string | null; q?: string; nhieu?: boolean; xong?: boolean };
 export type Page = { items: CommunityListing[]; next: string | null };
 type Raw = { id: string; title: string; description?: string; location?: string; communityKind: string; communityIntent: string;
-  createdAt?: string | null; areaCode?: string | null; provinceCode?: string | null; lat?: number | null; lng?: number | null; thumb?: string | null };
+  createdAt?: string | null; doneAt?: string | null; areaCode?: string | null; provinceCode?: string | null; lat?: number | null; lng?: number | null; thumb?: string | null };
 
 const CACHE = 'ccut-feed2-';
 function toListing(r: Raw): CommunityListing {
@@ -17,7 +17,7 @@ function toListing(r: Raw): CommunityListing {
     id: r.id, title: r.title, description: r.description || '', location: r.location || '',
     communityKind: r.communityKind as any, communityIntent: r.communityIntent as any,
     createdAt: r.createdAt || '', lat: r.lat ?? null, lng: r.lng ?? null, areaCode: r.areaCode || null, provinceCode: r.provinceCode || null,
-    images: r.thumb ? [r.thumb] : [], price: 0, isCommunityFree: true, status: 'approved',
+    images: r.thumb ? [r.thumb] : [], price: 0, isCommunityFree: true, status: r.doneAt ? 'sold' : 'approved', doneAt: r.doneAt || null,
   } as any;
 }
 export function feedUrl(s: Scope, truoc?: string | null) {

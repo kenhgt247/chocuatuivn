@@ -70,17 +70,25 @@ function metaLine(item: CommunityListing, area: string) {
 }
 
 /* ---------------- Thẻ tin ---------------- */
+/** Nhãn cho tin đã xong, theo loại việc. */
+export const doneLabel = (kind?: string, intent?: string) => intent === 'need' ? 'Đã có người giúp' : kind === 'gift' ? 'Đã trao' : kind === 'borrow' ? 'Đã cho mượn' : 'Đã giúp xong';
 function Card({ item, area = '', eager = false, extra = '' }: { item: CommunityListing; area?: string; eager?: boolean; extra?: string; key?: React.Key }) {
   const kind = (item.communityKind || 'gift') as CommunityKind;
   const img = thumbOf(item);
-  return <Link to={tinPath(item)} className="flex flex-col bg-white rounded-2xl overflow-hidden border border-line hover:shadow-md transition-shadow">
+  const done = item.status === 'sold';
+  return <Link to={tinPath(item)} className={'flex flex-col bg-white rounded-2xl overflow-hidden border hover:shadow-md transition-shadow ' + (done ? 'border-emerald-200' : 'border-line')}>
+    <span className="relative block">
     {img
-      ? <img src={img} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" {...(eager ? { fetchpriority: 'high' } as any : {})} width={480} height={360} className="h-[108px] sm:h-40 w-full object-cover bg-[#ECE5D4]" />
-      : <div className={'h-[108px] sm:h-40 grid place-items-center text-emerald-700 ' + KIND_META[kind].tint}><KIcon name={kind} className="w-11 h-11" strokeWidth={1.6} /></div>}
+      ? <img src={img} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" {...(eager ? { fetchpriority: 'high' } as any : {})} width={480} height={360} className={'h-[108px] sm:h-40 w-full object-cover bg-[#ECE5D4]' + (done ? ' opacity-60 grayscale-[40%]' : '')} />
+      : <div className={'h-[108px] sm:h-40 grid place-items-center text-emerald-700 ' + KIND_META[kind].tint + (done ? ' opacity-60' : '')}><KIcon name={kind} className="w-11 h-11" strokeWidth={1.6} /></div>}
+    {done && <span className="absolute top-2 left-2 text-[11px] font-extrabold bg-emerald-700 text-white px-2 py-1 rounded-full shadow">✓ {doneLabel(kind, item.communityIntent)}</span>}
+    </span>
     <div className="p-3 flex flex-col gap-1.5">
       <span className="flex items-center gap-1.5"><IntentBadge kind={kind} intent={item.communityIntent} className="self-start" />{(item as any)._mau && <span className="text-[10px] font-extrabold bg-sun text-[#2E1F00] px-1.5 py-0.5 rounded">MẪU</span>}</span>
       <span className="text-[15px] font-bold leading-snug line-clamp-2">{item.title}</span>
-      <span className="text-xs text-slate-600 truncate">{extra && <b className="text-emerald-700">{extra} · </b>}{metaLine(item, area)}</span>
+      <span className="text-xs text-slate-600 truncate">{done
+        ? <>{(item.location || '').split(',')[0]}{item.doneAt ? ' · xong ' + formatTimeAgo(String(item.doneAt)) : ''}</>
+        : <>{extra && <b className="text-emerald-700">{extra} · </b>}{metaLine(item, area)}</>}</span>
     </div>
   </Link>;
 }
@@ -187,6 +195,7 @@ function Home({ user }: { user: User | null }) {
   const main = usePaged(mainScope);
 
   const honor = useHonor(sample ? sampleHonor() as any : null);
+  const doneList = usePaged(place && !q && !sample ? (place.provCode ? { tinh: place.provCode, xong: true } : { xong: true }) : null);
   const ok = (x: CommunityListing) => (kind === 'all' || x.communityKind === kind) && (intent === 'all' || x.communityIntent === intent);
   const dist = (x: CommunityListing) => place?.pt && x.lat != null && x.lng != null ? distanceKm(place.pt.lat, place.pt.lng, x.lat as number, x.lng as number) : null;
   const { inR, outR } = useMemo(() => {
@@ -262,7 +271,7 @@ function Home({ user }: { user: User | null }) {
     <button onClick={() => setInviting(true)} className="self-start min-h-10 px-4 rounded-xl bg-white font-bold text-sm">Gửi link mời</button>
   </section>;
 
-  return <PullToRefresh onRefresh={async () => { await Promise.all([main.reload(), other.reload()]); }}>
+  return <PullToRefresh onRefresh={async () => { await Promise.all([main.reload(), other.reload(), doneList.reload()]); }}>
     {sample && <div role="status" className="mb-4 flex items-center gap-2 rounded-2xl bg-sun text-[#2E1F00] px-4 py-2.5 text-sm font-bold shadow">
       <span className="flex-1">Đang xem DỮ LIỆU MẪU · chỉ máy bạn thấy</span>
       <button onClick={() => setSample(false)} className="min-h-9 px-3 rounded-xl bg-white/80 font-extrabold">Tắt</button>
@@ -321,6 +330,10 @@ function Home({ user }: { user: User | null }) {
               <button onClick={other.loadMore} disabled={other.more} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold disabled:opacity-60">{other.more ? 'Đang tải thêm…' : 'Xem thêm tin'}</button>
             </>}
           </>}
+        {!map && !q && doneList.items.filter(ok).length > 0 && <section className="flex flex-col gap-3 mt-3">
+          <div className="flex items-baseline justify-between gap-2"><h2 className="text-lg font-extrabold">✓ Vừa trao xong {place?.provName ? 'ở ' + place.provName : ''}</h2><span className="text-xs text-slate-600 shrink-0">7 ngày qua</span></div>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">{doneList.items.filter(ok).slice(0, 6).map(x => <Card item={x} area={area} key={'d' + x.id} />)}</div>
+        </section>}
         {!map && !nothing && !main.loading && <button onClick={() => setMap(true)} className="min-h-12 rounded-2xl border border-line bg-white text-[15px] font-bold text-emerald-700 flex items-center justify-center gap-2"><KIcon name="map" className="w-[18px] h-[18px]" />Xem trên bản đồ</button>}
         {ward && !q && <Link to={wardPath(ward)} className="self-center text-sm font-semibold text-emerald-700 underline min-h-10 flex items-center">Góc chia sẻ {ward.name} ›</Link>}
       </section>
@@ -701,6 +714,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
   useEffect(() => { if (!myPt && area) wardFromLabel(area).then(w => w && setMyPt({ lat: w.lat, lng: w.lng })).catch(() => {}); }, [area]);
   const [similar, setSimilar] = useState<CommunityListing[]>([]);
   const [guessPt, setGuessPt] = useState<{ lat: number; lng: number } | null>(null);
+  const [doneThanks, setDoneThanks] = useState<ThankNote | null>(null);
   useEffect(() => {
     if (!item) return;
     const prev = document.title;
@@ -716,6 +730,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
       if (x) {
         db.getPublicProfile(x.sellerId).then(p => alive && setOwner(p)); community.doneCount(x.sellerId).then(n => alive && setDone(n));
         community.thanksFor(x.sellerId, 10).then(t => alive && setThanks(t));
+        if (x.status === 'sold') community.thanksForListing(x.id).then(t => alive && setDoneThanks(t));
         // Tin khác: ưu tiên cùng tỉnh/thành; ít quá thì thêm tin mới cả nước
         (async () => {
           const near = x.provinceCode ? (await loadPage({ tinh: x.provinceCode }).catch(() => ({ items: [] as CommunityListing[] }))).items : [];
@@ -790,7 +805,23 @@ function Detail({ user, id }: { user: User | null; id: string }) {
     </span>
     <BadgeRow p={owner} />
   </Link>;
-  const actionBox = <div className="fixed md:static left-0 right-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-5 md:p-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:shadow-none flex flex-col gap-1.5">
+  const isDone = item.status === 'sold';
+  const doneAtText = item.doneAt ? new Date(String(item.doneAt)).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+  const wardName = (item.location || '').split(',')[0];
+  const doneBox = isDone ? <section className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 flex flex-col gap-2">
+    <div className="flex items-center gap-2.5">
+      <span className="h-9 w-9 rounded-full bg-emerald-700 text-white grid place-items-center font-extrabold shrink-0" aria-hidden="true">✓</span>
+      <div className="flex flex-col"><span className="font-extrabold text-emerald-900">{need ? 'Đã được giúp' : kind === 'gift' ? 'Đã trao xong' : kind === 'borrow' ? 'Đã cho mượn xong' : 'Đã giúp xong'}</span>
+        {doneAtText && <span className="text-[13px] text-emerald-900/80">lúc {doneAtText}</span>}</div>
+    </div>
+    <p className="text-sm text-[#3B4A40]">{need
+      ? <><b>{ownerName}</b> đã được {doneThanks ? <b>hàng xóm</b> : 'một hàng xóm'} giúp{wardName ? ' ở ' + wardName : ''}.</>
+      : <><b>{ownerName}</b> đã {kind === 'gift' ? 'cho' : kind === 'borrow' ? 'cho mượn' : 'giúp'} {doneThanks ? <b>{doneThanks.receiverName}</b> : 'một hàng xóm'}{wardName ? ' ở ' + wardName : ''}.</>}</p>
+    {doneThanks && <blockquote className="rounded-xl bg-white px-3.5 py-2.5 text-[15px]">💚 “{doneThanks.message}” <span className="text-sm text-slate-600">— {doneThanks.receiverName}</span></blockquote>}
+  </section> : null;
+  const actionBox = isDone && !mine ? <div className="fixed md:static left-0 right-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-5 md:p-0 flex flex-col gap-1.5">
+    <button onClick={() => document.getElementById('tin-khac')?.scrollIntoView({ behavior: 'smooth' })} className="min-h-14 rounded-2xl border-2 border-emerald-700 bg-white text-emerald-800 text-lg font-extrabold">Xem món tương tự gần bạn</button>
+  </div> : <div className="fixed md:static left-0 right-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 bg-white md:bg-transparent border-t md:border-0 border-line px-4 md:px-0 pt-3 pb-5 md:p-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:shadow-none flex flex-col gap-1.5">
     {mine
       ? <div className="flex gap-2">
           <Link to={'/cong-dong/sua/' + item.id} className="min-h-14 px-5 rounded-2xl border border-line bg-white text-base font-extrabold flex items-center justify-center gap-2"><KIcon name="repair" className="w-5 h-5 text-emerald-700" />Sửa tin</Link>
@@ -830,10 +861,11 @@ function Detail({ user, id }: { user: User | null; id: string }) {
       <div className="flex gap-2 flex-wrap">
         <IntentBadge kind={kind} intent={item.communityIntent} className="!text-xs !px-2.5 !py-1" />
         <span className="text-xs font-bold text-emerald-700 bg-white border border-emerald-700 px-2.5 py-0.5 rounded-full">Miễn phí</span>
-        {(mine || isAdmin) && item.status !== 'approved' && <span className="text-xs font-bold text-sun-dark bg-sun-light px-2.5 py-0.5 rounded-full">{item.status === 'pending' ? 'Đang chờ kiểm tra' : item.status === 'rejected' ? 'Chưa được đăng' : 'Đã ẩn'}</span>}
+        {(mine || isAdmin) && item.status !== 'approved' && item.status !== 'sold' && <span className="text-xs font-bold text-sun-dark bg-sun-light px-2.5 py-0.5 rounded-full">{item.status === 'pending' ? 'Đang chờ kiểm tra' : item.status === 'rejected' ? 'Chưa được đăng' : 'Đã ẩn'}</span>}
       </div>
       <h1 className="text-2xl md:text-3xl font-extrabold leading-tight">{item.title}</h1>
       {item.createdAt && <span className="-mt-2 text-[13px] text-slate-500">Đăng {formatTimeAgo(String(item.createdAt))}</span>}
+      {doneBox}
       {item.description && <p className="text-[15px] leading-relaxed text-[#3B4A40] whitespace-pre-wrap">{item.description}</p>}
       <div className="grid sm:grid-cols-2 gap-3 p-3.5 sm:p-0 bg-white sm:bg-transparent border sm:border-0 border-line rounded-2xl">
         {infoRow('pin', 'Khu vực', (item.location || 'Chưa có khu vực').split(',')[0], kmAway ? 'cách bạn ' + kmAway : sameArea(item.location, area) ? 'cùng khu vực với bạn' : '')}
@@ -852,7 +884,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
       {error && <ErrorMessage message={error} />}
     </div>
   </div>
-    {similar.length > 0 && <section className="flex flex-col gap-3 mt-6 lg:mt-10">
+    {similar.length > 0 && <section id="tin-khac" className="flex flex-col gap-3 mt-6 lg:mt-10 scroll-mt-24">
       <h2 className="text-lg md:text-xl font-extrabold">Tin khác mới đăng</h2>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{similar.slice(0, 4).map(x => <Card item={x} area={area} key={x.id} />)}</div>
     </section>}

@@ -38,7 +38,7 @@ let VER = { v: 0, at: 0 };
 async function feedVersion() {
   if (Date.now() - VER.at < 10000) return VER.v;
   try {
-    const r = await fetch('https://firestore.googleapis.com/v1/projects/chocuatui-3e65c/databases/(default)/documents/system/feed?key=' + FB_KEY);
+    const r = await fetch('https://firestore.googleapis.com/v1/projects/chocuatui-3e65c/databases/(default)/documents/system/feed?key=' + API_KEY);
     const j = r.ok ? await r.json() : null;
     const v = Number(j && j.fields && j.fields.v && (j.fields.v.integerValue || j.fields.v.doubleValue)) || 0;
     VER = { v, at: Date.now() };

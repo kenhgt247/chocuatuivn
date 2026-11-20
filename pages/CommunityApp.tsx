@@ -208,23 +208,32 @@ function Home({ user }: { user: User | null }) {
   const grid = (rows: { x: CommunityListing; d: number | null }[], eager = false) =>
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{rows.map((r, i) => <Card item={r.x} area={area} eager={eager && i < 4} extra={kmText(r.d)} key={r.x.id} />)}</div>;
   const divider = (text: string) => <div className="flex items-center gap-3 text-[13px] font-bold text-slate-600 mt-1"><span className="flex-1 h-px bg-line" />{text}<span className="flex-1 h-px bg-line" /></div>;
-  const seg = (v: IntentF, label: string) => <button key={v} onClick={() => setIntent(v)} aria-pressed={intent === v}
-    className={'min-h-9 rounded-[10px] text-[13px] ' + (intent === v ? 'bg-white font-extrabold text-ink shadow-sm' : 'font-bold text-slate-600')}>{label}</button>;
   const honor = !q ? <React.Suspense fallback={null}><HonorStrip /></React.Suspense> : null;
   const nothing = !main.loading && !inR.length && !(farOpen && outR.length) && !otherShown.length && !main.next && !other.loading;
 
   return <PullToRefresh onRefresh={async () => { await Promise.all([main.reload(), other.reload()]); }}><div className="flex flex-col gap-4">
+    <h1 className="text-2xl md:text-4xl font-extrabold leading-tight">Có gì chia sẻ,<br />cần gì có nhau.</h1>
+    <div className="grid grid-cols-2 gap-3">
+      <Link to="/cong-dong/dang-tin?y=co" className="flex flex-col gap-1 p-4 md:p-6 rounded-[20px] bg-emerald-700 hover:bg-emerald-800 text-white">
+        <span className="text-[22px] md:text-3xl font-extrabold">Tôi có</span>
+        <span className="text-[13px] md:text-base leading-snug text-emerald-100">Cho, cho mượn, giúp một tay</span>
+      </Link>
+      <Link to="/cong-dong/dang-tin?y=can" className="flex flex-col gap-1 p-4 md:p-6 rounded-[20px] bg-sun hover:brightness-95 text-[#2E1F00]">
+        <span className="text-[22px] md:text-3xl font-extrabold">Tôi cần</span>
+        <span className="text-[13px] md:text-base leading-snug text-[#4A3200]">Xin, mượn, nhờ giúp đỡ</span>
+      </Link>
+    </div>
+    <div className="grid grid-cols-4 gap-2" role="group" aria-label="Lọc theo hoạt động">
+      {KINDS.map(k => <button key={k} onClick={() => setKind(kind === k ? 'all' : k)} aria-pressed={kind === k}
+        className={'flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-[14px] border text-xs font-bold ' + (kind === k ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white text-ink')}>
+        <KIcon name={k} className="w-6 h-6 text-emerald-700" />{kindLabels[k]}
+      </button>)}
+    </div>
     <label className="relative block">
       <span className="sr-only">Tìm kiếm</span>
       <KIcon name="search" className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
       <input className={inputCls + ' pl-11 !rounded-2xl'} type="search" placeholder="Tìm món đồ hoặc việc cần giúp…" value={search} onChange={e => setSearch(e.target.value)} />
     </label>
-    <div className="grid grid-cols-3 p-1 bg-[#F1ECDF] rounded-xl" role="group" aria-label="Loại tin">{seg('all', 'Tất cả')}{seg('have', 'Đồ cho tặng')}{seg('need', 'Người đang cần')}</div>
-    <div className="flex gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-0.5" role="group" aria-label="Lọc theo hoạt động">
-      {KINDS.map(k => <button key={k} onClick={() => setKind(kind === k ? 'all' : k)} aria-pressed={kind === k}
-        className={'shrink-0 h-9 px-3 rounded-full border flex items-center gap-1.5 text-[13px] font-semibold ' + (kind === k ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white text-ink')}>
-        <KIcon name={k} className="w-[18px] h-[18px] text-emerald-700" />{kindLabels[k]}</button>)}
-    </div>
 
     {!q && mine.length > 0 && <section className="bg-white border border-line rounded-2xl px-3 py-2.5 flex flex-col gap-1">
       <div className="flex items-center justify-between"><span className="text-[13px] font-extrabold">Tin của bạn</span><Link to="/profile" className="text-xs font-semibold text-emerald-700 min-h-8 flex items-center">Quản lý ›</Link></div>
@@ -243,6 +252,7 @@ function Home({ user }: { user: User | null }) {
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-xl font-extrabold truncate">{title}</h2>
         <div className="flex items-center gap-2 shrink-0">
+          {!map && <button onClick={() => setIntent(intent === 'all' ? 'have' : intent === 'have' ? 'need' : 'all')} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold">{intent === 'all' ? 'Tất cả' : intent === 'have' ? 'Đồ cho' : 'Đang cần'}</button>}
           {place?.pt && !map && <button onClick={() => setSort(sort === 'gan' ? 'moi' : 'gan')} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold flex items-center gap-1.5">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></svg>
             {sort === 'gan' ? 'Gần nhất' : 'Mới nhất'}</button>}

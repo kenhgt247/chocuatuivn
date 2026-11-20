@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { cachedPage, loadPage, rememberScope, type Scope } from '../utils/feed';
+import { cachedPage, loadPage, rememberScope, clearFeedCache, type Scope } from '../utils/feed';
 import { isSampleOn, setSample, sampleListings, sampleHonor } from '../utils/sample';
 import ShareModal from '../components/ShareModal';
 import PhotoViewer from '../components/PhotoViewer';
@@ -737,7 +737,7 @@ function Detail({ user, id }: { user: User | null; id: string }) {
   const mine = !!item && user?.id === item.sellerId;
   const isAdmin = user?.role === 'admin';
   // Tin đã ẩn / bị từ chối / chờ duyệt: chỉ chủ tin và quản trị xem được.
-  if (!item || (!mine && !isAdmin && !['approved', 'sold'].includes(String(item.status)))) return <div className="bg-white p-8 rounded-2xl border border-line">Tin không tồn tại hoặc đã đóng. <Link className="underline" to="/">Về trang chủ</Link></div>;
+  if (!item || (!mine && !isAdmin && !['approved', 'sold'].includes(String(item.status)))) { clearFeedCache(); return <div className="bg-white p-8 rounded-2xl border border-line">Tin không tồn tại hoặc đã đóng. <Link className="underline" to="/">Về trang chủ</Link></div>; }
   const kind = (item.communityKind || 'gift') as CommunityKind;
   const need = item.communityIntent === 'need';
   const ownerName = owner?.name || item.sellerName || 'Thành viên';

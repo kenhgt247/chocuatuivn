@@ -51,7 +51,7 @@ async function cached(request, ctx, make, versioned = false) {
   const cache = caches.default;
   const v = versioned ? await feedVersion() : 0;
   let key = request;
-  if (v) { const u = new URL(request.url); u.searchParams.set('__v', String(v)); key = new Request(u.toString()); }
+  if (versioned) { const u = new URL(request.url); u.searchParams.set('__v', String(v)); u.searchParams.set('__k', '2'); key = new Request(u.toString()); }
   const hit = await cache.match(key);
   if (hit) return hit;
   let resp = await make();
@@ -59,9 +59,16 @@ async function cached(request, ctx, make, versioned = false) {
   if (versioned && resp.status === 200 && /s-maxage=\d+/.test(cc)) {
     // Trình duyệt không giữ bản cũ; máy chủ giữ lâu hơn khi đã có số phiên (đổi tin là đổi khoá)
     resp = new Response(resp.body, resp);
-    resp.headers.set('cache-control', v ? 'public, max-age=0, s-maxage=900' : cc.replace(/max-age=\d+/, 'max-age=0'));
+    resp.headers.set('cache-control', v ? 'public, max-age=0, s-maxage=900' : 'public, max-age=0, s-maxage=45');
   }
-  if (resp.status === 200 && /s-maxage=\d+/.test(resp.headers.get('cache-control') || '')) ctx.waitUntil(cache.put(key, resp.clone()));
+  const cc2 = resp.headers.get('cache-control') || '';
+  if (resp.status === 200 && /s-maxage=\d+/.test(cc2)) {
+    // Bộ nhớ đệm của Worker không có "nguồn" để làm mới ngầm: bỏ stale-while-revalidate,
+    // nếu không bản cũ (vd. tin đã xoá) có thể còn bị trả về thêm nhiều phút.
+    const toStore = new Response(resp.clone().body, resp);
+    toStore.headers.set('cache-control', cc2.replace(/,?\s*stale-while-revalidate=\d+/g, '').replace(/,?\s*stale-if-error=\d+/g, ''));
+    ctx.waitUntil(cache.put(key, toStore));
+  }
   return resp;
 }
 

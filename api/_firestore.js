@@ -117,8 +117,8 @@ export async function countCommunity(eq) {
 }
 
 /** Đếm số tài liệu trong một bảng công khai (vd: publicProfiles). */
-export async function countCollection(collectionId) {
-  const body = { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId }] }, aggregations: [{ alias: 'n', count: {} }] } };
+export async function countCollection(collectionId, where = null) {
+  const body = { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId }], ...(where ? { where } : {}) }, aggregations: [{ alias: 'n', count: {} }] } };
   const r = await fetch(`${BASE}:runAggregationQuery?key=${API_KEY}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error('firestore ' + r.status);
   const out = await r.json();

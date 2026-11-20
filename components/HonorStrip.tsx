@@ -13,7 +13,7 @@ type Thank = { id: string; giverId: string; giverName: string; receiverName: str
   listingId: string | null; listingTitle: string; photo: string | null; createdAt: string | null };
 type Top = { id: string; n: number; name: string; avatar: string | null; location: string; sharedCount: number; sharedByKind: any };
 export type HonorData = { ok: boolean; month: number; mode: 'thang' | 'tatca'; thanks: Thank[]; top: Top[]; mau?: boolean;
-  stats?: { dang: number; xong: number; thanhVien: number; camOn: number } };
+  stats?: { dang: number; xong: number; thanhVien: number; moiTuan?: number; camOn: number } };
 const KEY = 'ccut-vinhdanh';
 const MEDAL = ['🥇', '🥈', '🥉'];
 const Mau = () => <span className="ml-1.5 align-middle text-[10px] font-extrabold bg-sun text-[#2E1F00] px-1.5 py-0.5 rounded">MẪU</span>;
@@ -128,16 +128,21 @@ export function ThanksBox({ d, max = 4 }: { d: HonorData | null; max?: number })
   </section>;
 }
 
-/** Cộng đồng Chợ Của Tui: chỉ hiện số thật, số nào bằng 0 thì ẩn. */
-export function StatsBox({ d }: { d: HonorData | null }) {
+/** Cộng đồng Chợ Của Tui: chỉ hiện số thật, số nào bằng 0 thì ẩn; "thành viên mới trong tuần" chỉ hiện khi từ 5 người. */
+export const NEW_MEMBER_MIN = 5;
+export function StatsBox({ d, compact = false }: { d: HonorData | null; compact?: boolean }) {
   const s = d?.stats;
   const rows = s ? ([[s.thanhVien, 'thành viên', 'text-emerald-700'], [s.dang, 'tin đang chia sẻ', 'text-emerald-700'], [s.xong, 'lần đã trao', 'text-orange-700']] as [number, string, string][]).filter(r => r[0] > 0) : [];
   if (!rows.length) return null;
-  return <section className="bg-white border border-line rounded-2xl px-4 py-3.5 flex flex-col gap-3">
-    <h2 className="font-extrabold text-[17px]">Cộng đồng Chợ Của Tui{d?.mau && <Mau />}</h2>
+  const moi = s?.moiTuan || 0;
+  return <section className={'bg-white border border-line rounded-2xl flex flex-col ' + (compact ? 'p-3 gap-2' : 'px-4 py-3.5 gap-3')} aria-label="Cộng đồng Chợ Của Tui">
+    <h2 className={'font-extrabold flex items-center gap-2 ' + (compact ? 'text-[15px]' : 'text-[17px]')}>
+      <svg className="w-5 h-5 text-emerald-700 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4" /><path d="M2 21a7 7 0 0 1 14 0M17 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3" /></svg>
+      Cộng đồng Chợ Của Tui{d?.mau && <Mau />}</h2>
     <div className="grid text-center" style={{ gridTemplateColumns: `repeat(${rows.length}, minmax(0, 1fr))` }}>
       {rows.map(([n, l, c], i) => <div key={l} className={'flex flex-col gap-0.5 px-1 ' + (i ? 'border-l border-[#F1ECDF]' : '')}>
         <b className={'text-xl ' + c}>{n.toLocaleString('vi-VN')}</b><span className="text-xs text-slate-600 leading-tight">{l}</span></div>)}
     </div>
+    {moi >= NEW_MEMBER_MIN && <p className="text-[13px] text-emerald-800 bg-emerald-50 rounded-xl px-3 py-2 text-center">🎉 <b>{moi.toLocaleString('vi-VN')}</b> thành viên mới trong tuần</p>}
   </section>;
 }

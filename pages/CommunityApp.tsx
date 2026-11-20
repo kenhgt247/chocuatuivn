@@ -387,7 +387,7 @@ function Home({ user }: { user: User | null }) {
       </section>
       {/* Cuối trang: vinh danh người cho đi; điện thoại thêm lời cảm ơn và băng rôn */}
       {!q && <HonorCircles d={honor} />}
-      {!q && <div className="lg:hidden flex flex-col gap-4"><ThanksBox d={honor} /><CommunityBanner /></div>}
+      {!q && <div className="lg:hidden flex flex-col gap-4"><ThanksBox d={honor} /><StatsBox d={honor} compact /><CommunityBanner /></div>}
     </div>
     {/* Cột phải (máy tính) */}
     <aside className="hidden lg:flex flex-col gap-4">

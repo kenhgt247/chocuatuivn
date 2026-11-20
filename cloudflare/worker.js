@@ -7,6 +7,7 @@
  * Phản hồi có s-maxage được lưu đệm ở Cloudflare để đỡ đọc Firestore.
  */
 import ROUTES from './routes.js';
+import { wardPage } from './xa.js';
 
 const BOT = /(facebookexternalhit|Facebot|facebot|Zalo|zalo|Twitterbot|TelegramBot|Slackbot|Discordbot|WhatsApp|LinkedInBot|SkypeUriPreview|Googlebot|bingbot|coccocbot|Applebot)/;
 
@@ -50,6 +51,10 @@ export default {
       if (path.startsWith('/cong-dong/tin/') && BOT.test(request.headers.get('user-agent') || '')) {
         const p = decodeURIComponent(path.slice('/cong-dong/tin/'.length).split('/')[0]);
         return cached(request, ctx, () => run(ROUTES.og, request, { p }));
+      }
+      if (path.startsWith('/xa/')) {
+        const r = await wardPage(request, env, ctx).catch(() => null);
+        if (r) return r;
       }
       if (path.startsWith('/api/')) {
         const name = path.slice(5).replace(/\/+$/, '');

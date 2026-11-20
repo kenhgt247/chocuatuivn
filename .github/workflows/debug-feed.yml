@@ -1,0 +1,15 @@
+name: debug-feed
+on:
+  push:
+    branches: [debug-feed]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for u in "https://chocuatui.vn/api/feed" "https://chocuatui.vn/api/feed?tinh=31&nhieu=1" "https://chocuatui.vn/api/feed?tinh=31&xong=1"; do
+            echo "=== $u"; curl -s -D h.txt "$u" -o b.json; grep -i -E "^HTTP|cache-control|age:" h.txt; python3 -c "
+          import json;d=json.load(open('b.json'));print('ok',d.get('ok'),'n',len(d.get('items',[])),'next',d.get('next'))
+          for i in d.get('items',[])[:15]: print(' ',i['id'],i.get('createdAt'),i.get('areaCode'),i.get('provinceCode'),i.get('lat'),i.get('lng'),i['communityKind'],i['communityIntent'],i['title'][:30])"
+          done
+          curl -s "https://chocuatui.vn/" | grep -o '__feed[^;]*;' | head -3

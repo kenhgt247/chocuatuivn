@@ -10,7 +10,7 @@ import AppNudge from './AppNudge';
 import ChatDock from './ChatDock';
 import { setBigText } from '../utils/textSize';
 import { db } from '../services/db';
-import { getArea, setArea, onAreaChange } from '../utils/area';
+import { getArea, setArea, onAreaChange, getRadius, setRadius, RADII, radiusText, shortArea } from '../utils/area';
 import { AreaInput } from './AreaInput';
 import type { ChatRoom, User } from '../types';
 
@@ -54,33 +54,54 @@ const Badge = ({ n }: { n: number }) => n > 0
   ? <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-orange-700 text-white text-[11px] font-bold grid place-items-center border-2 border-white">{n > 9 ? '9+' : n}</span>
   : null;
 
-/** Ô chọn khu vực (xã/phường) trên header. */
+/** Dòng "📍 Tân Hưng · 5 km" trên header; bấm mở bảng chọn khu vực + bán kính. */
 function AreaPicker({ user }: { user: User | null }) {
   const [area, setAreaState] = useState(() => getArea(user?.location || ''));
+  const [radius, setRadiusState] = useState(getRadius);
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(area);
-  useEffect(() => onAreaChange(() => setAreaState(getArea(user?.location || ''))), [user?.location]);
+  useEffect(() => onAreaChange(() => { setAreaState(getArea(user?.location || '')); setRadiusState(getRadius()); }), [user?.location]);
   useEffect(() => { if (!getArea('') && user?.location) setAreaState(user.location); }, [user?.location]);
-  const save = (v: string) => { setArea(v); setAreaState(v); setOpen(false); };
+  useEffect(() => { const o = () => setOpen(true); window.addEventListener('ccut-open-area', o); return () => window.removeEventListener('ccut-open-area', o); }, []);
+  useEffect(() => {
+    if (!open) return;
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
+  }, [open]);
+  const pickR = (r: number) => { setRadius(r); setRadiusState(r); };
   return (
-    <div className="relative">
-      <button onClick={() => { setDraft(area); setOpen(o => !o); }} className="flex items-center gap-1 text-[13px] font-semibold text-emerald-700 min-h-6" aria-expanded={open}>
-        <Svg name="pin" className="w-4 h-4" />
-        <span className="max-w-[160px] truncate">{area ? area.split(',')[0] : 'Chọn khu vực'}</span>
-        <Svg name="down" className="w-4 h-4" />
+    <>
+      <button onClick={() => setOpen(true)} className="flex items-center gap-1 text-[14px] font-bold text-emerald-700 min-h-7 max-w-full" aria-haspopup="dialog">
+        <Svg name="pin" className="w-4 h-4 shrink-0" />
+        <span className="truncate max-w-[52vw] md:max-w-[260px]">{area ? shortArea(area) + ' · ' + radiusText(radius) : 'Chọn khu vực'}</span>
+        <Svg name="down" className="w-4 h-4 shrink-0" />
       </button>
-      {open && (
-        <div className="absolute left-0 top-8 z-50 w-80 bg-white border border-line rounded-2xl shadow-xl p-4 space-y-3">
-          <label htmlFor="area-input" className="block text-sm font-bold">Bạn ở xã/phường nào?</label>
-          <AreaInput id="area-input" autoFocus value={draft} onPick={w => { setArea(w.label, { lat: w.lat, lng: w.lng }); setAreaState(w.label); setOpen(false); }} />
-          <p className="text-xs text-slate-500">Tin cùng xã/phường hiện lên trước. Danh sách theo đơn vị hành chính mới (từ 01/07/2025).</p>
-          <div className="flex gap-2">
-            <button type="button" onClick={() => save('')} className="flex-1 min-h-11 rounded-xl border border-line text-sm font-semibold">Xem tất cả khu vực</button>
-            <button type="button" onClick={() => setOpen(false)} className="min-h-11 px-4 rounded-xl text-sm font-semibold">Đóng</button>
+      {open && <div className="fixed inset-0 z-[60] bg-ink/45 flex items-end md:items-center justify-center" onClick={() => setOpen(false)}>
+        <div role="dialog" aria-modal="true" aria-label="Chọn khu vực xem tin" onClick={e => e.stopPropagation()}
+          className="w-full md:max-w-md bg-white rounded-t-3xl md:rounded-3xl px-4 pt-2.5 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col gap-4 max-h-[92vh] overflow-y-auto">
+          <span className="self-center w-10 h-1.5 rounded-full bg-line md:hidden" aria-hidden="true" />
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-extrabold">Xem tin quanh đâu?</h2>
+            <button onClick={() => setOpen(false)} aria-label="Đóng" className="h-10 w-10 rounded-full grid place-items-center text-slate-600 text-xl">×</button>
           </div>
+          <div className="relative h-36 rounded-2xl bg-[#E3ECE4] overflow-hidden" aria-hidden="true">
+            <svg viewBox="0 0 358 144" className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice"><path d="M0 40 C80 25 140 60 220 45 S320 20 358 32" stroke="#fff" strokeWidth="9" fill="none" /><path d="M60 0 C70 55 50 100 90 144" stroke="#fff" strokeWidth="7" fill="none" /><path d="M250 0 C240 60 280 105 260 144" stroke="#fff" strokeWidth="5" fill="none" />
+              <circle cx="179" cy="72" r={({ 2: 24, 5: 40, 10: 54, 20: 66 } as Record<number, number>)[radius] || 0} fill="#1F6F43" fillOpacity="0.12" stroke="#1F6F43" strokeWidth="2" strokeDasharray="6 5" /><circle cx="179" cy="72" r="8" fill="#1F6F43" stroke="#fff" strokeWidth="3" /></svg>
+            <span className="absolute left-3 bottom-3 bg-white rounded-full px-2.5 py-1 text-xs font-bold">{radius ? 'Vòng tròn = ' + radius + ' km' : 'Cả nước'}</span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="area-input" className="text-sm font-bold">Xã/phường của bạn</label>
+            <AreaInput id="area-input" value={area} onPick={w => { setArea(w.label, { lat: w.lat, lng: w.lng }); setAreaState(w.label); }} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-bold">Bán kính</span>
+            <div className="grid grid-cols-5 gap-1.5">{RADII.map(r => <button key={r} onClick={() => pickR(r)} aria-pressed={radius === r}
+              className={'min-h-11 rounded-xl text-sm font-bold border ' + (radius === r ? 'border-2 border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-line bg-white')}>{radiusText(r)}</button>)}</div>
+            <span className="text-xs text-slate-600">Ít tin trong vòng này thì tự hiện thêm tin xa hơn một chút.</span>
+          </div>
+          <button onClick={() => setOpen(false)} className="min-h-[52px] rounded-2xl bg-emerald-700 text-white text-base font-extrabold">{radius ? 'Xem tin trong ' + radius + ' km' : 'Xem tin cả nước'}</button>
         </div>
-      )}
-    </div>
+      </div>}
+    </>
   );
 }
 

@@ -189,6 +189,14 @@ export const community = {
       .filter(x => checkKind(x.communityKind) && x.isCommunityFree === true)
       .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   },
+  /** Tin gần đây của chính mình (mọi trạng thái) cho khung "Tin của bạn" ở trang chủ. */
+  async mineRecent(uid: string, days = 14): Promise<CommunityListing[]> {
+    const snap = await getDocs(query(collection(firestore, 'listings'), where('sellerId', '==', uid), where('isCommunityFree', '==', true), limit(40)));
+    const since = new Date(Date.now() - days * 864e5).toISOString();
+    return snap.docs.map(x => ({ ...x.data(), id: x.id } as CommunityListing))
+      .filter(x => ['pending', 'approved', 'rejected'].includes(String(x.status)) && String(x.createdAt || '') >= since)
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  },
   /** Đánh dấu đã xong hoặc ẩn tin của mình (rules chỉ cho 2 trạng thái này). */
   async setMyStatus(id: string, status: 'sold' | 'hidden'): Promise<void> {
     await db.updateListingStatus(id, status);
@@ -242,19 +250,20 @@ export const community = {
     // Mã tỉnh/thành để trang chủ lọc tin theo khu vực
     // (chưa chọn xã/phường trong danh sách thì đoán từ chữ đã gõ, ít nhất ra tỉnh/thành)
     let provinceCode: string | null = null;
+    let guessPt: { lat: number; lng: number } | null = safeLat == null ? null : { lat: safeLat, lng: safeLng as number };
     let areaCode: string | null = input.wardPoint?.code || null;
     try {
       const { loadDvhc, wardFromLabel, provinceFromLabel } = await import('../utils/dvhc');
       if (areaCode) provinceCode = (await loadDvhc()).wards.find(w => w.code === areaCode)?.provinceCode || null;
       if (!provinceCode) {
         const w = await wardFromLabel(location);
-        if (w) { areaCode = areaCode || w.code; provinceCode = w.provinceCode; }
+        if (w) { areaCode = areaCode || w.code; provinceCode = w.provinceCode; if (guessPt === null) guessPt = { lat: Math.round(w.lat * 1e4) / 1e4, lng: Math.round(w.lng * 1e4) / 1e4 }; }
         else provinceCode = (await provinceFromLabel(location))?.code || null;
       }
     } catch (_) { /* bỏ qua */ }
     // Dữ liệu được lưu ngay trong listings cũ, không làm thay đổi các tin cũ.
     return db.saveListing({
-      title, description, location, address: '', lat: safeLat, lng: safeLng,
+      title, description, location, address: '', lat: guessPt?.lat ?? null, lng: guessPt?.lng ?? null,
       price: 0, tier: 'free', isCommunityFree: true,
       communityKind: input.kind, communityIntent: input.intent,
       category: 'cong-dong', parentCategory: null,

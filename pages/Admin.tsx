@@ -174,7 +174,7 @@ const Admin: React.FC<{ user: User }> = ({ user }) => {
               await updateDoc(d.ref, { provinceCode: p.code });
               done++; setAreaText('Đang xử lý… ' + done); continue;
             }
-            await updateDoc(d.ref, { provinceCode: w.provinceCode, areaCode: x.areaCode || w.code });
+            await updateDoc(d.ref, { provinceCode: w.provinceCode, areaCode: x.areaCode || w.code, ...(x.lat == null ? { lat: Math.round(w.lat * 1e4) / 1e4, lng: Math.round(w.lng * 1e4) / 1e4 } : {}) });
             done++; setAreaText('Đang xử lý… ' + done);
           }
           setAreaText('✅ Đã gắn khu vực cho ' + done + ' tin' + (skip ? ', ' + skip + ' tin không rõ xã/phường' : '') + '.');

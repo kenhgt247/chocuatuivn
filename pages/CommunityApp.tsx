@@ -17,9 +17,9 @@ import {
   type CommunityKind, type CommunityIntent, type CommunityListing, type CommunityRequest, type ThankNote
 } from '../services/community';
 import { KIcon, KIND_META, kindText, IntentBadge, Steps, RequestActions, SafetyBox, VoiceButton } from '../components/CommunityUI';
-import { getArea, getAreaPoint, onAreaChange, sameArea, setArea } from '../utils/area';
+import { getArea, getAreaPoint, onAreaChange, sameArea, setArea, getRadius, shortArea } from '../utils/area';
 import { AreaInput } from '../components/AreaInput';
-import { wardFromLabel, distanceKm, type Ward } from '../utils/dvhc';
+import { wardFromLabel, provinceFromLabel, distanceKm, type Ward } from '../utils/dvhc';
 import { formatTimeAgo, tinPath, thumbOf, slugify } from '../utils/format';
 import type { User, PublicProfile } from '../types';
 const CommunityMap = React.lazy(() => import('../components/CommunityMap'));
@@ -74,14 +74,13 @@ function Card({ item, area = '', eager = false, extra = '' }: { item: CommunityL
     <div className="p-3 flex flex-col gap-1.5">
       <IntentBadge kind={kind} intent={item.communityIntent} className="self-start" />
       <span className="text-[15px] font-bold leading-snug line-clamp-2">{item.title}</span>
-      <span className="text-xs text-slate-600 truncate">{[extra, metaLine(item, area)].filter(Boolean).join(' · ')}</span>
+      <span className="text-xs text-slate-600 truncate">{extra && <b className="text-emerald-700">{extra} · </b>}{metaLine(item, area)}</span>
     </div>
   </Link>;
 }
 export { Card };
 
 /* ---------------- Khám phá ---------------- */
-type Mode = 'gan' | 'xa' | 'vn';
 const shortProvince = (n?: string) => (n || '').replace(/^(Thành phố|Tỉnh)\s+/, '');
 
 /** Danh sách có phân trang: hiện bản lưu trên máy ngay, tải bản mới, kéo xuống tự tải thêm. */
@@ -138,132 +137,160 @@ function Sentinel({ onHit, active }: { onHit: () => void; active: boolean }) {
 
 const SkGrid = () => <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[0, 1, 2, 3].map(i => <div key={i} className="h-56 rounded-2xl bg-[#ECE5D4] animate-pulse" />)}</div>;
 
+type Sort = 'gan' | 'moi';
+type IntentF = 'all' | 'have' | 'need';
+type Place = { ward: Ward | null; provCode: string | null; provName: string; pt: { lat: number; lng: number } | null };
+const byNew = (a: CommunityListing, b: CommunityListing) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+const kmText = (d: number | null) => d == null ? '' : d < 1 ? 'Dưới 1 km' : (d < 10 ? d.toFixed(1).replace('.', ',') : '~' + Math.round(d)) + ' km';
+const openAreaSheet = () => window.dispatchEvent(new Event('ccut-open-area'));
+
 function Home({ user }: { user: User | null }) {
   const area = useArea(user);
-  const [ward, setWard] = useState<Ward | null>(null);
-  const [mode, setMode] = useState<Mode>('gan');
+  const [radius, setRadiusState] = useState(getRadius);
+  useEffect(() => onAreaChange(() => setRadiusState(getRadius())), []);
+  const [place, setPlace] = useState<Place | null>(null);
   const [kind, setKind] = useState<CommunityKind | 'all'>('all');
+  const [intent, setIntent] = useState<IntentF>('all');
+  const [sort, setSort] = useState<Sort>('gan');
+  const [showFar, setShowFar] = useState(false);
   const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search') || '');
   const [q, setQ] = useState(search.trim());
   const [map, setMap] = useState(false);
-  const [wardFor, setWardFor] = useState<string | null>(null); // khu vực đã tra xong
+  const [mine, setMine] = useState<CommunityListing[]>([]);
   useEffect(() => {
     let alive = true;
-    if (!area) { setWard(null); setWardFor(''); return; }
-    wardFromLabel(area).then(w => { if (alive) { setWard(w); setWardFor(area); } })
-      .catch(() => { if (alive) { setWard(null); setWardFor(area); } });
+    (async () => {
+      const ward = area ? await wardFromLabel(area).catch(() => null) : null;
+      const prov = !ward && area ? await provinceFromLabel(area).catch(() => null) : null;
+      const pt = ward ? { lat: ward.lat, lng: ward.lng } : getAreaPoint();
+      if (alive) setPlace({ ward, provCode: ward?.provinceCode || prov?.code || null, provName: shortProvince(ward?.provinceName || prov?.name), pt });
+    })().catch(() => alive && setPlace({ ward: null, provCode: null, provName: '', pt: null }));
     return () => { alive = false; };
   }, [area]);
   useEffect(() => { const t = setTimeout(() => setQ(search.trim().length >= 2 ? search.trim() : ''), 400); return () => clearTimeout(t); }, [search]);
+  useEffect(() => { if (user) community.mineRecent(user.id).then(setMine).catch(() => {}); else setMine([]); }, [user?.id]);
+  useEffect(() => { setShowFar(false); }, [radius, area, q]);
 
-  const eff: Mode = ward ? mode : 'vn';
-  // Chờ tra xong xã/phường rồi mới tải, khỏi tải nhầm toàn quốc rồi đổi
-  const mainScope: Scope | null = wardFor === (area || '') ? (
-    eff === 'xa' ? { xa: ward!.code, q } : eff === 'gan' ? { tinh: ward!.provinceCode, q } : { q }
-  ) : null;
-  const stripScope: Scope | null = eff === 'gan' && ward && !q ? { xa: ward.code } : null;
+  const near = !!(place && radius > 0 && place.provCode);
+  const mainScope: Scope | null = place ? (near ? { tinh: place.provCode, nhieu: true, q } : { q }) : null;
   useEffect(() => { if (mainScope && !q) rememberScope(mainScope); }, [JSON.stringify(mainScope)]);
-
   const main = usePaged(mainScope);
-  const strip = usePaged(stripScope);
-  const byKind = (x: CommunityListing) => kind === 'all' || x.communityKind === kind;
-  const stripIds = useMemo(() => new Set(strip.items.map(x => x.id)), [strip.items]);
-  const mainShown = useMemo(() => main.items.filter(x => byKind(x) && !(eff === 'gan' && (stripIds.has(x.id) || (ward && x.areaCode === ward.code)))),
+  const done = usePaged(place && !q ? (place.provCode ? { tinh: place.provCode, xong: true } : { xong: true }) : null);
+
+  const ok = (x: CommunityListing) => (kind === 'all' || x.communityKind === kind) && (intent === 'all' || x.communityIntent === intent);
+  const dist = (x: CommunityListing) => place?.pt && x.lat != null && x.lng != null ? distanceKm(place.pt.lat, place.pt.lng, x.lat as number, x.lng as number) : null;
+  const { inR, outR } = useMemo(() => {
+    const rows = main.items.filter(ok).map(x => ({ x, d: dist(x) }));
+    if (!near) {
+      const list = sort === 'gan' && place?.pt ? [...rows].sort((a, b) => (a.d ?? 1e9) - (b.d ?? 1e9)) : rows;
+      return { inR: list, outR: [] as typeof rows };
+    }
+    const inside = rows.filter(r => r.d != null && r.d <= radius);
+    inside.sort((a, b) => sort === 'gan' ? (a.d! - b.d!) : byNew(a.x, b.x));
+    const outside = rows.filter(r => !(r.d != null && r.d <= radius)).sort((a, b) => (a.d ?? 1e9) - (b.d ?? 1e9) || byNew(a.x, b.x));
+    return { inR: inside, outR: outside };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [main.items, kind, eff, stripIds, ward?.code]);
-  const stripShown = useMemo(() => strip.items.filter(byKind).slice(0, 8), [strip.items, kind]);
-  // Lọc theo loại mà còn ít tin: tự tải thêm vài trang
-  const autoMore = useRef(0);
-  useEffect(() => { autoMore.current = 0; }, [kind, JSON.stringify(mainScope)]);
-  useEffect(() => {
-    if (kind !== 'all' && mainShown.length < 8 && main.next && !main.more && !main.loading && autoMore.current < 5) { autoMore.current++; main.loadMore(); }
-  });
+  }, [main.items, kind, intent, sort, radius, near, place]);
+  const farOpen = near && (showFar || inR.length < 6);
+  // Trong tỉnh/thành còn ít tin: thêm tin ở nơi khác cho trang không bao giờ trống
+  const needOther = near && !main.loading && !main.next && inR.length + outR.length < 8;
+  const other = usePaged(needOther ? { q } : null);
+  const otherShown = useMemo(() => {
+    const seen = new Set(main.items.map(x => x.id));
+    return other.items.filter(x => !seen.has(x.id) && ok(x));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [other.items, main.items, kind, intent]);
+  const mapped = useMemo(() => [...inR.map(r => r.x), ...(farOpen ? outR.map(r => r.x) : []), ...otherShown]
+    .map(x => ({ ...x, lat: x.lat == null ? null : Math.round(x.lat * 100) / 100, lng: x.lng == null ? null : Math.round(x.lng * 100) / 100 })), [inR, outR, otherShown, farOpen]);
 
-  const distText = (x: CommunityListing) => {
-    if (!ward || x.lat == null || x.lng == null) return '';
-    const d = distanceKm(ward.lat, ward.lng, x.lat as number, x.lng as number);
-    return d < 1 ? 'Dưới 1 km' : '~' + (d < 10 ? d.toFixed(1).replace('.', ',') : Math.round(d)) + ' km';
-  };
-  const mapped = useMemo(() => {
-    const seen = new Set<string>();
-    return [...stripShown, ...mainShown].filter(x => !seen.has(x.id) && seen.add(x.id))
-      .map(x => ({ ...x, lat: x.lat == null ? null : Math.round(x.lat * 100) / 100, lng: x.lng == null ? null : Math.round(x.lng * 100) / 100 }));
-  }, [stripShown, mainShown]);
+  const ward = place?.ward || null;
+  const title = q ? 'Kết quả cho "' + q + '"' : near ? 'Gần bạn' : place?.pt ? 'Cả nước' : 'Mới nhất cả nước';
+  const grid = (rows: { x: CommunityListing; d: number | null }[], eager = false) =>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{rows.map((r, i) => <Card item={r.x} area={area} eager={eager && i < 4} extra={kmText(r.d)} key={r.x.id} />)}</div>;
+  const divider = (text: string) => <div className="flex items-center gap-3 text-[13px] font-bold text-slate-600 mt-1"><span className="flex-1 h-px bg-line" />{text}<span className="flex-1 h-px bg-line" /></div>;
+  const seg = (v: IntentF, label: string) => <button key={v} onClick={() => setIntent(v)} aria-pressed={intent === v}
+    className={'min-h-10 rounded-[11px] text-sm ' + (intent === v ? 'bg-white font-extrabold text-ink shadow-sm' : 'font-bold text-slate-600')}>{label}</button>;
+  const nothing = !main.loading && !inR.length && !(farOpen && outR.length) && !otherShown.length && !main.next && !other.loading;
 
-  const wardName = ward?.name || '';
-  const provName = shortProvince(ward?.provinceName);
-  const chip = (m: Mode, label: string) => <button key={m} onClick={() => setMode(m)} aria-pressed={eff === m}
-    className={'shrink-0 h-10 px-4 rounded-full text-sm font-bold border ' + (eff === m ? 'bg-ink text-white border-ink' : 'bg-white border-line text-ink')}>{label}</button>;
-  const empty = <div className="bg-white border border-line rounded-2xl p-8 text-center">
-    <img src="/icons/icon-192.png" alt="" className="h-12 w-12 rounded-xl mx-auto" />
-    <h3 className="text-lg font-bold mt-3">{q ? 'Không thấy tin phù hợp' : 'Chưa có tin ở đây'}</h3>
-    <p className="text-slate-600 mt-1">{q ? 'Thử từ khác, hoặc xem toàn quốc.' : 'Hãy là người chia sẻ đầu tiên trong khu vực của bạn.'}</p>
-    {q && eff !== 'vn' ? <button className={btnPrimary + ' mt-4'} onClick={() => setMode('vn')}>Tìm toàn quốc</button>
-      : <Link className={btnPrimary + ' inline-flex items-center mt-4'} to="/cong-dong/dang-tin">Đăng tin đầu tiên</Link>}
-  </div>;
-  const title = q ? 'Kết quả cho "' + q + '"' + (eff === 'vn' ? '' : eff === 'xa' ? ' ở ' + wardName : ' ở ' + provName)
-    : eff === 'xa' ? 'Ở ' + wardName : eff === 'gan' ? 'Gần bạn ở ' + provName : 'Mới nhất toàn quốc';
-
-  return <PullToRefresh onRefresh={async () => { await Promise.all([main.reload(), strip.reload()]); }}><div className="flex flex-col gap-4">
-    <h1 className="text-2xl md:text-4xl font-extrabold leading-tight">Có gì chia sẻ,<br />cần gì có nhau.</h1>
-    <div className="grid grid-cols-2 gap-3">
-      <Link to="/cong-dong/dang-tin?y=co" className="flex flex-col gap-1 p-4 md:p-6 rounded-[20px] bg-emerald-700 hover:bg-emerald-800 text-white">
-        <span className="text-[22px] md:text-3xl font-extrabold">Tôi có</span>
-        <span className="text-[13px] md:text-base leading-snug text-emerald-100">Cho, cho mượn, giúp một tay</span>
-      </Link>
-      <Link to="/cong-dong/dang-tin?y=can" className="flex flex-col gap-1 p-4 md:p-6 rounded-[20px] bg-sun hover:brightness-95 text-[#2E1F00]">
-        <span className="text-[22px] md:text-3xl font-extrabold">Tôi cần</span>
-        <span className="text-[13px] md:text-base leading-snug text-[#4A3200]">Xin, mượn, nhờ giúp đỡ</span>
-      </Link>
-    </div>
-    <div className="grid grid-cols-4 gap-2" role="group" aria-label="Lọc theo hoạt động">
-      {KINDS.map(k => <button key={k} onClick={() => setKind(kind === k ? 'all' : k)} aria-pressed={kind === k}
-        className={'flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-[14px] border text-xs font-bold ' + (kind === k ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white text-ink')}>
-        <KIcon name={k} className="w-6 h-6 text-emerald-700" />{kindLabels[k]}
-      </button>)}
-    </div>
+  return <PullToRefresh onRefresh={async () => { await Promise.all([main.reload(), done.reload(), other.reload()]); }}><div className="flex flex-col gap-4">
     <label className="relative block">
       <span className="sr-only">Tìm kiếm</span>
       <KIcon name="search" className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-      <input className={inputCls + ' pl-11'} type="search" placeholder="Tìm món đồ hoặc việc cần giúp…" value={search} onChange={e => setSearch(e.target.value)} />
+      <input className={inputCls + ' pl-11 !rounded-2xl'} type="search" placeholder="Tìm món đồ hoặc việc cần giúp…" value={search} onChange={e => setSearch(e.target.value)} />
     </label>
-
-    <div className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-0.5" role="group" aria-label="Phạm vi">
-      {ward ? <>{chip('gan', 'Gần bạn')}{chip('xa', wardName.replace(/^(Phường|Xã|Đặc khu)\s+/, '') || 'Xã/phường')}{chip('vn', 'Toàn quốc')}</>
-        : <span className="text-sm text-slate-600">Chọn <b>xã/phường</b> ở đầu trang để xem tin gần bạn.</span>}
-      <button onClick={() => setMap(v => !v)} className="ml-auto shrink-0 flex items-center gap-1 text-sm font-semibold text-emerald-700 min-h-10 pl-2">
-        <KIcon name={map ? 'list' : 'map'} className="w-[18px] h-[18px]" />{map ? 'Danh sách' : 'Bản đồ'}
-      </button>
+    <div className="grid grid-cols-3 p-1 bg-[#F1ECDF] rounded-[14px]" role="group" aria-label="Loại tin">{seg('all', 'Tất cả')}{seg('have', 'Đồ cho tặng')}{seg('need', 'Người đang cần')}</div>
+    <div className="flex gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-0.5" role="group" aria-label="Lọc theo hoạt động">
+      {KINDS.map(k => <button key={k} onClick={() => setKind(kind === k ? 'all' : k)} aria-pressed={kind === k}
+        className={'shrink-0 h-10 px-3.5 rounded-full border flex items-center gap-1.5 text-sm font-semibold ' + (kind === k ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white text-ink')}>
+        <KIcon name={k} className="w-[18px] h-[18px] text-emerald-700" />{kindLabels[k]}</button>)}
     </div>
 
-    {map ? (main.loading && !mapped.length ? <SkGrid /> : <React.Suspense fallback={<div className="h-[440px] md:h-[640px] rounded-2xl bg-[#ECE5D4] animate-pulse" />}>
-        <CommunityMap items={mapped as CommunityListing[]} area={area} />
-      </React.Suspense>)
-    : <>
-      {stripScope && <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <Link to={wardPath(ward!)} className="text-lg font-extrabold hover:underline">Ở {wardName} ›</Link>
-          {strip.items.length > 8 || strip.next ? <button onClick={() => setMode('xa')} className="text-sm font-semibold text-emerald-700 min-h-10">Xem tất cả</button> : null}
-        </div>
-        {strip.loading ? <SkGrid />
-          : stripShown.length ? <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{stripShown.map((it, i) => <Card item={it} area={area} eager={i < 4} key={it.id} />)}</div>
-          : <p className="text-sm text-slate-600 bg-white border border-line rounded-2xl p-4">Chưa có tin ở {wardName}. <Link to="/cong-dong/dang-tin" className="font-bold text-emerald-700 underline">Đăng tin đầu tiên</Link></p>}
-      </section>}
+    {!q && mine.slice(0, 2).map(m => <Link key={m.id} to={tinPath(m)} className={'flex items-center gap-3 p-3 bg-white rounded-2xl border ' + (m.status === 'rejected' ? 'border-rose-200' : 'border-emerald-200')}>
+      {thumbOf(m) ? <img src={thumbOf(m)} alt="" className="h-14 w-14 rounded-xl object-cover shrink-0" />
+        : <span className={'h-14 w-14 rounded-xl grid place-items-center text-emerald-700 shrink-0 ' + KIND_META[(m.communityKind || 'gift') as CommunityKind].tint}><KIcon name={(m.communityKind || 'gift') as CommunityKind} className="w-7 h-7" /></span>}
+      <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+        <span className="text-xs font-bold text-slate-600">Tin của bạn</span>
+        <span className="text-[15px] font-bold truncate">{m.title}</span>
+        <span className={'text-xs font-bold ' + (m.status === 'approved' ? 'text-emerald-700' : m.status === 'pending' ? 'text-sun-dark' : 'text-rose-700')}>
+          {m.status === 'approved' ? '✓ Đang hiện cho hàng xóm' + (near ? ' trong ' + radius + ' km' : '') : m.status === 'pending' ? 'Đang chờ kiểm tra, sẽ hiện sớm' : 'Chưa được đăng · bấm để xem lý do'}</span>
+      </span>
+    </Link>)}
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-extrabold">{title}</h2>
-        {main.loading ? <SkGrid />
-          : main.error ? <ErrorMessage message={main.error} />
-          : !mainShown.length && !main.next ? (stripScope && stripShown.length ? <p className="text-sm text-slate-600">Chưa có thêm tin ở các xã/phường khác trong {provName}.</p> : empty)
-          : <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{mainShown.map((it, i) => <Card item={it} area={area} eager={!stripScope && i < 4} extra={eff === 'gan' ? distText(it) : ''} key={it.id} />)}</div>}
-        {main.next && !main.loading && <>
-          <Sentinel onHit={main.loadMore} active={!main.more} />
-          <button onClick={main.loadMore} disabled={main.more} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold disabled:opacity-60">
-            {main.more ? 'Đang tải thêm…' : 'Xem thêm tin'}
-          </button>
+    {!q && done.items.length > 0 && <section className="flex flex-col gap-2.5">
+      <div className="flex items-baseline justify-between"><h2 className="text-lg font-extrabold">Vừa trao xong</h2><span className="text-xs text-slate-600">{place?.provName ? 'ở ' + place.provName : 'trên Chợ Của Tui'}</span></div>
+      <div className="flex gap-2.5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-1">{done.items.slice(0, 10).map(x => {
+        const k = (x.communityKind || 'gift') as CommunityKind; const img = thumbOf(x);
+        return <Link key={x.id} to={tinPath(x)} className="shrink-0 w-[132px] bg-white border border-line rounded-2xl overflow-hidden">
+          <span className={'relative h-[76px] grid place-items-center text-emerald-700 ' + KIND_META[k].tint}>
+            {img ? <img src={img} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" /> : <KIcon name={k} className="w-8 h-8" />}
+            <span className="absolute top-1.5 left-1.5 text-[10px] font-bold bg-emerald-700 text-white px-2 py-0.5 rounded-full">Đã trao</span>
+          </span>
+          <span className="block px-2.5 py-2"><span className="block text-[13px] font-bold leading-snug line-clamp-2">{x.title}</span><span className="block text-[11px] text-slate-600 truncate mt-0.5">{(x.location || '').split(',')[0]}</span></span>
+        </Link>;
+      })}</div>
+    </section>}
+
+    {!place?.provCode && !q && place && <button onClick={openAreaSheet} className="text-left p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-sm"><b className="text-emerald-800">Chọn xã/phường của bạn</b> để thấy tin gần nhất trước.</button>}
+
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-xl font-extrabold truncate">{title}</h2>
+        <div className="flex items-center gap-2 shrink-0">
+          {place?.pt && !map && <button onClick={() => setSort(sort === 'gan' ? 'moi' : 'gan')} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold flex items-center gap-1.5">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></svg>
+            {sort === 'gan' ? 'Gần nhất' : 'Mới nhất'}</button>}
+          {map && <button onClick={() => setMap(false)} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold flex items-center gap-1.5"><KIcon name="list" className="w-4 h-4" />Danh sách</button>}
+        </div>
+      </div>
+      {map ? <React.Suspense fallback={<div className="h-[440px] md:h-[640px] rounded-2xl bg-[#ECE5D4] animate-pulse" />}>
+          <CommunityMap items={mapped as CommunityListing[]} area={area} />
+        </React.Suspense>
+      : main.loading || !place ? <SkGrid />
+      : main.error ? <ErrorMessage message={main.error} />
+      : nothing ? <div className="bg-white border border-line rounded-2xl p-8 text-center">
+          <img src="/icons/icon-192.png" alt="" className="h-12 w-12 rounded-xl mx-auto" />
+          <h3 className="text-lg font-bold mt-3">{q ? 'Không thấy tin phù hợp' : 'Chưa có tin ở đây'}</h3>
+          <p className="text-slate-600 mt-1">{q ? 'Thử từ khác nhé.' : 'Hãy là người chia sẻ đầu tiên quanh bạn.'}</p>
+          <Link className={btnPrimary + ' inline-flex items-center mt-4'} to="/cong-dong/dang-tin">Đăng tin</Link>
+        </div>
+      : <>
+          {inR.length > 0 ? grid(inR, true)
+            : near && <p className="text-sm text-slate-600 bg-white border border-line rounded-2xl p-4">Chưa có tin trong {radius} km quanh {shortArea(area)}. <Link to="/cong-dong/dang-tin" className="font-bold text-emerald-700 underline">Đăng tin đầu tiên</Link></p>}
+          {near && outR.length > 0 && (farOpen ? <>{divider('Xa hơn một chút' + (place?.provName ? ' · ' + place.provName : ''))}{grid(outR)}</>
+            : <button onClick={() => setShowFar(true)} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold">Xem {outR.length} tin xa hơn</button>)}
+          {otherShown.length > 0 && <>{divider('Ở nơi khác')}{grid(otherShown.map(x => ({ x, d: dist(x) })))}</>}
+          {main.next && <>
+            <Sentinel onHit={main.loadMore} active={!main.more} />
+            <button onClick={main.loadMore} disabled={main.more} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold disabled:opacity-60">{main.more ? 'Đang tải thêm…' : 'Xem thêm tin'}</button>
+          </>}
+          {!main.next && other.next && <>
+            <Sentinel onHit={other.loadMore} active={!other.more} />
+            <button onClick={other.loadMore} disabled={other.more} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold disabled:opacity-60">{other.more ? 'Đang tải thêm…' : 'Xem thêm tin'}</button>
+          </>}
         </>}
-      </section>
-    </>}
+      {!map && !nothing && !main.loading && <button onClick={() => setMap(true)} className="min-h-12 rounded-2xl border border-line bg-white text-[15px] font-bold text-emerald-700 flex items-center justify-center gap-2"><KIcon name="map" className="w-[18px] h-[18px]" />Xem trên bản đồ</button>}
+      {ward && !q && <Link to={wardPath(ward)} className="self-center text-sm font-semibold text-emerald-700 underline min-h-10 flex items-center">Góc chia sẻ {ward.name} ›</Link>}
+    </section>
   </div></PullToRefresh>;
 }
 

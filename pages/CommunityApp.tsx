@@ -742,7 +742,8 @@ function Detail({ user, id }: { user: User | null; id: string }) {
     {!mine && !iBlocked && <span className="text-center text-xs text-slate-600">{user ? 'Bấm là mở trò chuyện với ' + ownerName + ' ngay' : 'Bạn sẽ được mời đăng nhập trước'}</span>}
   </div>;
 
-  return <div className="mx-auto max-w-3xl lg:max-w-6xl pb-32 md:pb-0 lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-8 lg:items-start">
+  return <div className="mx-auto max-w-3xl lg:max-w-6xl pb-32 md:pb-0">
+  <div className="lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-8 lg:items-start">
     <div className="lg:sticky lg:top-24">
       <div className="relative -mx-4 md:mx-0 md:rounded-3xl overflow-hidden">
         {images.length
@@ -789,7 +790,8 @@ function Detail({ user, id }: { user: User | null; id: string }) {
       {!mine && <p className="text-[13px] leading-relaxed text-slate-600">{need ? 'Người đăng sẽ chọn người giúp phù hợp.' : 'Người cho sẽ chọn một người nhận.'} Chỉ đi {need ? 'gặp' : 'lấy'} khi người đăng đã <b>xác nhận giờ và chỗ</b>. Không chuyển khoản hay đặt cọc cho bất kỳ ai. {reported ? 'Đã gửi báo cáo, cảm ơn bạn.' : <button onClick={report} className="underline">Báo cáo tin này</button>}</p>}
       {error && <ErrorMessage message={error} />}
     </div>
-    {similar.length > 0 && <section className="lg:col-span-2 flex flex-col gap-3 mt-6 lg:mt-10">
+  </div>
+    {similar.length > 0 && <section className="flex flex-col gap-3 mt-6 lg:mt-10">
       <h2 className="text-lg md:text-xl font-extrabold">Tin khác {item.provinceCode ? 'gần đây' : 'mới đăng'}</h2>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{similar.slice(0, 4).map(x => <Card item={x} area={area} key={x.id} />)}</div>
     </section>}

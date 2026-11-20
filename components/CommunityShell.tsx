@@ -10,7 +10,7 @@ import NotificationMenu from './NotificationMenu';
 import AppNudge from './AppNudge';
 import ChatDock from './ChatDock';
 import { ThanksPrompt } from './Thanks';
-import { FacebookPill } from './FacebookCard';
+import { FB_PAGE } from './FacebookCard';
 import { setBigText } from '../utils/textSize';
 import { db } from '../services/db';
 import { getArea, setArea, onAreaChange, getRadius, setRadius, RADII, radiusText, shortArea } from '../utils/area';
@@ -183,9 +183,9 @@ const ShellInner: React.FC<{ user: User | null; children: React.ReactNode }> = (
             {[['/page/gioi-thieu', 'Giới thiệu'], ['/page/quy-tac', 'Quy tắc'], ['/page/an-toan', 'An toàn'],
               ['/page/chinh-sach-bao-mat', 'Bảo mật'], ['/page/dieu-khoan', 'Điều khoản'], ['/tai-ung-dung', 'Tải ứng dụng']].map(([to, label]) =>
               <Link key={to} to={to} className="min-h-9 md:min-h-11 flex items-center hover:text-emerald-700">{label}</Link>)}
+            <a href={FB_PAGE} target="_blank" rel="noopener noreferrer" className="min-h-9 md:min-h-11 flex items-center hover:text-emerald-700">Facebook</a>
             <button onClick={() => { const on = !document.documentElement.classList.contains('chu-to'); setBigText(on); }} className="min-h-9 md:min-h-11 flex items-center hover:text-emerald-700" aria-label="Bật/tắt chữ to">Aa Chữ to</button>
           </nav>
-          <div className="mt-2 md:mt-0 flex items-center justify-center gap-2 shrink-0"><span className="text-xs md:text-sm text-slate-600">Theo dõi:</span><FacebookPill small /></div>
         </div>
       </footer>}
 

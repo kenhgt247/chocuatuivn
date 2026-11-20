@@ -240,10 +240,18 @@ export const community = {
     const safeLat = safe ? Math.round(lat! * 100) / 100 : (wp ? Math.round(wp.lat * 1e4) / 1e4 : null);
     const safeLng = safe ? Math.round(lng! * 100) / 100 : (wp ? Math.round(wp.lng * 1e4) / 1e4 : null);
     // Mã tỉnh/thành để trang chủ lọc tin theo khu vực
+    // (chưa chọn xã/phường trong danh sách thì đoán từ chữ đã gõ, ít nhất ra tỉnh/thành)
     let provinceCode: string | null = null;
-    if (input.wardPoint?.code) {
-      try { const { loadDvhc } = await import('../utils/dvhc'); provinceCode = (await loadDvhc()).wards.find(w => w.code === input.wardPoint!.code)?.provinceCode || null; } catch (_) { /* bỏ qua */ }
-    }
+    let areaCode: string | null = input.wardPoint?.code || null;
+    try {
+      const { loadDvhc, wardFromLabel, provinceFromLabel } = await import('../utils/dvhc');
+      if (areaCode) provinceCode = (await loadDvhc()).wards.find(w => w.code === areaCode)?.provinceCode || null;
+      if (!provinceCode) {
+        const w = await wardFromLabel(location);
+        if (w) { areaCode = areaCode || w.code; provinceCode = w.provinceCode; }
+        else provinceCode = (await provinceFromLabel(location))?.code || null;
+      }
+    } catch (_) { /* bỏ qua */ }
     // Dữ liệu được lưu ngay trong listings cũ, không làm thay đổi các tin cũ.
     return db.saveListing({
       title, description, location, address: '', lat: safeLat, lng: safeLng,
@@ -255,7 +263,7 @@ export const community = {
       images, thumbs, videoUrl: null, isAuction: false, affiliateLink: null,
       condition: 'used', status: 'pending', attributes: {},
       meetPlace: safeText(input.meetPlace || '', 60),
-      areaCode: input.wardPoint?.code || null,
+      areaCode,
       provinceCode,
     });
   },

@@ -160,7 +160,7 @@ const Admin: React.FC<{ user: User }> = ({ user }) => {
       <button onClick={async () => {
         setAreaText('Đang xử lý…');
         try {
-          const { loadDvhc, wardFromLabel } = await import('../utils/dvhc');
+          const { loadDvhc, wardFromLabel, provinceFromLabel } = await import('../utils/dvhc');
           const { wards } = await loadDvhc();
           const snap = await getDocs(query(collection(firestore, 'listings'), where('isCommunityFree', '==', true), limit(1000)));
           let done = 0, skip = 0;
@@ -168,7 +168,12 @@ const Admin: React.FC<{ user: User }> = ({ user }) => {
             const x: any = d.data();
             if (x.provinceCode) continue;
             const w = (x.areaCode && wards.find(v => v.code === x.areaCode)) || await wardFromLabel(x.location);
-            if (!w) { skip++; continue; }
+            if (!w) {
+              const p = await provinceFromLabel(x.location);
+              if (!p) { skip++; continue; }
+              await updateDoc(d.ref, { provinceCode: p.code });
+              done++; setAreaText('Đang xử lý… ' + done); continue;
+            }
             await updateDoc(d.ref, { provinceCode: w.provinceCode, areaCode: x.areaCode || w.code });
             done++; setAreaText('Đang xử lý… ' + done);
           }

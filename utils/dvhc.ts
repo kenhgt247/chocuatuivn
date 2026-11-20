@@ -78,3 +78,17 @@ export async function wardFromLabel(label?: string): Promise<Ward | null> {
   const k = plain(label);
   return wards.find(w => w.key === k) || wards.find(w => k.startsWith(plain(w.name) + ',') && k.includes(plain(w.provinceName))) || null;
 }
+
+/** Tìm tỉnh/thành trong chữ địa chỉ ("Hải Phòng", "TP Hải Phòng", "Phường X, Thành phố Hải Phòng"). */
+export async function provinceFromLabel(label?: string): Promise<Province | null> {
+  if (!label) return null;
+  const { provinces } = await loadDvhc();
+  const k = ' ' + plain(label).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ') + ' ';
+  const core = (n: string) => plain(n).replace(/^(thanh pho|tinh)\s+/, '');
+  let best: Province | null = null, at = -1;
+  for (const p of provinces) {
+    const i = k.lastIndexOf(' ' + core(p.name) + ' ');
+    if (i > at) { at = i; best = p; }
+  }
+  return best;
+}

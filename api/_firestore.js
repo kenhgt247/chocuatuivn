@@ -48,10 +48,10 @@ async function runQuery(structuredQuery) {
  * eq: { provinceCode: '31' } ; contains: 'xe' (một từ trong keywords) ; before: createdAt của tin cuối trang trước.
  * Chưa có chỉ mục (lỗi 400) -> lấy không sắp xếp rồi lọc/sắp xếp tại đây.
  */
-export async function listCommunity({ eq = {}, contains = null, before = null, max = 24 } = {}) {
+export async function listCommunity({ eq = {}, contains = null, before = null, max = 24, status = 'approved' } = {}) {
   const filters = [
     { fieldFilter: { field: { fieldPath: 'isCommunityFree' }, op: 'EQUAL', value: { booleanValue: true } } },
-    { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'approved' } } },
+    { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: status } } },
     ...Object.entries(eq).map(([k, v]) => ({ fieldFilter: { field: { fieldPath: k }, op: 'EQUAL', value: toValue(v) } })),
   ];
   if (contains) filters.push({ fieldFilter: { field: { fieldPath: 'keywords' }, op: 'ARRAY_CONTAINS', value: { stringValue: contains } } });

@@ -6,6 +6,8 @@
 //   /api/feed?xa=10537        : trong xã/phường
 //   &q=xe dap                 : tìm theo chữ
 //   &truoc=<createdAt>        : trang tiếp theo
+//   &nhieu=1                  : lấy nhiều tin một lần (tối đa 120, để xếp theo khoảng cách)
+//   &xong=1                   : tin đã trao xong (dải "Vừa trao xong")
 import { listCommunity } from './_firestore.js';
 
 const KINDS = ['gift', 'borrow', 'help', 'repair'];
@@ -20,7 +22,8 @@ export default async function handler(req, res) {
   const xa = /^\d{5}$/.test(one(q.xa) || '') ? one(q.xa) : null;
   const truoc = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(one(q.truoc) || '') ? one(q.truoc) : null;
   const words = plain(one(q.q)).split(' ').filter(w => w.length >= 2).slice(0, 5);
-  const size = words.length ? 40 : 24;
+  const xong = one(q.xong) === '1';
+  const size = xong ? 12 : one(q.nhieu) === '1' && !words.length ? 120 : words.length ? 40 : 24;
 
   let rows = [], ok = true;
   try {
@@ -28,11 +31,11 @@ export default async function handler(req, res) {
       eq: xa ? { areaCode: xa } : tinh ? { provinceCode: tinh } : {},
       // Tìm từ dài nhất trên máy chủ, các từ còn lại lọc ở đây
       contains: words.length ? [...words].sort((a, b) => b.length - a.length)[0] : null,
-      before: truoc, max: size,
+      before: truoc, max: size, status: xong ? 'sold' : 'approved',
     });
   } catch (_) { ok = false; }
 
-  const next = rows.length >= size ? String(rows[rows.length - 1].createdAt || '') || null : null;
+  const next = !xong && rows.length >= size ? String(rows[rows.length - 1].createdAt || '') || null : null;
   const items = rows
     .filter(l => l.price === 0 && KINDS.includes(l.communityKind))
     .filter(l => !words.length || words.every(w => plain([l.title, l.description, l.location].join(' ')).includes(w)))

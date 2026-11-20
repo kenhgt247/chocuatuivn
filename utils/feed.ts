@@ -6,7 +6,7 @@
  */
 import type { CommunityListing } from '../services/community';
 
-export type Scope = { xa?: string | null; tinh?: string | null; q?: string };
+export type Scope = { xa?: string | null; tinh?: string | null; q?: string; nhieu?: boolean; xong?: boolean };
 export type Page = { items: CommunityListing[]; next: string | null };
 type Raw = { id: string; title: string; description?: string; location?: string; communityKind: string; communityIntent: string;
   createdAt?: string | null; areaCode?: string | null; provinceCode?: string | null; lat?: number | null; lng?: number | null; thumb?: string | null };
@@ -24,11 +24,13 @@ export function feedUrl(s: Scope, truoc?: string | null) {
   const p = new URLSearchParams();
   if (s.xa) p.set('xa', s.xa); else if (s.tinh) p.set('tinh', s.tinh);
   if (s.q && s.q.trim()) p.set('q', s.q.trim().toLowerCase());
+  if (s.nhieu) p.set('nhieu', '1');
+  if (s.xong) p.set('xong', '1');
   if (truoc) p.set('truoc', truoc);
   const qs = p.toString();
   return '/api/feed' + (qs ? '?' + qs : '');
 }
-const key = (s: Scope) => CACHE + (s.xa ? 'x' + s.xa : s.tinh ? 't' + s.tinh : 'vn');
+const key = (s: Scope) => CACHE + (s.xa ? 'x' + s.xa : s.tinh ? 't' + s.tinh : 'vn') + (s.nhieu ? '-n' : '') + (s.xong ? '-d' : '');
 
 /** Trang đầu đã lưu trên máy (không áp dụng cho tìm kiếm). */
 export function cachedPage(s: Scope): Page | null {
@@ -50,7 +52,7 @@ export async function loadPage(s: Scope, truoc?: string | null, fresh = false): 
   }
   if (data && data.ok !== false && Array.isArray(data.items)) {
     if (!truoc && !s.q) {
-      try { localStorage.setItem(key(s), JSON.stringify({ t: Date.now(), next: data.next || null, items: data.items.slice(0, 24) })); } catch (_) { /* đầy: bỏ qua */ }
+      try { localStorage.setItem(key(s), JSON.stringify({ t: Date.now(), next: data.next || null, items: data.items.slice(0, s.nhieu ? 60 : 24) })); } catch (_) { /* đầy: bỏ qua */ }
     }
     return { items: data.items.map(toListing), next: data.next || null };
   }
@@ -63,5 +65,5 @@ export async function loadPage(s: Scope, truoc?: string | null, fresh = false): 
 
 /** Ghi nhớ khu vực đang xem để index.html tải sẵn đúng trang đầu ở lần mở sau. */
 export function rememberScope(s: Scope) {
-  try { localStorage.setItem('ccut-feed-scope', feedUrl({ xa: s.xa, tinh: s.tinh })); } catch (_) { /* bỏ qua */ }
+  try { localStorage.setItem('ccut-feed-scope', feedUrl({ xa: s.xa, tinh: s.tinh, nhieu: s.nhieu })); } catch (_) { /* bỏ qua */ }
 }

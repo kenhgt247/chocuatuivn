@@ -31,3 +31,16 @@ export function sameArea(a?: string, b?: string): boolean {
 export function getAreaPoint(): { lat: number; lng: number } | null {
   try { const v = localStorage.getItem(KEY + '-pt'); return v ? JSON.parse(v) : null; } catch (_) { return null; }
 }
+
+/** Bán kính xem tin (km). 0 = cả nước. Mặc định 5 km. */
+export const RADII = [2, 5, 10, 20, 0];
+export function getRadius(): number {
+  try { const v = Number(localStorage.getItem(KEY + '-r')); return RADII.includes(v) && localStorage.getItem(KEY + '-r') !== null ? v : 5; } catch (_) { return 5; }
+}
+export function setRadius(km: number) {
+  try { localStorage.setItem(KEY + '-r', String(km)); } catch (_) { /* bỏ qua */ }
+  window.dispatchEvent(new Event(EVENT));
+}
+export const radiusText = (km: number) => km ? km + ' km' : 'Cả nước';
+/** "Phường Tân Hưng, Thành phố Hải Phòng" -> "Tân Hưng" */
+export const shortArea = (label?: string) => (label || '').split(',')[0].replace(/^(Phường|Xã|Đặc khu|Thị trấn|Thành phố|Tỉnh|TP\.?)\s+/i, '').trim();

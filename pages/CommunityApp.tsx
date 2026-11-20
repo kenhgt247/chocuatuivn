@@ -342,47 +342,93 @@ export const wardPath = (w: { code: string; name: string }) => '/xa/' + w.code +
 function WardPage({ user, code }: { user: User | null; code: string; key?: React.Key }) {
   const area = useArea(user);
   const [ward, setWard] = useState<Ward | null | undefined>(undefined);
+  const [near, setNear] = useState<Ward[]>([]);
   const [stats, setStats] = useState<{ active: number; done: number; top: { id: string; name: string; n: number }[] } | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [kind, setKind] = useState<CommunityKind | 'all'>('all');
+  const [intent, setIntent] = useState<'all' | 'have' | 'need'>('all');
   useEffect(() => {
-    import('../utils/dvhc').then(m => m.loadDvhc()).then(d => setWard(d.wards.find(w => w.code === code) || null)).catch(() => setWard(null));
+    import('../utils/dvhc').then(m => m.loadDvhc()).then(d => {
+      const w = d.wards.find(x => x.code === code) || null;
+      setWard(w);
+      if (w) setNear(d.wards.filter(x => x.provinceCode === w.provinceCode && x.code !== w.code)
+        .map(x => ({ x, d: distanceKm(w.lat, w.lng, x.lat, x.lng) })).sort((p, q) => p.d - q.d).slice(0, 10).map(o => o.x));
+    }).catch(() => setWard(null));
     fetch('/api/xa?ma=' + code).then(r => r.json()).then(j => j.ok && setStats(j)).catch(() => {});
   }, [code]);
-  useEffect(() => { if (ward) { const p = document.title; document.title = ward.name + ' – Chợ Của Tui'; return () => { document.title = p; }; } }, [ward?.code]);
+  useEffect(() => {
+    if (!ward) return;
+    const t = document.title; const m = document.querySelector('meta[name="description"]'); const md = m?.getAttribute('content') || '';
+    document.title = 'Cho tặng đồ cũ, mượn đồ, giúp nhau miễn phí ở ' + ward.name + ' – Chợ Của Tui';
+    m?.setAttribute('content', 'Góc chia sẻ ' + ward.name + ' (' + shortProvince(ward.provinceName) + '): cho tặng đồ cũ, mượn đồ, nhờ giúp, sửa đồ cho hàng xóm. Hoàn toàn miễn phí.');
+    return () => { document.title = t; m?.setAttribute('content', md); };
+  }, [ward?.code]);
   const list = usePaged(ward ? { xa: ward.code } : null);
   if (ward === undefined) return <SkGrid />;
   if (!ward) return <ErrorMessage message="Không tìm thấy xã/phường này." />;
   const prov = shortProvince(ward.provinceName);
+  const shown = list.items.filter(x => (kind === 'all' || x.communityKind === kind) && (intent === 'all' || x.communityIntent === intent));
+  const mineArea = sameArea(area, ward.label);
   return <PullToRefresh onRefresh={list.reload}><div className="flex flex-col gap-5">
-    <section className="rounded-3xl bg-emerald-700 text-white p-6 md:p-8 flex flex-col gap-4">
-      <div>
-        <p className="text-emerald-100 text-sm font-semibold">Góc chia sẻ của</p>
-        <h1 className="text-3xl md:text-4xl font-extrabold leading-tight">{ward.name}</h1>
-        <p className="text-emerald-100">{prov}</p>
+    <nav aria-label="Đường dẫn" className="text-[13px] text-slate-600 flex gap-1.5 flex-wrap"><Link to="/" className="underline">Chợ Của Tui</Link><span>›</span><span>{prov}</span><span>›</span><span className="font-semibold text-ink">{ward.name}</span></nav>
+    <section className="rounded-3xl bg-emerald-700 text-white p-5 md:p-8 flex flex-col gap-4 relative overflow-hidden">
+      <svg className="absolute -right-10 -bottom-10 w-56 h-56 text-white/10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" /></svg>
+      <div className="relative">
+        <p className="text-emerald-100 text-sm font-semibold">Góc chia sẻ · {prov}</p>
+        <h1 className="text-[26px] md:text-4xl font-extrabold leading-tight mt-1">Cho tặng, mượn đồ, giúp nhau<br className="hidden md:block" /> ở {ward.name}</h1>
+        <p className="text-emerald-100 mt-2 text-[15px]">Hàng xóm cho nhau đồ cũ còn dùng tốt, cho mượn, giúp một tay. Hoàn toàn miễn phí, không mua bán.</p>
       </div>
-      <div className="grid grid-cols-2 gap-3 max-w-md">
-        <div className="rounded-2xl bg-white/10 p-3"><div className="text-3xl font-extrabold">{stats ? stats.active : '…'}</div><div className="text-sm text-emerald-100">tin đang chia sẻ</div></div>
-        <div className="rounded-2xl bg-white/10 p-3"><div className="text-3xl font-extrabold">{stats ? stats.done : '…'}</div><div className="text-sm text-emerald-100">món đã trao xong</div></div>
+      <div className="relative grid grid-cols-2 gap-2.5 max-w-md">
+        <div className="rounded-2xl bg-white/10 p-3"><div className="text-2xl md:text-3xl font-extrabold">{stats ? stats.active : '…'}</div><div className="text-xs md:text-sm text-emerald-100">tin đang chia sẻ</div></div>
+        <div className="rounded-2xl bg-white/10 p-3"><div className="text-2xl md:text-3xl font-extrabold">{stats ? stats.done : '…'}</div><div className="text-xs md:text-sm text-emerald-100">món đã trao xong</div></div>
       </div>
-      <div className="flex gap-2 flex-wrap">
-        <Link to="/cong-dong/dang-tin" className="min-h-12 px-5 rounded-2xl bg-white text-emerald-900 font-extrabold inline-flex items-center">+ Đăng tin</Link>
-        <button onClick={() => setSharing(true)} className="min-h-12 px-5 rounded-2xl bg-sun text-[#2E1F00] font-extrabold">Mời hàng xóm</button>
-        {!sameArea(area, ward.label) && <button onClick={() => setArea(ward.label, { lat: ward.lat, lng: ward.lng })} className="min-h-12 px-4 rounded-2xl border border-white/40 font-bold">Đặt làm khu vực của tôi</button>}
+      <div className="relative flex gap-2 flex-wrap">
+        <Link to="/cong-dong/dang-tin?y=co" className="min-h-12 px-5 rounded-2xl bg-white text-emerald-900 font-extrabold inline-flex items-center">+ Tôi có đồ muốn cho</Link>
+        <Link to="/cong-dong/dang-tin?y=can" className="min-h-12 px-5 rounded-2xl bg-sun text-[#2E1F00] font-extrabold inline-flex items-center">Tôi cần</Link>
+        <button onClick={() => setSharing(true)} className="min-h-12 px-4 rounded-2xl border border-white/40 font-bold">Mời hàng xóm</button>
+        {!mineArea && <button onClick={() => setArea(ward.label, { lat: ward.lat, lng: ward.lng })} className="min-h-12 px-4 rounded-2xl border border-white/40 font-bold">Đặt làm khu vực của tôi</button>}
       </div>
     </section>
-    {stats && stats.top.length > 0 && <section className="bg-white border border-line rounded-3xl p-5">
-      <h2 className="font-extrabold mb-2">Hàng xóm chia sẻ nhiều nhất</h2>
-      <ol className="flex flex-col gap-1.5">{stats.top.map((t, i) => <li key={t.id}><Link to={'/profile/' + t.id} className="flex items-center justify-between gap-2 min-h-10 hover:underline">
-        <span className="font-semibold">{['🥇', '🥈', '🥉'][i] || (i + 1) + '.'} {t.name}</span><span className="text-sm text-slate-600">{t.n} lần</span></Link></li>)}</ol>
-    </section>}
-    <section className="flex flex-col gap-3">
-      <h2 className="text-lg font-extrabold">Tin mới ở {ward.name}</h2>
-      {list.loading ? <SkGrid /> : !list.items.length
-        ? <div className="bg-white border border-line rounded-2xl p-6 text-center text-slate-600">Chưa có tin nào ở đây. <Link to="/cong-dong/dang-tin" className="font-bold text-emerald-700 underline">Đăng tin đầu tiên</Link></div>
-        : <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{list.items.map((it, i) => <Card item={it} area={area} eager={i < 4} key={it.id} />)}</div>}
-      {list.next && <><Sentinel onHit={list.loadMore} active={!list.more} />
-        <button onClick={list.loadMore} disabled={list.more} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold">{list.more ? 'Đang tải thêm…' : 'Xem thêm tin'}</button></>}
-    </section>
+
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-7 lg:items-start flex flex-col gap-5">
+      <section className="flex flex-col gap-3 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-xl font-extrabold">Tin mới ở {ward.name}</h2>
+          <button onClick={() => setIntent(intent === 'all' ? 'have' : intent === 'have' ? 'need' : 'all')} className="h-9 px-3 rounded-full border border-line bg-white text-[13px] font-bold shrink-0">{intent === 'all' ? 'Tất cả' : intent === 'have' ? 'Đồ cho' : 'Đang cần'}</button>
+        </div>
+        <div className="flex gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-0.5" role="group" aria-label="Lọc theo hoạt động">
+          {KINDS.map(k => <button key={k} onClick={() => setKind(kind === k ? 'all' : k)} aria-pressed={kind === k}
+            className={'shrink-0 h-9 px-3 rounded-full border flex items-center gap-1.5 text-[13px] font-semibold ' + (kind === k ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-line bg-white')}>
+            <KIcon name={k} className="w-[18px] h-[18px] text-emerald-700" />{kindLabels[k]}</button>)}
+        </div>
+        {list.loading ? <SkGrid /> : !shown.length
+          ? <div className="bg-white border border-line rounded-2xl p-6 text-center">
+              <p className="font-bold">Chưa có tin {kind !== 'all' || intent !== 'all' ? 'phù hợp ' : ''}ở {ward.name}.</p>
+              <p className="text-slate-600 text-sm mt-1">Bạn có đồ còn dùng tốt? Đăng lên để hàng xóm biết nhé.</p>
+              <Link to="/cong-dong/dang-tin" className={btnPrimary + ' inline-flex items-center mt-3'}>Đăng tin đầu tiên</Link>
+            </div>
+          : <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">{shown.map((it, i) => <Card item={it} area={area} eager={i < 4} key={it.id} />)}</div>}
+        {list.next && <><Sentinel onHit={list.loadMore} active={!list.more} />
+          <button onClick={list.loadMore} disabled={list.more} className="self-center min-h-11 px-5 rounded-full border border-line bg-white text-sm font-bold">{list.more ? 'Đang tải thêm…' : 'Xem thêm tin'}</button></>}
+      </section>
+
+      <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
+        {stats && stats.top.length > 0 && <section className="bg-white border border-line rounded-2xl px-4 py-3.5">
+          <h2 className="font-extrabold mb-1">Hàng xóm chia sẻ nhiều nhất 🏅</h2>
+          <ol className="flex flex-col">{stats.top.map((t, i) => <li key={t.id}><Link to={'/profile/' + t.id} className={'flex items-center justify-between gap-2 min-h-11 hover:underline ' + (i ? 'border-t border-[#F1ECDF]' : '')}>
+            <span className="font-semibold">{['🥇', '🥈', '🥉'][i] || (i + 1) + '.'} {t.name}</span><span className="text-sm text-slate-600">{t.n} lần</span></Link></li>)}</ol>
+        </section>}
+        <section className="bg-white border border-line rounded-2xl px-4 py-3.5 flex flex-col gap-2">
+          <h2 className="font-extrabold">Cách hoạt động</h2>
+          {[['1', 'Đăng món muốn cho, đồ cho mượn hoặc việc cần giúp.'], ['2', 'Hàng xóm bấm xin, nhắn tin hẹn chỗ và giờ.'], ['3', 'Trao xong thì gửi lời cảm ơn. Không tiền, không mua bán.']].map(([n, t]) =>
+            <div key={n} className="flex gap-2.5 text-sm"><span className="h-6 w-6 rounded-full bg-emerald-700 text-white text-xs font-extrabold grid place-items-center shrink-0">{n}</span><span>{t}</span></div>)}
+        </section>
+        {near.length > 0 && <section className="bg-white border border-line rounded-2xl px-4 py-3.5">
+          <h2 className="font-extrabold mb-2">Xã/phường lân cận</h2>
+          <div className="flex flex-wrap gap-1.5">{near.map(w => <Link key={w.code} to={wardPath(w)} className="min-h-9 px-3 rounded-full border border-line bg-cream text-[13px] font-semibold flex items-center hover:border-emerald-700">{w.name}</Link>)}</div>
+        </section>}
+      </aside>
+    </div>
     <ShareModal isOpen={sharing} onClose={() => setSharing(false)} url={window.location.origin + wardPath(ward)} title={'Góc chia sẻ ' + ward.name}
       text={'Hàng xóm ' + ward.name + ' ơi! Mình đang cho tặng, cho mượn đồ và giúp nhau miễn phí trên Chợ Của Tui. Vào xem và cùng chia sẻ nhé:'} />
   </div></PullToRefresh>;

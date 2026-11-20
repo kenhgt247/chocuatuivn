@@ -23,17 +23,19 @@ export default async function handler(req, res) {
     }
     const recent = thanks.slice(0, 12);
     // Số liệu cộng đồng (số thật; lỗi thì bỏ qua, giao diện sẽ ẩn)
-    const [dang, xong, thanhVien] = await Promise.all([
+    const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+    const [dang, xong, thanhVien, moiTuan] = await Promise.all([
       countCommunity({ status: 'approved' }).catch(() => 0),
       countCommunity({ status: 'sold' }).catch(() => 0),
       countCollection('publicProfiles').catch(() => 0),
+      countCollection('publicProfiles', { fieldFilter: { field: { fieldPath: 'joinedAt' }, op: 'GREATER_THAN_OR_EQUAL', value: { stringValue: weekAgo } } }).catch(() => 0),
     ]);
     const ids = [...new Set([...top.map(x => x.id), ...recent.map(t => t.giverId).filter(Boolean)])];
     const prof = await getMany(ids.map(id => 'publicProfiles/' + id));
     const p = id => prof['publicProfiles/' + id] || {};
     const out = {
       ok: true, month: m, mode,
-      stats: { dang, xong, thanhVien, camOn: thanks.length >= 200 ? 0 : thanks.length },
+      stats: { dang, xong, thanhVien, moiTuan, camOn: thanks.length >= 200 ? 0 : thanks.length },
       thanks: recent.map(t => ({
         id: t.id, giverId: t.giverId, giverName: clip(p(t.giverId).name || 'Thành viên', 40),
         receiverName: clip(t.receiverName || 'Thành viên', 40), receiverAvatar: clip(t.receiverAvatar, 600) || null,

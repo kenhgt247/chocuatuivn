@@ -75,6 +75,6 @@ export function sampleHonor() {
       { id: 'g6', n: 1, name: 'Anh Khoa', avatar: null, location: 'Lê Chân', sharedCount: 3, sharedByKind: {} },
       { id: 'g7', n: 1, name: 'Chú Phúc', avatar: null, location: 'Dương Kinh', sharedCount: 2, sharedByKind: {} },
     ],
-    stats: { dang: 312, xong: 184, thanhVien: 520, camOn: 96 },
+    stats: { dang: 312, xong: 184, thanhVien: 520, moiTuan: 28, camOn: 96 },
   };
 }

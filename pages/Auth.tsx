@@ -1,127 +1,60 @@
+/** Đăng nhập — gọn: Google một chạm, hoặc email + mật khẩu; có quên mật khẩu. */
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { db } from '../services/db';
+import { useNavigate } from 'react-router-dom';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { auth, db } from '../services/db';
+import { AuthFrame, PasswordField, Spinner, fieldCls } from '../components/AuthUI';
 
 const Auth: React.FC<{ onLogin: (user: any) => void }> = ({ onLogin }) => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
 
-  // Xử lý đăng nhập Email/Pass cũ
-  const handleLogin = async (e: React.FormEvent) => {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!email || !password) return;
-    
-    setError('');
-    setIsLoading(true);
-
+    setError(''); setInfo(''); setBusy(true);
     try {
-      const user = await db.login(email, password);
-      onLogin(user);
+      onLogin(await db.login(email.trim(), password));
       navigate('/');
     } catch (err: any) {
-      console.error("Login error:", err.code, err.message);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-email') {
-        setError("Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.");
-      } else if (err.code === 'auth/too-many-requests') {
-        setError("Tài khoản tạm khóa. Thử lại sau ít phút.");
-      } else {
-        setError("Lỗi hệ thống: " + (err.message || "Vui lòng thử lại."));
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      const c = err?.code || '';
+      if (['auth/user-not-found', 'auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-email'].includes(c)) setError('Email hoặc mật khẩu chưa đúng.');
+      else if (c === 'auth/too-many-requests') setError('Thử sai nhiều lần quá. Chờ ít phút rồi thử lại nhé.');
+      else if (c === 'auth/network-request-failed') setError('Mạng đang yếu, thử lại nhé.');
+      else setError('Chưa đăng nhập được, thử lại nhé.');
+    } finally { setBusy(false); }
+  }
 
-  // --- Xử lý đăng nhập Google (MỚI) ---
-  const handleGoogleLogin = async () => {
-    setError('');
-    setIsLoading(true);
-    try {
-        const user = await db.loginWithGoogle();
-        onLogin(user);
-        navigate('/');
-    } catch (err: any) {
-        console.error("Google login error:", err);
-        setError("Lỗi đăng nhập Google: " + err.message);
-    } finally {
-        setIsLoading(false);
-    }
-  };
+  async function handleGoogle() {
+    setError(''); setInfo(''); setBusy(true);
+    try { onLogin(await db.loginWithGoogle()); navigate('/'); }
+    catch (err: any) {
+      const c = err?.code || '';
+      if (c !== 'auth/popup-closed-by-user' && c !== 'auth/cancelled-popup-request') setError('Chưa đăng nhập Google được' + (c === 'auth/popup-blocked' ? ': trình duyệt chặn cửa sổ, hãy cho phép rồi thử lại.' : ', thử lại nhé.'));
+    } finally { setBusy(false); }
+  }
 
-  return (
-    <div className="max-w-md mx-auto py-10 px-4">
-      <div className="bg-white border border-borderMain rounded-[2.5rem] p-8 shadow-soft space-y-8 animate-fade-in-up">
-        <div className="text-center space-y-2">
-          <img src="/icons/icon-192.png" alt="" className="w-16 h-16 rounded-2xl mx-auto" />
-          <h1 className="text-2xl font-black">Chào mừng trở lại!</h1>
-          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Cộng đồng chia sẻ miễn phí</p>
-        </div>
+  async function forgot() {
+    setError(''); setInfo('');
+    if (!/\S+@\S+\.\S+/.test(email)) return setError('Nhập email của bạn vào ô trên trước, rồi bấm "Quên mật khẩu".');
+    try { await sendPasswordResetEmail(auth, email.trim()); setInfo('Đã gửi thư đặt lại mật khẩu tới ' + email.trim() + '. Xem cả mục Thư rác nhé.'); }
+    catch (_) { setError('Chưa gửi được thư, kiểm tra lại email.'); }
+  }
 
-        {error && (
-          <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl text-xs font-bold animate-pulse">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Email</label>
-            <input 
-              type="email" 
-              placeholder="name@example.com" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 focus:outline-none focus:border-primary font-bold text-sm"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Mật khẩu</label>
-            <input 
-              type="password" 
-              placeholder="••••••••" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-bgMain border border-borderMain rounded-2xl p-4 focus:outline-none focus:border-primary font-bold text-sm"
-              required
-            />
-          </div>
-          <button 
-            type="submit" 
-            disabled={isLoading}
-            className="w-full bg-primary text-white font-black py-4 rounded-2xl hover:bg-primaryHover transition-all shadow-xl shadow-primary/20 active:scale-95 flex items-center justify-center gap-2"
-          >
-            {isLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Đăng nhập ngay'}
-          </button>
-        </form>
-
-        {/* --- PHẦN NÚT GOOGLE (MỚI) --- */}
-        <div className="relative flex py-2 items-center">
-            <div className="flex-grow border-t border-gray-200"></div>
-            <span className="flex-shrink-0 mx-4 text-[10px] text-gray-400 font-bold uppercase">Hoặc</span>
-            <div className="flex-grow border-t border-gray-200"></div>
-        </div>
-
-        <button 
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={isLoading}
-            className="w-full bg-white border-2 border-gray-100 text-gray-700 font-bold py-4 rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center gap-3 active:scale-95"
-        >
-            <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
-            <span>Tiếp tục với Google</span>
-        </button>
-        {/* ----------------------------- */}
-
-        <p className="text-center text-[10px] text-gray-400 font-black uppercase">
-          Chưa có tài khoản? <Link to="/register" className="text-primary hover:underline">Đăng ký tại đây</Link>
-        </p>
-      </div>
-    </div>
-  );
+  return <AuthFrame mode="login" title="Chào bạn quay lại 👋" sub="Đăng nhập để xin đồ, nhắn tin và đăng tin." error={error} busy={busy} onGoogle={handleGoogle}>
+    <form onSubmit={handleLogin} className="flex flex-col gap-3">
+      <input type="email" inputMode="email" autoComplete="email" placeholder="Email" aria-label="Email" value={email} onChange={e => setEmail(e.target.value)} required className={fieldCls} />
+      <PasswordField value={password} onChange={setPassword} autoComplete="current-password" />
+      <button type="button" onClick={forgot} className="self-end text-sm font-semibold text-emerald-700 min-h-9">Quên mật khẩu?</button>
+      {info && <p role="status" className="rounded-2xl bg-emerald-50 text-emerald-800 px-4 py-3 text-sm">{info}</p>}
+      <button type="submit" disabled={busy} className="min-h-[52px] rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white text-base font-extrabold flex items-center justify-center active:scale-[0.98] disabled:opacity-60">
+        {busy ? <Spinner /> : 'Đăng nhập'}</button>
+    </form>
+  </AuthFrame>;
 };
 
 export default Auth;

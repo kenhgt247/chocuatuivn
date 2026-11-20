@@ -133,7 +133,7 @@ const ShellInner: React.FC<{ user: User | null; children: React.ReactNode }> = (
               <Link to="/profile" className="hidden md:block" title="Cá nhân">
                 {user.avatar ? <img src={user.avatar} alt="" className="h-11 w-11 rounded-full object-cover border border-line" /> : <span className="grid place-items-center h-11 w-11 rounded-full bg-emerald-50 text-emerald-800"><Svg name="user" className="w-5 h-5" /></span>}
               </Link>
-            </> : <Link to="/login" className="rounded-xl border border-emerald-700 text-emerald-800 bg-white px-4 h-11 flex items-center text-sm font-bold">Đăng nhập</Link>}
+            </> : pathname === '/login' || pathname === '/register' ? null : <Link to="/login" className="rounded-xl border border-emerald-700 text-emerald-800 bg-white px-4 h-11 flex items-center text-sm font-bold">Đăng nhập</Link>}
           </div>
         </div>
       </header>

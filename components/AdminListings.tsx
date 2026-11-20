@@ -11,6 +11,7 @@ import {
 import { db, firestore } from '../services/db';
 import type { CommunityListing } from '../services/community';
 import { formatTimeAgo, thumbOf, tinPath } from '../utils/format';
+import { clearFeedCache } from '../utils/feed';
 
 type Filter = 'approved' | 'pending' | 'hidden' | 'rejected' | 'all';
 const FILTERS: [Filter, string][] = [['approved', 'Đang hiện'], ['pending', 'Chờ duyệt'], ['hidden', 'Đã ẩn'], ['rejected', 'Bị từ chối'], ['all', 'Tất cả']];
@@ -28,14 +29,14 @@ const timeOf = (v: any): string => { try { return v ? formatTimeAgo(v?.toDate ? 
 
 /** Ẩn tin (kèm lý do gửi cho người đăng). Dùng chung cho trang quản trị và trang tin. */
 export async function adminHide(l: Pick<CommunityListing, 'id' | 'title' | 'sellerId'>, reason: string) {
-  await updateDoc(doc(firestore, 'listings', l.id), { status: 'hidden', adminNote: reason.slice(0, 200), hiddenByAdmin: true });
+  await updateDoc(doc(firestore, 'listings', l.id), { status: 'hidden', adminNote: reason.slice(0, 200), hiddenByAdmin: true }); clearFeedCache();
   await db.sendNotification({ userId: l.sellerId, title: 'Tin đã bị ẩn', message: '"' + l.title + '": ' + reason + '. Nếu nhầm, bạn nhắn quản trị nhé.', type: 'error', link: '/profile' }).catch(() => {});
 }
 export async function adminShow(id: string) {
-  await updateDoc(doc(firestore, 'listings', id), { status: 'approved', hiddenByAdmin: false });
+  await updateDoc(doc(firestore, 'listings', id), { status: 'approved', hiddenByAdmin: false }); clearFeedCache();
 }
 export async function adminDelete(l: Pick<CommunityListing, 'id' | 'title' | 'sellerId'>, reason: string) {
-  await deleteDoc(doc(firestore, 'listings', l.id));
+  await deleteDoc(doc(firestore, 'listings', l.id)); clearFeedCache();
   await db.sendNotification({ userId: l.sellerId, title: 'Tin đã bị xoá', message: '"' + l.title + '"' + (reason ? ': ' + reason : '') + '.', type: 'error', link: '/profile' }).catch(() => {});
 }
 

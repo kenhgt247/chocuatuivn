@@ -67,3 +67,10 @@ export async function loadPage(s: Scope, truoc?: string | null, fresh = false): 
 export function rememberScope(s: Scope) {
   try { localStorage.setItem('ccut-feed-scope', feedUrl({ xa: s.xa, tinh: s.tinh, nhieu: s.nhieu })); } catch (_) { /* bỏ qua */ }
 }
+
+/** Xoá danh sách tin đã lưu trên máy (sau khi mình đăng, sửa, ẩn hoặc xoá tin) để lần xem sau tải bản mới. */
+export function clearFeedCache() {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith(CACHE)) localStorage.removeItem(k); }
+  } catch (_) { /* bỏ qua */ }
+}

@@ -7,7 +7,7 @@
 //   &q=xe dap                 : tìm theo chữ
 //   &truoc=<createdAt>        : trang tiếp theo
 //   &nhieu=1                  : lấy nhiều tin một lần (tối đa 120, để xếp theo khoảng cách)
-//   &xong=1                   : tin đã trao xong (dải "Vừa trao xong")
+//   &xong=1                   : tin đã xong trong 7 ngày qua (có giờ hoàn thành), mới xong trước
 import { listCommunity } from './_firestore.js';
 
 const KINDS = ['gift', 'borrow', 'help', 'repair'];
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   const truoc = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(one(q.truoc) || '') ? one(q.truoc) : null;
   const words = plain(one(q.q)).split(' ').filter(w => w.length >= 2).slice(0, 5);
   const xong = one(q.xong) === '1';
-  const size = xong ? 12 : one(q.nhieu) === '1' && !words.length ? 120 : words.length ? 40 : 24;
+  const size = xong ? 80 : one(q.nhieu) === '1' && !words.length ? 120 : words.length ? 40 : 24;
 
   let rows = [], ok = true;
   try {
@@ -36,8 +36,12 @@ export default async function handler(req, res) {
   } catch (_) { ok = false; }
 
   const next = !xong && rows.length >= size ? String(rows[rows.length - 1].createdAt || '') || null : null;
+  const since = new Date(Date.now() - 7 * 864e5).toISOString();
   const items = rows
     .filter(l => l.price === 0 && KINDS.includes(l.communityKind))
+    .filter(l => !xong || String(l.doneAt || '') >= since)
+    .sort((a, b) => xong ? String(b.doneAt || '').localeCompare(String(a.doneAt || '')) : 0)
+    .slice(0, xong ? 24 : undefined)
     .filter(l => !words.length || words.every(w => plain([l.title, l.description, l.location].join(' ')).includes(w)))
     .map(l => ({
       id: l.id,
@@ -51,6 +55,7 @@ export default async function handler(req, res) {
       provinceCode: l.provinceCode || null,
       lat: round2(l.lat), lng: round2(l.lng),
       thumb: (Array.isArray(l.thumbs) && l.thumbs[0]) || (Array.isArray(l.images) && l.images[0]) || null,
+      ...(xong ? { doneAt: l.doneAt || null } : {}),
     }));
 
   res.setHeader('content-type', 'application/json; charset=utf-8');

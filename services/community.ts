@@ -24,6 +24,7 @@ export interface CommunityListing extends Listing {
   quantity?: number | null;
   provinceCode?: string | null;
   areaCode?: string | null;
+  doneAt?: string | null;
 }
 export interface CommunityRequest {
   id: string;
@@ -198,6 +199,13 @@ export const community = {
       .map(x => ({ ...x.data(), id: x.id } as CommunityListing))
       .filter(x => checkKind(x.communityKind) && x.isCommunityFree === true)
       .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  },
+  /** Lời cảm ơn gắn với một tin (người nhận đã tự chọn công khai khi gửi). */
+  async thanksForListing(listingId: string): Promise<ThankNote | null> {
+    try {
+      const snap = await getDocs(query(collection(firestore, 'thanks'), where('listingId', '==', listingId), limit(1)));
+      return snap.empty ? null : ({ ...snap.docs[0].data(), id: snap.docs[0].id } as ThankNote);
+    } catch (_) { return null; }
   },
   /** Tin gần đây của chính mình (mọi trạng thái) cho khung "Tin của bạn" ở trang chủ. */
   async mineRecent(uid: string, days = 14): Promise<CommunityListing[]> {

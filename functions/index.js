@@ -6,7 +6,8 @@
  *  3. diemUyTin      : yêu cầu được cả hai bên xác nhận xong -> cộng 1 lần "đã chia sẻ" cho người trao.
  *  4. kiemDuyetTin   : tin mới -> máy tự kiểm tra chữ + ảnh; ổn thì cho hiện ngay, có vấn đề thì từ chối/giữ lại.
  *  5. baoCaoTin      : tin bị từ 3 người báo cáo -> tự ẩn chờ xem lại.
- *  6. moiTin         : tin thêm/xoá/đổi trạng thái -> đổi số phiên system/feed để web bỏ bộ nhớ đệm cũ ngay.
+ *  6. moiTin         : tin thêm/xoá/đổi trạng thái -> đổi số phiên system/feed để web bỏ bộ nhớ đệm cũ ngay;
+ *                     tin vừa xong -> ghi giờ hoàn thành (doneAt).
  */
 const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
@@ -258,12 +259,17 @@ Object.assign(exports, require("./web.js"));
 // ---------------------------------------------------------------- 6. Làm mới bộ nhớ đệm
 // Web (Cloudflare) lưu đệm danh sách tin theo số phiên system/feed.v. Tin thay đổi -> tăng số phiên
 // -> lần tải sau đọc danh sách mới ngay (không phải đợi hết hạn lưu đệm).
-const FEED_FIELDS = ['status', 'title', 'images', 'thumbs', 'location', 'areaCode', 'provinceCode', 'lat', 'lng', 'communityKind', 'communityIntent', 'description', 'isCommunityFree'];
+const FEED_FIELDS = ['status', 'doneAt', 'title', 'images', 'thumbs', 'location', 'areaCode', 'provinceCode', 'lat', 'lng', 'communityKind', 'communityIntent', 'description', 'isCommunityFree'];
 exports.moiTin = onDocumentWritten('listings/{id}', async (event) => {
   const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
   const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
   const x = after || before;
   if (!x || x.isCommunityFree !== true) return;
+  // Tin vừa xong (đã trao / đã được giúp): máy chủ ghi giờ hoàn thành (người dùng không tự sửa được).
+  // Trang chủ còn hiện tin này 7 ngày với nhãn "Đã trao".
+  if (after && after.status === 'sold' && (!before || before.status !== 'sold') && !after.doneAt) {
+    await event.data.after.ref.update({ doneAt: new Date().toISOString() }).catch(() => {});
+  }
   if (before && after && FEED_FIELDS.every(k => JSON.stringify(before[k]) === JSON.stringify(after[k]))) return;
   await db.doc('system/feed').set({ v: Date.now() }, { merge: true });
 });

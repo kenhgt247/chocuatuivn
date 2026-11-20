@@ -21,6 +21,8 @@ export interface CommunityListing extends Listing {
   pickupTimes?: string;
   pickupNote?: string;
   quantity?: number | null;
+  provinceCode?: string | null;
+  areaCode?: string | null;
 }
 export interface CommunityRequest {
   id: string;

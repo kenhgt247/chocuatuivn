@@ -4,6 +4,7 @@
  * Trang quản trị rao vặt cũ được lưu ở nhánh luu-tru-rao-vat-2026-11.
  */
 import React, { useEffect, useState } from 'react';
+import { lazyRetry } from '../utils/lazy';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   collection, doc, getDocs, getCountFromServer, limit, orderBy, query, updateDoc, where
@@ -12,8 +13,8 @@ import { db, firestore } from '../services/db';
 import { safetyNotes, type CommunityListing } from '../services/community';
 import { KIcon, KIND_META, IntentBadge, SafetyBox } from '../components/CommunityUI';
 import { formatTimeAgo, tinPath } from '../utils/format';
-const AdminStats = React.lazy(() => import('../components/AdminStats'));
-const AdminListings = React.lazy(() => import('../components/AdminListings'));
+const AdminStats = lazyRetry(() => import('../components/AdminStats'));
+const AdminListings = lazyRetry(() => import('../components/AdminListings'));
 import type { Report, User } from '../types';
 
 type Tab = 'duyet' | 'tatca' | 'baocao' | 'solieu' | 'thanhvien' | 'congcu';

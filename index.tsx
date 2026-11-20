@@ -2,6 +2,10 @@ import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { reloadOnce } from './utils/lazy';
+
+// Tệp JS cũ không còn (web vừa cập nhật): tự tải lại trang một lần thay vì để trang trắng
+window.addEventListener('vite:preloadError', (e) => { e.preventDefault(); reloadOnce(); });
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

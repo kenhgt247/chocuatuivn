@@ -27,7 +27,7 @@ import type { User, PublicProfile } from '../types';
 const CommunityMap = lazyRetry(() => import('../components/CommunityMap'));
 const MiniMap = lazyRetry(() => import('../components/MiniMap'));
 import { useHonor, HonorCircles, ThanksBox, StatsBox } from '../components/HonorStrip';
-import { FeedCard, HeroScene, CommunityBanner } from '../components/HomeParts';
+import { FeedCard, CommunityBanner } from '../components/HomeParts';
 async function findBannedWord(text: string): Promise<string | null> {
   try {
     const { default: list } = await import('../functions/tu-cam.json');
@@ -335,9 +335,10 @@ function Home({ user }: { user: User | null }) {
       </div>
       {/* Máy tính: khung đầu trang có hình xóm nhỏ, rồi 2 nút lớn, 4 ô */}
       <div className="hidden lg:flex flex-col gap-4">
-        <section className="relative min-h-[200px] rounded-3xl overflow-hidden bg-gradient-to-r from-[#FBF3E4] to-[#F2EBD9]">
-          <HeroScene className="absolute inset-0 w-full h-full" />
-          <div className="relative px-8 py-5 max-w-[470px] flex flex-col gap-2.5">
+        <section className="relative min-h-[210px] rounded-3xl overflow-hidden bg-gradient-to-r from-[#FBF3E4] via-[#F6EEDC] to-[#E6F1E5]">
+          {/* Hình xóm nhỏ nằm nửa phải; chữ nằm nửa trái, không chồng lên nhau */}
+          <img src="/xom-chia-se.svg" alt="" aria-hidden="true" width={848} height={500} className="absolute right-0 bottom-0 h-full w-auto max-w-[52%] object-contain object-right-bottom pointer-events-none select-none" />
+          <div className="relative px-8 py-5 max-w-[min(420px,50%)] flex flex-col gap-2.5">
             <h1 className="text-[30px] font-extrabold leading-[1.15] text-[#123524]">Có gì chia sẻ,<br />cần gì có nhau.</h1>
             <p className="text-[15px] text-[#3B4A40]">Nơi hàng xóm cùng cho tặng, cho mượn và giúp đỡ nhau. Hoàn toàn miễn phí.</p>
             {searchBox}
@@ -398,8 +399,6 @@ function Home({ user }: { user: User | null }) {
     </div>
     {/* Cột phải (máy tính) */}
     <aside className="hidden lg:flex flex-col gap-4">
-      <Link to="/cong-dong/dang-tin" className="h-[60px] rounded-[20px] bg-emerald-700 hover:bg-emerald-800 text-white text-xl font-extrabold flex items-center justify-center gap-3">
-        <span className="h-9 w-9 rounded-full bg-white text-emerald-700 grid place-items-center"><KIcon name="plus" className="w-5 h-5" strokeWidth={2.6} /></span>Đăng tin</Link>
       {mineBox}
       {nearBox}
       <StatsBox d={honor} />

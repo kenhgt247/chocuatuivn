@@ -20,14 +20,14 @@ export function HeroScene({ className = '' }: { className?: string }) {
   </svg>;
 }
 
-/** Băng rôn "Cùng nhau xây dựng…". */
+/** Băng rôn "Cùng nhau xây dựng…": chữ ở trên, hình xóm nhỏ ở dưới (không chồng nhau). */
 export function CommunityBanner({ tall = false }: { tall?: boolean }) {
-  return <section className={'relative overflow-hidden rounded-2xl bg-gradient-to-b from-[#E3EEE6] to-[#CFE5D3] ' + (tall ? 'h-[210px]' : 'h-[118px]')}>
-    <HeroScene className="absolute inset-0 w-full h-full" />
-    <div className="relative px-5 py-4 flex flex-col gap-2">
+  return <section className="overflow-hidden rounded-2xl bg-gradient-to-b from-[#FBF3E4] to-[#E6F1E5] flex flex-col">
+    <div className={'px-5 pt-4 flex flex-col gap-1.5 ' + (tall ? '' : '')}>
       {tall && <KIcon name="gift" className="w-7 h-7 text-emerald-700" />}
-      <p className="font-extrabold text-[17px] leading-snug text-[#123524]">Cùng nhau xây dựng<br />một cộng đồng sẻ chia,<br />ấm áp hơn!</p>
+      <p className="font-extrabold text-[17px] leading-snug text-[#123524]">Cùng nhau xây dựng<br />một cộng đồng sẻ chia, ấm áp hơn!</p>
     </div>
+    <img src="/xom-chia-se.svg" alt="" aria-hidden="true" width={848} height={500} loading="lazy" className="w-full h-auto -mt-2 pointer-events-none select-none" />
   </section>;
 }
 

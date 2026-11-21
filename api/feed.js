@@ -8,7 +8,7 @@
 //   &truoc=<createdAt>        : trang tiếp theo
 //   &nhieu=1                  : lấy nhiều tin một lần (tối đa 120, để xếp theo khoảng cách)
 //   &xong=1                   : tin đã xong trong 7 ngày qua (có giờ hoàn thành), mới xong trước
-import { listCommunity } from './_firestore.js';
+import { queryDocs, listCommunity } from './_firestore.js';
 
 const KINDS = ['gift', 'borrow', 'help', 'repair'];
 const round2 = v => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 100) / 100 : null);
@@ -34,6 +34,26 @@ export default async function handler(req, res) {
       before: truoc, max: size, status: xong ? 'sold' : 'approved',
     });
   } catch (_) { ok = false; }
+
+  // "Vừa trao xong": thêm các lần hoàn thành của tin vẫn mở (cho mượn, giúp, sửa), mỗi tin một thẻ, lấy lần mới nhất
+  if (xong && ok && !words.length) {
+    try {
+      const since7 = new Date(Date.now() - 7 * 864e5).toISOString();
+      const done = await queryDocs({
+        from: [{ collectionId: 'traoXong' }],
+        where: { fieldFilter: { field: { fieldPath: 'doneAt' }, op: 'GREATER_THAN_OR_EQUAL', value: { stringValue: since7 } } },
+        orderBy: [{ field: { fieldPath: 'doneAt' }, direction: 'DESCENDING' }], limit: 150,
+      });
+      const byId = new Map(rows.map(l => [l.id, l]));
+      for (const d of done) {
+        if (xa ? d.areaCode !== xa : tinh ? d.provinceCode !== tinh : false) continue;
+        const id = d.listingId || d.id, old = byId.get(id);
+        if (old) { if (String(d.doneAt) > String(old.doneAt || '')) old.doneAt = d.doneAt; continue; }
+        const row = { ...d, id, price: 0, thumbs: d.thumb ? [d.thumb] : [] };
+        byId.set(id, row); rows.push(row);
+      }
+    } catch (_) { /* thiếu bảng/chỉ mục: vẫn trả các tin đã đóng */ }
+  }
 
   const next = !xong && rows.length >= size ? String(rows[rows.length - 1].createdAt || '') || null : null;
   const since = new Date(Date.now() - 7 * 864e5).toISOString();

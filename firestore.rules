@@ -290,6 +290,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // "Vừa trao xong": máy chủ ghi, ai cũng đọc được (không có tên người nhận)
+    match /traoXong/{listingId} {
+      allow read: if true;
+      allow write: if false;
+    }
     match /system/{document=**} {
       allow read: if true;
       allow write: if isAdmin();

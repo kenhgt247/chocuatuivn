@@ -104,6 +104,23 @@ exports.diemUyTin = onDocumentUpdated('communityRequests/{id}', async (event) =>
   const kind = ['gift', 'borrow', 'help', 'repair'].includes(after.kind) ? after.kind : 'gift';
   await db.collection('publicProfiles').doc(giverId).set({ sharedCount: inc, sharedByKind: { [kind]: inc } }, { merge: true });
   await db.collection('publicProfiles').doc(receiverId).set({ receivedCount: inc }, { merge: true });
+  // Ghi "vừa trao xong" (mọi loại: cho tặng, cho mượn, giúp, sửa). Mỗi tin một dòng, lần mới ghi đè lần cũ.
+  // Chỉ thông tin của tin, KHÔNG có tên người nhận. Trang chủ hiện 7 ngày ở mục "✓ Vừa trao xong".
+  try {
+    const l = (await db.collection('listings').doc(after.listingId).get()).data();
+    if (l && l.isCommunityFree === true && ['approved', 'sold'].includes(l.status)) {
+      await db.collection('traoXong').doc(after.listingId).set({
+        listingId: after.listingId,
+        title: String(l.title || '').slice(0, 120),
+        location: String(l.location || '').slice(0, 120),
+        communityKind: kind, communityIntent: l.communityIntent === 'need' ? 'need' : 'have',
+        areaCode: l.areaCode || null, provinceCode: l.provinceCode || null,
+        thumb: (Array.isArray(l.thumbs) && l.thumbs[0]) || (Array.isArray(l.images) && l.images[0]) || null,
+        doneAt: new Date().toISOString(),
+      });
+      await db.doc('system/feed').set({ v: Date.now() }, { merge: true });
+    }
+  } catch (e) { logger.warn('Chưa ghi được traoXong', e); }
 });
 
 // ---------------------------------------------------------------- 4. Tự kiểm duyệt tin mới
@@ -275,6 +292,10 @@ exports.moiTin = onDocumentWritten('listings/{id}', async (event) => {
   // Trang chủ còn hiện tin này 7 ngày với nhãn "Đã trao".
   if (after && after.status === 'sold' && (!before || before.status !== 'sold') && !after.doneAt) {
     await event.data.after.ref.update({ doneAt: new Date().toISOString() }).catch(() => {});
+  }
+  // Tin bị xoá / ẩn / bị gỡ: bỏ khỏi mục "Vừa trao xong"
+  if (!after || !['approved', 'sold'].includes(after.status)) {
+    await db.collection('traoXong').doc(event.params.id).delete().catch(() => {});
   }
   if (before && after && FEED_FIELDS.every(k => JSON.stringify(before[k]) === JSON.stringify(after[k]))) return;
   await db.doc('system/feed').set({ v: Date.now() }, { merge: true });

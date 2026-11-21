@@ -72,7 +72,7 @@ function metaLine(item: CommunityListing, area: string) {
 
 /* ---------------- Thẻ tin ---------------- */
 /** Nhãn cho tin đã xong, theo loại việc. */
-export const doneLabel = (kind?: string, intent?: string) => intent === 'need' ? 'Đã có người giúp' : kind === 'gift' ? 'Đã trao' : kind === 'borrow' ? 'Đã cho mượn' : 'Đã giúp xong';
+export const doneLabel = (kind?: string, intent?: string) => intent === 'need' ? 'Đã có người giúp' : kind === 'gift' ? 'Đã trao' : kind === 'borrow' ? 'Đã cho mượn' : kind === 'repair' ? 'Đã sửa xong' : 'Đã giúp xong';
 function Card({ item, area = '', eager = false, extra = '' }: { item: CommunityListing; area?: string; eager?: boolean; extra?: string; key?: React.Key }) {
   const kind = (item.communityKind || 'gift') as CommunityKind;
   const img = thumbOf(item);
